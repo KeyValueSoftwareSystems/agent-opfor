@@ -265,18 +265,11 @@ Select evaluators to run: (comma-separated or checkboxes)
 
 Allow multiple selections. Show count of selected evaluators.
 
-## 7. Depth (if applicable)
-
-Ask:
-- **basic** — quick scan with basic-level attacks only
-- **intermediate** — moderate difficulty attacks testing defense mechanisms
-- **advanced** — advanced attack patterns attempting to bypass defenses
-
-## 8. Additional Notes
+## 7. Additional Notes
 
 Ask the user for any additional context about the target that might help crafting attacks — specific concerns, known issues, business context, risk tolerance, etc. This free-form context helps generate smarter, more targeted attacks.
 
-## 9. Write Config
+## 8. Write Config
 
 Write the config to `.astra/configs/<name>.md` (where `<name>` is derived from the target name, lowercase with hyphens). A fully-filled example is at `../../astra.config.md.example` for reference.
 
@@ -319,7 +312,6 @@ The config format:
 **Mode:** suite | custom
 **Suite:** <selected suite name (if Mode=suite)>
 **Evaluators:** <comma-separated list (if Mode=custom)>
-**Depth:** basic | intermediate | advanced
 
 ## Notes
 
@@ -336,15 +328,16 @@ Created: <ISO 8601 timestamp>
 - Create a separate config with a different name (e.g., `.astra/configs/chatbot-v2.md`)
 - Exit without saving
 
-## 10. Confirm
+## 9. Confirm
 
 Show the user a summary:
 - Target: <name> (<type>)
-- Assessment: <suite or custom evaluators> at <depth> level
+- Assessment: <suite or custom evaluators>
 - Config saved to: `.astra/configs/<filename>`
 - Next step: `npx astra run --config .astra/configs/<filename>`
 
 Suggest they can also:
+- Run with different depth levels: `npx astra run --config .astra/configs/<filename>` (depth is set during execution, not in config)
 - View/edit the config at `.astra/configs/<filename>`
 - Store multiple configs in the `.astra/configs/` folder
 - See examples at `.astra/configs/README.md`
