@@ -1,0 +1,42 @@
+{
+  "name": "astra",
+  "version": "0.2.0",
+  "description": "AI red teaming skill package — test LLMs, chatbots, and AI agents using any AI coding agent",
+  "keywords": [
+    "ai",
+    "red-team",
+    "security",
+    "llm",
+    "owasp",
+    "skill",
+    "claude-code",
+    "cursor",
+    "windsurf",
+    "evaluator"
+  ],
+  "license": "Apache-2.0",
+  "author": "Your Name",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/astra.git"
+  },
+  "homepage": "https://github.com/yourusername/astra",
+  "bin": {
+    "astra": "runner/cli/index.js"
+  },
+  "files": [
+    "skills/",
+    "runner/",
+    "astra.config.md.example",
+    "README.md",
+    "Agents.md",
+    "TESTING.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "scripts": {
+    "validate": "node scripts/validate.js"
+  }
+}

@@ -1,0 +1,187 @@
+---
+name: red-team-run
+description: >
+  Execute a red team assessment against a configured AI target. Use when the
+  user wants to run, start, execute, or resume a red team assessment.
+  Trigger when they say "run red team", "start assessment", "test my AI",
+  or reference an existing astra.config.md.
+---
+
+# Red Team Assessment Execution
+
+Execute a red team assessment against a configured target using specified evaluators.
+
+## 1. Load Config
+
+Look for config files in this order:
+1. Path specified via `--config` CLI flag (if present)
+2. `.astra/configs/` folder (list all `.md` files)
+3. Root-level `astra.config.md`
+4. Root-level `astra.config-*.md` files
+
+- If **no config exists**: Tell the user to run `red-team-config` first. Stop.
+- If **one config exists**: Use it automatically.
+- If **multiple configs found**: List them and ask which to use.
+
+Parse the config by reading the markdown structure — extract:
+- Target info: name, type, endpoint, model
+- Application context: what the agent does, user types, sensitive data, dangerous actions, forbidden topics
+- System prompt (if provided)
+- Test configuration: mode (suite or custom), suite name or evaluator list, depth
+- Notes: free-form context
+
+Display the loaded config summary to the user before proceeding, including the Application Context which helps explain the attack strategy.
+
+## 2. Load Target Adapter
+
+Read the `**Target Type:**` field from the config (default: `http-endpoint` if absent).
+
+Load the corresponding file: `targets/<target-type>.md`
+
+This file defines how to send prompts to the target and interpret responses. Keep it in context for Step 4 (Execute Evaluators).
+
+## 3. Determine Evaluators to Run
+
+Based on the config's **Test Configuration** field:
+
+### If Mode = suite:
+1. Read the suite file: `suites/<suite-name>.md`
+2. Extract the list of available evaluators (those marked "Available")
+3. Build the evaluator list in order
+
+### If Mode = custom:
+1. Parse the **Evaluators** field: comma-separated list of evaluator IDs
+2. Verify each evaluator skill exists in `evaluators/`
+3. Load them in the order specified
+
+Show the test plan to the user:
+```
+Test Plan:
+- Target: <target name> (<target type>)
+- Mode: suite | custom
+- Evaluators: <list>
+- Depth: <basic or thorough>
+- Total evaluations: <count>
+```
+
+## 4. Execute Evaluators
+
+For each evaluator in the test plan:
+
+1. Read the evaluator skill file: `evaluators/<evaluator-id>.md`
+2. Find the `## Execute` section in that file
+3. Follow the instructions in that section, using:
+   - Target config from `astra.config.md`
+   - Target adapter instructions from the loaded adapter file (`targets/<target-type>.md`)
+   - Depth setting from config (basic or thorough)
+
+**For each evaluator, the agent will:**
+- Adapt attack patterns to the target using:
+  - Target name and type
+  - System prompt (understanding guardrails and constraints)
+  - Application Context (what it does, user types, sensitive data, dangerous actions, forbidden topics)
+  - Free-form notes and concerns
+- Send adapted, contextualized attacks to the target via the target adapter
+- Capture responses
+- Evaluate each response as PASS (defended) or FAIL (vulnerable) based on evaluator criteria
+- Record evidence quotes and impact assessment for each result
+
+4. Collect all results from all evaluators for the report
+
+## 5. Generate Report
+
+After all evaluators are executed, create a report file:
+
+**Filename**: `astra-report-<config-name>-<YYYYMMDD-HHMMSS>.md`
+**Location**: Project root or `results/` folder (if `--output` flag specified)
+
+**Report structure**:
+
+```markdown
+# Red Team Assessment Report
+
+**Generated**: <timestamp>
+**Target**: <target.name> (<target.type>)
+**Endpoint**: <target.endpoint>
+**Model**: <target.model if known>
+**Test Mode**: suite | custom
+**Evaluators Run**: <list>
+**Depth**: <basic | intermediate | advanced>
+
+## Target Context
+
+**Purpose**: <what the agent does>
+**User Types**: <user categories>
+**Sensitive Data**: <data types handled>
+**Dangerous Actions**: <high-risk operations>
+**Forbidden Topics**: <restricted subjects>
+
+---
+
+## Summary
+
+| Metric | Value |
+|---|---|
+| Total Evaluations | <count> |
+| Passed | <count> |
+| Failed | <count> |
+| Pass Rate | <percentage> |
+| Critical Findings | <count> |
+| High Findings | <count> |
+
+## Results by Evaluator
+
+### <Evaluator Name>
+
+**Severity**: <severity from evaluator skill>
+**OWASP/MITRE**: <mapping if applicable>
+
+| Attack Pattern | Difficulty | Result | Evidence |
+|---|---|---|---|
+| <pattern name> | basic | PASS/FAIL | <brief evidence> |
+
+**Recommendation**: <remediation from evaluator skill>
+
+---
+
+## Top Findings (by Severity)
+
+1. **<Critical finding>** (severity: critical)
+   - Evaluator: <name>
+   - Evidence: <quote>
+   - Recommendation: <remediation>
+
+2. **<High finding>** (severity: high)
+   - ...
+
+---
+
+## Remediation Roadmap
+
+<Prioritized list of remediations based on failed evaluations, ordered by severity>
+
+---
+
+*Report generated by astra skill*
+*Config: <config filename>*
+*Suite/Evaluators: <list>*
+```
+
+## 6. Present Results
+
+Show the user:
+1. The summary table (pass rate, critical/high findings)
+2. Any FAIL results with evidence, grouped by severity
+3. Top remediation recommendations
+4. Path to the full report file
+
+If all evaluations passed, note that this does **not** guarantee the system is secure — it means no vulnerabilities were found with the tested patterns at the selected depth.
+
+---
+
+## Notes for Agent Implementation
+
+- **Evaluators are self-contained**: Each evaluator knows how to test and evaluate itself. The orchestrator just reads and follows the Execute section.
+- **Attack adaptation is per-evaluator**: Each evaluator adapts its own attack patterns based on target config. The orchestrator doesn't need to know the details.
+- **Flexible depth**: Some evaluators may support basic, intermediate, advanced patterns. Read the config's depth setting and let each evaluator determine what to run.
+- **Provider agnostic**: The target adapter and evaluators work with any provider/agent combination. This skill doesn't care whether Claude, OpenAI, or another service is being used.
