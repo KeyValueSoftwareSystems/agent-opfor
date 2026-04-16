@@ -170,19 +170,100 @@ Ask the user if they can share the target's system prompt. This is optional but 
 
 ## 6. Assessment Scope: Suite or Custom Evaluators
 
-Ask the user how they want to define what to test:
+### Step 1: Discover Available Suites
 
-### Option A: Use a Suite
+**Before asking the user anything**, scan `../red-team-run/suites/` for all `.md` files:
 
-Discover available suites by scanning `../red-team-run/suites/` for `.md` files and reading the `name` frontmatter from each. Present them with descriptions.
+For each file, read the frontmatter to extract:
+- `name` — the suite name (e.g., "owasp-llm-top10")
+- `description` — what it covers
 
-If user chooses a suite, confirm which evaluators it covers.
+Example suites found:
+```
+📋 owasp-llm-top10
+   OWASP Top 10 for LLM Applications (2025)
+   Tests: prompt injection, sensitive disclosure, supply chain vulnerabilities, etc.
 
-### Option B: Custom Evaluator Selection
+📋 owasp-agentic-ai
+   OWASP Agentic AI Top 10 (2024)
+   Tests: goal hijacking, tool misuse, identity abuse, cascading failures, etc.
+```
 
-Discover available evaluators by scanning `../red-team-run/evaluators/` for `.md` files and reading the `name`, `severity`, and `description` frontmatter from each. Present them grouped by severity.
+### Step 2: Discover Available Evaluators
 
-Ask user to select which evaluators to run. Multiple selections allowed.
+**Also scan** `../red-team-run/evaluators/` for all `.md` files:
+
+For each file, read the frontmatter to extract:
+- `id` — evaluator ID (e.g., "prompt-injection")
+- `name` — display name (e.g., "Prompt Injection")
+- `severity` — critical, high, medium, low
+- `description` — what it tests
+
+Group by severity for display.
+
+### Step 3: Ask User to Choose
+
+Present EXACTLY TWO options (no "Other", no custom suite names):
+
+```
+How would you like to define what to test?
+
+A) Use a predefined suite (faster, standard coverage)
+   1. owasp-llm-top10 — OWASP Top 10 for LLM Applications
+   2. owasp-agentic-ai — OWASP Agentic AI Top 10
+
+B) Custom selection (pick specific evaluators)
+```
+
+**IMPORTANT:** 
+- Only present suites that actually exist in `../red-team-run/suites/`
+- Do NOT allow free-form suite names
+- If user chooses A, ask them to select from the discovered suites
+- If user chooses B, present discovered evaluators grouped by severity
+
+### If User Chooses Option A: Suite
+
+Ask:
+```
+Which suite would you like to run?
+1. owasp-llm-top10
+2. owasp-agentic-ai
+```
+
+After they choose, show which evaluators will run:
+```
+✓ You selected: owasp-llm-top10
+
+This will run these 10 evaluators:
+- Prompt Injection (critical)
+- Sensitive Information Disclosure (critical)
+- System Prompt Leakage (critical)
+- ... (7 more)
+```
+
+### If User Chooses Option B: Custom Evaluators
+
+Present evaluators grouped by severity (discovered from `../red-team-run/evaluators/`):
+
+```
+CRITICAL (5 found):
+  ☐ Prompt Injection
+  ☐ Sensitive Information Disclosure
+  ☐ System Prompt Leakage
+  ☐ Agent Goal Hijacking
+  ☐ Tool Misuse and Exploitation
+
+HIGH (10 found):
+  ☐ Excessive Agency
+  ☐ Data and Model Poisoning
+  ☐ ... (8 more)
+
+MEDIUM/LOW: ...
+
+Select evaluators to run: (comma-separated or checkboxes)
+```
+
+Allow multiple selections. Show count of selected evaluators.
 
 ## 7. Depth (if applicable)
 
