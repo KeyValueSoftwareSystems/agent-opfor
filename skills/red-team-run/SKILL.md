@@ -11,6 +11,13 @@ description: >
 
 Execute a red team assessment against a configured target using specified evaluators.
 
+**Note:** This skill includes supporting files in its directory:
+- `./targets/` — target adapters (http-endpoint, custom-function)
+- `./suites/` — evaluator suites (owasp-llm-top10, owasp-agentic-ai)
+- `./evaluators/` — 20 evaluators (prompt-injection, jailbreaking, etc.)
+
+All paths below are relative to this skill's directory (`skills/red-team-run/`).
+
 ## 1. Load Config
 
 Look for config files in this order:
@@ -36,7 +43,9 @@ Display the loaded config summary to the user before proceeding, including the A
 
 Read the `**Target Type:**` field from the config (default: `http-endpoint` if absent).
 
-Load the corresponding file: `targets/<target-type>.md`
+Load the corresponding file from **this skill's directory**: `./targets/<target-type>.md`
+
+Example: If target type is `http-endpoint`, load `./targets/http-endpoint.md`
 
 This file defines how to send prompts to the target and interpret responses. Keep it in context for Step 4 (Execute Evaluators).
 
@@ -45,13 +54,15 @@ This file defines how to send prompts to the target and interpret responses. Kee
 Based on the config's **Test Configuration** field:
 
 ### If Mode = suite:
-1. Read the suite file: `suites/<suite-name>.md`
+1. Read the suite file from **this skill's directory**: `./suites/<suite-name>.md`
+   - Example: `./suites/owasp-llm-top10.md`
 2. Extract the list of available evaluators (those marked "Available")
 3. Build the evaluator list in order
 
 ### If Mode = custom:
 1. Parse the **Evaluators** field: comma-separated list of evaluator IDs
-2. Verify each evaluator skill exists in `evaluators/`
+2. Verify each evaluator skill exists in **this skill's directory**: `./evaluators/<evaluator-id>.md`
+   - Example: `./evaluators/prompt-injection.md`, `./evaluators/jailbreaking.md`
 3. Load them in the order specified
 
 Show the test plan to the user:
@@ -68,7 +79,8 @@ Test Plan:
 
 For each evaluator in the test plan:
 
-1. Read the evaluator skill file: `evaluators/<evaluator-id>.md`
+1. Read the evaluator skill file from **this skill's directory**: `./evaluators/<evaluator-id>.md`
+   - Example: `./evaluators/prompt-injection.md`
 2. Find the `## Execute` section in that file
 3. Follow the instructions in that section, using:
    - Target config from `astra.config.md`
