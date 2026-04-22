@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import { writeFile } from "node:fs/promises";
-import type { SetupConfigFile } from "../config/types.js";
+import type { SetupConfigFile } from "@astra/core/config/types";
 
 const SAMPLE_CONFIG: SetupConfigFile = {
   llm: {

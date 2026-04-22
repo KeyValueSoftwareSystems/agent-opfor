@@ -4,14 +4,14 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { input, select, checkbox, password, confirm } from "@inquirer/prompts";
 import { parse as parseYaml } from "yaml";
-import { loadBuiltinEvaluator } from "../evaluators/parseEvaluator.js";
-import { generateAttackPrompts } from "../evaluators/generatePrompts.js";
-import { createModel, PROVIDER_DEFAULTS, PROVIDER_ENV_VARS } from "../providers/factory.js";
+import { loadBuiltinEvaluator } from "@astra/core/evaluators/parseEvaluator";
+import { generateAttackPrompts } from "@astra/core/evaluators/generatePrompts";
+import { createModel, PROVIDER_DEFAULTS, PROVIDER_ENV_VARS } from "@astra/core/providers/factory";
 import {
   loadSkillCatalog,
   resolveSuiteEvaluatorIds,
   getEvaluatorIdSet,
-} from "../config/loadSkillCatalog.js";
+} from "@astra/core/config/loadSkillCatalog";
 import type {
   PromptsFile,
   AttackEntry,
@@ -19,7 +19,7 @@ import type {
   TargetConfig,
   LlmConfig,
   ProviderName,
-} from "../config/types.js";
+} from "@astra/core/config/types";
 
 // ---------------------------------------------------------------------------
 // Helpers

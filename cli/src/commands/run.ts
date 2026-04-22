@@ -1,14 +1,14 @@
 import type { Command } from "commander";
 import { readFile, mkdir } from "node:fs/promises";
 import path from "node:path";
-import { createModel } from "../providers/factory.js";
-import { judgeResponse } from "../evaluators/judge.js";
-import { generateReport } from "../report/generateReport.js";
-import type { EvaluatorReport, TestResult } from "../report/generateReport.js";
-import type { EvaluatorSpec } from "../evaluators/parseEvaluator.js";
-import type { PromptsFile, AttackEntry } from "../config/types.js";
-import type { RunAgentConfigHttp } from "../lib/agent.js";
-import { runAttackAgent } from "../lib/agent.js";
+import { createModel } from "@astra/core/providers/factory";
+import { judgeResponse } from "@astra/core/evaluators/judge";
+import { generateReport } from "@astra/core/report/generateReport";
+import type { EvaluatorReport, TestResult } from "@astra/core/report/generateReport";
+import type { EvaluatorSpec } from "@astra/core/evaluators/parseEvaluator";
+import type { PromptsFile, AttackEntry } from "@astra/core/config/types";
+import type { RunAgentConfigHttp } from "@astra/core/lib/agent";
+import { runAttackAgent } from "@astra/core/lib/agent";
 
 export function registerRunCommand(program: Command) {
   program

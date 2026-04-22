@@ -1,17 +1,17 @@
 # astra
 
-Red team AI systems — using your coding agent or a standalone CLI.
+Red team AI systems — using your coding agent, a standalone CLI, or an MCP server.
 
 `astra` is an open-source toolkit for adversarial security testing of LLMs, chatbots, RAG pipelines, and AI agents. It covers the OWASP LLM Top 10 and OWASP Agentic AI Top 10.
 
-You can use it in two ways:
+You can use it in three ways:
 
-| | Skills (agent-based) | CLI (standalone) |
-|---|---|---|
-| **How** | Agent reads skill files and executes the test | `astra init / setup / run` commands |
-| **Requires** | Claude Code, Cursor, Windsurf, or any agent with skills support | Node.js 18+, any LLM API key |
-| **Best for** | Interactive setup, white-box attacks, conversational workflow | CI/CD pipelines, automated scans, scripted workflows |
-| **Output** | Markdown report in chat | HTML + JSON report on disk |
+| | Skills (agent-based) | CLI (standalone) | MCP Server |
+|---|---|---|---|
+| **How** | Agent reads skill files and executes the test | `astra init / setup / run` commands | Agent calls `astra_setup` / `astra_run` tools |
+| **Requires** | Claude Code, Cursor, Windsurf, or any agent with skills support | Node.js 18+, any LLM API key | Any MCP-compatible host (Cursor, Claude Desktop, Windsurf) |
+| **Best for** | Interactive setup, white-box attacks, conversational workflow | CI/CD pipelines, automated scans, scripted workflows | Agent-driven automation without leaving your IDE |
+| **Output** | Markdown report in chat | HTML + JSON report on disk | Summary in chat + HTML/JSON reports on disk |
 
 ---
 
@@ -81,11 +81,15 @@ The CLI is a self-contained TypeScript tool that handles everything: interactive
 ### Install
 
 ```bash
-# Global install
-npm install -g astra
+# From a cloned repo (local development)
+git clone https://github.com/yourusername/astra.git
+cd astra
+npm install --ignore-scripts
+npm run build
+npm install -g ./cli   # make the `astra` command available globally
 
-# Or use without installing
-npx astra --help
+# Once published to npm
+npm install -g astra
 ```
 
 ### Step 1 — Create a config file
@@ -263,6 +267,72 @@ Response parsed from `.response` field.
 
 ---
 
+## Option 3 — MCP Server
+
+The MCP server exposes `astra_setup` and `astra_run` as tools that any MCP-compatible AI agent can call directly. No terminal required — the agent runs the full workflow from your chat.
+
+### Setup
+
+```bash
+git clone https://github.com/yourusername/astra.git
+cd astra
+npm install --ignore-scripts   # install all workspace packages
+npm run build                  # build core → cli → mcp in the correct order
+```
+
+### Configure in Cursor
+
+Add to `~/.cursor/mcp.json` (global — works in all projects):
+
+```json
+{
+  "mcpServers": {
+    "astra": {
+      "command": "node",
+      "args": ["/absolute/path/to/astra/mcp/dist/index.js"]
+    }
+  }
+}
+```
+
+The server automatically reads your API key from the project's `.env` file. No `env` block needed if you use `.env`.
+
+### Configure in Claude Desktop
+
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "astra": {
+      "command": "node",
+      "args": ["/absolute/path/to/astra/mcp/dist/index.js"]
+    }
+  }
+}
+```
+
+### Usage
+
+Once registered, just talk to your agent:
+
+```
+"Red team my chatbot using ./myconfig.json"
+```
+
+The agent will call `astra_setup` → then `astra_run` → return a full findings summary in chat, with HTML and JSON reports saved to disk.
+
+### MCP tools reference
+
+| Tool | Parameters | Description |
+|---|---|---|
+| `astra_setup` | `config_path`, `api_key?`, `output_dir?` | Generate attack prompts from a config file |
+| `astra_run` | `input_path`, `api_key?`, `output_dir?` | Fire attacks, judge responses, write reports |
+
+See [mcp/README.md](mcp/README.md) for full parameter details.
+
+---
+
 ## What it tests
 
 ### LLM Vulnerabilities (OWASP LLM Top 10)
@@ -321,7 +391,7 @@ The JSON report (`.astra/reports/astra-*.json`) contains the same data in machin
 
 ```
 astra/
-├── package.json                       ← NPM metadata, bin entry
+├── package.json                       ← Root package (npm workspaces: core, cli, mcp)
 ├── README.md                          ← This file
 ├── Agents.md                          ← Developer guide
 ├── astra.config.md.example            ← Config template for skills workflow
@@ -330,31 +400,45 @@ astra/
 ├── skills/                            ← Agent skill files (skills workflow)
 │   ├── astra-setup/
 │   │   ├── SKILL.md                   ← /astra-setup slash command
-│   │   ├── evaluators/                ← 20 evaluator definition files
-│   │   ├── suites/                    ← Suite definitions
+│   │   ├── evaluators/                ← 20 evaluator definition files (.md)
+│   │   ├── suites/                    ← Suite definitions (owasp-llm-top10, owasp-agentic-ai)
 │   │   └── targets/                   ← Target adapter instructions
 │   └── astra-run/
 │       ├── SKILL.md                   ← /astra-run slash command
 │       └── report-schema.md           ← Report format specification
 │
-├── cli/                               ← Standalone CLI (TypeScript)
+├── core/                              ← @astra/core — shared engine (npm workspace)
 │   ├── src/
-│   │   ├── index.ts                   ← CLI entrypoint
-│   │   ├── commands/                  ← init, setup, run commands
-│   │   ├── config/                    ← Types and skill catalog loader
-│   │   ├── evaluators/                ← Parser, prompt generator, judge
+│   │   ├── config/                    ← Types, skill catalog loader, path resolver
+│   │   ├── evaluators/                ← Evaluator parser, prompt generator, LLM judge
+│   │   ├── providers/                 ← LLM provider factory (OpenAI, Anthropic, Groq, Google)
 │   │   ├── lib/                       ← HTTP attack agent
-│   │   ├── providers/                 ← LLM provider factory
-│   │   └── report/                    ← HTML + JSON report generator
-│   ├── dist/                          ← Compiled output (generated)
+│   │   ├── report/                    ← HTML + JSON report generator
+│   │   └── util/                      ← YAML frontmatter parser
+│   ├── dist/                          ← Compiled output (generated by npm run build)
+│   ├── package.json
+│   └── tsconfig.json
+│
+├── cli/                               ← astra-cli — standalone CLI (npm workspace)
+│   ├── src/
+│   │   ├── index.ts                   ← CLI entrypoint (commander)
+│   │   └── commands/                  ← init, setup, run commands
+│   ├── dist/                          ← Compiled output (generated by npm run build)
+│   ├── package.json
+│   └── tsconfig.json
+│
+├── mcp/                               ← astra-mcp — MCP server (npm workspace)
+│   ├── src/
+│   │   ├── index.ts                   ← MCP server entrypoint (tools registered here)
+│   │   └── core/                      ← setup.ts and run.ts — thin wrappers over @astra/core
+│   ├── dist/                          ← Compiled output (generated by npm run build)
 │   ├── package.json
 │   └── tsconfig.json
 │
 ├── extension/                         ← VS Code/Cursor extension (planned)
 │
-└── .astra/                            ← Generated files (not packaged)
-    ├── configs/                       ← User-created Astra configs
-    └── reports/                       ← Assessment reports
+└── .astra/                            ← Generated files (gitignored)
+    └── reports/                       ← Assessment reports (HTML + JSON)
 ```
 
 ---

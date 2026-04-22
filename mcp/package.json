@@ -1,11 +1,11 @@
 {
-  "name": "astra-cli",
+  "name": "astra-mcp",
   "version": "0.1.0",
-  "description": "Astra CLI — AI red team scanner (TypeScript implementation)",
+  "description": "Astra MCP server — expose red team tools to any MCP-compatible AI agent",
   "license": "Apache-2.0",
   "type": "module",
   "bin": {
-    "astra": "./dist/index.js"
+    "astra-mcp": "./dist/index.js"
   },
   "files": [
     "dist/",
@@ -19,9 +19,10 @@
   },
   "dependencies": {
     "@astra/core": "*",
-    "@inquirer/prompts": "^8.4.2",
-    "commander": "^14.0.1",
-    "yaml": "^2.8.3"
+    "@modelcontextprotocol/sdk": "^1.10.2",
+    "dotenv": "^17.4.2",
+    "yaml": "^2.8.3",
+    "zod": "^3.0.0"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

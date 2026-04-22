@@ -1,0 +1,36 @@
+{
+  "name": "@astra/core",
+  "version": "0.1.0",
+  "description": "Astra shared core — engine, evaluators, providers, report generation",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    "./config/types": "./dist/config/types.js",
+    "./config/skillsLayout": "./dist/config/skillsLayout.js",
+    "./config/loadSkillCatalog": "./dist/config/loadSkillCatalog.js",
+    "./evaluators/parseEvaluator": "./dist/evaluators/parseEvaluator.js",
+    "./evaluators/generatePrompts": "./dist/evaluators/generatePrompts.js",
+    "./evaluators/judge": "./dist/evaluators/judge.js",
+    "./providers/factory": "./dist/providers/factory.js",
+    "./lib/agent": "./dist/lib/agent.js",
+    "./report/generateReport": "./dist/report/generateReport.js",
+    "./util/yamlFrontmatter": "./dist/util/yamlFrontmatter.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepare": "npm run build"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "^2.0.77",
+    "@ai-sdk/google": "^2.0.70",
+    "@ai-sdk/openai": "^2.0.103",
+    "@ai-sdk/openai-compatible": "^1.0.0",
+    "ai": "^6.0.0",
+    "yaml": "^2.8.3",
+    "zod": "^3.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.8.3"
+  }
+}

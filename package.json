@@ -21,11 +21,17 @@
     "url": "https://github.com/yourusername/astra.git"
   },
   "homepage": "https://github.com/yourusername/astra",
+  "workspaces": [
+    "core",
+    "cli",
+    "mcp"
+  ],
   "bin": {
     "astra": "cli/dist/index.js"
   },
   "files": [
     "skills/",
+    "core/dist/",
     "cli/dist/",
     "extension/",
     "astra.config.md.example",
@@ -38,6 +44,9 @@
     "node": ">=18.0.0"
   },
   "scripts": {
-    "build": "npm --prefix cli install && npm --prefix cli run build"
+    "build": "npm run build --workspace=core && npm run build --workspace=cli && npm run build --workspace=mcp",
+    "build:core": "npm run build --workspace=core",
+    "build:cli": "npm run build --workspace=cli",
+    "build:mcp": "npm run build --workspace=mcp"
   }
 }
