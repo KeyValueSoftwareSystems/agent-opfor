@@ -1,15 +1,18 @@
 import type { Command } from "commander";
 import { readFile, mkdir } from "node:fs/promises";
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 import { createModel } from "@astra/core/providers/factory";
 import { judgeResponse } from "@astra/core/evaluators/judge";
 import { generateReport } from "@astra/core/report/generateReport";
 import type { EvaluatorReport, TestResult } from "@astra/core/report/generateReport";
 import type { EvaluatorSpec } from "@astra/core/evaluators/parseEvaluator";
 import type { PromptsFile, AttackEntry } from "@astra/core/config/types";
+import { resolveTelemetryEnv } from "@astra/core/config/resolveTelemetryEnv";
 import type { RunAgentConfigHttp } from "@astra/core/lib/agent";
 import { runAttackAgent } from "@astra/core/lib/agent";
 import { invokeLocalTargetScript } from "@astra/core/lib/localScriptTarget";
+import { newOtelTraceId } from "@astra/core/lib/tracePropagation";
 
 export function registerRunCommand(program: Command) {
   program
@@ -30,6 +33,7 @@ export function registerRunCommand(program: Command) {
       try {
         const raw = await readFile(path.resolve(opts.input), "utf8");
         promptsFile = JSON.parse(raw) as PromptsFile;
+        promptsFile.telemetry = resolveTelemetryEnv(promptsFile.telemetry);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         console.error(`Error reading prompts file: ${msg}`);
@@ -117,6 +121,13 @@ export function registerRunCommand(program: Command) {
 
       const reports: EvaluatorReport[] = [];
       let totalRun = 0;
+      const propagation = promptsFile.telemetry?.propagation;
+      const scanRunId = randomUUID();
+      let runTraceOtel: string | undefined;
+      const propagationStrategy = propagation?.traceIdStrategy ?? "per-attack";
+      if (propagationStrategy === "per-run") {
+        runTraceOtel = newOtelTraceId();
+      }
 
       for (const [evaluatorId, entries] of byEvaluator) {
         const first = entries[0];
@@ -150,11 +161,17 @@ export function registerRunCommand(program: Command) {
               endpoint,
               targetFormat,
               targetModel,
+              telemetry: promptsFile.telemetry,
+              propagation,
+              runTraceOtel,
+              runId: scanRunId,
+              attackIndex: totalRun + testNumber,
             };
 
             const result = await runAttackAgent(agentCfg);
             const verdict = result.judge.verdict === "PASS" ? "✓" : "✗";
-            console.log(` → ${verdict} ${result.judge.verdict} (score ${result.judge.score}/10)`);
+            const traceNote = result.traceId ? ` · trace ${result.traceId.slice(0, 12)}...` : "";
+            console.log(` → ${verdict} ${result.judge.verdict} (score ${result.judge.score}/10)${traceNote}`);
 
             results.push({
               testNumber: totalRun + testNumber,
@@ -162,6 +179,7 @@ export function registerRunCommand(program: Command) {
               prompt: attack.prompt,
               response: result.response,
               judge: result.judge,
+              ...(result.traceId ? { traceId: result.traceId } : {}),
             });
           } else if (useLocalScript && resolvedScript) {
             const responseText = await invokeLocalTargetScript(resolvedScript, {

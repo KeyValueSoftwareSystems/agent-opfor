@@ -182,6 +182,8 @@ selection:
 
 The LLM is used during **`astra setup`** (prompt generation) and **`astra run`** (judging). You need a key for both paths (wizard or `--config`). Supply it in one of these ways, in priority order when multiple are set:
 
+The CLI also loads a **`.env`** file from the **current working directory** (via `dotenv`), so you can put `GROQ_API_KEY=...` and Langfuse variables there instead of exporting them in the shell. Add `.env` to `.gitignore`.
+
 **Option A — CLI flag (highest priority):**
 
 ```bash
@@ -204,6 +206,22 @@ export GOOGLE_GENERATIVE_AI_API_KEY=... # Google
 ```
 
 > **Note:** Avoid committing the config file if it contains an API key. Add `astra.config.json` and `astra-prompts-*.json` to `.gitignore`.
+
+### Optional — Langfuse telemetry (env vars only)
+
+If your `astra.config` / `astra.config.yml` includes **`telemetry.provider: langfuse`**, the scanner reads traces from the Langfuse API. **Do not put Langfuse secret keys in the config file.** Set them in the environment (same idea as `GROQ_API_KEY` for the LLM):
+
+```bash
+export LANGFUSE_PUBLIC_KEY=pk-lf-...   # project public key from Langfuse
+export LANGFUSE_SECRET_KEY=sk-lf-...   # secret key from Langfuse
+export LANGFUSE_BASE_URL=https://cloud.langfuse.com   # optional; required for self-hosted if you use baseUrlEnv
+```
+
+For **self-hosted** Langfuse (or to override the cloud host), set either **`telemetry.langfuse.baseUrl`** in the config or point **`telemetry.langfuse.baseUrlEnv`** at an env var (for example `LANGFUSE_BASE_URL=https://langfuse.example.com`). If `baseUrlEnv` is set and that variable is non-empty at `setup` / `run` time, it overrides `baseUrl`.
+
+To use **different env var names** (for example in CI), set optional fields **`langfuse.publicKeyEnv`** and **`langfuse.secretKeyEnv`** in the config to the variable names; the CLI reads the **values** from those variables at runtime.
+
+**Trace discovery (MVP):** under **`telemetry.langfuse.traceSelection`** you can define **`setupTraceIds`**, time/tag filters, **`listLimit`**, **`fields`**, etc. for future use. **`astra setup`** (when **`telemetry.provider` is `langfuse`**) fetches the first page of traces from Langfuse (**pagination only**), runs the **same LLM** as attack generation to pick **`relevantTraceIds`**, writes **`tracedata.json`**, and passes that curated JSON (**capped**) into **`generateAttackPrompts`** as **`OBSERVED_RUNTIME_TRACES`** so attack prompts can mirror real user phrasing and flows.
 
 ### Step 3 — Generate attack prompts (`setup`)
 

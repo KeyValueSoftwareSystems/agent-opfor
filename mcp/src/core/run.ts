@@ -1,14 +1,17 @@
 import { readFile, mkdir } from "node:fs/promises";
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 import { createModel } from "@astra/core/providers/factory";
 import { judgeResponse } from "@astra/core/evaluators/judge";
 import { generateReport } from "@astra/core/report/generateReport";
 import type { EvaluatorReport, TestResult } from "@astra/core/report/generateReport";
 import type { EvaluatorSpec } from "@astra/core/evaluators/parseEvaluator";
 import type { AttackEntry, PromptsFile } from "@astra/core/config/types";
+import { resolveTelemetryEnv } from "@astra/core/config/resolveTelemetryEnv";
 import type { RunAgentConfigHttp } from "@astra/core/lib/agent";
 import { runAttackAgent } from "@astra/core/lib/agent";
 import { invokeLocalTargetScript } from "@astra/core/lib/localScriptTarget";
+import { newOtelTraceId } from "@astra/core/lib/tracePropagation";
 
 export interface RunOptions {
   inputPath: string;
@@ -48,6 +51,7 @@ export async function runScan(opts: RunOptions): Promise<RunSummary> {
 
   const raw = await readFile(path.resolve(inputPath), "utf8");
   const promptsFile = JSON.parse(raw) as PromptsFile;
+  promptsFile.telemetry = resolveTelemetryEnv(promptsFile.telemetry);
   const { target, attacks } = promptsFile;
 
   if (!attacks || attacks.length === 0) {
@@ -96,6 +100,13 @@ export async function runScan(opts: RunOptions): Promise<RunSummary> {
 
   const reports: EvaluatorReport[] = [];
   let totalRun = 0;
+  const propagation = promptsFile.telemetry?.propagation;
+  const scanRunId = randomUUID();
+  let runTraceOtel: string | undefined;
+  const propagationStrategy = propagation?.traceIdStrategy ?? "per-attack";
+  if (propagationStrategy === "per-run") {
+    runTraceOtel = newOtelTraceId();
+  }
 
   for (const [evaluatorId, entries] of byEvaluator) {
     const first = entries[0];
@@ -123,6 +134,11 @@ export async function runScan(opts: RunOptions): Promise<RunSummary> {
           endpoint,
           targetFormat,
           targetModel,
+          telemetry: promptsFile.telemetry,
+          propagation,
+          runTraceOtel,
+          runId: scanRunId,
+          attackIndex: totalRun + testNumber,
         };
         const result = await runAttackAgent(agentCfg);
         results.push({
@@ -131,6 +147,7 @@ export async function runScan(opts: RunOptions): Promise<RunSummary> {
           prompt: attack.prompt,
           response: result.response,
           judge: result.judge,
+          ...(result.traceId ? { traceId: result.traceId } : {}),
         });
       } else if (useLocalScript && resolvedScript) {
         const responseText = await invokeLocalTargetScript(resolvedScript, {

@@ -27,6 +27,22 @@ const SAMPLE_CONFIG: SetupConfigFile = {
     // mode: "evaluators",
     // evaluators: ["prompt-injection", "jailbreaking", "sensitive-disclosure"]
   },
+  // Optional: telemetry. Never put Langfuse keys here — use env:
+  //   export LANGFUSE_PUBLIC_KEY=pk-lf-...
+  //   export LANGFUSE_SECRET_KEY=sk-lf-...
+  // Optional langfuse.publicKeyEnv / secretKeyEnv rename which env vars are read.
+  telemetry: {
+    provider: "none",
+    // provider: "langfuse",
+    // langfuse: {
+    //   baseUrlEnv: "LANGFUSE_BASE_URL",
+    //   traceSelection: { listLimit: 100, listMaxPages: 3 },
+    //   traceCurationListJsonMaxChars: 28000,
+    //   traceSummaryForAttackMaxChars: 26000,
+    // },
+    // enrichJudgeFromTrace: true,
+    // propagation: { traceIdStrategy: "per-attack", headers: { "X-Langfuse-Trace-Id": "{{traceId}}" } },
+  },
 };
 
 const PYTHON_STUB = `#!/usr/bin/env python3

@@ -6,6 +6,9 @@
   "type": "module",
   "exports": {
     "./config/types": "./dist/config/types.js",
+    "./config/resolveTelemetryEnv": "./dist/config/resolveTelemetryEnv.js",
+    "./telemetry/langfuseTraces": "./dist/telemetry/langfuseTraces.js",
+    "./telemetry/langfuseTraceCuration": "./dist/telemetry/langfuseTraceCuration.js",
     "./config/skillsLayout": "./dist/config/skillsLayout.js",
     "./config/loadSkillCatalog": "./dist/config/loadSkillCatalog.js",
     "./evaluators/parseEvaluator": "./dist/evaluators/parseEvaluator.js",
@@ -13,6 +16,7 @@
     "./evaluators/judge": "./dist/evaluators/judge.js",
     "./providers/factory": "./dist/providers/factory.js",
     "./lib/agent": "./dist/lib/agent.js",
+    "./lib/tracePropagation": "./dist/lib/tracePropagation.js",
     "./lib/localScriptTarget": "./dist/lib/localScriptTarget.js",
     "./report/generateReport": "./dist/report/generateReport.js",
     "./util/yamlFrontmatter": "./dist/util/yamlFrontmatter.js"

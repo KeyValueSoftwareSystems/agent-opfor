@@ -1,4 +1,4 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { parse as parseYaml } from "yaml";
@@ -10,6 +10,8 @@ import {
   resolveSuiteEvaluatorIds,
   getEvaluatorIdSet,
 } from "@astra/core/config/loadSkillCatalog";
+import { resolveTelemetryEnv } from "@astra/core/config/resolveTelemetryEnv";
+import { runLangfuseSetupTraceCuration } from "@astra/core/telemetry/langfuseTraceCuration";
 import type {
   AttackEntry,
   LlmConfig,
@@ -77,7 +79,28 @@ export async function runSetup(opts: SetupOptions): Promise<SetupResult> {
   };
 
   const target = cfg.target as TargetConfig;
+  const resolvedOutputDir = path.resolve(outputDir);
+  await mkdir(resolvedOutputDir, { recursive: true });
+
+  const telemetry = resolveTelemetryEnv(cfg.telemetry);
   const model = createModel(llm);
+
+  let langfuseTraceContext: string | undefined;
+  if (telemetry?.provider === "langfuse") {
+    try {
+      langfuseTraceContext = await runLangfuseSetupTraceCuration({
+        telemetry,
+        model,
+        targetName: target.name,
+        targetDescription: target.description,
+        outputDir: resolvedOutputDir,
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(`[Langfuse] Trace curation failed (continuing MCP setup): ${msg}`);
+    }
+  }
+
   const allAttacks: AttackEntry[] = [];
 
   for (const evaluatorId of selectedEvaluatorIds) {
@@ -97,7 +120,9 @@ export async function runSetup(opts: SetupOptions): Promise<SetupResult> {
           ? `${target.description}\nFunction signature: ${target.functionSignature ?? ""}`
           : target.description;
 
-    const attacks = await generateAttackPrompts(evaluator, targetDescription, model);
+    const attacks = await generateAttackPrompts(evaluator, targetDescription, model, {
+      traceContext: langfuseTraceContext,
+    });
 
     for (const attack of attacks) {
       allAttacks.push({
@@ -116,7 +141,6 @@ export async function runSetup(opts: SetupOptions): Promise<SetupResult> {
   const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, "").slice(0, 14);
   const uuid = randomUUID().slice(0, 6);
   const filename = `astra-prompts-${timestamp}-${uuid}.json`;
-  const resolvedOutputDir = path.resolve(outputDir);
   const outputPath = path.join(resolvedOutputDir, filename);
 
   const promptsFile: PromptsFile = {
@@ -124,6 +148,8 @@ export async function runSetup(opts: SetupOptions): Promise<SetupResult> {
     llm,
     target,
     attacks: allAttacks,
+    telemetry,
+    ...(langfuseTraceContext?.trim() ? { traceSummaryFilename: "trace-summary.md" } : {}),
   };
 
   await writeFile(outputPath, JSON.stringify(promptsFile, null, 2), "utf8");

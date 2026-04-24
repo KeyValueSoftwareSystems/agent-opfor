@@ -1,5 +1,10 @@
 #!/usr/bin/env node
 
+// Load `.env` from cwd (and defaults per dotenv) so GROQ_API_KEY, LANGFUSE_*, etc.
+// work without exporting in the shell. Matches astra-mcp behaviour.
+import { config as loadDotenv } from "dotenv";
+loadDotenv();
+
 import { Command } from "commander";
 import { registerSetupCommand } from "./commands/setup.js";
 import { registerRunCommand } from "./commands/run.js";

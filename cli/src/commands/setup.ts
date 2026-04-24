@@ -12,6 +12,8 @@ import {
   resolveSuiteEvaluatorIds,
   getEvaluatorIdSet,
 } from "@astra/core/config/loadSkillCatalog";
+import { resolveTelemetryEnv } from "@astra/core/config/resolveTelemetryEnv";
+import { runLangfuseSetupTraceCuration } from "@astra/core/telemetry/langfuseTraceCuration";
 import type {
   PromptsFile,
   AttackEntry,
@@ -19,6 +21,7 @@ import type {
   TargetConfig,
   LlmConfig,
   ProviderName,
+  TelemetryConfig,
 } from "@astra/core/config/types";
 
 // ---------------------------------------------------------------------------
@@ -29,6 +32,85 @@ interface CollectedAnswers {
   llm: LlmConfig;
   target: TargetConfig;
   selectedEvaluatorIds: string[];
+  telemetry?: TelemetryConfig;
+}
+
+/** After `--config`: confirm telemetry block was read (never log secret values). */
+function logTelemetryFromConfig(telemetry: TelemetryConfig | undefined): void {
+  console.log(`\n--- Telemetry (from config) ---`);
+  if (telemetry === undefined) {
+    console.log(`  (no "telemetry" key in config)`);
+    console.log(`---`);
+    return;
+  }
+  console.log(`  provider: ${telemetry.provider}`);
+  if (telemetry.provider !== "langfuse") {
+    console.log(`---`);
+    return;
+  }
+  const lf = telemetry.langfuse;
+  const pubName = lf?.publicKeyEnv ?? "LANGFUSE_PUBLIC_KEY";
+  const secName = lf?.secretKeyEnv ?? "LANGFUSE_SECRET_KEY";
+  const baseUrlEnv = lf?.baseUrlEnv?.trim();
+  const envFlag = (name: string) => (process.env[name]?.trim() ? "set" : "missing");
+
+  console.log(`  Langfuse baseUrl (resolved): ${lf?.baseUrl?.trim() || "(none — adapter may use default)"}`);
+  if (baseUrlEnv) console.log(`  baseUrlEnv: ${baseUrlEnv} → ${envFlag(baseUrlEnv)}`);
+  console.log(`  ${pubName}: ${envFlag(pubName)}`);
+  console.log(`  ${secName}: ${envFlag(secName)}`);
+  const sel = lf?.traceSelection;
+  if (sel === undefined) {
+    console.log(`  traceSelection: (none — no Langfuse list filters)`);
+  } else {
+    console.log(`  traceSelection (Langfuse list / fetch filters):`);
+    if (sel.setupTraceIds?.length) {
+      console.log(`    setupTraceIds (${sel.setupTraceIds.length}): ${sel.setupTraceIds.join(", ")}`);
+    } else {
+      console.log(`    setupTraceIds: (none)`);
+    }
+    if (sel.lookbackHours != null) console.log(`    lookbackHours: ${sel.lookbackHours}`);
+    if (sel.fromTimestamp) console.log(`    fromTimestamp: ${sel.fromTimestamp}`);
+    if (sel.toTimestamp) console.log(`    toTimestamp: ${sel.toTimestamp}`);
+    if (sel.tags?.length) {
+      console.log(`    tags (Langfuse query): ${sel.tags.map((t) => JSON.stringify(t)).join(", ")}`);
+    } else {
+      console.log(`    tags: (none)`);
+    }
+    if (sel.environment != null) {
+      const env = Array.isArray(sel.environment) ? sel.environment.join(", ") : sel.environment;
+      console.log(`    environment: ${env}`);
+    }
+    if (sel.sessionId) console.log(`    sessionId: ${sel.sessionId}`);
+    if (sel.listLimit != null) console.log(`    listLimit: ${sel.listLimit}`);
+    if (sel.listMaxPages != null) console.log(`    listMaxPages: ${sel.listMaxPages}`);
+    if (sel.fields) console.log(`    fields: ${sel.fields}`);
+  }
+  if (lf?.traceCurationListJsonMaxChars != null) {
+    console.log(`  traceCurationListJsonMaxChars: ${lf.traceCurationListJsonMaxChars}`);
+  }
+  if (lf?.traceSummarySourceJsonMaxChars != null) {
+    console.log(`  traceSummarySourceJsonMaxChars: ${lf.traceSummarySourceJsonMaxChars}`);
+  }
+  if (lf?.traceSummaryForAttackMaxChars != null) {
+    console.log(`  traceSummaryForAttackMaxChars: ${lf.traceSummaryForAttackMaxChars}`);
+  }
+  console.log(`  enrichJudgeFromTrace: ${telemetry.enrichJudgeFromTrace ?? false}`);
+  if (telemetry.enrichJudgeTraceJsonMaxChars != null) {
+    console.log(`  enrichJudgeTraceJsonMaxChars: ${telemetry.enrichJudgeTraceJsonMaxChars}`);
+  }
+  const p = telemetry.propagation;
+  if (p) {
+    console.log(
+      `  propagation: strategy=${p.traceIdStrategy ?? "(default)"}, prefix=${p.traceIdPrefix ?? "(none)"}`
+    );
+    if (p.headers && Object.keys(p.headers).length > 0) {
+      console.log(`  propagation.headers: ${JSON.stringify(p.headers)}`);
+    }
+    if (p.traceIdBodyField) console.log(`  propagation.traceIdBodyField: ${p.traceIdBodyField}`);
+  } else {
+    console.log(`  propagation: (none)`);
+  }
+  console.log(`---`);
 }
 
 async function collectLlmConfig(): Promise<LlmConfig> {
@@ -226,7 +308,12 @@ async function loadConfigFile(
     baseURL: cfg.llm?.baseURL,
   };
 
-  return { llm, target: cfg.target as TargetConfig, selectedEvaluatorIds };
+  return {
+    llm,
+    target: cfg.target as TargetConfig,
+    selectedEvaluatorIds,
+    telemetry: resolveTelemetryEnv(cfg.telemetry),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -249,8 +336,11 @@ export function registerSetupCommand(program: Command) {
       try {
         const catalog = await loadSkillCatalog();
         if (opts.config) {
-          console.log(`\nLoading config from: ${opts.config}`);
+          const resolvedPath = path.resolve(opts.config);
+          console.log(`\nLoading config from: ${resolvedPath}`);
           answers = await loadConfigFile(opts.config, catalog, opts.apiKey);
+          logTelemetryFromConfig(answers.telemetry);
+          console.log(`Starting setup (attack prompt generation)…`);
         } else {
           answers = await runInteractiveWizard(catalog);
           if (opts.apiKey) answers.llm.apiKey = opts.apiKey;
@@ -267,8 +357,28 @@ export function registerSetupCommand(program: Command) {
         return;
       }
 
-      const { llm, target, selectedEvaluatorIds } = answers;
+      const { llm, target, selectedEvaluatorIds, telemetry } = answers;
       const model = createModel(llm);
+      const outputDir = path.resolve(opts.outputDir);
+
+      let langfuseTraceContext: string | undefined;
+      if (telemetry?.provider === "langfuse") {
+        try {
+          langfuseTraceContext = await runLangfuseSetupTraceCuration({
+            telemetry,
+            model,
+            targetName: target.name,
+            targetDescription: target.description,
+            outputDir,
+          });
+          if (langfuseTraceContext) {
+            console.log(`  Trace summary (markdown) for attack generation: ${langfuseTraceContext.length} chars`);
+          }
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.warn(`\n[Langfuse] Trace curation failed (continuing setup): ${msg}\n`);
+        }
+      }
 
       console.log(`\nGenerating attack prompts for ${selectedEvaluatorIds.length} evaluator(s)...\n`);
 
@@ -294,7 +404,9 @@ export function registerSetupCommand(program: Command) {
               : target.description;
 
         process.stdout.write(` generating ${evaluator.patterns.length} prompt(s)...`);
-        const attacks = await generateAttackPrompts(evaluator, targetDescription, model);
+        const attacks = await generateAttackPrompts(evaluator, targetDescription, model, {
+          traceContext: langfuseTraceContext,
+        });
         console.log(` done (${attacks.length} prompts)`);
 
         for (const attack of attacks) {
@@ -314,7 +426,6 @@ export function registerSetupCommand(program: Command) {
       const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, "").slice(0, 14);
       const uuid = randomUUID().slice(0, 6);
       const filename = `astra-prompts-${timestamp}-${uuid}.json`;
-      const outputDir = path.resolve(opts.outputDir);
       const outputPath = path.join(outputDir, filename);
 
       const promptsFile: PromptsFile = {
@@ -322,6 +433,8 @@ export function registerSetupCommand(program: Command) {
         llm,
         target,
         attacks: allAttacks,
+        telemetry,
+        ...(langfuseTraceContext?.trim() ? { traceSummaryFilename: "trace-summary.md" } : {}),
       };
 
       await writeFile(outputPath, JSON.stringify(promptsFile, null, 2), "utf8");
@@ -330,7 +443,38 @@ export function registerSetupCommand(program: Command) {
       console.log(`  Provider:  ${llm.provider} / ${llm.model}`);
       console.log(`  Evaluators: ${selectedEvaluatorIds.length}`);
       console.log(`  Total attack prompts: ${allAttacks.length}`);
+      if (telemetry !== undefined) {
+        const strat = telemetry.propagation?.traceIdStrategy ?? "(not set — defaults apply when run is implemented)";
+        const hdrs = telemetry.propagation?.headers;
+        const hdrSummary =
+          hdrs && Object.keys(hdrs).length > 0
+            ? Object.keys(hdrs).join(", ")
+            : "none";
+        const setupIds = telemetry.langfuse?.traceSelection?.setupTraceIds?.length ?? 0;
+        console.log(`  Telemetry: ${telemetry.provider}` + (setupIds ? ` (${setupIds} setup trace id(s))` : ""));
+        if (telemetry.provider === "langfuse") {
+          const lf = telemetry.langfuse;
+          const base =
+            lf?.baseUrl?.trim() ||
+            (lf?.baseUrlEnv
+              ? `(env ${lf.baseUrlEnv.trim()} unset — using default host until set)`
+              : "(default host)");
+          const pub = telemetry.langfuse?.publicKeyEnv ?? "LANGFUSE_PUBLIC_KEY";
+          const sec = telemetry.langfuse?.secretKeyEnv ?? "LANGFUSE_SECRET_KEY";
+          console.log(`    Langfuse: ${base}`);
+          console.log(
+            `    Keys:      set ${pub} and ${sec} in the environment (do not commit keys to this file).`
+          );
+        }
+        console.log(`    Propagation: strategy=${strat}, headers=${hdrSummary}`);
+      }
       console.log(`  Prompts file: ${outputPath}`);
+      if (telemetry?.provider === "langfuse") {
+        console.log(`  Trace data:    ${path.join(outputDir, "tracedata.json")}`);
+        if (langfuseTraceContext?.trim()) {
+          console.log(`  Trace summary: ${path.join(outputDir, "trace-summary.md")} (also embedded in attack LLM context)`);
+        }
+      }
       console.log(`\n  ⚠  The prompts file contains your API key — add it to .gitignore`);
       console.log(`\nNext step:`);
       console.log(`  astra run --input ${outputPath}\n`);

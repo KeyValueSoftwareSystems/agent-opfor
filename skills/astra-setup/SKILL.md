@@ -3,17 +3,19 @@ name: astra-setup
 description: >
   Configure a target for an Astra security assessment. Use when the user wants to
   set up a new target, configure what to test, or create an astra.config file.
-  Trigger when they say "configure", "set up", "create config", or start an
-  Astra assessment for the first time without a config.
+  Scan the repo first (including telemetry env and config) when the skill lives
+  inside the user's project; only ask for missing pieces. Optionally use traces
+  so attack prompts mirror real usage. Trigger when they say "configure", "set up",
+  "create config", or start an Astra assessment for the first time without a config.
 ---
 
 # Astra — target configuration
 
-Configure a target for an Astra assessment. Collect the following from the user interactively.
+Configure a target for an Astra assessment. When this skill is **installed in the user’s repo**, prefer **reading that repo** (endpoints, `astra.config*`, env examples, telemetry) **before** a long questionnaire; then collect **only** what is still unknown.
 
 ## 1. Target Information
 
-Ask the user about their target:
+Ask the user about their target (or pre-fill from repo scan when obvious):
 - **Name** — what do they call it? (e.g., "Support Bot")
 - **Type** — what kind of system? (`chatbot`, `api`, `agent`, `rag-pipeline`)
 - **Endpoint** — how to reach it? (URL, `local`, or a description)
@@ -25,7 +27,7 @@ Ask the user which integration method they want to use. Discover available optio
 
 ## 3. Auto-Detect Application Context (Optional)
 
-Before asking the user, try to auto-detect context from existing documentation and code in the current repo.
+End users often **pull this skill into their own repo**. Treat that repo as the source of truth: **scan it first**, then **only ask for what you cannot infer** (and never ask anyone to paste **secret** API keys, tokens, or passwords into chat).
 
 **Capabilities vary by environment:**
 
@@ -53,6 +55,23 @@ Full code repo scanning available:
    - Database models (to infer sensitive data)
    - Permission/role definitions
 
+4. **Telemetry and observability (scan before asking the user)**  
+   Assume the project may already export traces (Langfuse, OpenTelemetry, Sentry, etc.). **Discover; do not interrogate** unless something is ambiguous or missing.
+
+   **Where to look:**
+   - `astra.config.json`, `astra.config.yml`, `astra.config.yaml` — any `telemetry` block (provider, Langfuse options, propagation headers, trace list limits, etc.)
+   - `.env`, `.env.local`, `.env.development`, `.env.example`, `docker-compose*.yml`, Helm charts, Terraform, `.github/workflows/*` — variable **names** such as `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_BASE_URL`, `OTEL_*`, `SENTRY_*` (read examples for docs; avoid echoing real secret values into the transcript)
+   - `package.json` / lockfiles — packages like `@langfuse/tracing`, `langfuse`, OpenTelemetry SDKs
+   - Application code — imports and init of Langfuse/OTEL, middleware that sets trace or correlation headers (e.g. `X-Langfuse-Trace-Id`), exporters, `trace.getActiveSpan`, `startActiveSpan`
+   - Service READMEs or runbooks mentioning observability dashboards or trace IDs
+
+   **What to extract (for later config / attack grounding):**
+   - Which observability product appears in use (if any)
+   - Base URL or which **env var name** holds the API origin (not the secret value)
+   - Which **env var names** hold public/secret keys (never ask the user to type `sk-…` into chat; instruct them to set vars locally or in CI)
+   - Whether HTTP requests propagate a trace id header (name + shape if visible in code)
+   - Any Astra-specific limits already in `astra.config` (`listLimit`, `listMaxPages`, trace summary size caps, etc.)
+
 ### Without filesystem access (web Claude, API-only agents, etc.):
 
 Limited to what the user has already shared in the conversation:
@@ -60,6 +79,7 @@ Limited to what the user has already shared in the conversation:
 - Code snippets they've shown
 - System prompts they've described
 - Context from previous messages
+- If they mention Langfuse/telemetry, ask for **redacted** config snippets or env **names** only — not live secrets
 
 **Graceful degradation:**
 If no auto-detectable information is found (regardless of environment), the skill simply falls back to asking the user interactively.
@@ -71,6 +91,7 @@ If no auto-detectable information is found (regardless of environment), the skil
 - Critical or dangerous operations
 - Forbidden topics or constraints
 - System prompt (if documented or found in code)
+- **Telemetry**: provider, how auth is wired (env var names), trace propagation hints (from repo scan above)
 
 **Confirmation Flow:**
 If auto-detection found any information (from docs or code), present it as prefilled:
@@ -86,6 +107,12 @@ Pre-filled Application Context:
   Forbidden:      [extracted from README.md]
   System Prompt:  [extracted from system-prompt.md]
 
+Pre-filled Telemetry (from repo — no secret values shown):
+  Observability:  [e.g. Langfuse — from astra.config + package.json]
+  API origin:     [e.g. LANGFUSE_BASE_URL in .env.example]
+  Auth:           [e.g. LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY — set locally, not pasted here]
+  Trace header:   [e.g. X-Langfuse-Trace-Id from middleware.ts]
+
 ✅ Looks good, use this?
 📝 Edit these fields?
 ❌ Start fresh (ignore auto-detected data)?
@@ -96,6 +123,26 @@ Pre-filled Application Context:
 **Only ask from scratch if:**
 - No documentation or code was found, OR
 - User explicitly chose "Start fresh"
+
+**Only ask extra telemetry questions when:**
+- Nothing observability-related was found in the repo, OR
+- Multiple stacks conflict (e.g. two different trace vendors), OR
+- The user wants a different setup than detected, OR
+- Required env vars are **missing** on their machine — tell them **which names** to set, not to paste secrets
+
+---
+
+### Trace-backed attack prompts (skills-only path)
+
+This skill is often used **without** the Astra CLI or MCP in the same session. The coding agent still should **use real traces when the repo shows they exist**, so generated attack inputs match how users actually talk to the system.
+
+**If Langfuse (or similar) is discoverable and the user’s environment can authenticate** (keys already in their shell/CI, not pasted into chat):
+
+1. **Fetch traces** using that product’s public HTTP API and the project’s documented auth (e.g. Langfuse: Basic auth with public+secret key from env, list traces, then load detail for chosen ids). Prefer small, diverse samples — not full production dumps.
+2. **Summarize in Markdown** for your own use in this session: user goals and phrasing, model behavior, notable spans/tools/errors, and plausible red-team angles. Keep it dense; avoid dumping raw PII.
+3. When **writing attack prompts** from evaluator `patterns` (templates in `./evaluators/*.md`), **ground each prompt** in that summary the same *intent* as Astra’s automated setup: realistic user voice, plausible scenarios, stress edges suggested by traces — **no** long verbatim copy-paste from payloads.
+
+**If the repo ships the `astra` CLI** (`astra setup --config …`): prefer telling the user to run that once so trace listing, curation, `tracedata.json`, and `trace-summary.md` stay consistent with the codebase — then consume those artifacts when generating inputs.
 
 ---
 

@@ -21,6 +21,7 @@
     "@astra/core": "*",
     "@inquirer/prompts": "^8.4.2",
     "commander": "^14.0.1",
+    "dotenv": "^17.4.2",
     "yaml": "^2.8.3"
   },
   "devDependencies": {

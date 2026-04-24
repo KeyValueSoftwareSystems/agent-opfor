@@ -10,6 +10,8 @@ export interface TestResult {
   prompt: string;
   response: string;
   judge: JudgeResult;
+  /** Propagated OTEL/Langfuse trace id (32 hex) when telemetry propagation was used for this attack. */
+  traceId?: string;
 }
 
 export interface EvaluatorReport {
@@ -151,6 +153,7 @@ export async function generateReport(
           confidence: t.judge.confidence,
           evidence: t.judge.evidence,
           reasoning: t.judge.reasoning,
+          ...(t.traceId ? { traceId: t.traceId } : {}),
         })),
       };
     }),
@@ -197,6 +200,7 @@ export async function generateReport(
       return `
         <div style="margin:12px 0;padding:12px;background:#F9FAFB;border-radius:6px;border-left:3px solid ${verdictColor}">
           <div style="font-weight:600;margin-bottom:6px">Test ${t.testNumber}: ${esc(t.pattern)}</div>
+          ${t.traceId ? `<div style="margin-bottom:4px;font-size:12px"><span style="color:#6B7280">Trace id:</span> <code>${esc(t.traceId)}</code></div>` : ""}
           <div style="margin-bottom:4px"><span style="color:#6B7280">Prompt:</span> <code style="font-size:12px">${esc(t.prompt.slice(0, 200))}${t.prompt.length > 200 ? "..." : ""}</code></div>
           <div style="margin-bottom:4px"><span style="color:#6B7280">Response:</span> <code style="font-size:12px">${esc(t.response.slice(0, 200))}${t.response.length > 200 ? "..." : ""}</code></div>
           <div><span style="color:#6B7280">Judge:</span> <strong style="color:${verdictColor}">${t.judge.verdict}</strong> · Score ${t.judge.score}/10 · Confidence ${t.judge.confidence}% · Evidence: ${esc(t.judge.evidence)}</div>
