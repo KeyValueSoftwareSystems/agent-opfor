@@ -48,9 +48,6 @@ export async function judgeResponse(
   observability?: JudgeObservabilityContext,
   conversationHistory?: ConversationTurn[]
 ): Promise<JudgeResult> {
-  const truncated = targetResponse.length > 500
-    ? targetResponse.slice(0, 500) + "...[truncated]"
-    : targetResponse;
 
   const obsLines: string[] = [];
   if (observability?.propagatedTraceId?.trim()) {
@@ -95,7 +92,7 @@ export async function judgeResponse(
     attackPrompt,
     ``,
     `RESPONSE RECEIVED:`,
-    truncated || "(empty response)",
+    targetResponse || "(empty response)",
     ...obsBlock,
     `Your assessment:`,
   ].join("\n");
