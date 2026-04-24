@@ -363,7 +363,7 @@ export async function runAttackAgent(cfg: RunAgentConfig): Promise<AgentAttackRe
     Boolean(propagationTraceId?.trim());
   if (enrichTrace && tel && propagationTraceId?.trim()) {
     process.stdout.write(`\n     → ${tel.provider} trace for judge...`);
-    obs.traceJson = (await adapter!.fetchTraceForJudge(tel, propagationTraceId.trim(), {
+    obs.traceJson = (await adapter.fetchTraceForJudge(tel, propagationTraceId.trim(), {
       initialDelayMs: tel.traceFetchInitialDelayMs ?? 500,
       maxAttempts: tel.traceFetchMaxAttempts ?? 5,
       retryDelayMs: tel.traceFetchRetryDelayMs ?? 400,

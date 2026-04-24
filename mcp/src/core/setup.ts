@@ -36,9 +36,9 @@ export interface SetupResult {
   provider: string;
   model: string;
   /** Whether trace curation ran during setup. */
-  langfuseTraceCurationRan: boolean;
+  traceCurationRan: boolean;
   /** Set when curation was attempted but failed — explains why attacks may be less targeted. */
-  langfuseCurationError?: string;
+  traceCurationError?: string;
   /** Path to trace-summary.md when curation succeeded. */
   traceSummaryPath?: string;
 }
@@ -207,12 +207,12 @@ async function runSetupCore({
   await mkdir(resolvedOutputDir, { recursive: true });
 
   let langfuseTraceContext: string | undefined;
-  let langfuseTraceCurationRan = false;
-  let langfuseCurationError: string | undefined;
+  let traceCurationRan = false;
+  let traceCurationError: string | undefined;
   let traceSummaryPath: string | undefined;
 
   if (telemetry && telemetry.provider !== "none") {
-    langfuseTraceCurationRan = true;
+    traceCurationRan = true;
     try {
       langfuseTraceContext = await runSetupTraceCuration({
         telemetry,
@@ -226,7 +226,7 @@ async function runSetupCore({
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      langfuseCurationError = msg;
+      traceCurationError = msg;
       console.warn(`[${telemetry.provider}] Trace curation failed (continuing setup): ${msg}`);
     }
   }
@@ -289,8 +289,8 @@ async function runSetupCore({
     totalAttacks: allAttacks.length,
     provider: llm.provider,
     model: llm.model,
-    langfuseTraceCurationRan,
-    langfuseCurationError,
+    traceCurationRan,
+    traceCurationError,
     traceSummaryPath,
   };
 }

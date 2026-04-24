@@ -116,7 +116,32 @@ export async function fetchNetraTracesPage(
     const nextCursor = (inner.pageInfo as Record<string, unknown> | undefined)?.nextCursor as string | undefined;
     return { ok: true, status, data, hasNextPage, nextCursor, baseUrl: creds.baseUrl };
   } catch (e: unknown) {
+    console.warn(`[Netra] Fetch error for ${url}: ${e instanceof Error ? e.message : String(e)}`);
     return { ok: false, status: 0, data: [], hasNextPage: false, baseUrl: creds.baseUrl };
+  }
+}
+
+const MAX_SPAN_PAGES = 50;
+
+/**
+ * GET /sdk/traces/:id — fetch full trace record (metadata, input/output, tags, etc.).
+ * Returns null if the trace is unavailable or credentials are missing.
+ */
+export async function fetchNetraTraceDetail(
+  cfg: NetraTelemetryConfig,
+  traceId: string
+): Promise<Record<string, unknown> | null> {
+  const creds = resolveNetraCredentials(cfg);
+  if (!creds) return null;
+
+  const url = `${creds.baseUrl}/sdk/traces/${encodeURIComponent(traceId)}`;
+  try {
+    const res = await fetch(url, { headers: { ...apiKeyHeader(creds.apiKey) } });
+    if (!res.ok) return null;
+    const json = (await res.json()) as { data?: Record<string, unknown> };
+    return json.data ?? null;
+  } catch {
+    return null;
   }
 }
 
@@ -133,7 +158,7 @@ export async function fetchNetraSpansForTrace(
   const out: unknown[] = [];
   let cursor: string | undefined;
 
-  for (let page = 0; page < 50; page++) {
+  for (let page = 0; page < MAX_SPAN_PAGES; page++) {
     const params = new URLSearchParams({ limit: "100" });
     if (cursor) params.set("cursor", cursor);
     const url = `${creds.baseUrl}/sdk/traces/${encodeURIComponent(traceId)}/spans?${params.toString()}`;
@@ -208,7 +233,7 @@ export async function fetchNetraTracesListPage(
 }
 
 /**
- * Hydrate a single Netra trace: return the trace entry from the list combined with all its spans.
+ * Hydrate a single Netra trace: merge top-level trace metadata with all its spans.
  */
 export async function hydrateNetraTraceRecord(
   telemetry: TelemetryConfig,
@@ -216,8 +241,11 @@ export async function hydrateNetraTraceRecord(
 ): Promise<Record<string, unknown> | null> {
   if (telemetry.provider !== "netra" || !telemetry.netra) return null;
   const cfg = telemetry.netra;
-  const spans = await fetchNetraSpansForTrace(cfg, traceId);
-  return { traceId, spans };
+  const [detail, spans] = await Promise.all([
+    fetchNetraTraceDetail(cfg, traceId),
+    fetchNetraSpansForTrace(cfg, traceId),
+  ]);
+  return { traceId, ...(detail ?? {}), spans };
 }
 
 /**

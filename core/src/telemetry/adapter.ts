@@ -47,7 +47,6 @@ export interface TelemetryAdapter {
   ): Promise<string | null>;
 }
 
-// Lazy imports so unused adapters don't pull in transitive deps at startup.
 import { langfuseAdapter } from "./providers/langfuse/adapter.js";
 import { netraAdapter } from "./providers/netra/adapter.js";
 

@@ -8,31 +8,15 @@ import { getAdapter } from "./adapter.js";
 const MAX_TARGET_DESC = 2_000;
 const TRACE_SUMMARY_MD_FILENAME = "trace-summary.md";
 
-function resolveCurationLimits(telemetry: TelemetryConfig): {
-  curationListJsonMaxChars: number;
-  summarizerSourceJsonMaxChars: number;
-  summaryForAttackMaxChars: number;
-} {
-  if (telemetry.provider === "langfuse") {
-    const lf = telemetry.langfuse;
-    return {
-      curationListJsonMaxChars: lf?.traceCurationListJsonMaxChars ?? 28_000,
-      summarizerSourceJsonMaxChars: lf?.traceSummarySourceJsonMaxChars ?? 100_000,
-      summaryForAttackMaxChars: lf?.traceSummaryForAttackMaxChars ?? 26_000,
-    };
-  }
-  if (telemetry.provider === "netra") {
-    const nt = telemetry.netra;
-    return {
-      curationListJsonMaxChars: nt?.traceCurationListJsonMaxChars ?? 28_000,
-      summarizerSourceJsonMaxChars: nt?.traceSummarySourceJsonMaxChars ?? 100_000,
-      summaryForAttackMaxChars: nt?.traceSummaryForAttackMaxChars ?? 26_000,
-    };
-  }
+function resolveCurationLimits(telemetry: TelemetryConfig) {
+  const cfg =
+    telemetry.provider === "langfuse" ? telemetry.langfuse
+    : telemetry.provider === "netra"  ? telemetry.netra
+    : undefined;
   return {
-    curationListJsonMaxChars: 28_000,
-    summarizerSourceJsonMaxChars: 100_000,
-    summaryForAttackMaxChars: 26_000,
+    curationListJsonMaxChars: cfg?.traceCurationListJsonMaxChars ?? 28_000,
+    summarizerSourceJsonMaxChars: cfg?.traceSummarySourceJsonMaxChars ?? 100_000,
+    summaryForAttackMaxChars: cfg?.traceSummaryForAttackMaxChars ?? 26_000,
   };
 }
 
