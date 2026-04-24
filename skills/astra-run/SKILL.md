@@ -59,7 +59,7 @@ Model:         gpt-4
 Evaluators:    10 (from owasp-llm-top10)
 Test Cases:    5 per evaluator = 50 total
 Turn Mode:     single-turn
-Telemetry:     netra (trace_id injected per request, judge enrichment enabled)
+Telemetry:     <provider> (<traceIdField> injected per request, judge enrichment <enabled|disabled>)
 ```
 
 ---

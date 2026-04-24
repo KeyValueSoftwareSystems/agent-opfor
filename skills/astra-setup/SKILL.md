@@ -108,10 +108,10 @@ Pre-filled Application Context:
   System Prompt:  [extracted from system-prompt.md]
 
 Pre-filled Telemetry (from repo — no secret values shown):
-  Observability:    [e.g. Netra — from astra.config + package.json]
-  API origin:       [e.g. NETRA_BASE_URL in .env.example]
-  Auth:             [e.g. NETRA_API_KEY — set locally, not pasted here]
-  Trace injection:  [e.g. traceIdBodyField: "trace_id" — field injected into each request so traces can be correlated]
+  Observability:    [detected provider, e.g. "langfuse" or "netra" — from astra.config + package.json]
+  API origin:       [env var name holding the base URL, e.g. LANGFUSE_BASE_URL or NETRA_BASE_URL]
+  Auth:             [env var name(s) holding credentials — set locally, not pasted here]
+  Trace injection:  [body field name to inject per request, e.g. "trace_id" — omit if target doesn't support it]
 
 ✅ Looks good, use this?
 📝 Edit these fields?
@@ -533,7 +533,7 @@ Endpoint:              https://api.example.com/chat
 Assessment Type:       OWASP LLM Top 10 (10 evaluators)
 Test Cases:            5 per evaluator = 50 total attacks
 Turn Mode:             single-turn
-Telemetry:             netra (trace_id injected per request, judge enrichment enabled)
+Telemetry:             <provider> (<traceIdField> injected per request, judge enrichment <enabled|disabled>)
 Trace Summary:         Used to ground attack prompts in real usage patterns
 Generated Inputs:      Saved to .astra/configs/<uuid>/inputs/
 
