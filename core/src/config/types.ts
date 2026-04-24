@@ -283,6 +283,41 @@ export interface PromptsFile {
   traceSummaryFilename?: string;
 }
 
+/**
+ * Inline setup parameters accepted directly by the MCP `astra_setup` tool.
+ * No config file is required — the agent passes these from conversation context.
+ */
+export interface InlineSetupConfig {
+  target: {
+    name: string;
+    /** Optional when Langfuse is configured — inferred from traces during curation. */
+    description?: string;
+    type: "http-endpoint" | "local-script";
+    endpoint?: string;
+    requestFormat?: "auto" | "openai" | "json";
+    targetApiKey?: string;
+    targetModel?: string;
+    scriptPath?: string;
+  };
+  selection:
+    | { mode: "suite"; suite: string }
+    | { mode: "evaluators"; evaluators: string[] };
+  llm?: {
+    provider?: ProviderName;
+    model?: string;
+    apiKey?: string;
+    baseURL?: string;
+  };
+  /**
+   * When true and Langfuse credentials are present in the environment
+   * (`LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY`), astra will fetch
+   * production traces and use them to enrich attack prompts and the judge.
+   */
+  useLangfuse?: boolean;
+  /** Full telemetry block — used when the agent wants fine-grained control. Overrides useLangfuse. */
+  telemetry?: TelemetryConfig;
+}
+
 // Shape of the optional config file passed to `astra setup --config`
 export interface SetupConfigFile {
   llm?: {

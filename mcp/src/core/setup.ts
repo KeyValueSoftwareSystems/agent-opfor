@@ -14,11 +14,13 @@ import { resolveTelemetryEnv } from "@astra/core/config/resolveTelemetryEnv";
 import { runLangfuseSetupTraceCuration } from "@astra/core/telemetry/langfuseTraceCuration";
 import type {
   AttackEntry,
+  InlineSetupConfig,
   LlmConfig,
   PromptsFile,
   ProviderName,
   SetupConfigFile,
   TargetConfig,
+  TelemetryConfig,
 } from "@astra/core/config/types";
 
 export interface SetupOptions {
@@ -33,6 +35,12 @@ export interface SetupResult {
   totalAttacks: number;
   provider: string;
   model: string;
+  /** Whether Langfuse trace curation ran during setup. */
+  langfuseTraceCurationRan: boolean;
+  /** Set when curation was attempted but failed — explains why attacks may be less targeted. */
+  langfuseCurationError?: string;
+  /** Path to trace-summary.md when curation succeeded. */
+  traceSummaryPath?: string;
 }
 
 export async function runSetup(opts: SetupOptions): Promise<SetupResult> {
@@ -85,8 +93,120 @@ export async function runSetup(opts: SetupOptions): Promise<SetupResult> {
   const telemetry = resolveTelemetryEnv(cfg.telemetry);
   const model = createModel(llm);
 
+  return runSetupCore({
+    llm,
+    target,
+    telemetry,
+    model,
+    selectedEvaluatorIds,
+    resolvedOutputDir,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// runSetupInline — no config file; called directly by the MCP astra_setup tool
+// ---------------------------------------------------------------------------
+
+export async function runSetupInline(
+  inline: InlineSetupConfig,
+  outputDir = "."
+): Promise<SetupResult> {
+  const catalog = await loadSkillCatalog();
+  const { suites: SUITES } = catalog;
+  const EVALUATOR_IDS = getEvaluatorIdSet(catalog);
+
+  let selectedEvaluatorIds: string[];
+  if (inline.selection.mode === "suite") {
+    selectedEvaluatorIds = resolveSuiteEvaluatorIds(inline.selection.suite, SUITES);
+  } else {
+    const invalid = inline.selection.evaluators.filter((id) => !EVALUATOR_IDS.has(id));
+    if (invalid.length > 0) {
+      throw new Error(`Unknown evaluator IDs: ${invalid.join(", ")}`);
+    }
+    selectedEvaluatorIds = inline.selection.evaluators;
+  }
+
+  const provider: ProviderName = (inline.llm?.provider as ProviderName) ?? "groq";
+  const envVar = PROVIDER_ENV_VARS[provider];
+  const apiKey = inline.llm?.apiKey?.trim() || process.env[envVar] || "";
+  if (!apiKey) {
+    throw new Error(
+      `No API key for provider "${provider}". ` +
+      `Pass llm.apiKey in the tool call or set env var ${envVar}.`
+    );
+  }
+
+  const llm: LlmConfig = {
+    provider,
+    model: inline.llm?.model ?? PROVIDER_DEFAULTS[provider],
+    apiKey,
+    baseURL: inline.llm?.baseURL,
+  };
+
+  // Build telemetry: explicit block wins; fall back to useLangfuse shortcut
+  let telemetry: TelemetryConfig | undefined = inline.telemetry;
+  if (!telemetry && inline.useLangfuse) {
+    // Keys are read from the env vars at runtime by the Langfuse client —
+    // we only store the env var names here to avoid embedding secrets in objects.
+    if (process.env.LANGFUSE_PUBLIC_KEY && process.env.LANGFUSE_SECRET_KEY) {
+      telemetry = {
+        provider: "langfuse",
+        langfuse: {
+          publicKeyEnv: "LANGFUSE_PUBLIC_KEY",
+          secretKeyEnv: "LANGFUSE_SECRET_KEY",
+          baseUrlEnv: "LANGFUSE_BASE_URL",
+          traceSelection: { lookbackHours: 24 },
+        },
+        enrichJudgeFromTrace: true,
+        propagation: {
+          headers: { "X-Langfuse-Trace-Id": "{traceId}" },
+        },
+      };
+    }
+  }
+  const resolvedTelemetry = resolveTelemetryEnv(telemetry);
+  const model = createModel(llm);
+
+  return runSetupCore({
+    llm,
+    target: inline.target as TargetConfig,
+    telemetry: resolvedTelemetry,
+    model,
+    selectedEvaluatorIds,
+    resolvedOutputDir: path.resolve(outputDir),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Shared core — builds attacks and writes the prompts file
+// ---------------------------------------------------------------------------
+
+interface CoreSetupParams {
+  llm: LlmConfig;
+  target: TargetConfig;
+  telemetry: TelemetryConfig | undefined;
+  model: ReturnType<typeof createModel>;
+  selectedEvaluatorIds: string[];
+  resolvedOutputDir: string;
+}
+
+async function runSetupCore({
+  llm,
+  target,
+  telemetry,
+  model,
+  selectedEvaluatorIds,
+  resolvedOutputDir,
+}: CoreSetupParams): Promise<SetupResult> {
+  await mkdir(resolvedOutputDir, { recursive: true });
+
   let langfuseTraceContext: string | undefined;
+  let langfuseTraceCurationRan = false;
+  let langfuseCurationError: string | undefined;
+  let traceSummaryPath: string | undefined;
+
   if (telemetry?.provider === "langfuse") {
+    langfuseTraceCurationRan = true;
     try {
       langfuseTraceContext = await runLangfuseSetupTraceCuration({
         telemetry,
@@ -95,9 +215,13 @@ export async function runSetup(opts: SetupOptions): Promise<SetupResult> {
         targetDescription: target.description,
         outputDir: resolvedOutputDir,
       });
+      if (langfuseTraceContext?.trim()) {
+        traceSummaryPath = path.join(resolvedOutputDir, "trace-summary.md");
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.warn(`[Langfuse] Trace curation failed (continuing MCP setup): ${msg}`);
+      langfuseCurationError = msg;
+      console.warn(`[Langfuse] Trace curation failed (continuing setup): ${msg}`);
     }
   }
 
@@ -108,17 +232,15 @@ export async function runSetup(opts: SetupOptions): Promise<SetupResult> {
     try {
       evaluator = await loadBuiltinEvaluator(evaluatorId);
     } catch {
-      continue; // skip if evaluator file not found
+      continue;
     }
 
     const targetDescription =
       target.type === "local-script"
-        ? `${target.description}\nTarget runs as a subprocess: stdin is JSON {"prompt","context"}. ` +
+        ? `${target.description ?? ""}\nTarget runs as a subprocess: stdin is JSON {"prompt","context"}. ` +
           `Stdout must be JSON with a string field "response". Script: ${target.scriptPath ?? ""}. ` +
           `Interpreter is chosen from the file extension (.py → python3, .js/.mjs/.cjs → node).`
-        : target.type === "python-function"
-          ? `${target.description}\nFunction signature: ${target.functionSignature ?? ""}`
-          : target.description;
+        : target.description;
 
     const attacks = await generateAttackPrompts(evaluator, targetDescription, model, {
       traceContext: langfuseTraceContext,
@@ -164,5 +286,8 @@ export async function runSetup(opts: SetupOptions): Promise<SetupResult> {
     totalAttacks: allAttacks.length,
     provider: llm.provider,
     model: llm.model,
+    langfuseTraceCurationRan,
+    langfuseCurationError,
+    traceSummaryPath,
   };
 }
