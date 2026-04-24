@@ -160,17 +160,84 @@ export LANGFUSE_BASE_URL=https://cloud.langfuse.com   # optional; default if omi
 
 **`telemetry.langfuse.traceSelection`** — controls which traces are fetched during setup:
 
+All fields are optional. They map directly to `GET /api/public/traces` query params ([Langfuse API reference](https://api.reference.langfuse.com/#get-/api/public/traces)).
+
+**Pagination**
+
 | Field | Default | Description |
 |-------|---------|-------------|
-| `listLimit` | `100` | Rows per page from `GET /api/public/traces` |
+| `listLimit` | `100` | Rows per page |
 | `listMaxPages` | `1` | Pages to fetch and merge before curation. `listLimit 100 × listMaxPages 5` = up to 500 traces |
-| `setupTraceIds` | — | Explicit trace IDs to always include (highest precision; skip curation for these) |
-| `lookbackHours` | — | Only fetch traces from the last N hours |
+
+**Explicit IDs**
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `setupTraceIds` | — | Explicit trace IDs to always include (highest precision; curation is skipped for these) |
+
+**Time window**
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `lookbackHours` | — | Fetch traces from the last N hours (ignored when `fromTimestamp` is set) |
 | `fromTimestamp` | — | ISO 8601 lower bound for `trace.timestamp` |
 | `toTimestamp` | — | ISO 8601 upper bound |
-| `tags` | — | Langfuse tag filter — trace must include all listed tags |
-| `environment` | — | Langfuse environment filter (string or array) |
-| `sessionId` | — | Filter by session ID |
+
+**Identity / session**
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `userId` | — | Filter by Langfuse `userId` |
+| `sessionId` | — | Filter by Langfuse `sessionId` |
+
+**Trace metadata**
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `name` | — | Filter by trace `name` (e.g. `"POST /chat"`) |
+| `version` | — | Filter by `version` string on the trace |
+| `release` | — | Filter by `release` string on the trace |
+| `tags` | — | Only traces that include **all** listed tags |
+| `environment` | — | Environment filter — string or array of strings |
+| `orderBy` | — | Sort order: `"<field>.<asc\|desc>"`. Sortable fields: `id`, `timestamp`, `name`, `userId`, `release`, `version`, `public`, `bookmarked`, `sessionId`. Example: `"timestamp.desc"` |
+
+**Response shape**
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `fields` | all | Comma-separated field groups: `core`, `io`, `scores`, `observations`, `metrics`. Example: `"core,io,scores"` |
+
+**Advanced JSON filter** (metadata, custom columns)
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `filter` | — | Array of filter condition objects. Takes precedence over the direct params above. Supports any column including metadata key/value. ([Langfuse docs](https://langfuse.com/changelog/2025-11-03-advanced-filtering-traces-and-observations-api)) |
+
+```json
+"traceSelection": {
+  "filter": [
+    { "type": "stringObject", "column": "metadata", "key": "service.name", "operator": "=", "value": "my-api" },
+    { "type": "string",       "column": "name",      "operator": "=",       "value": "POST /chat" }
+  ]
+}
+```
+
+**Observation-name pre-filter** (two-step, client-side)
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `observationName` | — | Filter traces by observation (span/generation) **name**. Astra first queries `GET /api/public/v2/observations?name=<value>` to collect trace IDs, then intersects with the main list. Example: `"groq.chat.completions"` or `"POST /chat"` |
+| `observationType` | — | Narrow `observationName` lookup by type: `"GENERATION"` (LLM calls), `"SPAN"`, `"EVENT"`. Only effective when `observationName` is also set. |
+
+```json
+"traceSelection": {
+  "listLimit": 100,
+  "listMaxPages": 3,
+  "observationName": "groq.chat.completions",
+  "observationType": "GENERATION",
+  "lookbackHours": 48
+}
+```
 
 **`telemetry.langfuse` size limits** — all optional; defaults shown:
 

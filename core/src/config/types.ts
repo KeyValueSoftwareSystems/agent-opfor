@@ -30,40 +30,115 @@ export interface TelemetryPropagationConfig {
 }
 
 /**
- * MVP: how to discover traces in Langfuse (`GET /api/public/traces` + explicit ids).
- * Maps to Langfuse list/query params; adapter fills `fromTimestamp` from `lookbackHours` when needed.
+ * How to discover traces in Langfuse (`GET /api/public/traces` + explicit ids).
+ * Maps directly to Langfuse list/query params.
+ * @see https://api.reference.langfuse.com/#get-/api/public/traces
  */
 export interface LangfuseTraceSelectionConfig {
-  /** Explicit trace ids to fetch for setup-time context (highest precision). */
+  // ── Explicit IDs ────────────────────────────────────────────────────────────
+  /** Explicit trace ids to always include for setup-time context (highest precision, skip curation). */
   setupTraceIds?: string[];
+
+  // ── Time window ─────────────────────────────────────────────────────────────
   /**
-   * When listing traces without `fromTimestamp`, adapter may use now minus this many hours.
-   * Ignored if `fromTimestamp` is set.
+   * Shorthand: fetch traces from the last N hours.
+   * Converted to `fromTimestamp = now - N hours` at query time. Ignored when `fromTimestamp` is set.
    */
   lookbackHours?: number;
-  /** ISO 8601 lower bound for trace.timestamp (Langfuse `fromTimestamp`). */
+  /** ISO 8601 lower bound — Langfuse `fromTimestamp`. */
   fromTimestamp?: string;
-  /** ISO 8601 upper bound (Langfuse `toTimestamp`). */
+  /** ISO 8601 upper bound — Langfuse `toTimestamp`. */
   toTimestamp?: string;
+
+  // ── Identity / session ──────────────────────────────────────────────────────
+  /** Filter by Langfuse `userId`. */
+  userId?: string;
+  /** Filter by Langfuse `sessionId`. */
+  sessionId?: string;
+
+  // ── Trace metadata fields ───────────────────────────────────────────────────
+  /** Filter by trace `name` (e.g. `"POST /chat"`). */
+  name?: string;
+  /** Filter by `version` string on the trace. */
+  version?: string;
+  /** Filter by `release` string on the trace. */
+  release?: string;
   /**
-   * Langfuse `tags` query filter (trace must include these tags).
-   * With OpenTelemetry + Langfuse, instrumentation `scope.name` is often surfaced as a tag
-   * (e.g. `"langfuse-sdk"` for the official JS SDK).
+   * Filter by tags — only traces that include **all** of the listed tags are returned.
+   * With OTEL + Langfuse, the instrumentation `scope.name` is often surfaced as a tag.
    */
   tags?: string[];
-  /** Langfuse `environment` filter (string or repeated values per API). */
+  /**
+   * Filter by environment.
+   * Pass a single string or an array; Langfuse returns traces matching any of the values.
+   */
   environment?: string | string[];
-  /** Langfuse `sessionId` filter. */
-  sessionId?: string;
+
+  // ── Sorting ──────────────────────────────────────────────────────────────────
+  /**
+   * Sort order — format: `<field>.<asc|desc>`.
+   * Sortable fields: `id`, `timestamp`, `name`, `userId`, `release`, `version`,
+   * `public`, `bookmarked`, `sessionId`.
+   * Example: `"timestamp.desc"` (most-recent first).
+   */
+  orderBy?: string;
+
+  // ── Advanced JSON filter ─────────────────────────────────────────────────────
+  /**
+   * Advanced filter conditions (Langfuse `filter` param, JSON-encoded).
+   * Supports filtering by **any** column including `metadata` key/value pairs,
+   * scores, and more. Takes precedence over the direct params above when provided.
+   *
+   * Each condition: `{ type, column, operator, value, key? }`
+   *
+   * Types: `"string"` | `"number"` | `"datetime"` | `"stringOptions"` |
+   *        `"arrayOptions"` | `"stringObject"` | `"numberObject"` | `"boolean"` | `"null"`
+   *
+   * Example — filter by metadata key:
+   * ```json
+   * [{ "type": "stringObject", "column": "metadata", "key": "service.name", "operator": "=", "value": "my-api" }]
+   * ```
+   * Example — filter by trace name and environment:
+   * ```json
+   * [
+   *   { "type": "string", "column": "name",        "operator": "=",        "value": "POST /chat" },
+   *   { "type": "string", "column": "environment", "operator": "=",        "value": "production" }
+   * ]
+   * ```
+   * @see https://langfuse.com/changelog/2025-11-03-advanced-filtering-traces-and-observations-api
+   */
+  filter?: Record<string, unknown>[];
+
+  // ── Observation-based pre-filter (two-step, client-side) ────────────────────
+  /**
+   * Filter traces by observation (span/generation) **name**.
+   * Astra first queries `GET /api/public/v2/observations?name=<value>` to collect
+   * trace IDs, then fetches only those traces. Useful for targeting specific LLM
+   * calls (e.g. `"groq.chat.completions"`) or route spans (e.g. `"POST /chat"`).
+   * Combines with all other filters above (applied as an AND intersection).
+   */
+  observationName?: string;
+  /**
+   * Filter traces by observation **type** alongside `observationName`.
+   * Options: `"GENERATION"` (LLM calls), `"SPAN"` (generic spans), `"EVENT"` (point-in-time events).
+   * Has no effect if `observationName` is not set.
+   */
+  observationType?: "GENERATION" | "SPAN" | "EVENT";
+
+  // ── Pagination ───────────────────────────────────────────────────────────────
   /** Max rows per page for `GET /api/public/traces` (Langfuse `limit`, default 100). */
   listLimit?: number;
   /**
    * How many list pages to fetch and merge before trace curation (default 1).
-   * Increase to pull more traces (e.g. `listLimit` 100 × `listMaxPages` 5 → up to 500 rows), stopping early if a page returns fewer than `listLimit` rows.
+   * `listLimit 100 × listMaxPages 5` → up to 500 rows; stops early if a page returns fewer than `listLimit` rows.
    */
   listMaxPages?: number;
+
+  // ── Response shape ───────────────────────────────────────────────────────────
   /**
-   * Langfuse `fields` on list/get (e.g. `core,io`) to limit payload size.
+   * Comma-separated field groups to include in list responses (Langfuse `fields`).
+   * Groups: `core` (always included), `io`, `scores`, `observations`, `metrics`.
+   * Example: `"core,io,scores"`. Omit to get all fields.
    * @see https://api.reference.langfuse.com
    */
   fields?: string;

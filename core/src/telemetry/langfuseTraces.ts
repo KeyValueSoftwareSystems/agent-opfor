@@ -48,11 +48,55 @@ function isPlaceholderTraceId(id: string): boolean {
   return false;
 }
 
-/** List query: page + limit (extend later for tags/timestamps when wired to Langfuse query params). */
+/**
+ * Build URLSearchParams for `GET /api/public/traces`.
+ * Wires every field from LangfuseTraceSelectionConfig to the Langfuse API.
+ * `filter` (advanced JSON) takes precedence over the equivalent direct params when both are set.
+ */
 function buildTraceListParams(sel: LangfuseTraceSelectionConfig | undefined, page: number): URLSearchParams {
   const params = new URLSearchParams();
   params.set("page", String(Math.max(1, page)));
   params.set("limit", String(sel?.listLimit ?? DEFAULT_LIST_LIMIT));
+  if (!sel) return params;
+
+  // Direct filter params
+  if (sel.userId?.trim())    params.set("userId",    sel.userId.trim());
+  if (sel.name?.trim())      params.set("name",      sel.name.trim());
+  if (sel.sessionId?.trim()) params.set("sessionId", sel.sessionId.trim());
+  if (sel.version?.trim())   params.set("version",   sel.version.trim());
+  if (sel.release?.trim())   params.set("release",   sel.release.trim());
+  if (sel.orderBy?.trim())   params.set("orderBy",   sel.orderBy.trim());
+  if (sel.fields?.trim())    params.set("fields",    sel.fields.trim());
+
+  // Time window: fromTimestamp / lookbackHours
+  if (sel.fromTimestamp?.trim()) {
+    params.set("fromTimestamp", sel.fromTimestamp.trim());
+  } else if (sel.lookbackHours != null && sel.lookbackHours > 0) {
+    const from = new Date(Date.now() - sel.lookbackHours * 3600 * 1000);
+    params.set("fromTimestamp", from.toISOString());
+  }
+  if (sel.toTimestamp?.trim()) params.set("toTimestamp", sel.toTimestamp.trim());
+
+  // Tags — repeated query params: ?tags=a&tags=b
+  if (Array.isArray(sel.tags)) {
+    for (const t of sel.tags) { if (t?.trim()) params.append("tags", t.trim()); }
+  }
+
+  // Environment — may be string or string[]
+  if (sel.environment != null) {
+    const envs = Array.isArray(sel.environment) ? sel.environment : [sel.environment];
+    for (const e of envs) { if (e?.trim()) params.append("environment", e.trim()); }
+  }
+
+  // Advanced JSON filter — takes precedence over the params above when Langfuse processes it
+  if (Array.isArray(sel.filter) && sel.filter.length > 0) {
+    try {
+      params.set("filter", JSON.stringify(sel.filter));
+    } catch {
+      // ignore serialisation failure — fall back to direct params
+    }
+  }
+
   return params;
 }
 
@@ -93,6 +137,47 @@ function previewJson(label: string, data: unknown): void {
   }
 }
 
+/**
+ * Two-step observation-name pre-filter:
+ * 1. Query GET /api/public/v2/observations?name=<name>&type=<type> to collect trace IDs.
+ * 2. Caller then intersects these IDs with the main trace list.
+ *
+ * Used when `traceSelection.observationName` is set.
+ */
+async function fetchTraceIdsByObservationName(
+  creds: { baseUrl: string; publicKey: string; secretKey: string },
+  observationName: string,
+  observationType?: string,
+  maxPages = 10
+): Promise<Set<string>> {
+  const traceIds = new Set<string>();
+  let cursor: string | undefined;
+
+  for (let page = 0; page < maxPages; page++) {
+    const params = new URLSearchParams();
+    params.set("name", observationName.trim());
+    params.set("limit", "100");
+    if (observationType?.trim()) params.set("type", observationType.trim());
+    if (cursor) params.set("cursor", cursor);
+
+    const url = `${creds.baseUrl}/api/public/v2/observations?${params.toString()}`;
+    const got = await httpJson(url, creds.publicKey, creds.secretKey);
+    if (!got.ok) break;
+
+    const body = got.body as { data?: Array<{ traceId?: string }>; meta?: { cursor?: string | null } };
+    const chunk = Array.isArray(body?.data) ? body.data : [];
+    for (const obs of chunk) {
+      if (obs.traceId?.trim()) traceIds.add(obs.traceId.trim());
+    }
+
+    const next = body?.meta?.cursor?.trim();
+    if (!next || chunk.length === 0) break;
+    cursor = next;
+  }
+
+  return traceIds;
+}
+
 const MAX_LIST_PAGES_CAP = 100;
 
 type TraceListRow = Record<string, unknown>;
@@ -120,6 +205,18 @@ export async function fetchLangfuseTracesListPage(
   const sel = lf.traceSelection;
   const perPage = sel?.listLimit ?? DEFAULT_LIST_LIMIT;
   const maxPages = Math.max(1, Math.min(MAX_LIST_PAGES_CAP, sel?.listMaxPages ?? 1));
+
+  // Two-step observation-name pre-filter: collect allowed trace IDs first
+  let observationTraceIdFilter: Set<string> | null = null;
+  if (sel?.observationName?.trim()) {
+    console.log(`  [Langfuse] observation-name pre-filter: fetching trace IDs for name="${sel.observationName}"${sel.observationType ? ` type=${sel.observationType}` : ""}`);
+    observationTraceIdFilter = await fetchTraceIdsByObservationName(
+      creds,
+      sel.observationName,
+      sel.observationType,
+    );
+    console.log(`  [Langfuse] observation pre-filter matched ${observationTraceIdFilter.size} trace ID(s)`);
+  }
 
   const merged: TraceListRow[] = [];
   let firstMeta: unknown = null;
@@ -153,7 +250,19 @@ export async function fetchLangfuseTracesListPage(
     lastStatus = listed.status;
 
     const body = listed.body as { data?: TraceListRow[]; meta?: unknown };
-    const chunk = Array.isArray(body.data) ? body.data : [];
+    let chunk = Array.isArray(body.data) ? body.data : [];
+    // Intersect with observation-name pre-filter if active
+    if (observationTraceIdFilter !== null) {
+      const before = chunk.length;
+      chunk = chunk.filter((row) => {
+        const id = typeof row.id === "string" ? row.id.trim() : "";
+        return id && observationTraceIdFilter!.has(id);
+      });
+      console.log(`  [Langfuse] page ${page}: ${before} traces → ${chunk.length} after observation-name intersection`);
+      if (chunk.length > 0) {
+        console.log(`  [Langfuse] matched trace IDs:`, chunk.map((r) => r.id));
+      }
+    }
     if (page === 1) firstMeta = body.meta ?? null;
     merged.push(...chunk);
     listPagesFetched = page;
@@ -172,6 +281,10 @@ export async function fetchLangfuseTracesListPage(
       astraListMaxPagesRequested: maxPages,
     },
   };
+
+  if (observationTraceIdFilter !== null) {
+    console.log(`  [Langfuse] DEBUG observation-name filter summary: ${merged.length} trace(s) kept across ${listPagesFetched} page(s) (observationName="${sel?.observationName}")`);
+  }
 
   return {
     ok: lastOk,

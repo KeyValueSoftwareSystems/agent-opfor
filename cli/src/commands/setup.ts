@@ -86,6 +86,10 @@ function logTelemetryFromConfig(telemetry: TelemetryConfig | undefined): void {
     if (sel.listLimit != null) console.log(`    listLimit: ${sel.listLimit}`);
     if (sel.listMaxPages != null) console.log(`    listMaxPages: ${sel.listMaxPages}`);
     if (sel.fields) console.log(`    fields: ${sel.fields}`);
+    if (sel.observationName) {
+      console.log(`    observationName (pre-filter): ${sel.observationName}${sel.observationType ? ` [type=${sel.observationType}]` : ""}`);
+    }
+    if (sel.filter?.length) console.log(`    filter (advanced JSON): ${sel.filter.length} condition(s)`);
   }
   if (lf?.traceCurationListJsonMaxChars != null) {
     console.log(`  traceCurationListJsonMaxChars: ${lf.traceCurationListJsonMaxChars}`);
