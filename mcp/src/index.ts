@@ -333,12 +333,12 @@ server.tool(
 
       // Build human-readable status lines for trace curation
       const traceLines: string[] = [];
-      if (result.langfuseTraceCurationRan) {
-        if (result.langfuseCurationError) {
-          traceLines.push(`⚠️  Langfuse trace curation failed: ${result.langfuseCurationError}`);
+      if (result.traceCurationRan) {
+        if (result.traceCurationError) {
+          traceLines.push(`⚠️  Trace curation failed: ${result.traceCurationError}`);
           traceLines.push(`   Attacks were generated without trace grounding.`);
         } else {
-          traceLines.push(`✅ Langfuse traces analysed — attacks grounded in real usage.`);
+          traceLines.push(`✅ Traces analysed — attacks grounded in real usage.`);
           if (result.traceSummaryPath) {
             traceLines.push(`   Trace summary: ${result.traceSummaryPath}`);
           }
