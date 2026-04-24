@@ -13,7 +13,7 @@ import {
   getEvaluatorIdSet,
 } from "@astra/core/config/loadSkillCatalog";
 import { resolveTelemetryEnv } from "@astra/core/config/resolveTelemetryEnv";
-import { runLangfuseSetupTraceCuration } from "@astra/core/telemetry/langfuseTraceCuration";
+import { runSetupTraceCuration } from "@astra/core/telemetry/curation";
 import type {
   PromptsFile,
   AttackEntry,
@@ -417,9 +417,9 @@ export function registerSetupCommand(program: Command) {
       const outputDir = path.resolve(opts.outputDir);
 
       let langfuseTraceContext: string | undefined;
-      if (telemetry?.provider === "langfuse") {
+      if (telemetry && telemetry.provider !== "none") {
         try {
-          langfuseTraceContext = await runLangfuseSetupTraceCuration({
+          langfuseTraceContext = await runSetupTraceCuration({
             telemetry,
             model,
             targetName: target.name,
@@ -431,7 +431,7 @@ export function registerSetupCommand(program: Command) {
           }
         } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : String(err);
-          console.warn(`\n[Langfuse] Trace curation failed (continuing setup): ${msg}\n`);
+          console.warn(`\n[${telemetry.provider}] Trace curation failed (continuing setup): ${msg}\n`);
         }
       }
 
@@ -525,10 +525,21 @@ export function registerSetupCommand(program: Command) {
             `    Keys:      set ${pub} and ${sec} in the environment (do not commit keys to this file).`
           );
         }
+        if (telemetry.provider === "netra") {
+          const nt = telemetry.netra;
+          const base =
+            nt?.baseUrl?.trim() ||
+            (nt?.baseUrlEnv
+              ? `(env ${nt.baseUrlEnv.trim()} unset — set before running)`
+              : "(baseUrl not set)");
+          const keyEnv = nt?.apiKeyEnv ?? "NETRA_API_KEY";
+          console.log(`    Netra: ${base}`);
+          console.log(`    Key:   set ${keyEnv} in the environment (do not commit keys to this file).`);
+        }
         console.log(`    Propagation: strategy=${strat}, headers=${hdrSummary}`);
       }
       console.log(`  Prompts file: ${outputPath}`);
-      if (telemetry?.provider === "langfuse") {
+      if (telemetry && (telemetry.provider === "langfuse" || telemetry.provider === "netra")) {
         console.log(`  Trace data:    ${path.join(outputDir, "tracedata.json")}`);
         if (langfuseTraceContext?.trim()) {
           console.log(`  Trace summary: ${path.join(outputDir, "trace-summary.md")} (also embedded in attack LLM context)`);

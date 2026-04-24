@@ -4,7 +4,7 @@ import type { LanguageModel } from "ai";
 import { judgeResponse } from "../evaluators/judge.js";
 import type { JudgeObservabilityContext, JudgeResult, ConversationTurn } from "../evaluators/judge.js";
 import type { AttackEntry, TelemetryConfig, TelemetryPropagationConfig } from "../config/types.js";
-import { fetchLangfuseTraceJsonForJudge } from "../telemetry/langfuseTraces.js";
+import { getAdapter } from "../telemetry/adapter.js";
 import {
   buildPropagatedHeaders,
   mergeTraceIdIntoJsonBody,
@@ -356,18 +356,19 @@ export async function runAttackAgent(cfg: RunAgentConfig): Promise<AgentAttackRe
   if (propagationTraceId?.trim()) {
     obs.propagatedTraceId = propagationTraceId.trim();
   }
+  const adapter = tel ? getAdapter(tel.provider) : null;
   const enrichTrace =
-    tel?.provider === "langfuse" &&
-    Boolean(tel.enrichJudgeFromTrace) &&
+    adapter !== null &&
+    Boolean(tel?.enrichJudgeFromTrace) &&
     Boolean(propagationTraceId?.trim());
   if (enrichTrace && tel && propagationTraceId?.trim()) {
-    process.stdout.write(`\n     → Langfuse trace for judge...`);
-    obs.langfuseTraceJson = await fetchLangfuseTraceJsonForJudge(tel, propagationTraceId.trim(), {
-      initialDelayMs: tel.traceFetchInitialDelayMs,
-      maxAttempts: tel.traceFetchMaxAttempts,
-      retryDelayMs: tel.traceFetchRetryDelayMs,
-      maxJsonChars: tel.enrichJudgeTraceJsonMaxChars,
-    });
+    process.stdout.write(`\n     → ${tel.provider} trace for judge...`);
+    obs.traceJson = (await adapter!.fetchTraceForJudge(tel, propagationTraceId.trim(), {
+      initialDelayMs: tel.traceFetchInitialDelayMs ?? 500,
+      maxAttempts: tel.traceFetchMaxAttempts ?? 5,
+      retryDelayMs: tel.traceFetchRetryDelayMs ?? 400,
+      maxChars: tel.enrichJudgeTraceJsonMaxChars ?? 14_000,
+    })) ?? undefined;
   }
   const judge: JudgeResult = await judgeResponse(
     {

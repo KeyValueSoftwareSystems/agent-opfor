@@ -1,4 +1,4 @@
-import type { LangfuseTelemetryConfig, LangfuseTraceSelectionConfig, TelemetryConfig } from "../config/types.js";
+import type { LangfuseTelemetryConfig, LangfuseTraceSelectionConfig, TelemetryConfig } from "../../../config/types.js";
 
 const DEFAULT_LANGFUSE_ORIGIN = "https://cloud.langfuse.com";
 /** First page size when listing with no server-side filters (Langfuse still paginates). */

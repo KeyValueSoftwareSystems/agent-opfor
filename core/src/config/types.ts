@@ -3,7 +3,7 @@
 // ---------------------------------------------------------------------------
 
 /** Which backend supplies traces for setup context and optional run/judge enrichment. */
-export type TelemetryProviderId = "none" | "langfuse";
+export type TelemetryProviderId = "none" | "langfuse" | "netra";
 
 /**
  * How the scanner sends a correlation id to the target so observability lines up
@@ -144,6 +144,64 @@ export interface LangfuseTraceSelectionConfig {
   fields?: string;
 }
 
+/**
+ * How to discover traces in Netra (`POST /sdk/traces` list + explicit ids).
+ */
+export interface NetraTraceSelectionConfig {
+  /** Explicit trace ids to always include for setup-time context (skip curation). */
+  setupTraceIds?: string[];
+  /**
+   * Shorthand: fetch traces from the last N hours.
+   * Converted to `startTime = now - N hours` at query time. Ignored when `fromTime` is set.
+   */
+  lookbackHours?: number;
+  /** ISO 8601 lower bound for trace start time. */
+  fromTime?: string;
+  /** ISO 8601 upper bound for trace start time. */
+  toTime?: string;
+  /** Filter by session ID. */
+  sessionId?: string;
+  /** Filter by user ID. */
+  userId?: string;
+  /** Filter by environment string (e.g. "production"). */
+  environment?: string;
+  /** Max rows per page for POST /sdk/traces (1–100, default 50). */
+  listLimit?: number;
+  /**
+   * How many list pages to fetch and merge before trace curation (default 1).
+   */
+  listMaxPages?: number;
+}
+
+/** Netra-specific options (credentials always from env, never in this file). */
+export interface NetraTelemetryConfig {
+  /**
+   * Netra API base URL (e.g. http://localhost:3000 or self-hosted origin).
+   */
+  baseUrl?: string;
+  /**
+   * Name of an environment variable holding the API origin (e.g. NETRA_BASE_URL).
+   * When set and non-empty at load/run time, its value overrides `baseUrl`.
+   */
+  baseUrlEnv?: string;
+  /** Env var holding the Netra API key (default: NETRA_API_KEY). */
+  apiKeyEnv?: string;
+  /** Which traces to pull for setup (ids, time window, filters, limits, etc.). */
+  traceSelection?: NetraTraceSelectionConfig;
+  /**
+   * Max characters of merged Netra list JSON sent to the curator LLM (default 28000).
+   */
+  traceCurationListJsonMaxChars?: number;
+  /**
+   * Max characters of curated hydrated JSON sent to the summarizer LLM (default 100000).
+   */
+  traceSummarySourceJsonMaxChars?: number;
+  /**
+   * Max characters of trace-summary.md passed into attack prompt generation (default 26000).
+   */
+  traceSummaryForAttackMaxChars?: number;
+}
+
 /** Langfuse-specific options (credentials always from env, never in this file). */
 export interface LangfuseTelemetryConfig {
   /**
@@ -196,6 +254,7 @@ export interface LangfuseTelemetryConfig {
 export interface TelemetryConfig {
   provider: TelemetryProviderId;
   langfuse?: LangfuseTelemetryConfig;
+  netra?: NetraTelemetryConfig;
   /** After each HTTP attack, fetch trace by propagated id and pass digest to judge. */
   enrichJudgeFromTrace?: boolean;
   /** Initial delay before first trace fetch (ingestion lag). */

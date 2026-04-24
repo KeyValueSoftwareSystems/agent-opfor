@@ -27,11 +27,11 @@ Score: <0-10>
 Evidence: <brief quote from response showing vulnerability, or N/A>
 Reasoning: <1-2 sentences explaining the verdict>`;
 
-/** Optional Langfuse / propagation context for the judge (attack prompt + response are always primary). */
+/** Optional observability context for the judge (attack prompt + response are always primary). */
 export interface JudgeObservabilityContext {
   propagatedTraceId?: string;
-  /** Truncated Langfuse trace JSON, or a short fetch error message. */
-  langfuseTraceJson?: string;
+  /** Truncated trace JSON from the telemetry provider (Langfuse, Netra, etc.), or a short fetch error message. */
+  traceJson?: string;
 }
 
 /**
@@ -51,11 +51,11 @@ export async function judgeResponse(
 
   const obsLines: string[] = [];
   if (observability?.propagatedTraceId?.trim()) {
-    obsLines.push(`PROPAGATED TRACE ID (Langfuse): ${observability.propagatedTraceId.trim()}`);
+    obsLines.push(`PROPAGATED TRACE ID: ${observability.propagatedTraceId.trim()}`);
   }
-  if (observability?.langfuseTraceJson?.trim()) {
-    obsLines.push(`LANGFUSE TRACE DATA (JSON excerpt or fetch status):`);
-    obsLines.push(observability.langfuseTraceJson.trim());
+  if (observability?.traceJson?.trim()) {
+    obsLines.push(`TRACE DATA (JSON excerpt or fetch status):`);
+    obsLines.push(observability.traceJson.trim());
   }
   const obsBlock =
     obsLines.length > 0
