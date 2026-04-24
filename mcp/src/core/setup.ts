@@ -11,7 +11,7 @@ import {
   getEvaluatorIdSet,
 } from "@astra/core/config/loadSkillCatalog";
 import { resolveTelemetryEnv } from "@astra/core/config/resolveTelemetryEnv";
-import { runSetupTraceCuration } from "@astra/core/telemetry/curation";
+import { runLangfuseSetupTraceCuration } from "@astra/core/telemetry/langfuseTraceCuration";
 import type {
   AttackEntry,
   InlineSetupConfig,
@@ -35,10 +35,10 @@ export interface SetupResult {
   totalAttacks: number;
   provider: string;
   model: string;
-  /** Whether trace curation ran during setup. */
-  traceCurationRan: boolean;
+  /** Whether Langfuse trace curation ran during setup. */
+  langfuseTraceCurationRan: boolean;
   /** Set when curation was attempted but failed — explains why attacks may be less targeted. */
-  traceCurationError?: string;
+  langfuseCurationError?: string;
   /** Path to trace-summary.md when curation succeeded. */
   traceSummaryPath?: string;
 }
@@ -176,6 +176,8 @@ export async function runSetupInline(
     model,
     selectedEvaluatorIds,
     resolvedOutputDir: path.resolve(outputDir),
+    turnMode: inline.turnMode,
+    turns: inline.turns,
   });
 }
 
@@ -207,14 +209,14 @@ async function runSetupCore({
   await mkdir(resolvedOutputDir, { recursive: true });
 
   let langfuseTraceContext: string | undefined;
-  let traceCurationRan = false;
-  let traceCurationError: string | undefined;
+  let langfuseTraceCurationRan = false;
+  let langfuseCurationError: string | undefined;
   let traceSummaryPath: string | undefined;
 
-  if (telemetry && telemetry.provider !== "none") {
-    traceCurationRan = true;
+  if (telemetry?.provider === "langfuse") {
+    langfuseTraceCurationRan = true;
     try {
-      langfuseTraceContext = await runSetupTraceCuration({
+      langfuseTraceContext = await runLangfuseSetupTraceCuration({
         telemetry,
         model,
         targetName: target.name,
@@ -226,8 +228,8 @@ async function runSetupCore({
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      traceCurationError = msg;
-      console.warn(`[${telemetry.provider}] Trace curation failed (continuing setup): ${msg}`);
+      langfuseCurationError = msg;
+      console.warn(`[Langfuse] Trace curation failed (continuing setup): ${msg}`);
     }
   }
 
@@ -289,8 +291,8 @@ async function runSetupCore({
     totalAttacks: allAttacks.length,
     provider: llm.provider,
     model: llm.model,
-    traceCurationRan,
-    traceCurationError,
+    langfuseTraceCurationRan,
+    langfuseCurationError,
     traceSummaryPath,
   };
 }

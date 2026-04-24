@@ -9,6 +9,8 @@
     "./config/resolveTelemetryEnv": "./dist/config/resolveTelemetryEnv.js",
     "./telemetry/adapter": "./dist/telemetry/adapter.js",
     "./telemetry/curation": "./dist/telemetry/curation.js",
+    "./telemetry/langfuseTraces": "./dist/telemetry/providers/langfuse/traces.js",
+    "./telemetry/langfuseTraceCuration": "./dist/telemetry/langfuseTraceCuration.js",
     "./config/skillsLayout": "./dist/config/skillsLayout.js",
     "./config/loadSkillCatalog": "./dist/config/loadSkillCatalog.js",
     "./evaluators/parseEvaluator": "./dist/evaluators/parseEvaluator.js",
