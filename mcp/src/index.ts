@@ -26,9 +26,9 @@ const server = new McpServer({
 server.tool(
   "astra_list_evaluators",
   "List all available Astra evaluators and suites. " +
-  "Call this first to discover evaluator IDs before calling astra_setup. " +
-  "Returns each evaluator's id, name, severity, OWASP tag, and description, " +
-  "plus the list of predefined suites (owasp-llm-top10, owasp-agentic-ai).",
+  "ALWAYS call this before astra_setup — never assume evaluator IDs. " +
+  "Present the results to the user and ask them to choose a suite or specific evaluators before proceeding. " +
+  "Returns each evaluator's id, name, severity, and OWASP tag, plus predefined suites (owasp-llm-top10, owasp-agentic-ai).",
   {},
   async () => {
     try {
@@ -87,11 +87,12 @@ server.tool(
 server.tool(
   "astra_setup",
   "Generate targeted red-team attack prompts for an AI application. " +
-  "You can provide all configuration inline (preferred) or point to a config file. " +
-  "Call astra_list_evaluators first if you are unsure which evaluator ids to pass. " +
-  "When use_langfuse=true and LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY are set in the " +
-  "environment, astra fetches production traces and uses them to make attack prompts " +
-  "more realistic and targeted. Returns the path to the prompts file — pass it to astra_run.",
+  "IMPORTANT: Before calling this tool, you MUST confirm the following with the user — do NOT infer or assume defaults: " +
+  "(1) Which evaluators or suite to run — call astra_list_evaluators first, show the options, and ask the user to choose. " +
+  "(2) Single-turn or multi-turn attacks — explain the difference and ask. " +
+  "(3) Whether to use Langfuse traces — ask if they have Langfuse set up and want trace-grounded attacks. " +
+  "(4) Target description — ask what the chatbot does, what sensitive data it handles, and what operations it can perform (skip only if use_langfuse=true and traces will provide this). " +
+  "Only call this tool once you have explicit answers to all of the above.",
   {
     // ── Inline target parameters ────────────────────────────────────────────
     target_name: z
@@ -199,6 +200,33 @@ server.tool(
       .optional()
       .describe("Explicit list of Langfuse trace IDs to use instead of the automatic lookback window."),
 
+    // ── Multi-turn ──────────────────────────────────────────────────────────
+    turn_mode: z
+      .enum(["single", "multi"])
+      .optional()
+      .default("single")
+      .describe(
+        "'single' (default) — one prompt per attack. " +
+        "'multi' — runs a short adversarial conversation per attack: after each response, an attacker LLM " +
+        "generates a more escalating follow-up until the target fails or the turn limit is reached. " +
+        "Requires the target to maintain conversation history across requests using a session ID."
+      ),
+
+    turns: z
+      .number()
+      .optional()
+      .default(3)
+      .describe("Maximum number of turns per attack when turn_mode='multi'. Defaults to 3."),
+
+    session_id_field: z
+      .string()
+      .optional()
+      .describe(
+        "JSON body field name to inject a session ID into every HTTP request for multi-turn attacks " +
+        "(e.g. 'session_id'). The target uses this field to look up and reconstruct conversation history. " +
+        "Required when turn_mode='multi' and target_type='http-endpoint'."
+      ),
+
     // ── Config file (backward-compatible) ──────────────────────────────────
     config_path: z
       .string()
@@ -232,6 +260,9 @@ server.tool(
       use_langfuse = false,
       langfuse_lookback_hours,
       langfuse_trace_ids,
+      turn_mode = "single",
+      turns = 3,
+      session_id_field,
       config_path,
       output_dir = ".",
     } = args;
@@ -309,6 +340,7 @@ server.tool(
               requestFormat: target_request_format,
               targetApiKey: target_api_key,
               scriptPath: target_script_path,
+              ...(session_id_field ? { sessionIdField: session_id_field } : {}),
             },
             selection,
             llm: llm_provider || llm_model || llm_api_key
@@ -320,6 +352,8 @@ server.tool(
               : undefined,
             useLangfuse: use_langfuse,
             telemetry: telemetryOverride,
+            turnMode: turn_mode === "multi" ? "multi" : undefined,
+            turns: turn_mode === "multi" ? turns : undefined,
           },
           output_dir
         );
@@ -333,12 +367,12 @@ server.tool(
 
       // Build human-readable status lines for trace curation
       const traceLines: string[] = [];
-      if (result.traceCurationRan) {
-        if (result.traceCurationError) {
-          traceLines.push(`⚠️  Trace curation failed: ${result.traceCurationError}`);
+      if (result.langfuseTraceCurationRan) {
+        if (result.langfuseCurationError) {
+          traceLines.push(`⚠️  Langfuse trace curation failed: ${result.langfuseCurationError}`);
           traceLines.push(`   Attacks were generated without trace grounding.`);
         } else {
-          traceLines.push(`✅ Traces analysed — attacks grounded in real usage.`);
+          traceLines.push(`✅ Langfuse traces analysed — attacks grounded in real usage.`);
           if (result.traceSummaryPath) {
             traceLines.push(`   Trace summary: ${result.traceSummaryPath}`);
           }

@@ -357,6 +357,8 @@ export interface InlineSetupConfig {
     targetApiKey?: string;
     targetModel?: string;
     scriptPath?: string;
+    /** For multi-turn: body field to inject a session ID on every request (e.g. "session_id"). */
+    sessionIdField?: string;
   };
   selection:
     | { mode: "suite"; suite: string }
@@ -375,6 +377,15 @@ export interface InlineSetupConfig {
   useLangfuse?: boolean;
   /** Full telemetry block — used when the agent wants fine-grained control. Overrides useLangfuse. */
   telemetry?: TelemetryConfig;
+  /** "single" (default) or "multi" — applied to all generated attack entries. */
+  turnMode?: "single" | "multi";
+  /** Number of turns per attack when turnMode is "multi". Defaults to 3. */
+  turns?: number;
+  /**
+   * For multi-turn HTTP targets: JSON body field name to inject a session ID on every request
+   * (e.g. "session_id"). The target uses this to maintain its own conversation history.
+   */
+  sessionIdField?: string;
 }
 
 // Shape of the optional config file passed to `astra setup --config`
