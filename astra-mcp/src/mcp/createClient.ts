@@ -80,6 +80,9 @@ export async function connectMcpClient(
       client,
       close: async () => {
         await client.close();
+        // StdioClientTransport keeps the child process alive after client.close();
+        // explicitly close the transport to send SIGTERM to the child.
+        await transport.close().catch(() => undefined);
       },
     };
   }

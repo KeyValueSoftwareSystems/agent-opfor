@@ -176,10 +176,13 @@ export function registerRunCommand(program: Command) {
         log.box(
           `Safety score: ${report.summary.safetyScore}%  ·  ${report.summary.passed}/${report.summary.total} passed  ·  ${report.summary.failed} attack(s) succeeded`
         );
+        // Force-exit: stdio child processes can keep the event loop alive even after
+        // transport.close(), preventing Node from exiting naturally.
+        process.exit(0);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         log.error(msg);
-        process.exitCode = 1;
+        process.exit(1);
       }
     });
 }
