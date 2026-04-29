@@ -21,11 +21,16 @@ export function registerSetupCommand(program: Command) {
       `Path to config file (default: ./${DEFAULT_ASTRA_MCP_CONFIG})`
     )
     .option(
+      "-s, --suite <id>",
+      `Suite ID to use (default: ${DEFAULT_SUITE_ID})`,
+      DEFAULT_SUITE_ID
+    )
+    .option(
       "-o, --out <path>",
       `Output path for attack plan JSON (default: ./${DEFAULT_ATTACK_PLAN_OUT})`,
       DEFAULT_ATTACK_PLAN_OUT
     )
-    .action(async ({ config, out }: { config?: string; out: string }) => {
+    .action(async ({ config, suite: suiteId, out }: { config?: string; suite: string; out: string }) => {
       try {
       const configPath = await requireAstraMcpConfig(config);
       log.info(`Using config: ${configPath}`);
@@ -36,9 +41,9 @@ export function registerSetupCommand(program: Command) {
       const evalIds = getEvaluatorIdSet(catalog);
       log.info(`Evaluator catalog: ${catalog.evaluators.length} definitions`);
 
-      const suite = catalog.suites.find((s) => s.id === DEFAULT_SUITE_ID);
+      const suite = catalog.suites.find((s) => s.id === suiteId);
       if (!suite) {
-        log.warn(`Suite "${DEFAULT_SUITE_ID}" not found (check skills/astra-setup/suites/).`);
+        log.warn(`Suite "${suiteId}" not found (check skills/astra-setup/suites/).`);
         return;
       }
       const missing = suite.evaluatorIds.filter((id) => !evalIds.has(id));

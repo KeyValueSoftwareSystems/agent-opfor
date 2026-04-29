@@ -178,8 +178,22 @@ const CSS = `
 
 // ─── main export ──────────────────────────────────────────────────────────────
 
+function runTimestamp(date: Date): string {
+  const pad = (n: number, len = 2) => String(n).padStart(len, "0");
+  return (
+    `${date.getFullYear()}` +
+    pad(date.getMonth() + 1) +
+    pad(date.getDate()) +
+    `-` +
+    pad(date.getHours()) +
+    pad(date.getMinutes()) +
+    pad(date.getSeconds())
+  );
+}
+
 export async function writeHtmlReport(report: RunReport, outputDir: string): Promise<{ html: string; json: string }> {
   const now = new Date(report.generatedAt);
+  const runDir = path.join(outputDir, `report-${runTimestamp(now)}`);
 
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -207,9 +221,9 @@ export async function writeHtmlReport(report: RunReport, outputDir: string): Pro
 </body>
 </html>`;
 
-  await mkdir(outputDir, { recursive: true });
-  const htmlPath = path.join(outputDir, `${report.reportId}.html`);
-  const jsonPath = path.join(outputDir, `${report.reportId}.json`);
+  await mkdir(runDir, { recursive: true });
+  const htmlPath = path.join(runDir, `${report.reportId}.html`);
+  const jsonPath = path.join(runDir, `${report.reportId}.json`);
   await writeFile(htmlPath, html, "utf8");
   await writeFile(jsonPath, JSON.stringify(report, null, 2), "utf8");
 
