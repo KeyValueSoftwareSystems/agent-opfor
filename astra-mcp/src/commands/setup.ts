@@ -31,79 +31,79 @@ export function registerSetupCommand(program: Command) {
     )
     .action(async ({ config, out, maxTools }: { config?: string; out: string; maxTools?: string }) => {
       try {
-      const configPath = await requireAstraMcpConfig(config);
-      log.info(`Using config: ${configPath}`);
+        const configPath = await requireAstraMcpConfig(config);
+        log.info(`Using config: ${configPath}`);
 
-      const cfg = await loadAstraMcpConfigFile(configPath);
+        const cfg = await loadAstraMcpConfigFile(configPath);
 
-      const catalog = await loadCatalog();
-      const evalIds = getEvaluatorIdSet(catalog);
-      log.info(`Evaluator catalog: ${catalog.evaluators.length} definitions`);
+        const catalog = await loadCatalog();
+        const evalIds = getEvaluatorIdSet(catalog);
+        log.info(`Evaluator catalog: ${catalog.evaluators.length} definitions`);
 
-      const suite = catalog.suites.find((s) => s.id === DEFAULT_SUITE_ID);
-      if (!suite) {
-        log.warn(`Suite "${DEFAULT_SUITE_ID}" not found (check skills/astra-setup/suites/).`);
-        return;
-      }
-      const missing = suite.evaluatorIds.filter((id) => !evalIds.has(id));
-      if (missing.length > 0) {
-        log.warn(`Suite "${suite.id}" references missing evaluators: ${missing.join(", ")}`);
-        return;
-      }
-      log.success(
-        `Suite "${suite.id}" ready (${suite.evaluatorIds.length} evaluators: ${suite.evaluatorIds.join(", ")})`
-      );
-
-      log.start("Connecting to MCP server (stdio or URL)…");
-      const mcp = await connectMcpClient(cfg.server);
-      let tools: Array<{ name: string; description?: string; inputSchema?: Record<string, unknown> }> = [];
-      try {
-        const listed = await mcp.client.listTools();
-        tools = (listed.tools ?? []).map((t: {
-          name: string;
-          description?: string;
-          inputSchema?: Record<string, unknown>;
-        }) => ({
-          name: t.name,
-          ...(t.description ? { description: t.description } : {}),
-          ...(t.inputSchema ? { inputSchema: t.inputSchema } : {}),
-        }));
-        log.success(`tools/list: ${tools.length} tool(s) (${tools.filter((t) => t.inputSchema).length} with inputSchema)`);
-      } finally {
-        await mcp.close();
-      }
-
-      if (maxTools) {
-        const n = parseInt(maxTools, 10);
-        if (!isNaN(n) && n > 0 && n < tools.length) {
-          tools = tools.slice(0, n);
-          log.info(`Limiting to first ${n} tools (--max-tools ${n})`);
+        const suite = catalog.suites.find((s) => s.id === DEFAULT_SUITE_ID);
+        if (!suite) {
+          log.warn(`Suite "${DEFAULT_SUITE_ID}" not found (check skills/astra-setup/suites/).`);
+          return;
         }
-      }
+        const missing = suite.evaluatorIds.filter((id) => !evalIds.has(id));
+        if (missing.length > 0) {
+          log.warn(`Suite "${suite.id}" references missing evaluators: ${missing.join(", ")}`);
+          return;
+        }
+        log.success(
+          `Suite "${suite.id}" ready (${suite.evaluatorIds.length} evaluators: ${suite.evaluatorIds.join(", ")})`
+        );
 
-      const evaluatorDocs = [];
-      for (const id of suite.evaluatorIds) {
-        evaluatorDocs.push(await loadEvaluatorDoc(id));
-      }
+        log.start("Connecting to MCP server (stdio or URL)…");
+        const mcp = await connectMcpClient(cfg.server);
+        let tools: Array<{ name: string; description?: string; inputSchema?: Record<string, unknown> }> = [];
+        try {
+          const listed = await mcp.client.listTools();
+          tools = (listed.tools ?? []).map((t: {
+            name: string;
+            description?: string;
+            inputSchema?: Record<string, unknown>;
+          }) => ({
+            name: t.name,
+            ...(t.description ? { description: t.description } : {}),
+            ...(t.inputSchema ? { inputSchema: t.inputSchema } : {}),
+          }));
+          log.success(`tools/list: ${tools.length} tool(s) (${tools.filter((t) => t.inputSchema).length} with inputSchema)`);
+        } finally {
+          await mcp.close();
+        }
 
-      log.start("Generating attack plan via setup model…");
-      if (cfg.turns && cfg.turns > 1) {
-        log.info(`Multi-turn mode: ${cfg.turns} adaptive turns per attack`);
-      }
-      const plan = await generateAttackPlan({
-        cfg,
-        suiteId: suite.id,
-        tools,
-        evaluatorDocs,
-        turns: cfg.turns,
-      });
+        if (maxTools) {
+          const n = parseInt(maxTools, 10);
+          if (!isNaN(n) && n > 0 && n < tools.length) {
+            tools = tools.slice(0, n);
+            log.info(`Limiting to first ${n} tools (--max-tools ${n})`);
+          }
+        }
 
-      const outPath = path.resolve(out);
-      await writeJsonFile(outPath, plan);
-      log.success(`Wrote attack plan: ${outPath}`);
-      log.info(
-        "Each attack includes replay hints: curl-friendly lines for URL transports, JSON-RPC lines for stdio."
-      );
+        const evaluatorDocs = [];
+        for (const id of suite.evaluatorIds) {
+          evaluatorDocs.push(await loadEvaluatorDoc(id));
+        }
+
+        log.start("Generating attack plan via setup model…");
+        if (cfg.turns && cfg.turns > 1) {
+          log.info(`Multi-turn mode: ${cfg.turns} adaptive turns per attack`);
+        }
+        const plan = await generateAttackPlan({
+          cfg,
+          suiteId: suite.id,
+          tools,
+          evaluatorDocs,
+          turns: cfg.turns,
+        });
+
+        const outPath = path.resolve(out);
+        await writeJsonFile(outPath, plan);
+        log.success(`Wrote attack plan: ${outPath}`);
+        log.info(
+          "Each attack includes replay hints: curl-friendly lines for URL transports, JSON-RPC lines for stdio."
+        );
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         log.error(msg);
