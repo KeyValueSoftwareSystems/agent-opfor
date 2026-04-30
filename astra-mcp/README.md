@@ -39,7 +39,6 @@ Each run writes **HTML + JSON** (and prints absolute paths when the run complete
 | Plan | `astra-mcp setup` | Calls **`tools/list`**, uses the setup LLM + evaluator catalog to emit **`astra-mcp-attacks.json`**. |
 | Execute | `astra-mcp run` | For each planned attack, calls **`tools/call`**, logs I/O, runs the **judge** model on the tool result (single- or multi-turn, per plan). |
 
-There is **no** separate “agent under test” harness: the **target is the MCP server** you point the config at.
 
 ## What `astra-mcp` tests
 
@@ -54,7 +53,6 @@ The HTML/JSON report summarizes results **per evaluator** and **per attack** (to
 
 1. **Evaluators** — new or tighter `skills/astra-setup/evaluators/<id>.md`.  
 2. **Suites** — compose evaluators in `skills/astra-setup/suites/<id>.md`.  
-3. **Fixtures** — small MCP servers under `fixtures/` for reproducible CVE-class behavior.
 
 ## Security disclosure
 
