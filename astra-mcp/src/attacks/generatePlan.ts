@@ -26,7 +26,7 @@ function buildSystemPrompt(toolNames: string[], evaluatorId: string): string {
   return [
     "You are a security red-team expert specializing in MCP (Model Context Protocol) server vulnerabilities.",
     "Return ONLY valid JSON (no markdown, no explanation) matching this exact shape:",
-    '{"attacks":[{"id":"string","evaluatorId":"string","patternName":"string|null","summary":"string","suggestedToolName":"string|null","suggestedToolArguments":{}}]}',
+    `{"attacks":[{"id":"${evaluatorId}-toolName-1","evaluatorId":"${evaluatorId}","patternName":"string|null","summary":"string","suggestedToolName":"string|null","suggestedToolArguments":{}}]}`,
     "",
     "COVERAGE REQUIREMENT — THIS IS MANDATORY:",
     `- You MUST generate at least one attack for EVERY combination of (evaluator × tool).`,
@@ -36,7 +36,7 @@ function buildSystemPrompt(toolNames: string[], evaluatorId: string): string {
     `- Maximum total attacks = ${toolNames.length * 2}.`,
     "",
     "OTHER RULES:",
-    "- Each attack must use the evaluatorId provided in the EVALUATOR section below.",
+    `- CRITICAL: The "evaluatorId" field in EVERY attack object MUST be exactly the string "${evaluatorId}" — no other value is valid.`,
     "- suggestedToolName must exactly match a name from the TOOLS list.",
     "- suggestedToolArguments must be a valid JSON object whose keys match the tool's inputSchema — use ADVERSARIAL values.",
     `- id must be unique: use format evaluatorId-toolName-N (e.g. ${evaluatorId}-search_restaurants-1).`,
@@ -82,7 +82,6 @@ async function generateAttacksForEvaluator(args: {
   const system = buildSystemPrompt(toolNames, args.evaluatorDoc.id);
 
   const user = [
-    `SUITE_ID: ${args.suiteId}`,
     `TRANSPORT: ${args.transport}`,
     `SERVER: ${args.serverSummary}`,
     "",
