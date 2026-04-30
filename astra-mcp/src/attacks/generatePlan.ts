@@ -24,6 +24,7 @@ export async function generateAttackPlan(args: {
   suiteId: string;
   tools: ToolInfo[];
   evaluatorDocs: EvaluatorDoc[];
+  turns?: number;
 }): Promise<AttackPlanWritten> {
   const transport = args.cfg.server.transport;
   const serverSummary =
@@ -119,7 +120,11 @@ export async function generateAttackPlan(args: {
     throw new Error("LLM JSON missing attacks[]");
   }
 
-  const attacks = z.array(AttackScenarioSchema).parse(attacksUnknown);
+  const parsedAttacks = z.array(AttackScenarioSchema).parse(attacksUnknown);
+  const multiTurn = args.turns && args.turns > 1;
+  const attacks = multiTurn
+    ? parsedAttacks.map((a) => ({ ...a, turns: args.turns }))
+    : parsedAttacks;
 
   // Inject description-scan attacks programmatically for tool-description-scan evaluator.
   // These don't need the LLM — they embed the real tool description for static analysis.

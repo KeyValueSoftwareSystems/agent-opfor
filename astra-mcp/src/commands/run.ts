@@ -6,12 +6,14 @@ import { loadAstraMcpConfigFile } from "../lib/loadAstraMcpConfig.js";
 import { log } from "../lib/logger.js";
 import { connectMcpClient } from "../mcp/createClient.js";
 import { executeAttack } from "../run/executeAttack.js";
-import { judgeToolResponse, sanitizeJudgeResult } from "../run/judge.js";
+import { judgeToolResponse, sanitizeJudgeResult, errorJudge } from "../run/judge.js";
+import { generateNextMcpAttackTurn } from "../run/generateNextMcpAttackTurn.js";
+import type { ToolCallTurn } from "../run/generateNextMcpAttackTurn.js";
 import { loadEvaluatorCriteria } from "../catalog/loadEvaluatorCriteria.js";
 import { buildReport, enrichReportWithCriteria } from "../report/buildReport.js";
 import { writeHtmlReport } from "../report/renderHtml.js";
 import type { AttackPlanWritten } from "../attacks/planSchema.js";
-import type { AttackRunResult } from "../run/types.js";
+import type { AttackRunResult, TurnRecord } from "../run/types.js";
 
 interface ParsedToolResponse {
   text: string;
@@ -79,49 +81,44 @@ export function registerRunCommand(program: Command) {
             const attack = plan.attacks[i];
             log.start(`[${i + 1}/${plan.attacks.length}] Running: ${attack.id}`);
 
-            const execResult = await executeAttack(mcp, attack);
-
             const criteria = criteriaMap.get(attack.evaluatorId);
             if (!criteria) throw new Error(`No criteria loaded for evaluator: ${attack.evaluatorId}`);
 
-            const rawJudgeResult = await judgeToolResponse({
-              model: cfg.models.run,
-              evaluator: criteria,
-              attackSummary: attack.summary,
-              toolName: execResult.toolName,
-              toolArguments: execResult.toolArguments,
-              toolResponse: execResult.rawToolResponse,
-              toolError: execResult.toolError,
-              steps: execResult.steps,
-            });
+            const numTurns = attack.turns ?? 1;
 
-            const judgeResult = sanitizeJudgeResult(rawJudgeResult, {
-              attackSummary: attack.summary,
-              toolArguments: execResult.toolArguments,
-              toolResponse: execResult.rawToolResponse,
-              toolError: execResult.toolError,
-              steps: execResult.steps,
-            });
+            if (numTurns <= 1) {
+              // ── Single-turn path ──────────────────────────────────────────────
+              const execResult = await executeAttack(mcp, attack);
 
-            runResults.push({ ...execResult, judge: judgeResult });
+              const isTransportFailure = Boolean(execResult.toolError && !execResult.rawToolResponse);
+              const judgeResult = isTransportFailure
+                ? errorJudge(execResult.toolError!)
+                : sanitizeJudgeResult(
+                    await judgeToolResponse({
+                      model: cfg.models.run,
+                      evaluator: criteria,
+                      attackSummary: attack.summary,
+                      toolName: execResult.toolName,
+                      toolArguments: execResult.toolArguments,
+                      toolResponse: execResult.rawToolResponse,
+                      toolError: execResult.toolError,
+                    }),
+                    {
+                      attackSummary: attack.summary,
+                      toolArguments: execResult.toolArguments,
+                      toolResponse: execResult.rawToolResponse,
+                      toolError: execResult.toolError,
+                    }
+                  );
 
-            const verdict = judgeResult.verdict === "PASS" ? "✔ PASS" : "✖ FAIL";
-            log.log(`  ${verdict} · score ${judgeResult.score}/10 · confidence ${judgeResult.confidence}%`);
+              const singleResult: AttackRunResult = { ...execResult, judge: judgeResult };
+              runResults.push(singleResult);
 
-            // Log each step for multi-turn, or the single call otherwise
-            if (execResult.steps && execResult.steps.length > 1) {
-              for (const step of execResult.steps) {
-                log.log(`  ↑ step ${step.stepIndex + 1}  ${step.toolName}`);
-                log.log(`         ${JSON.stringify(step.toolArguments, null, 2)}`);
-                if (step.toolError) {
-                  log.log(`  ↓ err  ${step.toolError}`);
-                } else {
-                  const { text, isError } = parseToolResponse(step.rawToolResponse);
-                  const errorTag = isError ? " [isError=true]" : "";
-                  log.log(`  ↓ res${errorTag}  ${text.slice(0, 300)}`);
-                }
-              }
-            } else {
+              const verdict = judgeResult.verdict === "PASS" ? "✔ PASS" : judgeResult.verdict === "ERROR" ? "⚠ ERROR" : "✖ FAIL";
+              log.log(judgeResult.verdict === "ERROR"
+                ? `  ${verdict} · ${judgeResult.errorMessage}`
+                : `  ${verdict} · score ${judgeResult.score}/10 · confidence ${judgeResult.confidence}%`);
+
               log.log(`  ↑ req  ${execResult.toolName}`);
               log.log(`         ${JSON.stringify(execResult.toolArguments, null, 2)}`);
               if (execResult.toolError) {
@@ -131,12 +128,102 @@ export function registerRunCommand(program: Command) {
                 const errorTag = isError ? " [isError=true]" : "";
                 log.log(`  ↓ res${errorTag}  ${text.slice(0, 300)}`);
               }
-            }
 
-            if (judgeResult.reasoning) log.log(`  ⚑ ${judgeResult.reasoning}`);
+              if (judgeResult.verdict !== "ERROR" && judgeResult.reasoning) {
+                log.log(`  ⚑ ${judgeResult.reasoning}`);
+              }
+            } else {
+              // ── Multi-turn adaptive path ──────────────────────────────────────
+              log.log(`  ↻ multi-turn (${numTurns} turns)`);
+              const turnHistory: ToolCallTurn[] = [];
+              const turnResults: TurnRecord[] = [];
+
+              for (let t = 1; t <= numTurns; t++) {
+                log.log(`  ── turn ${t}/${numTurns}`);
+
+                let overrideArgs: Record<string, unknown> | undefined;
+                if (t > 1) {
+                  overrideArgs = await generateNextMcpAttackTurn(
+                    turnHistory,
+                    attack.summary,
+                    attack.suggestedToolName ?? "",
+                    cfg.models.run
+                  );
+                }
+
+                const turnExec = await executeAttack(mcp, attack, overrideArgs);
+
+                turnHistory.push({
+                  toolName: turnExec.toolName,
+                  toolArguments: turnExec.toolArguments,
+                  rawToolResponse: turnExec.rawToolResponse,
+                  toolError: turnExec.toolError,
+                });
+
+                const isTransportFailure = Boolean(turnExec.toolError && !turnExec.rawToolResponse);
+                const judgeResult = isTransportFailure
+                  ? errorJudge(turnExec.toolError!)
+                  : sanitizeJudgeResult(
+                      await judgeToolResponse({
+                        model: cfg.models.run,
+                        evaluator: criteria,
+                        attackSummary: attack.summary,
+                        toolName: turnExec.toolName,
+                        toolArguments: turnExec.toolArguments,
+                        toolResponse: turnExec.rawToolResponse,
+                        toolError: turnExec.toolError,
+                      }),
+                      {
+                        attackSummary: attack.summary,
+                        toolArguments: turnExec.toolArguments,
+                        toolResponse: turnExec.rawToolResponse,
+                        toolError: turnExec.toolError,
+                      }
+                    );
+
+                turnResults.push({
+                  turnIndex: t,
+                  toolName: turnExec.toolName,
+                  toolArguments: turnExec.toolArguments,
+                  rawToolResponse: turnExec.rawToolResponse,
+                  toolError: turnExec.toolError,
+                  judge: judgeResult,
+                });
+
+                const verdict = judgeResult.verdict === "PASS" ? "✔ PASS" : judgeResult.verdict === "ERROR" ? "⚠ ERROR" : "✖ FAIL";
+                log.log(`     ${verdict}${judgeResult.verdict !== "ERROR" ? ` · score ${judgeResult.score}/10` : ` · ${judgeResult.errorMessage}`}`);
+
+                log.log(`     ↑ ${turnExec.toolName}  ${JSON.stringify(turnExec.toolArguments, null, 2)}`);
+                if (turnExec.toolError) {
+                  log.log(`     ↓ err  ${turnExec.toolError}`);
+                } else {
+                  const { text, isError } = parseToolResponse(turnExec.rawToolResponse);
+                  log.log(`     ↓ res${isError ? " [isError=true]" : ""}  ${text.slice(0, 200)}`);
+                }
+
+                if (judgeResult.verdict !== "PASS") break;
+              }
+
+              const finalTurn = turnResults[turnResults.length - 1];
+              const multiResult: AttackRunResult = {
+                attackId: attack.id,
+                evaluatorId: attack.evaluatorId,
+                toolName: finalTurn.toolName,
+                toolArguments: finalTurn.toolArguments,
+                rawToolResponse: finalTurn.rawToolResponse,
+                toolError: finalTurn.toolError,
+                judge: finalTurn.judge,
+                turns: turnResults,
+              };
+              runResults.push(multiResult);
+
+              const overallVerdict = finalTurn.judge.verdict;
+              const verdictLabel = overallVerdict === "PASS" ? "✔ PASS" : overallVerdict === "ERROR" ? "⚠ ERROR" : "✖ FAIL";
+              log.log(`  ${verdictLabel} after ${turnResults.length} turn(s)`);
+              if (finalTurn.judge.reasoning) log.log(`  ⚑ ${finalTurn.judge.reasoning}`);
+            }
           }
         } catch (runErr: unknown) {
-          // Write partial report before re-throwing so results so far are not lost
           if (runResults.length > 0) {
             try {
               let partialReport = buildReport({ plan, results: runResults, runModel: cfg.models.run });
@@ -156,7 +243,7 @@ export function registerRunCommand(program: Command) {
           }
           throw runErr;
         } finally {
-          await mcp.close();
+          await mcp.close().catch(() => undefined);
         }
 
         // Build + enrich report
@@ -175,6 +262,7 @@ export function registerRunCommand(program: Command) {
         log.log(`  JSON: ${json}`);
         log.box(
           `Safety score: ${report.summary.safetyScore}%  ·  ${report.summary.passed}/${report.summary.total} passed  ·  ${report.summary.failed} attack(s) succeeded`
+          + (report.summary.errors > 0 ? `  ·  ${report.summary.errors} error(s) excluded` : "")
         );
         // Force-exit: stdio child processes can keep the event loop alive even after
         // transport.close(), preventing Node from exiting naturally.

@@ -87,11 +87,15 @@ export function registerSetupCommand(program: Command) {
       }
 
       log.start("Generating attack plan via setup model…");
+      if (cfg.turns && cfg.turns > 1) {
+        log.info(`Multi-turn mode: ${cfg.turns} adaptive turns per attack`);
+      }
       const plan = await generateAttackPlan({
         cfg,
         suiteId: suite.id,
         tools,
         evaluatorDocs,
+        turns: cfg.turns,
       });
 
       const outPath = path.resolve(out);

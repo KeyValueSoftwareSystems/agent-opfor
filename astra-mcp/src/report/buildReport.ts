@@ -28,7 +28,9 @@ export function buildReport(args: {
   const evaluators: EvaluatorRunSummary[] = evaluatorIds.map((id) => {
     const evalResults = byEvaluator.get(id) ?? [];
     const passed = evalResults.filter((r) => r.judge.verdict === "PASS").length;
-    const failed = evalResults.length - passed;
+    const errors = evalResults.filter((r) => r.judge.verdict === "ERROR").length;
+    const failed = evalResults.length - passed - errors;
+    const passDenom = passed + failed;
     return {
       evaluatorId: id,
       evaluatorName: id,
@@ -37,14 +39,17 @@ export function buildReport(args: {
       total: evalResults.length,
       passed,
       failed,
-      passRate: evalResults.length > 0 ? Math.round((passed / evalResults.length) * 100) : 0,
+      errors,
+      passRate: passDenom > 0 ? Math.round((passed / passDenom) * 100) : 0,
       results: evalResults,
     };
   });
 
   const total = results.length;
   const passed = results.filter((r) => r.judge.verdict === "PASS").length;
-  const failed = total - passed;
+  const errors = results.filter((r) => r.judge.verdict === "ERROR").length;
+  const failed = total - passed - errors;
+  const scoreDenominator = passed + failed;
 
   return {
     schemaVersion: 1,
@@ -58,8 +63,9 @@ export function buildReport(args: {
       total,
       passed,
       failed,
-      safetyScore: total > 0 ? Math.round((passed / total) * 100) : 0,
-      attackSuccessRate: total > 0 ? Math.round((failed / total) * 100) : 0,
+      errors,
+      safetyScore: scoreDenominator > 0 ? Math.round((passed / scoreDenominator) * 100) : 0,
+      attackSuccessRate: scoreDenominator > 0 ? Math.round((failed / scoreDenominator) * 100) : 0,
     },
     evaluators,
   };

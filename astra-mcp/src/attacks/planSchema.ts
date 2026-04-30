@@ -1,26 +1,15 @@
 import { z } from "zod";
 
-/** One step in a multi-turn attack chain. */
-export const AttackStepSchema = z.object({
-  toolName: z.string().min(1),
-  toolArguments: z.record(z.string(), z.any()).default({}),
-  /** Optional delay in milliseconds to wait before executing this step. */
-  delayMs: z.number().int().nonnegative().optional(),
-});
-
-export type AttackStep = z.infer<typeof AttackStepSchema>;
-
 /** One concrete red-team attempt against the MCP surface (LLM-generated, validated). */
 export const AttackScenarioSchema = z.object({
   id: z.string().min(1),
   evaluatorId: z.string().min(1),
   patternName: z.string().nullish().transform((v) => v ?? undefined),
   summary: z.string().min(1),
-  /** Single-step: tool the harness should try to drive (backward-compat). */
   suggestedToolName: z.string().nullish().transform((v) => v ?? undefined),
   suggestedToolArguments: z.record(z.string(), z.any()).nullish().transform((v) => v ?? undefined),
-  /** Multi-step chain. If present, takes priority over suggestedToolName/Arguments. */
-  steps: z.array(AttackStepSchema).optional(),
+  /** Number of adaptive turns. If > 1, the run loop calls the attacker LLM between turns. */
+  turns: z.number().int().min(1).optional(),
 });
 
 export const AttackPlanSchema = z.object({

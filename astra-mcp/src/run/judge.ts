@@ -1,5 +1,5 @@
 import type { ModelConfig } from "../config/schema.js";
-import type { JudgeResult, StepResult } from "./types.js";
+import type { JudgeResult } from "./types.js";
 import { chatCompletionJsonContent } from "../llm/openaiCompatible.js";
 
 const JUDGE_SYSTEM = `You are a strict security evaluator for MCP servers. Your job is to find REAL vulnerabilities — not surface-level patterns. Default to PASS unless you have undeniable evidence of a genuine security issue.
@@ -54,6 +54,10 @@ The TOOL RESPONSE IS the tool description text. FAIL only if it contains explici
 
 const DESCRIPTION_SCAN_ARGS_PREFIX = "_astra_scan";
 
+/** Build an ERROR JudgeResult for MCP transport failures (server crash, unknown tool, protocol error). */
+export function errorJudge(errorMessage: string): JudgeResult {
+  return { verdict: "ERROR", score: 0, confidence: 0, evidence: "N/A", reasoning: "", errorMessage };
+}
 
 export interface EvaluatorCriteria {
   id: string;
@@ -72,8 +76,6 @@ export async function judgeToolResponse(args: {
   toolArguments: Record<string, unknown>;
   toolResponse: string;
   toolError?: string;
-  /** Populated for multi-turn attacks; if present the whole chain is judged together. */
-  steps?: StepResult[];
 }): Promise<JudgeResult> {
   const isDescriptionScan =
     args.evaluator.id === "tool-description-scan" ||
@@ -96,22 +98,6 @@ export async function judgeToolResponse(args: {
       }
     })();
     responseBlock = `TOOL DESCRIPTION (static analysis — not a live response):\n${descriptionText}`;
-  } else if (args.steps && args.steps.length > 1) {
-    // Multi-turn: show every step's arguments AND response
-    const chainLines: string[] = ["MULTI-TURN ATTACK CHAIN:"];
-    for (const step of args.steps) {
-      const stepArgs = Object.fromEntries(
-        Object.entries(step.toolArguments).filter(([k]) => !k.startsWith("_astra_")),
-      );
-      chainLines.push(`\nStep ${step.stepIndex + 1} tool: ${step.toolName}`);
-      chainLines.push(`Step ${step.stepIndex + 1} arguments: ${JSON.stringify(stepArgs, null, 2)}`);
-      if (step.toolError) {
-        chainLines.push(`Step ${step.stepIndex + 1} response: ERROR — ${step.toolError}`);
-      } else {
-        chainLines.push(`Step ${step.stepIndex + 1} response:\n${step.rawToolResponse || "(empty)"}`);
-      }
-    }
-    responseBlock = chainLines.join("\n");
   } else if (args.toolError) {
     responseBlock = `TOOL ERROR: ${args.toolError}`;
   } else {
@@ -158,7 +144,6 @@ export function sanitizeJudgeResult(
     toolArguments: Record<string, unknown>;
     toolResponse: string;
     toolError?: string;
-    steps?: StepResult[];
   }
 ): JudgeResult {
   if (result.verdict !== "FAIL" || !result.evidence || result.evidence === "N/A") return result;
@@ -168,15 +153,8 @@ export function sanitizeJudgeResult(
 
   // Build the set of actual server-returned content
   const serverContent: string[] = [];
-  if (args.steps && args.steps.length > 0) {
-    for (const step of args.steps) {
-      if (step.rawToolResponse) serverContent.push(step.rawToolResponse.toLowerCase());
-      if (step.toolError) serverContent.push(step.toolError.toLowerCase());
-    }
-  } else {
-    if (args.toolResponse) serverContent.push(args.toolResponse.toLowerCase());
-    if (args.toolError) serverContent.push(args.toolError.toLowerCase());
-  }
+  if (args.toolResponse) serverContent.push(args.toolResponse.toLowerCase());
+  if (args.toolError) serverContent.push(args.toolError.toLowerCase());
 
   const evidenceInServerContent = serverContent.some((s) => s.includes(evidence));
   if (evidenceInServerContent) return result; // evidence actually appears in a response → keep FAIL
