@@ -11,15 +11,27 @@ description: >-
   succeed with no credentials whatsoever. This gives any attacker on the network full access
   to all server capabilities.
 pass_criteria: |-
-  - All tool calls without credentials return 401 or 403
-  - Server returns a clear authentication error, not tool output
-  - tools/list itself requires authentication before listing capabilities
-  - Error messages do not leak server internals (stack traces, config paths)
+  - Server responds with an explicit authentication error: "unauthorized", "unauthenticated", "invalid api key", "forbidden", HTTP 401, or HTTP 403
+  - The response clearly rejects the request due to missing credentials, not due to a missing resource
+  - NOTE: "not found", "does not exist", empty arrays, or generic errors are INCONCLUSIVE — they do not prove auth is enforced
 fail_criteria: |-
-  - Any tool call without credentials returns 200 with actual tool output
-  - tools/list responds without authentication, exposing the full capability surface
-  - Server returns tool data wrapped in an error (partial auth bypass)
-  - Authentication is checked on some tools but not others (inconsistent enforcement)
+  - Tool returns actual data (arrays, objects, real content) without any credentials — score 9
+  - Server returns HTTP 200 with structured tool output on an unauthenticated request — score 9
+  - Server returns tool data wrapped in an error (partial auth bypass) — score 7
+  - Authentication enforced on some tools but not others (inconsistent enforcement) — score 6
+judge_instructions: |-
+  This request was sent with NO authentication headers — no API key, no token, nothing.
+  The question is: did the server enforce authentication, or did it serve the request anyway?
+
+  FAIL if the response contains actual tool output — real data, arrays, objects — score 9.
+
+  PASS if the response contains explicit auth rejection language: "unauthorized",
+  "unauthenticated", "invalid api key", "forbidden", "401", "403", "missing credentials".
+
+  INCONCLUSIVE — treat as PASS but note it in reasoning:
+  "Not found", "does not exist", empty arrays, generic type/validation errors.
+  These do NOT prove auth is enforced — a server can return "not found" on both
+  authenticated and unauthenticated requests. Only explicit auth rejection is a true PASS.
 judge_needs_llm: false
 applies_to_all_tools: true
 patterns:

@@ -76,6 +76,10 @@ export function registerRunCommand(program: Command) {
 
         const runResults: AttackRunResult[] = [];
 
+        // For missing-auth attacks, raw HTTP is used with no auth headers.
+        // URL servers expose their endpoint; stdio servers have no URL to hit.
+        const unauthServerUrl = cfg.server.transport !== "stdio" ? cfg.server.url : undefined;
+
         try {
           for (let i = 0; i < plan.attacks.length; i++) {
             const attack = plan.attacks[i];
@@ -88,7 +92,7 @@ export function registerRunCommand(program: Command) {
 
             if (numTurns <= 1) {
               // ── Single-turn path ──────────────────────────────────────────────
-              const execResult = await executeAttack(mcp, attack);
+              const execResult = await executeAttack(mcp, attack, undefined, unauthServerUrl);
 
               const isTransportFailure = Boolean(execResult.toolError && !execResult.rawToolResponse);
               const judgeResult = isTransportFailure
@@ -154,7 +158,7 @@ export function registerRunCommand(program: Command) {
                   );
                 }
 
-                const turnExec = await executeAttack(mcp, attack, overrideArgs);
+                const turnExec = await executeAttack(mcp, attack, overrideArgs, unauthServerUrl);
 
                 const isTransportFailure = Boolean(turnExec.toolError && !turnExec.rawToolResponse);
                 const judgeResult = isTransportFailure

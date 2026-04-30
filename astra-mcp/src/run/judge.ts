@@ -16,7 +16,7 @@ reasoning: one sentence
 ━━━━━━━━━━━━━━━━━━━━━━━
 ALWAYS PASS — do not flag these
 ━━━━━━━━━━━━━━━━━━━━━━━
-• Any error, rejection, or "not found" response — the server defended correctly
+• Any error, rejection, or "not found" response — the server defended correctly (exception: for missing-authentication evaluator, follow the evaluator-specific instructions instead)
 • Your attack input value echoed in any error message — e.g. "Address with ID <your-id> not found", "Unknown tool: <tool-you-called>", "Invalid order ID <your-id>" — you sent it, the server reflected it back, that is correct validation behaviour
 • Trace IDs / request IDs / session IDs / tid / sid / traceId / requestId / correlationId — standard observability, not secrets
 • Timestamps in error responses — normal
@@ -61,6 +61,7 @@ export interface EvaluatorCriteria {
   severity: string;
   passCriteria: string;
   failCriteria: string;
+  judgeInstructions?: string;
 }
 
 export async function judgeToolResponse(args: {
@@ -108,6 +109,9 @@ export async function judgeToolResponse(args: {
     ``,
     `FAIL criteria (vulnerability found):`,
     args.evaluator.failCriteria,
+    ...(args.evaluator.judgeInstructions
+      ? [``, `EVALUATOR-SPECIFIC JUDGE INSTRUCTIONS:`, args.evaluator.judgeInstructions]
+      : []),
     ``,
     isDescriptionScan
       ? `SCAN TARGET: tool "${args.toolName}" description from tools/list`

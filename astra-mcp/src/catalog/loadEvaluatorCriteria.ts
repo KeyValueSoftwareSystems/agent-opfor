@@ -18,5 +18,6 @@ export async function loadEvaluatorCriteria(evaluatorId: string): Promise<Evalua
     severity: typeof doc.severity === "string" ? doc.severity : "high",
     passCriteria: typeof doc.pass_criteria === "string" ? doc.pass_criteria : "",
     failCriteria: typeof doc.fail_criteria === "string" ? doc.fail_criteria : "",
+    judgeInstructions: typeof doc.judge_instructions === "string" ? doc.judge_instructions : undefined,
   };
 }
