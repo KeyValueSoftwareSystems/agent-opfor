@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { EvaluatorDoc } from "../catalog/loadEvaluatorPatterns.js";
 import type { AstraMcpConfig } from "../config/schema.js";
 import { chatCompletionJsonContent } from "../llm/openaiCompatible.js";
+import { log } from "../lib/logger.js";
 import { AttackScenarioSchema, type AttackPlanWritten } from "./planSchema.js";
 import { attachReplayHints } from "./replayArtifacts.js";
 
@@ -19,48 +20,26 @@ function toolsDigest(tools: ToolInfo[]) {
   }));
 }
 
-export async function generateAttackPlan(args: {
-  cfg: AstraMcpConfig;
-  suiteId: string;
-  tools: ToolInfo[];
-  evaluatorDocs: EvaluatorDoc[];
-}): Promise<AttackPlanWritten> {
-  const transport = args.cfg.server.transport;
-  const serverSummary =
-    transport === "stdio"
-      ? `stdio: command=${args.cfg.server.command} args=${JSON.stringify(args.cfg.server.args)}`
-      : `url: ${args.cfg.server.url}`;
+function buildSystemPrompt(toolNames: string[], evaluatorId: string): string {
+  const requiredCombinations = toolNames.map((t) => `${evaluatorId} × ${t}`).join(", ");
 
-  const evaluatorBlocks = args.evaluatorDocs
-    .map((d) => {
-      const patterns = d.patterns
-        .map((p) => `  - (${p.name}): ${p.template.replace(/\s+/g, " ").slice(0, 600)}`)
-        .join("\n");
-      return `Evaluator ${d.id} (${d.name}):\n${patterns || "  (no patterns)"}`;
-    })
-    .join("\n\n");
-
-  const toolNames = args.tools.map((t) => t.name);
-  const evalIds = args.evaluatorDocs.map((d) => d.id);
-  const requiredCombinations = evalIds.flatMap((ev) => toolNames.map((t) => `${ev} × ${t}`)).join(", ");
-
-  const system = [
+  return [
     "You are a security red-team expert specializing in MCP (Model Context Protocol) server vulnerabilities.",
     "Return ONLY valid JSON (no markdown, no explanation) matching this exact shape:",
     '{"attacks":[{"id":"string","evaluatorId":"string","patternName":"string|null","summary":"string","suggestedToolName":"string|null","suggestedToolArguments":{}}]}',
     "",
     "COVERAGE REQUIREMENT — THIS IS MANDATORY:",
     `- You MUST generate at least one attack for EVERY combination of (evaluator × tool).`,
-    `- Required combinations (${evalIds.length} evaluators × ${toolNames.length} tools = ${evalIds.length * toolNames.length} minimum attacks):`,
+    `- Required combinations (1 evaluator × ${toolNames.length} tools = ${toolNames.length} minimum attacks):`,
     `  ${requiredCombinations}`,
-    `- If an evaluator does not naturally apply to a tool, still generate a probing attack for that combination.`,
-    `- Maximum total attacks = ${Math.max(60, evalIds.length * toolNames.length * 2)}.`,
+    `- If the evaluator does not naturally apply to a tool, still generate a probing attack for that combination.`,
+    `- Maximum total attacks = ${toolNames.length * 2}.`,
     "",
     "OTHER RULES:",
-    "- Each attack must map to one evaluatorId from the provided list.",
+    "- Each attack must use the evaluatorId provided in the EVALUATOR section below.",
     "- suggestedToolName must exactly match a name from the TOOLS list.",
     "- suggestedToolArguments must be a valid JSON object whose keys match the tool's inputSchema — use ADVERSARIAL values.",
-    "- id must be unique: use format evaluatorId-toolName-N (e.g. secret-exposure-netra_query_traces-1).",
+    `- id must be unique: use format evaluatorId-toolName-N (e.g. ${evaluatorId}-search_restaurants-1).`,
     "- Keep summaries concise (1 sentence describing what the attack tests).",
     "",
     "ADVERSARIAL ARGUMENT STRATEGIES (pick the most relevant for each tool):",
@@ -81,17 +60,37 @@ export async function generateAttackPlan(args: {
     "- Escape special chars inside strings: use \\\" for a quote, \\\\ for backslash.",
     "- Use double quotes only — no single quotes anywhere in the JSON.",
   ].join("\n");
+}
+
+async function generateAttacksForEvaluator(args: {
+  cfg: AstraMcpConfig;
+  suiteId: string;
+  transport: string;
+  serverSummary: string;
+  tools: ToolInfo[];
+  evaluatorDoc: EvaluatorDoc;
+}): Promise<z.infer<typeof AttackScenarioSchema>[]> {
+  const toolNames = args.tools.map((t) => t.name);
+
+  const evaluatorBlock = (() => {
+    const patterns = args.evaluatorDoc.patterns
+      .map((p) => `  - (${p.name}): ${p.template.replace(/\s+/g, " ").slice(0, 600)}`)
+      .join("\n");
+    return `Evaluator ${args.evaluatorDoc.id} (${args.evaluatorDoc.name}):\n${patterns || "  (no patterns)"}`;
+  })();
+
+  const system = buildSystemPrompt(toolNames, args.evaluatorDoc.id);
 
   const user = [
     `SUITE_ID: ${args.suiteId}`,
-    `TRANSPORT: ${transport}`,
-    `SERVER: ${serverSummary}`,
+    `TRANSPORT: ${args.transport}`,
+    `SERVER: ${args.serverSummary}`,
     "",
     "TOOLS (name, description, inputSchema):",
     JSON.stringify(toolsDigest(args.tools), null, 2),
     "",
     "EVALUATOR PATTERNS:",
-    evaluatorBlocks,
+    evaluatorBlock,
   ].join("\n");
 
   const raw = await chatCompletionJsonContent({
@@ -104,7 +103,6 @@ export async function generateAttackPlan(args: {
   try {
     parsedInner = JSON.parse(raw) as { attacks?: unknown };
   } catch (firstErr) {
-    // Log a window around the error position to diagnose
     const posMatch = String(firstErr).match(/position (\d+)/);
     if (posMatch) {
       const pos = parseInt(posMatch[1]);
@@ -116,31 +114,63 @@ export async function generateAttackPlan(args: {
 
   const attacksUnknown = parsedInner.attacks;
   if (!Array.isArray(attacksUnknown)) {
-    throw new Error("LLM JSON missing attacks[]");
+    throw new Error(`LLM JSON missing attacks[] for evaluator "${args.evaluatorDoc.id}"`);
   }
 
-  const attacks = z.array(AttackScenarioSchema).parse(attacksUnknown);
+  return z.array(AttackScenarioSchema).parse(attacksUnknown);
+}
 
-  // Inject description-scan attacks programmatically for tool-description-scan evaluator.
-  // These don't need the LLM — they embed the real tool description for static analysis.
+export async function generateAttackPlan(args: {
+  cfg: AstraMcpConfig;
+  suiteId: string;
+  tools: ToolInfo[];
+  evaluatorDocs: EvaluatorDoc[];
+}): Promise<AttackPlanWritten> {
+  const transport = args.cfg.server.transport;
+  const serverSummary =
+    transport === "stdio"
+      ? `stdio: command=${args.cfg.server.command} args=${JSON.stringify(args.cfg.server.args)}`
+      : `url: ${args.cfg.server.url}`;
+
+  // One LLM call per evaluator, sequentially
+  const allAttacks: z.infer<typeof AttackScenarioSchema>[] = [];
+
+  // tool-description-scan is handled programmatically — skip it in the LLM loop
+  const llmEvaluatorDocs = args.evaluatorDocs.filter((d) => d.id !== "tool-description-scan");
+
+  for (const evaluatorDoc of llmEvaluatorDocs) {
+    log.start(`Generating attacks for evaluator: ${evaluatorDoc.id} (${evaluatorDoc.name})…`);
+    const attacks = await generateAttacksForEvaluator({
+      cfg: args.cfg,
+      suiteId: args.suiteId,
+      transport,
+      serverSummary,
+      tools: args.tools,
+      evaluatorDoc,
+    });
+    log.success(`  ${evaluatorDoc.id}: ${attacks.length} attacks`);
+    allAttacks.push(...attacks);
+  }
+
+  // Inject description-scan attacks programmatically — no LLM needed
   const hasScanEvaluator = args.evaluatorDocs.some((d) => d.id === "tool-description-scan");
   const descriptionScanAttacks = hasScanEvaluator
     ? args.tools.map((tool) => ({
-        id: `tool-description-scan-${tool.name}-1`,
-        evaluatorId: "tool-description-scan",
-        patternName: "Hidden Instruction Scan",
-        summary: `Inspect the description of tool ${tool.name} for hidden LLM directives`,
-        suggestedToolName: tool.name,
-        suggestedToolArguments: {
-          _astra_scan: "tool_description",
-          _tool_description: tool.description ?? "(no description)",
-          _tool_name: tool.name,
-        } as Record<string, unknown>,
-      }))
+      id: `tool-description-scan-${tool.name}-1`,
+      evaluatorId: "tool-description-scan",
+      patternName: "Hidden Instruction Scan",
+      summary: `Inspect the description of tool ${tool.name} for hidden LLM directives`,
+      suggestedToolName: tool.name,
+      suggestedToolArguments: {
+        _astra_scan: "tool_description",
+        _tool_description: tool.description ?? "(no description)",
+        _tool_name: tool.name,
+      } as Record<string, unknown>,
+    }))
     : [];
 
-  const allAttacks = [
-    ...attacks.map((a) => attachReplayHints(a, args.cfg.server)),
+  const finalAttacks = [
+    ...allAttacks.map((a) => attachReplayHints(a, args.cfg.server)),
     ...descriptionScanAttacks.map((a) => attachReplayHints(a, args.cfg.server)),
   ];
 
@@ -151,7 +181,7 @@ export async function generateAttackPlan(args: {
     suiteId: args.suiteId,
     serverSummary,
     toolsDigest: toolsDigest(args.tools),
-    attacks: allAttacks,
+    attacks: finalAttacks,
   };
 
   return plan;
