@@ -106,6 +106,7 @@ export function registerRunCommand(program: Command) {
                       toolArguments: execResult.toolArguments,
                       toolResponse: execResult.rawToolResponse,
                       toolError: execResult.toolError,
+                      attackerInstructions: cfg.attackerInstructions,
                     }),
                     {
                       attackSummary: attack.summary,
@@ -154,7 +155,8 @@ export function registerRunCommand(program: Command) {
                     attack.summary,
                     attack.suggestedToolName ?? "",
                     (attack.suggestedToolArguments ?? {}) as Record<string, unknown>,
-                    cfg.models.run
+                    cfg.models.run,
+                    cfg.attackerInstructions
                   );
                 }
 
@@ -172,6 +174,7 @@ export function registerRunCommand(program: Command) {
                         toolArguments: turnExec.toolArguments,
                         toolResponse: turnExec.rawToolResponse,
                         toolError: turnExec.toolError,
+                        attackerInstructions: cfg.attackerInstructions,
                       }),
                       {
                         attackSummary: attack.summary,

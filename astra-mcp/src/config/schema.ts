@@ -41,6 +41,8 @@ export const AstraMcpConfigSchema = z.object({
   /** Number of adaptive turns per attack when turnMode is "multi" (default 3). */
   turns: z.number().int().min(2).max(10).optional(),
   notes: z.string().optional(),
+  /** Free-form instructions for the attacker LLM: real resource IDs, attack focus areas, known weaknesses, domain context, etc. High priority. */
+  attackerInstructions: z.string().optional(),
 });
 
 export type AstraMcpConfig = z.infer<typeof AstraMcpConfigSchema>;

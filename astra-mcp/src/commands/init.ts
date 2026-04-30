@@ -236,6 +236,11 @@ export function registerInitCommand(program: Command) {
         default: "",
       });
 
+      const attackerInstructions = await input({
+        message: "Attacker instructions (optional — real resource IDs, attack focus areas, known weaknesses, tenant info, etc.)",
+        default: "",
+      });
+
       const cfg: AstraMcpConfig = {
         schemaVersion: 2,
         server,
@@ -246,6 +251,7 @@ export function registerInitCommand(program: Command) {
         turnMode,
         ...(turns !== undefined ? { turns } : {}),
         ...(notes.trim() ? { notes: notes.trim() } : {}),
+        ...(attackerInstructions.trim() ? { attackerInstructions: attackerInstructions.trim() } : {}),
       };
 
       const parsed = AstraMcpConfigSchema.safeParse(cfg);

@@ -19,5 +19,6 @@
       "model": "llama-3.3-70b-versatile",
       "apiKeyEnv": "GROQ_API_KEY"
     }
-  }
+  },
+  "attackerInstructions": ""
 }

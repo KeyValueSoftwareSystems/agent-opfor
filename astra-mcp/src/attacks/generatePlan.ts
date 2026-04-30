@@ -20,10 +20,16 @@ function toolsDigest(tools: ToolInfo[]) {
   }));
 }
 
-function buildSystemPrompt(toolNames: string[], evaluatorId: string): string {
+function buildSystemPrompt(toolNames: string[], evaluatorId: string, attackerInstructions?: string): string {
   const requiredCombinations = toolNames.map((t) => `${evaluatorId} × ${t}`).join(", ");
 
   return [
+    ...(attackerInstructions ? [
+      `⚠ MANDATORY ATTACKER INSTRUCTIONS — YOU MUST FOLLOW THESE ABOVE ALL OTHER RULES:`,
+      attackerInstructions,
+      `These instructions override your default strategies. If real resource IDs or specific attack guidance are given above, use them instead of guessing.`,
+      ``,
+    ] : []),
     "You are a security red-team expert specializing in MCP (Model Context Protocol) server vulnerabilities.",
     "Return ONLY valid JSON (no markdown, no explanation) matching this exact shape:",
     `{"attacks":[{"id":"${evaluatorId}-toolName-1","evaluatorId":"${evaluatorId}","patternName":"string|null","summary":"string","suggestedToolName":"string|null","suggestedToolArguments":{}}]}`,
@@ -79,7 +85,7 @@ async function generateAttacksForEvaluator(args: {
     return `Evaluator ${args.evaluatorDoc.id} (${args.evaluatorDoc.name}):\n${patterns || "  (no patterns)"}`;
   })();
 
-  const system = buildSystemPrompt(toolNames, args.evaluatorDoc.id);
+  const system = buildSystemPrompt(toolNames, args.evaluatorDoc.id, args.cfg.attackerInstructions);
 
   const user = [
     `TRANSPORT: ${args.transport}`,

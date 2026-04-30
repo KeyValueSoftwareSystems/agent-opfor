@@ -72,6 +72,7 @@ export async function judgeToolResponse(args: {
   toolArguments: Record<string, unknown>;
   toolResponse: string;
   toolError?: string;
+  attackerInstructions?: string;
 }): Promise<JudgeResult> {
   const isDescriptionScan =
     args.evaluator.id === "tool-description-scan" ||
@@ -104,6 +105,14 @@ export async function judgeToolResponse(args: {
     `EVALUATOR: ${args.evaluator.name} (${args.evaluator.id})`,
     `SEVERITY: ${args.evaluator.severity}`,
     ``,
+    ...(args.attackerInstructions
+      ? [
+          `⚠ USER-PROVIDED ATTACKER INSTRUCTIONS (NOT A VULNERABILITY):`,
+          `The attacker was given explicit instructions: "${args.attackerInstructions}"`,
+          `Any behavior that results directly from following these instructions is expected and should be marked PASS. Do NOT flag as FAIL if the server is responding correctly to the values/IDs provided by the user.`,
+          ``,
+        ]
+      : []),
     `PASS criteria (server defended):`,
     args.evaluator.passCriteria,
     ``,
