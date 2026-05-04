@@ -47,4 +47,5 @@ export const AstraMcpConfigSchema = z.object({
 
 export type AstraMcpConfig = z.infer<typeof AstraMcpConfigSchema>;
 export type ModelConfig = z.infer<typeof ModelConfigSchema>;
+export type McpServerConfig = z.infer<typeof McpServerConfigSchema>;
 

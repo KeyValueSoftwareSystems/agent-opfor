@@ -1,8 +1,6 @@
 import path from "node:path";
 import { readFile } from "node:fs/promises";
 import { Command } from "commander";
-import { DEFAULT_ASTRA_MCP_CONFIG, requireAstraMcpConfig } from "../lib/astraConfig.js";
-import { loadAstraMcpConfigFile } from "../lib/loadAstraMcpConfig.js";
 import { log } from "../lib/logger.js";
 import { connectMcpClient } from "../mcp/createClient.js";
 import { executeAttack } from "../run/executeAttack.js";
@@ -45,19 +43,28 @@ export function registerRunCommand(program: Command) {
   program
     .command("run")
     .description("Execute attacks from a plan file, judge each result, and write an HTML report")
-    .option("-c, --config <path>", `Path to config file (default: ./${DEFAULT_ASTRA_MCP_CONFIG})`)
     .option("-i, --input <path>", `Attack plan file (default: ./${DEFAULT_ATTACKS_FILE})`, DEFAULT_ATTACKS_FILE)
     .option("-o, --out-dir <path>", `Report output directory (default: ./${DEFAULT_REPORT_DIR})`, DEFAULT_REPORT_DIR)
-    .action(async ({ config, input, outDir }: { config?: string; input: string; outDir: string }) => {
+    .action(async ({ input, outDir }: { input: string; outDir: string }) => {
       try {
-        const configPath = await requireAstraMcpConfig(config);
-        const cfg = await loadAstraMcpConfigFile(configPath);
-
         const inputPath = path.resolve(input);
         log.info(`Loading attack plan: ${inputPath}`);
         const planRaw = await readFile(inputPath, "utf8");
         const plan = JSON.parse(planRaw) as AttackPlanWritten;
         log.success(`Loaded ${plan.attacks.length} attacks (suite: ${plan.suiteId})`);
+
+        if (!plan.server) {
+          throw new Error(
+            "Attack plan is missing embedded server config. " +
+            "Re-run `astra-mcp setup --config <path>` to regenerate the plan with current config."
+          );
+        }
+        if (!plan.runModel) {
+          throw new Error(
+            "Attack plan is missing embedded run model config. " +
+            "Re-run `astra-mcp setup --config <path>` to regenerate the plan with current config."
+          );
+        }
 
         // Pre-load evaluator criteria for judging
         const evaluatorIds = [...new Set(plan.attacks.map((a) => a.evaluatorId))];
@@ -71,14 +78,14 @@ export function registerRunCommand(program: Command) {
         const resolvedOutDir = path.resolve(outDir);
         log.info(`Reports will be written to: ${resolvedOutDir}`);
         log.start("Connecting to MCP server…");
-        const mcp = await connectMcpClient(cfg.server);
+        const mcp = await connectMcpClient(plan.server);
         log.success("Connected.");
 
         const runResults: AttackRunResult[] = [];
 
         // For missing-auth attacks, raw HTTP is used with no auth headers.
         // URL servers expose their endpoint; stdio servers have no URL to hit.
-        const unauthServerUrl = cfg.server.transport !== "stdio" ? cfg.server.url : undefined;
+        const unauthServerUrl = plan.server.transport !== "stdio" ? plan.server.url : undefined;
 
         try {
           for (let i = 0; i < plan.attacks.length; i++) {
@@ -99,14 +106,14 @@ export function registerRunCommand(program: Command) {
                 ? errorJudge(execResult.toolError!)
                 : sanitizeJudgeResult(
                     await judgeToolResponse({
-                      model: cfg.models.run,
+                      model: plan.runModel,
                       evaluator: criteria,
                       attackSummary: attack.summary,
                       toolName: execResult.toolName,
                       toolArguments: execResult.toolArguments,
                       toolResponse: execResult.rawToolResponse,
                       toolError: execResult.toolError,
-                      attackerInstructions: cfg.attackerInstructions,
+                      attackerInstructions: plan.attackerInstructions,
                     }),
                     {
                       attackSummary: attack.summary,
@@ -155,8 +162,8 @@ export function registerRunCommand(program: Command) {
                     attack.summary,
                     attack.suggestedToolName ?? "",
                     (attack.suggestedToolArguments ?? {}) as Record<string, unknown>,
-                    cfg.models.run,
-                    cfg.attackerInstructions
+                    plan.runModel,
+                    plan.attackerInstructions
                   );
                 }
 
@@ -167,14 +174,14 @@ export function registerRunCommand(program: Command) {
                   ? errorJudge(turnExec.toolError!)
                   : sanitizeJudgeResult(
                       await judgeToolResponse({
-                        model: cfg.models.run,
+                        model: plan.runModel,
                         evaluator: criteria,
                         attackSummary: attack.summary,
                         toolName: turnExec.toolName,
                         toolArguments: turnExec.toolArguments,
                         toolResponse: turnExec.rawToolResponse,
                         toolError: turnExec.toolError,
-                        attackerInstructions: cfg.attackerInstructions,
+                        attackerInstructions: plan.attackerInstructions,
                       }),
                       {
                         attackSummary: attack.summary,
@@ -239,7 +246,7 @@ export function registerRunCommand(program: Command) {
         } catch (runErr: unknown) {
           if (runResults.length > 0) {
             try {
-              let partialReport = buildReport({ plan, results: runResults, runModel: cfg.models.run });
+              let partialReport = buildReport({ plan, results: runResults, runModel: plan.runModel });
               partialReport = enrichReportWithCriteria(
                 partialReport,
                 new Map(
@@ -260,7 +267,7 @@ export function registerRunCommand(program: Command) {
         }
 
         // Build + enrich report
-        let report = buildReport({ plan, results: runResults, runModel: cfg.models.run });
+        let report = buildReport({ plan, results: runResults, runModel: plan.runModel });
         report = enrichReportWithCriteria(
           report,
           new Map(

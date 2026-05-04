@@ -194,6 +194,9 @@ export async function generateAttackPlan(args: {
     serverSummary,
     toolsDigest: toolsDigest(args.tools),
     attacks: finalAttacks,
+    server: args.cfg.server,
+    runModel: args.cfg.models.run,
+    attackerInstructions: args.cfg.attackerInstructions,
   };
 
   return plan;

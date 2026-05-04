@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { McpServerConfigSchema, ModelConfigSchema } from "../config/schema.js";
+import type { McpServerConfig, ModelConfig } from "../config/schema.js";
 
 /** One concrete red-team attempt against the MCP surface (LLM-generated, validated). */
 export const AttackScenarioSchema = z.object({
@@ -26,10 +28,14 @@ export const AttackPlanSchema = z.object({
     })
   ),
   attacks: z.array(AttackScenarioSchema),
+  server: McpServerConfigSchema.optional(),
+  runModel: ModelConfigSchema.optional(),
+  attackerInstructions: z.string().optional(),
 });
 
 export type AttackPlan = z.infer<typeof AttackPlanSchema>;
 export type AttackScenario = z.infer<typeof AttackScenarioSchema>;
+export type { McpServerConfig, ModelConfig };
 
 /** Extra replay hints attached when writing the plan (not LLM-generated). */
 export type AttackReplayHints = {
