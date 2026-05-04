@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 2,
+  "server": {
+    "transport": "stdio",
+    "command": "node",
+    "args": [
+      "Siren-MCP-dev/build/index.js"
+    ],
+    "cwd": "/Users/achu/Developer/astra/astra-mcp",
+    "env": {
+      "API_KEY": "${SIREN_API_KEY}",
+      "TEMPLATE_ID": "${SIREN_TEMPLATE_ID}"
+    }
+  },
+  "models": {
+    "setup": {
+      "provider": "groq",
+      "model": "llama-3.3-70b-versatile",
+      "apiKeyEnv": "GROQ_API_KEY"
+    },
+    "run": {
+      "provider": "groq",
+      "model": "llama-3.3-70b-versatile",
+      "apiKeyEnv": "GROQ_API_KEY"
+    }
+  }
+}

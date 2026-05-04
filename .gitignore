@@ -21,3 +21,4 @@ cli/node_modules/
 astra.config.json
 astra-prompts-*.json
 tracedata.json
+astra-mcp.config.json

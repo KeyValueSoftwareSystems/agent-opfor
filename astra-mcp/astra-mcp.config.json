@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 2,
+  "server": {
+    "transport": "url",
+    "url": "https://api.demo.getnetra.ai/mcp",
+    "headers": {
+      "x-api-key": "${NETRA_API_KEY}"
+    }
+  },
+  "turnMode": "single",
+  "models": {
+    "setup": {
+      "provider": "groq",
+      "model": "llama-3.3-70b-versatile",
+      "apiKeyEnv": "GROQ_API_KEY"
+    },
+    "run": {
+      "provider": "groq",
+      "model": "llama-3.3-70b-versatile",
+      "apiKeyEnv": "GROQ_API_KEY"
+    }
+  },
+  "attackerInstructions": ""
+}
