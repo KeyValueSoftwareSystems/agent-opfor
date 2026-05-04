@@ -31,7 +31,7 @@ npx astra-mcp run
 
 Each run writes **HTML + JSON** (and prints absolute paths when the run completes). For a local vulnerable server example (path-handling lab), see `fixtures/cve-2025-66689-pal-vulnerable/`.
 
-## What it does today
+## Commands
 
 | Step | Command | Role |
 |---|---|---|
