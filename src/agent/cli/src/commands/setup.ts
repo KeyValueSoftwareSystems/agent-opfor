@@ -324,10 +324,8 @@ function extractAgentSetupPayload(parsed: unknown): SetupConfigFile {
     throw new Error("Invalid config file");
   }
   const o = parsed as Record<string, unknown>;
-  if (o.schemaVersion !== 3) {
-    throw new Error(
-      'Agent setup expects schemaVersion 3 in astra.config.json with an "agent" section.'
-    );
+  if (typeof o.configId !== "string" || o.configId.trim() === "") {
+    throw new Error('Not a valid astra config file (missing configId). Run `astra setup`.');
   }
   if (!o.agent || typeof o.agent !== "object") {
     throw new Error('Missing "agent" section in astra.config.json.');

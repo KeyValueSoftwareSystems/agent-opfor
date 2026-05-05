@@ -50,7 +50,6 @@ export async function runUnifiedSetup(opts: {
   await mkdir(path.dirname(outPath), { recursive: true });
 
   const cfg: UnifiedConfigFileV1 = {
-    schemaVersion: 3,
     configId,
     createdAt,
     mode: finalWantMcp && finalWantAgent ? "both" : finalWantMcp ? "mcp" : "agent",

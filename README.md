@@ -124,11 +124,10 @@ For a local script target (stdin/stdout adapter):
 
 Astra connects to your MCP server, calls `tools/list`, generates attacks per tool, fires real `tools/call` requests, and judges the responses.
 
-The config file written by `astra setup --mcp` has an `mcp` section with `server` and `models`:
+The config file written by `astra setup --mcp` has an `mcp` section with `server` and `model`:
 
 ```json
 {
-  "schemaVersion": 3,
   "configId": "a1b2c3d4",
   "createdAt": "2026-05-05T00:00:00.000Z",
   "mode": "mcp",
@@ -138,10 +137,7 @@ The config file written by `astra setup --mcp` has an `mcp` section with `server
       "command": "node",
       "args": ["dist/index.js"]
     },
-    "models": {
-      "setup": { "provider": "openai", "model": "gpt-4o-mini", "apiKeyEnv": "OPENAI_API_KEY" },
-      "run":   { "provider": "openai", "model": "gpt-4o-mini", "apiKeyEnv": "OPENAI_API_KEY" }
-    }
+    "model": { "provider": "openai", "model": "gpt-4o-mini", "apiKeyEnv": "OPENAI_API_KEY" }
   }
 }
 ```
@@ -155,10 +151,7 @@ For a remote MCP server over HTTP/SSE:
     "url": "https://your-mcp-server.example.com/mcp",
     "headers": { "Authorization": "Bearer <token>" }
   },
-  "models": {
-    "setup": { "provider": "openai", "model": "gpt-4o-mini", "apiKeyEnv": "OPENAI_API_KEY" },
-    "run":   { "provider": "openai", "model": "gpt-4o-mini", "apiKeyEnv": "OPENAI_API_KEY" }
-  }
+  "model": { "provider": "openai", "model": "gpt-4o-mini", "apiKeyEnv": "OPENAI_API_KEY" }
 }
 ```
 

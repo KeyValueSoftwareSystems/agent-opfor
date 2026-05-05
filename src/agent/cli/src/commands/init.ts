@@ -4,7 +4,6 @@ import path from "node:path";
 
 /** Legacy helper: writes only an `"agent"` block; unified CLI uses `astra setup --agent`. */
 const SAMPLE_CONFIG = `{
-  "schemaVersion": 3,
   "agent": {
     "llm": {
       "provider": "openai",
@@ -203,7 +202,7 @@ export function registerInitCommand(program: Command): void {
         try {
           const prevRaw = await readFile(outPath, "utf8");
           const prev = JSON.parse(prevRaw) as Record<string, unknown>;
-          if (prev.schemaVersion === 3 && prev.mcp && typeof prev.mcp === "object") {
+          if (typeof prev.configId === "string" && prev.mcp && typeof prev.mcp === "object") {
             doc = { ...doc, mcp: prev.mcp };
           }
         } catch {

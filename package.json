@@ -23,10 +23,9 @@
   },
   "scripts": {
     "dev": "tsx src/index.ts",
-    "build": "npm run build --workspace=@astra/core && npm run build --workspace=@astra/agent-mcp-server && npm run build --workspace=astra-cli && tsc -p tsconfig.json",
-    "build:core": "npm run build --workspace=@astra/core",
-    "build:agent-mcp": "npm run build --workspace=@astra/agent-mcp-server",
-    "build:agent-cli": "npm run build --workspace=astra-cli",
+    "build": "npm run build:agent && npm run build:mcp",
+    "build:agent": "npm run build --workspace=@astra/core && npm run build --workspace=@astra/agent-mcp-server && npm run build --workspace=astra-cli",
+    "build:mcp": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },

@@ -5,7 +5,6 @@ import { parse as parseYaml } from "yaml";
 export type UnifiedMode = "mcp" | "agent";
 
 export interface UnifiedConfigFileV1 {
-  schemaVersion: 3;
   configId: string;
   createdAt: string;
   mode?: UnifiedMode | "both";
@@ -23,11 +22,8 @@ export async function loadUnifiedConfigFile(configPath: string): Promise<Unified
     throw new Error("Invalid config file");
   }
   const o = parsed as Record<string, unknown>;
-  if (o.schemaVersion !== 3) {
-    throw new Error('Config expects schemaVersion 3');
-  }
   if (typeof o.configId !== "string" || o.configId.trim() === "") {
-    throw new Error('Missing configId in config (expected astra setup output)');
+    throw new Error('Not a valid astra config file (missing configId). Run `astra setup`.');
   }
   if (typeof o.createdAt !== "string" || o.createdAt.trim() === "") {
     throw new Error('Missing createdAt in config (expected astra setup output)');

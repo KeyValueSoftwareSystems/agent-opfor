@@ -52,7 +52,6 @@ export interface EvaluatorRunSummary {
 }
 
 export interface RunReport {
-  schemaVersion: 1;
   reportId: string;
   generatedAt: string;
   suiteId: string;

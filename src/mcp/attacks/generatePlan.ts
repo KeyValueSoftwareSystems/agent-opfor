@@ -111,7 +111,7 @@ async function generateAttacksForEvaluator(args: {
   ].join("\n");
 
   const raw = await chatCompletionJsonContent({
-    model: args.cfg.models.setup,
+    model: args.cfg.model,
     system,
     user,
   });
@@ -200,7 +200,6 @@ export async function generateAttackPlan(args: {
   ];
 
   const plan: AttackPlanWritten = {
-    schemaVersion: 1,
     generatedAt: new Date().toISOString(),
     transport,
     suiteId: args.suiteId,
@@ -208,7 +207,7 @@ export async function generateAttackPlan(args: {
     toolsDigest: toolsDigest(args.tools),
     attacks: finalAttacks,
     server: args.cfg.server,
-    runModel: args.cfg.models.run,
+    runModel: args.cfg.model,
     attackerInstructions: args.cfg.attackerInstructions,
   };
 

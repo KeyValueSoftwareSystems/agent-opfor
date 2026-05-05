@@ -3,7 +3,7 @@ import path from "node:path";
 import { readFile } from "node:fs/promises";
 import { select } from "@inquirer/prompts";
 import { loadEnvFromFlag } from "../cli/env.js";
-import { ensureAstraDirs, ASTRA_ATTACKS_DIR, ASTRA_REPORTS_DIR, newAttacksPath } from "../cli/artifacts.js";
+import { ensureAstraDirs, ASTRA_REPORTS_DIR, newAttacksPath } from "../cli/artifacts.js";
 import { loadUnifiedConfigFile, type UnifiedMode } from "../cli/unifiedConfig.js";
 import { runUnifiedSetup } from "./setup.js";
 import { runMcpAttackPlan } from "../mcp/commands/run.js";
@@ -51,47 +51,30 @@ export function registerRunCommand(program: Command): void {
       if (!attacksPath && configPath) {
         const cfg = await loadUnifiedConfigFile(configPath);
 
-        // Find latest matching attacks file by configId (simple scan in .astra/attacks)
-        const glob = await import("node:fs/promises");
-        const entries = await glob.readdir(ASTRA_ATTACKS_DIR).catch(() => []);
-        const suffix = `-${cfg.configId}.json`;
-        const candidates = entries
-          .filter((f: string) => f.endsWith(suffix))
-          .map((f: string) => path.join(ASTRA_ATTACKS_DIR, f))
-          .sort()
-          .reverse();
-        attacksPath = candidates[0] ? path.resolve(candidates[0]) : "";
+        const { runMcpGenerateAttackPlan } = await import("../mcp/commands/setup.js");
+        const { generateAgentAttacksFromConfig } = await import("astra-cli");
 
-        if (!attacksPath) {
-          // Generate attacks now (reuse generate command implementation directly)
-          // NOTE: we avoid Commander re-entry and call the underlying functions by importing generate module.
-          const { runMcpGenerateAttackPlan } = await import("../mcp/commands/setup.js");
-          const { generateAgentAttacksFromConfig } = await import("astra-cli");
+        let mode: UnifiedMode;
+        if (forcedMode) mode = forcedMode;
+        else if (cfg.mode === "mcp" || cfg.mode === "agent") mode = cfg.mode;
+        else if (cfg.mcp && !cfg.agent) mode = "mcp";
+        else if (cfg.agent && !cfg.mcp) mode = "agent";
+        else {
+          mode = await select<UnifiedMode>({
+            message: "Config contains both MCP and agent settings. Which mode should we run?",
+            choices: [
+              { name: "MCP", value: "mcp" },
+              { name: "Agent", value: "agent" },
+            ],
+          });
+        }
 
-          let mode: UnifiedMode;
-          if (forcedMode) mode = forcedMode;
-          else if (cfg.mode === "mcp" || cfg.mode === "agent") mode = cfg.mode;
-          else if (cfg.mcp && !cfg.agent) mode = "mcp";
-          else if (cfg.agent && !cfg.mcp) mode = "agent";
-          else {
-            mode = await select<UnifiedMode>({
-              message: "Config contains both MCP and agent settings. Which mode should we run?",
-              choices: [
-                { name: "MCP", value: "mcp" },
-                { name: "Agent", value: "agent" },
-              ],
-            });
-          }
+        attacksPath = path.resolve(newAttacksPath(cfg.configId));
 
-          attacksPath = path.resolve(
-            newAttacksPath(cfg.configId)
-          );
-
-          if (mode === "mcp") {
-            await runMcpGenerateAttackPlan({ config: configPath, out: attacksPath, configId: cfg.configId });
-          } else {
-            await generateAgentAttacksFromConfig({ configPath, outputPath: attacksPath, configId: cfg.configId });
-          }
+        if (mode === "mcp") {
+          await runMcpGenerateAttackPlan({ config: configPath, out: attacksPath, configId: cfg.configId });
+        } else {
+          await generateAgentAttacksFromConfig({ configPath, outputPath: attacksPath, configId: cfg.configId });
         }
       }
 

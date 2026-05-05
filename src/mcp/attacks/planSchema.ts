@@ -17,7 +17,6 @@ export const AttackScenarioSchema = z.object({
 });
 
 export const AttackPlanSchema = z.object({
-  schemaVersion: z.literal(1),
   generatedAt: z.string(),
   transport: z.enum(["stdio", "url"]),
   suiteId: z.string(),

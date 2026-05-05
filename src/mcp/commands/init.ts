@@ -1,13 +1,5 @@
-import path from "node:path";
-import { Command } from "commander";
 import { confirm, input, select } from "@inquirer/prompts";
-import {
-  McpScannerSectionSchema,
-  type AstraConfigFileV3,
-  type ProviderName,
-} from "../config/schema.js";
-import { readFile } from "node:fs/promises";
-import { fileExists, writeJsonFile } from "../lib/jsonFile.js";
+import { McpScannerSectionSchema, type ProviderName } from "../config/schema.js";
 import { log } from "../lib/logger.js";
 
 function defaultApiKeyEnv(provider: ProviderName): string {
@@ -34,7 +26,7 @@ function parseArgsCsv(raw: string): string[] {
     .filter(Boolean);
 }
 
-async function promptModelConfig(label: "setup" | "run") {
+async function promptModelConfig(label: string) {
   const provider = await select<ProviderName>({
     message: `Which provider should the MCP scanner use for "${label}"?`,
     choices: [
@@ -96,17 +88,10 @@ export function buildEmptyMcpSection() {
       args: ["dist/index.js"],
       env: {},
     },
-    models: {
-      setup: {
-        provider: "groq" as const,
-        model: "llama-3.3-70b-versatile",
-        apiKeyEnv: "GROQ_API_KEY",
-      },
-      run: {
-        provider: "groq" as const,
-        model: "llama-3.3-70b-versatile",
-        apiKeyEnv: "GROQ_API_KEY",
-      },
+    model: {
+      provider: "groq" as const,
+      model: "llama-3.3-70b-versatile",
+      apiKeyEnv: "GROQ_API_KEY",
     },
     turnMode: "single" as const,
   };
@@ -219,8 +204,7 @@ export async function collectMcpSectionInteractive() {
         })();
 
   log.start("Configuring model settings…");
-  const setupModel = await promptModelConfig("setup");
-  const runModel = await promptModelConfig("run");
+  const model = await promptModelConfig("attack");
   log.success("Model settings captured.");
 
   const turnMode = await select<"single" | "multi">({
@@ -257,10 +241,7 @@ export async function collectMcpSectionInteractive() {
 
   const mcpSection = {
     server,
-    models: {
-      setup: setupModel,
-      run: runModel,
-    },
+    model,
     turnMode,
     ...(turns !== undefined ? { turns } : {}),
     ...(notes.trim() ? { notes: notes.trim() } : {}),
@@ -277,51 +258,4 @@ export async function collectMcpSectionInteractive() {
   return sectionParsed.data;
 }
 
-export function registerInitCommand(program: Command) {
-  program
-    .command("init")
-    .description("Interactive wizard — writes astra.config.json with an \"mcp\" section")
-    .option("-o, --out <path>", "Output path for config file", "astra.config.json")
-    .action(async ({ out }: { out: string }) => {
-      const outPath = path.resolve(out);
-
-      log.info("Writes unified astra.config.json — \"mcp\" block (existing \"agent\" section is kept).");
-
-      if (await fileExists(outPath)) {
-        const ok = await confirm({
-          message: `File already exists at ${outPath}. Overwrite?`,
-          default: false,
-        });
-        if (!ok) {
-          log.info("Cancelled. No changes made.");
-          return;
-        }
-      }
-
-      const mcpSection = await collectMcpSectionInteractive();
-
-      let existingAgent: Record<string, unknown> | undefined;
-      if (await fileExists(outPath)) {
-        try {
-          const prev = JSON.parse(await readFile(outPath, "utf8")) as Record<string, unknown>;
-          if (prev.schemaVersion === 3 && prev.agent && typeof prev.agent === "object") {
-            existingAgent = prev.agent as Record<string, unknown>;
-          }
-        } catch {
-          /* overwrite unreadable file */
-        }
-      }
-
-      const fileCfg: AstraConfigFileV3 = {
-        schemaVersion: 3,
-        mcp: mcpSection,
-        ...(existingAgent !== undefined ? { agent: existingAgent } : {}),
-      };
-
-      await writeJsonFile(outPath, fileCfg);
-
-      log.success(`Created config at: ${outPath}`);
-      log.info("You can edit this file any time to add extra settings.");
-    });
-}
 
