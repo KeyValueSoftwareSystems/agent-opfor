@@ -8,7 +8,7 @@ const SAMPLE_CONFIG = `{
     "llm": {
       "provider": "openai",
       "model": "gpt-4o-mini",
-      "apiKey": ""
+      "apiKeyEnv": "OPENAI_API_KEY"
     },
     "target": {
       "name": "My AI Agent",

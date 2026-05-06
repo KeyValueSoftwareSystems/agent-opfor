@@ -620,10 +620,11 @@ export async function generateReport(
 </html>`;
 
   // --- write files ---
-  await mkdir(outputDir, { recursive: true });
+  const reportDir = path.join(outputDir, `report-${reportId}`);
+  await mkdir(reportDir, { recursive: true });
 
-  const htmlPath = path.join(outputDir, `${reportId}.html`);
-  const jsonPath = path.join(outputDir, `${reportId}.json`);
+  const htmlPath = path.join(reportDir, `report.html`);
+  const jsonPath = path.join(reportDir, `report.json`);
 
   await writeFile(htmlPath, html, "utf8");
   await writeFile(jsonPath, JSON.stringify(jsonData, null, 2), "utf8");

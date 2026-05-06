@@ -30,7 +30,7 @@ export const AttackPlanSchema = z.object({
   ),
   attacks: z.array(AttackScenarioSchema),
   server: McpServerConfigSchema.optional(),
-  runModel: ModelConfigSchema.optional(),
+  runLlm: ModelConfigSchema.optional(),
   attackerInstructions: z.string().optional(),
 });
 

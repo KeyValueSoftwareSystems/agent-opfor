@@ -58,9 +58,9 @@ export async function runMcpAttackPlan(opts: {
         "Re-run `astra generate --config <path>` to regenerate the plan with current config."
     );
   }
-  if (!plan.runModel) {
+  if (!plan.runLlm) {
     throw new Error(
-      "Attack plan is missing embedded run model config. " +
+      "Attack plan is missing embedded LLM config. " +
         "Re-run `astra generate --config <path>` to regenerate the plan with current config."
     );
   }
@@ -97,7 +97,7 @@ export async function runMcpAttackPlan(opts: {
           ? errorJudge(execResult.toolError!)
           : sanitizeJudgeResult(
               await judgeToolResponse({
-                model: plan.runModel,
+                model: plan.runLlm,
                 evaluator: criteria,
                 attackSummary: attack.summary,
                 toolName: execResult.toolName,
@@ -158,7 +158,7 @@ export async function runMcpAttackPlan(opts: {
               attack.summary,
               attack.suggestedToolName ?? "",
               (attack.suggestedToolArguments ?? {}) as Record<string, unknown>,
-              plan.runModel,
+              plan.runLlm,
               plan.attackerInstructions
             );
             overrideArgs = turnResult.args;
@@ -172,7 +172,7 @@ export async function runMcpAttackPlan(opts: {
             ? errorJudge(turnExec.toolError!)
             : sanitizeJudgeResult(
                 await judgeToolResponse({
-                  model: plan.runModel,
+                  model: plan.runLlm,
                   evaluator: criteria,
                   attackSummary: attack.summary,
                   toolName: turnExec.toolName,
@@ -253,7 +253,7 @@ export async function runMcpAttackPlan(opts: {
   } catch (runErr: unknown) {
     if (runResults.length > 0) {
       try {
-        let partialReport = buildReport({ plan, results: runResults, runModel: plan.runModel });
+        let partialReport = buildReport({ plan, results: runResults, runLlm: plan.runLlm });
         partialReport = enrichReportWithCriteria(
           partialReport,
           new Map(
@@ -276,7 +276,7 @@ export async function runMcpAttackPlan(opts: {
     await mcp.close().catch(() => undefined);
   }
 
-  let report = buildReport({ plan, results: runResults, runModel: plan.runModel });
+  let report = buildReport({ plan, results: runResults, runLlm: plan.runLlm });
   report = enrichReportWithCriteria(
     report,
     new Map(

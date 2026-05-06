@@ -25,7 +25,6 @@ import type {
 
 export interface SetupOptions {
   configPath: string;
-  apiKey?: string;
   outputDir?: string;
 }
 
@@ -44,7 +43,7 @@ export interface SetupResult {
 }
 
 export async function runSetup(opts: SetupOptions): Promise<SetupResult> {
-  const { configPath, apiKey: apiKeyOverride, outputDir = "." } = opts;
+  const { configPath, outputDir = "." } = opts;
 
   const raw = await readFile(path.resolve(configPath), "utf8");
   const ext = path.extname(configPath).toLowerCase();
@@ -68,21 +67,11 @@ export async function runSetup(opts: SetupOptions): Promise<SetupResult> {
     selectedEvaluatorIds = cfg.selection.evaluators;
   }
 
-  // Resolve API key: argument > config file > env var
   const provider: ProviderName = (cfg.llm?.provider as ProviderName) ?? "groq";
-  const envVar = PROVIDER_ENV_VARS[provider];
-  const apiKey = apiKeyOverride?.trim() || cfg.llm?.apiKey?.trim() || process.env[envVar] || "";
-  if (!apiKey) {
-    throw new Error(
-      `No API key for provider "${provider}". ` +
-      `Pass apiKey in the tool call, set llm.apiKey in the config, or set env var ${envVar}.`
-    );
-  }
-
   const llm: LlmConfig = {
     provider,
     model: cfg.llm?.model ?? PROVIDER_DEFAULTS[provider],
-    apiKey,
+    apiKeyEnv: cfg.llm?.apiKeyEnv ?? PROVIDER_ENV_VARS[provider],
     baseURL: cfg.llm?.baseURL,
   };
 
@@ -129,19 +118,10 @@ export async function runSetupInline(
   }
 
   const provider: ProviderName = (inline.llm?.provider as ProviderName) ?? "groq";
-  const envVar = PROVIDER_ENV_VARS[provider];
-  const apiKey = inline.llm?.apiKey?.trim() || process.env[envVar] || "";
-  if (!apiKey) {
-    throw new Error(
-      `No API key for provider "${provider}". ` +
-      `Pass llm.apiKey in the tool call or set env var ${envVar}.`
-    );
-  }
-
   const llm: LlmConfig = {
     provider,
     model: inline.llm?.model ?? PROVIDER_DEFAULTS[provider],
-    apiKey,
+    apiKeyEnv: inline.llm?.apiKeyEnv ?? PROVIDER_ENV_VARS[provider],
     baseURL: inline.llm?.baseURL,
   };
 

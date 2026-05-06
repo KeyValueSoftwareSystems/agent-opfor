@@ -1,6 +1,6 @@
 import { input, select, confirm } from "@inquirer/prompts";
 import type { SetupConfigFile, ProviderName, TargetConfig } from "@astra/core/config/types";
-import { PROVIDER_DEFAULTS } from "@astra/core/providers/factory";
+import { PROVIDER_DEFAULTS, PROVIDER_ENV_VARS } from "@astra/core/providers/factory";
 import { loadSkillCatalog } from "@astra/core/config/loadSkillCatalog";
 
 export function buildEmptyAgentSetupConfig(): SetupConfigFile {
@@ -8,7 +8,7 @@ export function buildEmptyAgentSetupConfig(): SetupConfigFile {
     llm: {
       provider: "openai",
       model: "gpt-4o-mini",
-      apiKey: "",
+      apiKeyEnv: "OPENAI_API_KEY",
     },
     target: {
       name: "My AI Agent",
@@ -132,7 +132,7 @@ export async function collectAgentSetupConfigInteractive(): Promise<SetupConfigF
   });
 
   return {
-    llm: { provider, model: model.trim(), apiKey: "" },
+    llm: { provider, model: model.trim(), apiKeyEnv: PROVIDER_ENV_VARS[provider] },
     target,
     selection: { mode: "suite", suite: suiteId },
     turnMode,

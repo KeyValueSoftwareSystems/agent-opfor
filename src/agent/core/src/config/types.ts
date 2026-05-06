@@ -276,8 +276,8 @@ export type ProviderName = "openai" | "anthropic" | "groq" | "google" | "other";
 export interface LlmConfig {
   provider: ProviderName;
   model: string;
-  apiKey: string;   // stored in prompts file — warn user to gitignore
-  baseURL?: string; // only for "other"
+  apiKeyEnv: string; // env var name, resolved at runtime
+  baseURL?: string;  // only for "other"
 }
 
 export interface TargetConfig {
@@ -366,7 +366,7 @@ export interface InlineSetupConfig {
   llm?: {
     provider?: ProviderName;
     model?: string;
-    apiKey?: string;
+    apiKeyEnv?: string;
     baseURL?: string;
   };
   /**
@@ -393,7 +393,7 @@ export interface SetupConfigFile {
   llm?: {
     provider?: ProviderName;
     model?: string;
-    apiKey?: string;
+    apiKeyEnv?: string;
     baseURL?: string;
   };
   target: {

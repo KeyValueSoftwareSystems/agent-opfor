@@ -163,7 +163,7 @@ server.tool(
       .optional()
       .describe(
         "LLM provider astra uses to generate attack prompts and judge responses. " +
-        "Defaults to 'groq'. The corresponding API key env var must be set, or pass llm_api_key."
+        "Defaults to 'groq'. The corresponding API key env var must be set (or pass llm_api_key_env to specify the var name)."
       ),
 
     llm_model: z
@@ -171,12 +171,12 @@ server.tool(
       .optional()
       .describe("Model name for the LLM (e.g. 'llama-3.3-70b-versatile'). Uses provider default if omitted."),
 
-    llm_api_key: z
+    llm_api_key_env: z
       .string()
       .optional()
       .describe(
-        "API key for the attack/judge LLM. Overrides env vars " +
-        "(GROQ_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY, GOOGLE_GENERATIVE_AI_API_KEY)."
+        "Name of the environment variable holding the API key for the attack/judge LLM " +
+        "(e.g. 'GROQ_API_KEY'). Defaults to the standard env var for the chosen provider."
       ),
 
     // ── Langfuse / traces ───────────────────────────────────────────────────
@@ -258,7 +258,7 @@ server.tool(
       evaluator_ids,
       llm_provider,
       llm_model,
-      llm_api_key,
+      llm_api_key_env,
       use_langfuse = false,
       langfuse_lookback_hours,
       langfuse_trace_ids,
@@ -345,11 +345,11 @@ server.tool(
               ...(session_id_field ? { sessionIdField: session_id_field } : {}),
             },
             selection,
-            llm: llm_provider || llm_model || llm_api_key
+            llm: llm_provider || llm_model || llm_api_key_env
               ? {
                   ...(llm_provider ? { provider: llm_provider } : {}),
                   ...(llm_model ? { model: llm_model } : {}),
-                  ...(llm_api_key ? { apiKey: llm_api_key } : {}),
+                  ...(llm_api_key_env ? { apiKeyEnv: llm_api_key_env } : {}),
                 }
               : undefined,
             useLangfuse: use_langfuse,
@@ -362,7 +362,6 @@ server.tool(
       } else {
         result = await runSetup({
           configPath: config_path!,
-          apiKey: llm_api_key,
           outputDir: output_dir,
         });
       }
@@ -422,24 +421,16 @@ server.tool(
     input_path: z
       .string()
       .describe("Path to the astra-prompts-*.json file produced by astra_setup."),
-    api_key: z
-      .string()
-      .optional()
-      .describe(
-        "LLM API key for judging responses (overrides the key stored in the prompts file). " +
-        "Useful when running in CI without committing keys."
-      ),
     output_dir: z
       .string()
       .optional()
       .default(".astra/reports")
       .describe("Directory where HTML and JSON reports will be written. Defaults to .astra/reports."),
   },
-  async ({ input_path, api_key, output_dir }) => {
+  async ({ input_path, output_dir }) => {
     try {
       const result = await runScan({
         inputPath: input_path,
-        apiKey: api_key,
         outputDir: output_dir,
       });
 

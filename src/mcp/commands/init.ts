@@ -88,7 +88,7 @@ export function buildEmptyMcpSection() {
       args: ["dist/index.js"],
       env: {},
     },
-    model: {
+    llm: {
       provider: "groq" as const,
       model: "llama-3.3-70b-versatile",
       apiKeyEnv: "GROQ_API_KEY",
@@ -204,7 +204,7 @@ export async function collectMcpSectionInteractive() {
         })();
 
   log.start("Configuring model settings…");
-  const model = await promptModelConfig("attack");
+  const llm = await promptModelConfig("attack");
   log.success("Model settings captured.");
 
   const turnMode = await select<"single" | "multi">({
@@ -241,7 +241,7 @@ export async function collectMcpSectionInteractive() {
 
   const mcpSection = {
     server,
-    model,
+    llm,
     turnMode,
     ...(turns !== undefined ? { turns } : {}),
     ...(notes.trim() ? { notes: notes.trim() } : {}),
