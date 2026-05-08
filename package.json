@@ -21,11 +21,23 @@
   "scripts": {
     "build": "tsc -b core cli mcp && npm run extension:catalog",
     "typecheck": "tsc -b core cli mcp",
-    "extension:catalog": "npm run build:catalog --workspace=@astra/extension"
+    "extension:catalog": "npm run build:catalog --workspace=@astra/extension",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "prepare": "husky"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/node": "^24.0.0",
+    "eslint": "^10.3.0",
+    "eslint-config-prettier": "^10.1.8",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
+    "prettier": "^3.8.3",
     "tsx": "^4.20.0",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.59.2"
   }
 }
