@@ -81,16 +81,21 @@ export async function runScan(opts: RunOptions): Promise<RunSummary> {
     );
   }
 
-  const llm = {
-    ...promptsFile.llm,
+  const attackLlm = {
+    ...promptsFile.attackLlm,
     ...(apiKeyOverride?.trim() ? { apiKey: apiKeyOverride.trim() } : {}),
   };
+  const judgeLlm = promptsFile.judgeLlm ?? attackLlm;
 
-  const model = createModel(llm);
+  const model = createModel(attackLlm);
+  const judgeModel = createModel(judgeLlm);
   const endpoint = target.endpoint ?? "";
   const targetFormat = target.requestFormat ?? "auto";
   const targetModel = target.targetModel ?? "gpt-4o-mini";
-  const judgeLabel = `${llm.provider}/${llm.model}`;
+  const generatorLabel = `${attackLlm.provider}/${attackLlm.model}`;
+  const judgeLabel = judgeLlm === attackLlm
+    ? generatorLabel
+    : `${judgeLlm.provider}/${judgeLlm.model}`;
 
   // Group by evaluator
   const byEvaluator = new Map<string, AttackEntry[]>();
@@ -188,7 +193,7 @@ export async function runScan(opts: RunOptions): Promise<RunSummary> {
             evaluatorSpec,
             userMessage,
             response,
-            model,
+            judgeModel,
             undefined,
             isMultiTurn ? conversationHistory : undefined
           );
@@ -245,7 +250,8 @@ export async function runScan(opts: RunOptions): Promise<RunSummary> {
     target.name,
     reportEndpoint,
     resolvedOutputDir,
-    judgeLabel
+    judgeLabel,
+    generatorLabel
   );
 
   // Build summary — errors excluded from safety score denominator

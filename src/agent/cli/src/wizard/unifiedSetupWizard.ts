@@ -1,11 +1,12 @@
 import { input, select, confirm } from "@inquirer/prompts";
 import type { SetupConfigFile, ProviderName, TargetConfig } from "@astra/core/config/types";
+import { PROVIDER_CHOICES } from "@astra/core/config/types";
 import { PROVIDER_DEFAULTS } from "@astra/core/providers/factory";
 import { loadSkillCatalog } from "@astra/core/config/loadSkillCatalog";
 
 export function buildEmptyAgentSetupConfig(): SetupConfigFile {
   return {
-    llm: {
+    attackLlm: {
       provider: "openai",
       model: "gpt-4o-mini",
       apiKey: "",
@@ -34,14 +35,8 @@ export async function collectAgentSetupConfigInteractive(): Promise<SetupConfigF
   const catalog = await loadSkillCatalog();
 
   const provider = await select<ProviderName>({
-    message: "LLM provider (for generation + judging):",
-    choices: [
-      { name: "OpenAI", value: "openai" },
-      { name: "Anthropic (Claude)", value: "anthropic" },
-      { name: "Google (Gemini)", value: "google" },
-      { name: "Groq", value: "groq" },
-      { name: "Other (OpenAI-compatible)", value: "other" },
-    ],
+    message: "LLM provider for attack generation:",
+    choices: PROVIDER_CHOICES,
   });
 
   const model = await input({
@@ -126,13 +121,33 @@ export async function collectAgentSetupConfigInteractive(): Promise<SetupConfigF
     turns = parseInt(turnsStr, 10);
   }
 
+  const useSeperateJudge = await confirm({
+    message: "Use a different model for judging responses? (default: same as attack model)",
+    default: false,
+  });
+
+  let judgeLlm: { provider: ProviderName; model: string; apiKey: string } | undefined;
+  if (useSeperateJudge) {
+    const judgeProvider = await select<ProviderName>({
+      message: "LLM provider for judging:",
+      choices: PROVIDER_CHOICES,
+    });
+    const judgeModel = await input({
+      message: "Judge model name:",
+      default: PROVIDER_DEFAULTS[judgeProvider] || undefined,
+      validate: (v) => (v.trim() ? true : "Model is required"),
+    });
+    judgeLlm = { provider: judgeProvider, model: judgeModel.trim(), apiKey: "" };
+  }
+
   const addTelemetry = await confirm({
     message: "Enable telemetry integration (Langfuse / Netra)?",
     default: false,
   });
 
   return {
-    llm: { provider, model: model.trim(), apiKey: "" },
+    attackLlm: { provider, model: model.trim(), apiKey: "" },
+    ...(judgeLlm ? { judgeLlm } : {}),
     target,
     selection: { mode: "suite", suite: suiteId },
     turnMode,

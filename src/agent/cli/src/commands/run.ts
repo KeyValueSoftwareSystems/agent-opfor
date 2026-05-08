@@ -37,10 +37,11 @@ export async function runAgentAttacksFromFile(opts: {
   }
 
   const { target, attacks } = promptsFile;
-  const llm = {
-    ...promptsFile.llm,
+  const attackLlm = {
+    ...promptsFile.attackLlm,
     ...(opts.apiKey ? { apiKey: opts.apiKey as string } : {}),
   };
+  const judgeLlm = promptsFile.judgeLlm ?? attackLlm;
 
   if (!attacks || attacks.length === 0) {
     throw new Error("No attack entries found in the prompts file. Run `astra generate` first.");
@@ -70,17 +71,27 @@ export async function runAgentAttacksFromFile(opts: {
   }
 
   let model;
+  let judgeModel;
   try {
-    model = createModel(llm);
+    model = createModel(attackLlm);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    throw new Error(`Error initialising LLM provider "${llm.provider}": ${msg}`);
+    throw new Error(`Error initialising generator LLM provider "${attackLlm.provider}": ${msg}`);
+  }
+  try {
+    judgeModel = createModel(judgeLlm);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(`Error initialising judge LLM provider "${judgeLlm.provider}": ${msg}`);
   }
 
   const endpoint = target.endpoint ?? "";
   const targetFormat = target.requestFormat ?? "auto";
   const targetModel = target.targetModel ?? "gpt-4o-mini";
-  const judgeLabel = `${llm.provider}/${llm.model}`;
+  const generatorLabel = `${attackLlm.provider}/${attackLlm.model}`;
+  const judgeLabel = judgeLlm === attackLlm
+    ? generatorLabel
+    : `${judgeLlm.provider}/${judgeLlm.model}`;
 
   const byEvaluator = new Map<string, AttackEntry[]>();
   for (const attack of attacks) {
@@ -173,7 +184,7 @@ export async function runAgentAttacksFromFile(opts: {
             evaluatorSpec,
             userMessage,
             response,
-            model,
+            judgeModel,
             undefined,
             isMultiTurn ? conversationHistory : undefined
           );
@@ -214,7 +225,7 @@ export async function runAgentAttacksFromFile(opts: {
 
   const reportEndpoint = useLocalScript && resolvedScript ? resolvedScript : endpoint || "(target)";
 
-  const paths = await generateReport(reports, target.name, reportEndpoint, outputDir, judgeLabel);
+  const paths = await generateReport(reports, target.name, reportEndpoint, outputDir, judgeLabel, generatorLabel);
   return paths;
 }
 

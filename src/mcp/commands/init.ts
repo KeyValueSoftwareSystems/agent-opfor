@@ -88,7 +88,7 @@ export function buildEmptyMcpSection() {
       args: ["dist/index.js"],
       env: {},
     },
-    model: {
+    generatorModel: {
       provider: "groq" as const,
       model: "llama-3.3-70b-versatile",
       apiKeyEnv: "GROQ_API_KEY",
@@ -204,7 +204,12 @@ export async function collectMcpSectionInteractive() {
         })();
 
   log.start("Configuring model settings…");
-  const model = await promptModelConfig("attack");
+  const generatorModel = await promptModelConfig("attack generation");
+  const wantSeparateJudge = await confirm({
+    message: "Use a different model for judging? (defaults to same as attack generation)",
+    default: false,
+  });
+  const judgeModel = wantSeparateJudge ? await promptModelConfig("judging") : undefined;
   log.success("Model settings captured.");
 
   const turnMode = await select<"single" | "multi">({
@@ -241,7 +246,8 @@ export async function collectMcpSectionInteractive() {
 
   const mcpSection = {
     server,
-    model,
+    generatorModel,
+    ...(judgeModel ? { judgeModel } : {}),
     turnMode,
     ...(turns !== undefined ? { turns } : {}),
     ...(notes.trim() ? { notes: notes.trim() } : {}),

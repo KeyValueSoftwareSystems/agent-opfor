@@ -23,13 +23,15 @@ import type {
   ProviderName,
   TelemetryConfig,
 } from "@astra/core/config/types";
+import { PROVIDER_CHOICES } from "@astra/core/config/types";
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 interface CollectedAnswers {
-  llm: LlmConfig;
+  attackLlm: LlmConfig;
+  judgeLlm?: LlmConfig;
   target: TargetConfig;
   selectedEvaluatorIds: string[];
   telemetry?: TelemetryConfig;
@@ -119,16 +121,10 @@ function logTelemetryFromConfig(telemetry: TelemetryConfig | undefined): void {
   console.log(`---`);
 }
 
-async function collectLlmConfig(): Promise<LlmConfig> {
+async function collectLlmConfig(label: string): Promise<LlmConfig> {
   const provider = await select<ProviderName>({
-    message: "LLM provider for attack generation and judging:",
-    choices: [
-      { name: "OpenAI", value: "openai" },
-      { name: "Anthropic (Claude)", value: "anthropic" },
-      { name: "Google (Gemini)", value: "google" },
-      { name: "Groq", value: "groq" },
-      { name: "Other (OpenAI-compatible)", value: "other" },
-    ],
+    message: `LLM provider for ${label}:`,
+    choices: PROVIDER_CHOICES,
   });
 
   const defaultModel = PROVIDER_DEFAULTS[provider];
@@ -174,7 +170,13 @@ async function runInteractiveWizard(
 
   const { evaluators: EVALUATORS, suites: SUITES } = catalog;
 
-  const llm = await collectLlmConfig();
+  const attackLlm = await collectLlmConfig("attack generation");
+
+  const wantSeparateJudge = await confirm({
+    message: "Use a different model for judging? (defaults to same as attack generation)",
+    default: false,
+  });
+  const judgeLlm = wantSeparateJudge ? await collectLlmConfig("judging") : undefined;
 
   // --- Target type ---
   const targetType = await select<"http-endpoint" | "local-script">({
@@ -315,7 +317,7 @@ async function runInteractiveWizard(
     turns = parseInt(turnsStr, 10);
   }
 
-  return { llm, target, selectedEvaluatorIds, turnMode, turns };
+  return { attackLlm, judgeLlm, target, selectedEvaluatorIds, turnMode, turns };
 }
 
 /** Resolve `"agent"` section from unified `astra.config.json` (schemaVersion 3). */
@@ -358,26 +360,47 @@ async function loadConfigFile(
     selectedEvaluatorIds = cfg.selection.evaluators;
   }
 
-  // Resolve LLM — --api-key flag > config file > env var
-  const provider: ProviderName = (cfg.llm?.provider as ProviderName) ?? "groq";
+  // Resolve attack LLM — --api-key flag > config file > env var
+  const provider: ProviderName = (cfg.attackLlm?.provider as ProviderName) ?? "groq";
   const envVar = PROVIDER_ENV_VARS[provider];
-  const apiKey = apiKeyOverride?.trim() || cfg.llm?.apiKey?.trim() || process.env[envVar] || "";
+  const apiKey = apiKeyOverride?.trim() || cfg.attackLlm?.apiKey?.trim() || process.env[envVar] || "";
   if (!apiKey) {
     throw new Error(
       `No API key found for provider "${provider}". ` +
-      `Pass --api-key, set llm.apiKey in the config file, or export ${envVar}.`
+      `Pass --api-key, set attackLlm.apiKey in the config file, or export ${envVar}.`
     );
   }
 
-  const llm: LlmConfig = {
+  const attackLlm: LlmConfig = {
     provider,
-    model: cfg.llm?.model ?? PROVIDER_DEFAULTS[provider],
+    model: cfg.attackLlm?.model ?? PROVIDER_DEFAULTS[provider],
     apiKey,
-    baseURL: cfg.llm?.baseURL,
+    baseURL: cfg.attackLlm?.baseURL,
   };
 
+  let judgeLlm: LlmConfig | undefined;
+  if (cfg.judgeLlm) {
+    const judgeProvider: ProviderName = (cfg.judgeLlm.provider as ProviderName) ?? provider;
+    const judgeEnvVar = PROVIDER_ENV_VARS[judgeProvider];
+    const judgeApiKey =
+      cfg.judgeLlm.apiKey?.trim() || process.env[judgeEnvVar] || "";
+    if (!judgeApiKey) {
+      throw new Error(
+        `No API key found for judgeLlm provider "${judgeProvider}". ` +
+        `Set judgeLlm.apiKey in the config file, or export ${judgeEnvVar}.`
+      );
+    }
+    judgeLlm = {
+      provider: judgeProvider,
+      model: cfg.judgeLlm.model ?? PROVIDER_DEFAULTS[judgeProvider],
+      apiKey: judgeApiKey,
+      baseURL: cfg.judgeLlm.baseURL,
+    };
+  }
+
   return {
-    llm,
+    attackLlm,
+    judgeLlm,
     target: cfg.target as TargetConfig,
     selectedEvaluatorIds,
     telemetry: resolveTelemetryEnv(cfg.telemetry),
@@ -413,7 +436,7 @@ export function registerSetupCommand(program: Command) {
           console.log(`Starting setup (attack prompt generation)…`);
         } else {
           answers = await runInteractiveWizard(catalog);
-          if (opts.apiKey) answers.llm.apiKey = opts.apiKey;
+          if (opts.apiKey) answers.attackLlm.apiKey = opts.apiKey;
         }
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -427,8 +450,8 @@ export function registerSetupCommand(program: Command) {
         return;
       }
 
-      const { llm, target, selectedEvaluatorIds, telemetry, turnMode, turns } = answers;
-      const model = createModel(llm);
+      const { attackLlm, judgeLlm, target, selectedEvaluatorIds, telemetry, turnMode, turns } = answers;
+      const model = createModel(attackLlm);
       const outputDir = path.resolve(opts.outputDir);
 
       let langfuseTraceContext: string | undefined;
@@ -501,7 +524,8 @@ export function registerSetupCommand(program: Command) {
 
       const promptsFile: PromptsFile = {
         generatedAt: new Date().toISOString(),
-        llm,
+        attackLlm,
+        ...(judgeLlm ? { judgeLlm } : {}),
         target,
         attacks: allAttacks,
         telemetry,
@@ -511,7 +535,10 @@ export function registerSetupCommand(program: Command) {
       await writeFile(outputPath, JSON.stringify(promptsFile, null, 2), "utf8");
 
       console.log(`\nSetup complete!`);
-      console.log(`  Provider:  ${llm.provider} / ${llm.model}`);
+      console.log(`  Generator: ${attackLlm.provider} / ${attackLlm.model}`);
+      if (judgeLlm) {
+        console.log(`  Judge:     ${judgeLlm.provider} / ${judgeLlm.model}`);
+      }
       console.log(`  Evaluators: ${selectedEvaluatorIds.length}`);
       console.log(`  Total attack prompts: ${allAttacks.length}`);
       if (turnMode === "multi") {
@@ -575,8 +602,8 @@ export async function generateAgentAttacksFromConfig(opts: {
   const catalog = await loadSkillCatalog();
   const answers = await loadConfigFile(opts.configPath, catalog, opts.apiKeyOverride);
 
-  const { llm, target, selectedEvaluatorIds, telemetry, turnMode, turns } = answers;
-  const model = createModel(llm);
+  const { attackLlm, judgeLlm, target, selectedEvaluatorIds, telemetry, turnMode, turns } = answers;
+  const model = createModel(attackLlm);
 
   let langfuseTraceContext: string | undefined;
   if (telemetry && telemetry.provider !== "none") {
@@ -632,7 +659,8 @@ export async function generateAgentAttacksFromConfig(opts: {
 
   const promptsFile: PromptsFile = {
     generatedAt: new Date().toISOString(),
-    llm,
+    attackLlm,
+    ...(judgeLlm ? { judgeLlm } : {}),
     target,
     attacks: allAttacks,
     telemetry,
