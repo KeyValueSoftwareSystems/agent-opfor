@@ -54,16 +54,16 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       if (!frames.length) throw new Error("No frame snapshots collected.");
 
       // 3) Ask AI to pick input+submit WITHIN a specific frame, try best frames first.
-      frames.sort((a, b) => (b.chatScore || 0) - (a.chatScore || 0) || (b.inputCount || 0) - (a.inputCount || 0));
+      frames.sort((a, b) => {
+        const boost = snapshotEmbeddedChatBoost(b.snapshot) - snapshotEmbeddedChatBoost(a.snapshot);
+        if (boost !== 0) return boost;
+        return (b.chatScore || 0) - (a.chatScore || 0) || (b.inputCount || 0) - (a.inputCount || 0);
+      });
       const chatFrames = frames.filter((f) => (f.chatScore || 0) > 0);
       const nonChatFrames = frames.filter((f) => (f.chatScore || 0) <= 0);
       const framesToTry = [...chatFrames, ...nonChatFrames];
-      const cfgRes = await chrome.storage.local.get("astraAiFallback");
-      const cfg = cfgRes.astraAiFallback || {};
-      if (!cfg.enabled) throw new Error("AI fallback is disabled (enable it in extension Options).");
-      if (!cfg.baseUrl) throw new Error("Missing baseUrl in Options.");
-      if (!cfg.model) throw new Error("Missing model in Options.");
-      if (!cfg.apiKey) throw new Error("Missing apiKey in Options.");
+      const cfg = await getLlmProfile("reader");
+      assertLlmCfg(cfg, { kind: "HTML reader" });
 
       let lastAi = null;
       let lastAct = null;
@@ -76,8 +76,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           `{ "inputSelector": string, "submit": { "method": "enter" | "click", "buttonSelector"?: string }, "confidence": number, "notes"?: string }`,
           "Selectors must be CSS selectors.",
           "IMPORTANT: Prefer returning selectors that appear verbatim in selector=\"...\" entries in the snapshot (these may include shadow(...) >> ... syntax).",
-          "If the snapshot contains CHAT_SIGNALS (role=log, aria-live, aria-label like 'Chat messages'), this is likely the correct chat frame.",
+          "If the snapshot contains CHAT_SIGNALS (role=log, aria-live, embedded_chatbot, chatbot__dialogue), this is likely the correct chat frame.",
           "If CHAT_SIGNALS are present, you MUST choose the input from that same frame; do NOT choose a site search bar.",
+          "AOL Help / ais-chatbot: pick textarea.chatbot__input in form.chatbot__form; submit with button.chatbot__send. Ignore help-article search fields.",
           "NEVER choose inputs marked site_search_hint=1 or help-center search fields (type=search, role=searchbox, name=q).",
           "Avoid picking search bars or site search inputs as the chat input.",
           "Prefer submit.method='click' with a send/submit button when available; never pick plus/attach/microphone buttons.",
@@ -219,6 +220,41 @@ async function sleep(ms) {
   return await new Promise((r) => setTimeout(r, ms));
 }
 
+/**
+ * Load per-task LLM configs from Options.
+ *
+ * Storage:
+ * - New: `astraLlmProfiles` = { v: 1, attacker, judge, reader } (each has provider/baseUrl/model/apiKey/enabled)
+ * - Legacy fallback: `astraAiFallback`
+ */
+async function getLlmProfile(kind) {
+  const { astraLlmProfiles, astraAiFallback } = await chrome.storage.local.get([
+    "astraLlmProfiles",
+    "astraAiFallback"
+  ]);
+
+  const legacy = astraAiFallback || {};
+  const profiles = astraLlmProfiles && typeof astraLlmProfiles === "object" ? astraLlmProfiles : null;
+  const selected = profiles?.[kind] && typeof profiles[kind] === "object" ? profiles[kind] : legacy;
+
+  const cfg = {
+    provider: selected.provider || legacy.provider || "openai_compat",
+    baseUrl: selected.baseUrl || legacy.baseUrl || "",
+    model: selected.model || legacy.model || "",
+    apiKey: selected.apiKey || legacy.apiKey || "",
+    enabled: Boolean(selected.enabled ?? legacy.enabled ?? false)
+  };
+
+  return cfg;
+}
+
+function assertLlmCfg(cfg, { kind }) {
+  if (!cfg?.enabled) throw new Error(`${kind} LLM is disabled (enable it in extension Options).`);
+  if (!cfg.baseUrl) throw new Error(`${kind} LLM missing baseUrl in Options.`);
+  if (!cfg.model) throw new Error(`${kind} LLM missing model in Options.`);
+  if (!cfg.apiKey) throw new Error(`${kind} LLM missing apiKey in Options.`);
+}
+
 /** Scroll main document so lazy chat widgets (e.g. AOL help) load before opening the launcher. */
 async function preparePageForChat(tabId) {
   try {
@@ -247,6 +283,13 @@ async function collectFrames(tabId) {
     .filter((f) => typeof f.snapshot === "string" && f.snapshot.length > 0);
 }
 
+/** Prefer frames that clearly contain embedded chat widgets (e.g. AOL ais-chatbot iframe) over parent page search. */
+function snapshotEmbeddedChatBoost(snapshot) {
+  const s = String(snapshot || "");
+  if (/chatbot__input|chatbot__form|chatbot__dialogue|#ais-chatbot|ais-chatbot|Virtual Assistant/i.test(s)) return 500;
+  return 0;
+}
+
 async function pickChatFrame(tabId) {
   // Retry for async widget / iframe chat load.
   let frames = [];
@@ -257,7 +300,11 @@ async function pickChatFrame(tabId) {
   }
   if (!frames.length) throw new Error("No frames collected.");
 
-  frames.sort((a, b) => (b.chatScore || 0) - (a.chatScore || 0) || (b.inputCount || 0) - (a.inputCount || 0));
+  frames.sort((a, b) => {
+    const boost = snapshotEmbeddedChatBoost(b.snapshot) - snapshotEmbeddedChatBoost(a.snapshot);
+    if (boost !== 0) return boost;
+    return (b.chatScore || 0) - (a.chatScore || 0) || (b.inputCount || 0) - (a.inputCount || 0);
+  });
   return { frames, best: frames[0] };
 }
 
@@ -271,6 +318,8 @@ async function aiPickInputInFrame(cfg, frame) {
     "IMPORTANT: Prefer returning selectors that appear verbatim in selector=\"...\" entries in the snapshot (these may include shadow(...) >> ... syntax).",
     "NEVER choose inputs marked site_search_hint=1 or help-center/search bars (type=search, role=searchbox, name=q, placeholder about searching help articles).",
     "If CHAT_SIGNALS exist, choose the composer near the chat transcript (usually bottom of widget), not the global site search.",
+    "AOL Help / ais-chatbot / similar: if you see textarea.chatbot__input, form.chatbot__form, ul.chatbot__dialogue, or id ais-chatbot, pick textarea.chatbot__input (prefer the highest-scoring CANDIDATE_INPUTS line). Submit with button.chatbot__send using submit.method='click' when it appears in CANDIDATE_BUTTONS.",
+    "Do NOT use the help-center article search (top band, search articles); that is not the Virtual Assistant chat composer.",
     "Prefer submit.method='click' with a real send/submit button when available; never pick plus/attach/microphone buttons.",
     "Never include markdown. Never include extra keys."
   ].join("\n");
@@ -447,15 +496,19 @@ async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
   beginUiRunAbortController();
   ASTRA_STOP = false;
 
-  const cfgRes = await chrome.storage.local.get("astraAiFallback");
-  const cfg = cfgRes.astraAiFallback || {};
-  if (!cfg.enabled) {
-    sendResponse({ ok: false, error: "AI is disabled (enable it in extension Options)." });
-    endUiRunAbortController();
-    return;
-  }
-  if (!cfg.baseUrl || !cfg.model || !cfg.apiKey) {
-    sendResponse({ ok: false, error: "Configure base URL, model, and API key in Options." });
+  let attackerCfg;
+  let judgeCfg;
+  let readerCfg;
+  try {
+    attackerCfg = await getLlmProfile("attacker");
+    judgeCfg = await getLlmProfile("judge");
+    readerCfg = await getLlmProfile("reader");
+    assertLlmCfg(attackerCfg, { kind: "Attacker" });
+    assertLlmCfg(judgeCfg, { kind: "Judge" });
+    assertLlmCfg(readerCfg, { kind: "HTML reader" });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    sendResponse({ ok: false, error: msg });
     endUiRunAbortController();
     return;
   }
@@ -557,7 +610,7 @@ async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
       best = b;
       siteSnapshot = frames.find((f) => f.frameId === 0)?.snapshot || best.snapshot;
 
-      const picked = await aiPickInputInFrame(cfg, best);
+      const picked = await aiPickInputInFrame(readerCfg, best);
       if (!picked?.inputSelector) throw new Error("AI could not find chat input in the selected frame.");
       plan = picked;
     }
@@ -586,7 +639,7 @@ async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
         return;
       }
 
-      const userMessage = await llmNextUserMessage(cfg, {
+      const userMessage = await llmNextUserMessage(attackerCfg, {
         evaluatorSnapshot,
         suiteLabel,
         siteUrl: tab.url || "",
@@ -660,7 +713,7 @@ async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
 
     let judgment =
       transcript.length >= 2
-        ? await judgeConversationFinal(cfg, { evaluatorSnapshot, transcript })
+        ? await judgeConversationFinal(judgeCfg, { evaluatorSnapshot, transcript })
         : { verdict: "UNKNOWN", summary: "No complete turns.", findings: [] };
 
     if (ASTRA_STOP) {
@@ -814,12 +867,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   (async () => {
     try {
-      const { astraAiFallback } = await chrome.storage.local.get("astraAiFallback");
-      const cfg = astraAiFallback || {};
-      if (!cfg.enabled) throw new Error("AI fallback is disabled (enable it in extension Options).");
-      if (!cfg.baseUrl) throw new Error("Missing baseUrl in Options.");
-      if (!cfg.model) throw new Error("Missing model in Options.");
-      if (!cfg.apiKey) throw new Error("Missing apiKey in Options.");
+      const cfg = await getLlmProfile("reader");
+      assertLlmCfg(cfg, { kind: "HTML reader" });
 
       const dom = String(message?.sanitizedDom || "");
       const userTask = String(message?.task || "Find the chat input and how to submit.");

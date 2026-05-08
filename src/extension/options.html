@@ -61,10 +61,23 @@
       code {
         font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
       }
+      .card {
+        border: 1px solid rgba(127, 127, 127, 0.25);
+        border-radius: 12px;
+        padding: 10px;
+        margin: 10px 0;
+        background: rgba(127, 127, 127, 0.06);
+      }
     </style>
   </head>
   <body>
-    <h1>Astra Injector — AI fallback settings</h1>
+    <h1>Astra Injector — LLM settings</h1>
+
+    <div class="hint">
+      Configure separate models for different jobs:
+      <b>Attacker</b> (generates the next user message), <b>Judge</b> (final verdict), and <b>HTML reader</b>
+      (picks chat input / selectors from sanitized DOM snapshots).
+    </div>
 
     <div class="row">
       <div>Provider</div>
@@ -73,27 +86,39 @@
       </select>
     </div>
 
-    <div class="row">
-      <div>Base URL</div>
-      <input id="baseUrl" placeholder="https://api.openai.com/v1" />
+    <div class="hint">Each profile can be enabled/disabled independently.</div>
+
+    <div class="card" style="margin-top: 12px">
+      <div class="row"><div><b>Attacker</b></div><div></div></div>
+      <div class="row"><div>Base URL</div><input id="attackerBaseUrl" placeholder="https://api.openai.com/v1" /></div>
+      <div class="row"><div>Model</div><input id="attackerModel" placeholder="gpt-4o-mini" /></div>
+      <div class="row"><div>API key</div><input id="attackerApiKey" placeholder="sk-…" type="password" /></div>
+      <div class="row">
+        <div>Enabled</div>
+        <select id="attackerEnabled"><option value="true">Yes</option><option value="false">No</option></select>
+      </div>
     </div>
 
-    <div class="row">
-      <div>Model</div>
-      <input id="model" placeholder="gpt-4o-mini" />
+    <div class="card">
+      <div class="row"><div><b>Judge</b></div><div></div></div>
+      <div class="row"><div>Base URL</div><input id="judgeBaseUrl" placeholder="https://api.openai.com/v1" /></div>
+      <div class="row"><div>Model</div><input id="judgeModel" placeholder="gpt-4o-mini" /></div>
+      <div class="row"><div>API key</div><input id="judgeApiKey" placeholder="sk-…" type="password" /></div>
+      <div class="row">
+        <div>Enabled</div>
+        <select id="judgeEnabled"><option value="true">Yes</option><option value="false">No</option></select>
+      </div>
     </div>
 
-    <div class="row">
-      <div>API key</div>
-      <input id="apiKey" placeholder="sk-…" type="password" />
-    </div>
-
-    <div class="row">
-      <div>Enable fallback</div>
-      <select id="enabled">
-        <option value="true">Yes</option>
-        <option value="false">No</option>
-      </select>
+    <div class="card">
+      <div class="row"><div><b>HTML reader</b></div><div></div></div>
+      <div class="row"><div>Base URL</div><input id="readerBaseUrl" placeholder="https://api.openai.com/v1" /></div>
+      <div class="row"><div>Model</div><input id="readerModel" placeholder="gpt-4o-mini" /></div>
+      <div class="row"><div>API key</div><input id="readerApiKey" placeholder="sk-…" type="password" /></div>
+      <div class="row">
+        <div>Enabled</div>
+        <select id="readerEnabled"><option value="true">Yes</option><option value="false">No</option></select>
+      </div>
     </div>
 
     <div class="actions">
@@ -103,8 +128,8 @@
 
     <div class="status" id="status"></div>
     <div class="hint">
-      The extension will only call AI when heuristics can’t find a confident chat input. It sends a <b>sanitized DOM snapshot</b>
-      containing only candidate inputs/buttons and nearby labels (no full page HTML). Still, avoid enabling on pages with sensitive data unless authorized.
+      The HTML reader only receives a <b>sanitized DOM snapshot</b> containing candidate inputs/buttons and nearby labels (no full page HTML).
+      Still, avoid enabling on pages with sensitive data unless authorized.
       <br /><br />
       Defaults: Base URL <code>https://api.openai.com/v1</code>, model <code>gpt-4o-mini</code>.
     </div>

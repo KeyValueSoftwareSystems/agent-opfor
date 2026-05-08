@@ -24,6 +24,24 @@ function selectorFromEl(el) {
   return el.tagName.toLowerCase();
 }
 
+/** Links to AOL product/checkout pages — clicking these navigates away instead of opening chat. */
+function isProductOrSignupNavLink(el) {
+  if (!(el instanceof HTMLAnchorElement)) return false;
+  const raw = el.getAttribute("href") || "";
+  if (!raw || raw.startsWith("#") || /^javascript:/i.test(raw)) return false;
+  try {
+    const u = new URL(raw, location.href);
+    const p = u.pathname.toLowerCase();
+    const h = u.hostname.toLowerCase();
+    if (h.includes("aol.com") && p.includes("/products/")) return true;
+    if (p.includes("live-support-plus") || p.includes("live_support_plus")) return true;
+    if (p.includes("/products/") && (p.includes("tech-support") || p.includes("bundle"))) return true;
+  } catch {
+    if (/\/products\/|live-support-plus/i.test(raw)) return true;
+  }
+  return false;
+}
+
 function robustClick(el) {
   if (!(el instanceof Element)) return;
   try {
@@ -45,7 +63,7 @@ function robustClick(el) {
 
 function findLikelyChatLauncherButtons() {
   const btns = Array.from(document.querySelectorAll("button, [role='button'], a[role='button'], a, summary")).filter(
-    (el) => el instanceof Element && isVisible(el)
+    (el) => el instanceof Element && isVisible(el) && !isProductOrSignupNavLink(el)
   );
 
   const scored = btns
@@ -55,6 +73,9 @@ function findLikelyChatLauncherButtons() {
       const title = (el.getAttribute?.("title") || "").toLowerCase();
       const blob = `${text} ${aria} ${title}`.trim();
       let s = 0;
+      // Prefer real controls over marketing links (same keywords often appear on "Try Live Support Plus" CTAs)
+      if (el instanceof HTMLAnchorElement) s -= 6;
+      if (blob.includes("try it free") || blob.includes("try free") || /\border\b.*\bnow\b/.test(blob)) s -= 15;
       if (blob.includes("start a conversation") || blob.includes("start conversation")) s += 12;
       if (blob.includes("live expert") || blob.includes("get live")) s += 12;
       if (blob.includes("live chat")) s += 10;
@@ -142,6 +163,7 @@ function findFloatingWidgetCandidates() {
   for (const el of document.querySelectorAll("button, [role='button'], a, div")) {
     if (!(el instanceof Element)) continue;
     if (!isVisible(el)) continue;
+    if (isProductOrSignupNavLink(el)) continue;
     if (!isProbablyFloatingWidget(el)) continue;
     const tag = el.tagName.toLowerCase();
     const clickable = tag === "button" || tag === "a" || el.getAttribute("role") === "button" || typeof el.onclick === "function";
@@ -162,8 +184,9 @@ function findFloatingWidgetCandidates() {
   const floaters = findFloatingWidgetCandidates();
 
   const candidates = [];
+  // Floaters first: bottom-right chat bubble is usually the real widget; launchers often duplicate "Live support" promos that are `<a href=/products/...>`.
+  for (const el of floaters) candidates.push({ kind: "floating", el, s: scoreFloatingWidget(el) + 120 });
   for (const el of launchers) candidates.push({ kind: "launcher", el, s: 100 });
-  for (const el of floaters) candidates.push({ kind: "floating", el, s: scoreFloatingWidget(el) });
 
   if (!candidates.length) return { ok: true, clicked: false };
 

@@ -75,8 +75,19 @@ function deepPathSelector(el) {
   return parts.join(" >> ");
 }
 
+function isEmbeddedChatComposer(el) {
+  if (!(el instanceof Element)) return false;
+  const cls = (el.className || "").toString().toLowerCase();
+  if (cls.includes("chatbot__input") || cls.includes("composer") || cls.includes("chat-input")) return true;
+  if (el.closest?.("#ais-chatbot, .chatbot__form, .chatbot__window, [class*='chatbot__']")) return true;
+  return false;
+}
+
 function looksLikeSiteSearch(el) {
   if (!(el instanceof Element)) return false;
+  // Never treat embedded vendor chat composers (AOL ais-chatbot, etc.) as site search.
+  if (isEmbeddedChatComposer(el)) return false;
+
   const type = (el.getAttribute("type") || "").toLowerCase();
   const role = (el.getAttribute("role") || "").toLowerCase();
   if (type === "search") return true;
@@ -119,6 +130,12 @@ function scoreInput(el) {
   const blob = `${aria} ${placeholder} ${name} ${id} ${cls}`.trim();
 
   if (!isVisible(el)) score -= 5;
+
+  // AOL / embedded assistants: textarea.chatbot__input in form.chatbot__form (often in iframe)
+  if (cls.includes("chatbot__input")) score += 35;
+  if (el.closest?.("form.chatbot__form, .chatbot__form")) score += 28;
+  if (el.closest?.("#ais-chatbot, .chatbot__window")) score += 22;
+  if (cls.includes("chatbot__") && tag === "textarea") score += 15;
 
   // Help-center site search (AOL, etc.) — never prefer over chat composer
   if (looksLikeSiteSearch(el)) score -= 40;
@@ -182,6 +199,13 @@ function scoreChatSignals() {
     score += 1;
   }
 
+  // Embedded widgets (AOL ais-chatbot, etc.): dialogue is often ul.chatbot__dialogue, NOT role=log
+  if (queryAllDeep('[class*="chatbot__dialogue"]').length) score += 18;
+  if (queryAllDeep("textarea.chatbot__input, .chatbot__input").length) score += 22;
+  if (queryAllDeep("form.chatbot__form").length) score += 14;
+  if (document.querySelector("#ais-chatbot")) score += 16;
+  if (queryAllDeep('[class*="chatbot__message"]').length) score += 10;
+
   // Common chat semantics
   const ariaChatBoxes = Array.from(queryAllDeep("[aria-label]"))
     .filter((el) => el instanceof Element && isVisible(el))
@@ -208,7 +232,18 @@ function collectSanitizedDomSnapshot() {
 
   const chatScore = scoreChatSignals();
   const chatLogs = Array.from(queryAllDeep("[role='log']")).filter((el) => el instanceof Element && isVisible(el));
-  if (chatLogs.length) {
+  const embeddedChatNotes = [];
+  if (queryAllDeep('[class*="chatbot__dialogue"]').length) {
+    embeddedChatNotes.push(
+      '- pattern=embedded_chatbot transcript="ul.chatbot__dialogue or similar — this IS the chat UI (not site search)'
+    );
+  }
+  if (queryAllDeep("textarea.chatbot__input, form.chatbot__form").length) {
+    embeddedChatNotes.push(
+      '- composer=textarea.chatbot__input inside form.chatbot__form; pair send with button.chatbot__send if present'
+    );
+  }
+  if (chatLogs.length || embeddedChatNotes.length) {
     lines.push("");
     lines.push("CHAT_SIGNALS:");
     for (const el of chatLogs.slice(0, 6)) {
@@ -217,6 +252,7 @@ function collectSanitizedDomSnapshot() {
         `- selector="${deepPathSelector(el)}" role="log" aria-label="${String(ariaLabel || "").slice(0, 120)}" ${describeEl(el)}`
       );
     }
+    for (const note of embeddedChatNotes) lines.push(note);
   }
 
   const inputs = Array.from(queryAllDeep("textarea, input, [contenteditable='true'], [role='textbox']"))
