@@ -13,6 +13,6 @@ export async function loadAstraMcpConfigFile(configPath: string): Promise<AstraM
     return extractMcpScannerConfig(json);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    throw new Error(`Invalid astra.config.json: ${msg}`);
+    throw new Error(`Invalid astra.config.json: ${msg}`, { cause: err });
   }
 }

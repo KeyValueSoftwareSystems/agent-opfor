@@ -62,7 +62,6 @@ async function promptModelConfig(label: string) {
           message: `Base URL for OpenAI-compatible provider (e.g. https://api.your-host.com/v1)`,
           validate: (v: string) => {
             try {
-              // eslint-disable-next-line no-new
               new URL(v);
               return true;
             } catch {
@@ -167,7 +166,6 @@ export async function collectMcpSectionInteractive() {
             default: "http://localhost:3000/mcp",
             validate: (v: string) => {
               try {
-                // eslint-disable-next-line no-new
                 new URL(v);
                 return true;
               } catch {

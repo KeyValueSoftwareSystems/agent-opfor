@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type { RunReport, AttackRunResult, EvaluatorRunSummary } from "../run/types.js";
+import type { RunReport, AttackRunResult } from "../run/types.js";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 

@@ -114,7 +114,7 @@ async function httpJson(
     signal: AbortSignal.timeout(60_000),
   });
   const text = await res.text();
-  let body: unknown = text;
+  let body: unknown;
   try {
     body = text ? JSON.parse(text) : null;
   } catch {

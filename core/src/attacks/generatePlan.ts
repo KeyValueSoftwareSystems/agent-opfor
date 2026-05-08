@@ -124,7 +124,7 @@ async function generateAttacksForEvaluator(args: {
     if (posMatch) {
       const pos = parseInt(posMatch[1]);
       const snippet = raw.slice(Math.max(0, pos - 60), pos + 60);
-      throw new Error(`LLM JSON parse failed at position ${pos}.\nContext: ...${JSON.stringify(snippet)}...\nFull error: ${firstErr}`);
+      throw new Error(`LLM JSON parse failed at position ${pos}.\nContext: ...${JSON.stringify(snippet)}...\nFull error: ${firstErr}`, { cause: firstErr });
     }
     throw firstErr;
   }

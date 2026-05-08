@@ -135,7 +135,7 @@ function looksSentencey(text) {
   const t = text.trim();
   if (t.length >= 80) return true;
   // Mid-text terminator (avoid trailing-only punctuation).
-  return /[\.\?!]\s+\S/.test(t) || /\n/.test(t);
+  return /[.?!]\s+\S/.test(t) || /\n/.test(t);
 }
 
 function extractFromRoleLog() {

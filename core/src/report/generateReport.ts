@@ -326,7 +326,6 @@ export async function generateReport(
     const color = severityColor(r.evaluator.severity);
     const p = r.results.filter(t => t.judge.verdict === "PASS").length;
     const e = r.results.filter(t => t.judge.verdict === "ERROR").length;
-    const f = r.results.length - p - e;
 
     const verdictBorderColor = (verdict: string) =>
       verdict === "PASS" ? "#10B981" : verdict === "ERROR" ? "#F59E0B" : "#EF4444";

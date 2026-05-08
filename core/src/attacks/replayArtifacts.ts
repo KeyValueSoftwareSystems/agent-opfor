@@ -47,14 +47,13 @@ export function attachReplayHints(
   attack: AttackScenario,
   server: AstraMcpConfig["server"]
 ): AttackScenarioWithReplay {
-  let idCounter = 1;
-  const toolsListLine = jsonRpcLine("tools/list", {}, idCounter++);
+  const toolsListLine = jsonRpcLine("tools/list", {}, 1);
   const toolsCallLine =
     attack.suggestedToolName !== undefined
       ? jsonRpcLine(
           "tools/call",
           { name: attack.suggestedToolName, arguments: attack.suggestedToolArguments ?? {} },
-          idCounter++
+          2
         )
       : undefined;
 

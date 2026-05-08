@@ -52,7 +52,7 @@ export async function parseEvaluator(mdPath: string): Promise<EvaluatorSpec> {
     doc = parseYaml(sp.yaml) as Record<string, unknown>;
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    throw new Error(`Evaluator ${mdPath}: invalid YAML in frontmatter: ${msg}`);
+    throw new Error(`Evaluator ${mdPath}: invalid YAML in frontmatter: ${msg}`, { cause: e });
   }
 
   const id = str(doc, "id");

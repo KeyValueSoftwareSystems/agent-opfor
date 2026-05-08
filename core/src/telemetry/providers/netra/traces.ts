@@ -65,7 +65,6 @@ export async function fetchNetraTracesPage(
 
   // Build time window
   let startTime: string;
-  let endTime: string;
   if (selection?.fromTime) {
     startTime = selection.fromTime;
   } else if (selection?.lookbackHours != null && selection.lookbackHours > 0) {
@@ -73,7 +72,7 @@ export async function fetchNetraTracesPage(
   } else {
     startTime = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
   }
-  endTime = selection?.toTime ?? new Date().toISOString();
+  const endTime = selection?.toTime ?? new Date().toISOString();
 
   // Build filters — field/type/operator match Netra's FilterItem + FilterOperatorEnum
   const filters: Array<{ field: string; type: string; operator: string; value: string }> = [];

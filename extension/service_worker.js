@@ -1147,7 +1147,7 @@ async function callOpenAiCompat({ baseUrl, apiKey, model, messages, signal: sign
       signal
     });
   } catch (e) {
-    if (e?.name === "AbortError" || ASTRA_STOP) throw new Error("Run stopped.");
+    if (e?.name === "AbortError" || ASTRA_STOP) throw new Error("Run stopped.", { cause: e });
     throw e;
   }
 

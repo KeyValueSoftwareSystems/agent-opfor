@@ -43,7 +43,7 @@ export async function runMcpGenerateAttackPlan(opts: {
 
   log.start("Connecting to MCP server (stdio or URL)…");
   const mcp = await connectMcpClient(cfg.server);
-  let tools: Array<{ name: string; description?: string; inputSchema?: Record<string, unknown> }> = [];
+  let tools: Array<{ name: string; description?: string; inputSchema?: Record<string, unknown> }>;
   try {
     const listed = await mcp.client.listTools();
     tools = (listed.tools ?? []).map((t: { name: string; description?: string; inputSchema?: Record<string, unknown> }) => ({

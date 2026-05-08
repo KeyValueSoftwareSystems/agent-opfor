@@ -9,7 +9,7 @@ loadDotenv();
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { loadSkillCatalog, resolveSuiteEvaluatorIds, getEvaluatorIdSet } from "../../core/dist/config/loadSkillCatalog.js";
+import { loadSkillCatalog, getEvaluatorIdSet } from "../../core/dist/config/loadSkillCatalog.js";
 import { runSetup, runSetupInline } from "./core/setup.js";
 import { runScan } from "./core/run.js";
 

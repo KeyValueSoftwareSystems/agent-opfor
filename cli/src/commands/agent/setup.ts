@@ -256,7 +256,7 @@ async function runInteractiveWizard(
     ],
   });
 
-  let selectedEvaluatorIds: string[] = [];
+  let selectedEvaluatorIds: string[];
 
   if (selectionMode === "suite") {
     const suiteId = await select<string>({

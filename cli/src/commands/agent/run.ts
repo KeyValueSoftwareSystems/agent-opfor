@@ -32,7 +32,7 @@ export async function runAgentAttacksFromFile(opts: {
     promptsFile.telemetry = resolveTelemetryEnv(promptsFile.telemetry);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    throw new Error(`Error reading prompts file: ${msg}`);
+    throw new Error(`Error reading prompts file: ${msg}`, { cause: err });
   }
 
   const { target, attacks } = promptsFile;
@@ -72,13 +72,13 @@ export async function runAgentAttacksFromFile(opts: {
     model = createModel(attackLlm);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    throw new Error(`Error initialising generator LLM provider "${attackLlm.provider}": ${msg}`);
+    throw new Error(`Error initialising generator LLM provider "${attackLlm.provider}": ${msg}`, { cause: err });
   }
   try {
     judgeModel = createModel(judgeLlm);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    throw new Error(`Error initialising judge LLM provider "${judgeLlm.provider}": ${msg}`);
+    throw new Error(`Error initialising judge LLM provider "${judgeLlm.provider}": ${msg}`, { cause: err });
   }
 
   const endpoint = target.endpoint ?? "";

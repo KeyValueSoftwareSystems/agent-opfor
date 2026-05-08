@@ -59,7 +59,7 @@ async function parseEvaluatorMd(filePath, fname) {
     doc = parseYaml(sp.yaml);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    throw new Error(`${fname}: invalid YAML: ${msg}`);
+    throw new Error(`${fname}: invalid YAML: ${msg}`, { cause: e });
   }
   if (!doc || typeof doc !== "object") throw new Error(`${fname}: invalid frontmatter`);
 
