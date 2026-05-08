@@ -6,17 +6,12 @@
     "moduleResolution": "NodeNext",
     "outDir": "dist",
     "rootDir": "src",
+    "declaration": true,
     "strict": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "types": ["node"]
   },
-  "include": [
-    "src/index.ts",
-    "src/mcp/**/*.ts",
-    "src/mcp/**/*.d.ts",
-    "src/types/**/*.d.ts"
-  ],
-  "exclude": ["src/agent"]
+  "include": ["src/**/*.ts", "src/**/*.d.ts"]
 }

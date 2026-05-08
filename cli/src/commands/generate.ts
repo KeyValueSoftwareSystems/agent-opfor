@@ -2,12 +2,12 @@ import type { Command } from "commander";
 import path from "node:path";
 import { readFile } from "node:fs/promises";
 import { select } from "@inquirer/prompts";
-import { loadEnvFromFlag } from "../cli/env.js";
-import { ensureAstraDirs, newAttacksPath } from "../cli/artifacts.js";
-import { loadUnifiedConfigFile, type UnifiedMode } from "../cli/unifiedConfig.js";
+import { loadEnvFromFlag } from "../lib/env.js";
+import { ensureAstraDirs, newAttacksPath } from "../lib/artifacts.js";
+import { loadUnifiedConfigFile, type UnifiedMode } from "../lib/unifiedConfig.js";
 import { runUnifiedSetup } from "./setup.js";
-import { runMcpGenerateAttackPlan } from "../mcp/commands/setup.js";
-import { generateAgentAttacksFromConfig } from "astra-cli";
+import { runMcpGenerateAttackPlan } from "./mcp/setup.js";
+import { generateAgentAttacksFromConfig } from "./agent/setup.js";
 
 export function registerGenerateCommand(program: Command): void {
   program

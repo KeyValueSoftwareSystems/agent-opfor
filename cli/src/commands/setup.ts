@@ -2,11 +2,11 @@ import type { Command } from "commander";
 import path from "node:path";
 import { mkdir, writeFile } from "node:fs/promises";
 import { select } from "@inquirer/prompts";
-import { buildEmptyMcpSection, collectMcpSectionInteractive } from "../mcp/commands/init.js";
-import { buildEmptyAgentSetupConfig, collectAgentSetupConfigInteractive } from "astra-cli";
-import { loadEnvFromFlag } from "../cli/env.js";
-import { ensureAstraDirs, newConfigPath, newId } from "../cli/artifacts.js";
-import type { UnifiedMode, UnifiedConfigFileV1 } from "../cli/unifiedConfig.js";
+import { buildEmptyMcpSection, collectMcpSectionInteractive } from "./mcp/init.js";
+import { buildEmptyAgentSetupConfig, collectAgentSetupConfigInteractive } from "./agent/wizard.js";
+import { loadEnvFromFlag } from "../lib/env.js";
+import { ensureAstraDirs, newConfigPath, newId } from "../lib/artifacts.js";
+import type { UnifiedMode, UnifiedConfigFileV1 } from "../lib/unifiedConfig.js";
 
 export async function runUnifiedSetup(opts: {
   mcp?: boolean;

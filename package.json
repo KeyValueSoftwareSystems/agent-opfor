@@ -1,19 +1,16 @@
 {
-  "name": "@astra/mcp",
-  "version": "0.0.1",
-  "description": "Astra CLI — security testing for MCP servers and AI agents (astra setup|generate|run)",
+  "name": "astra-monorepo",
+  "version": "0.1.0",
+  "description": "Astra — security testing for AI agents and MCP servers (workspace root)",
   "license": "Apache-2.0",
+  "private": true,
   "type": "module",
   "workspaces": [
     "core",
-    "src/agent/mcp",
-    "src/agent/cli"
+    "cli",
+    "mcp"
   ],
-  "bin": {
-    "astra": "./dist/index.js"
-  },
   "files": [
-    "dist/",
     "skills/",
     "README.md",
     "LICENSE"
@@ -22,27 +19,13 @@
     "node": ">=18.0.0"
   },
   "scripts": {
-    "dev": "tsx src/index.ts",
-    "build": "npm run build:agent && npm run build:mcp",
-    "build:agent": "npm run build --workspace=@astra/core && npm run build --workspace=@astra/agent-mcp-server && npm run build --workspace=astra-cli",
-    "build:mcp": "tsc -p tsconfig.json",
-    "start": "node dist/index.js",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "npm run build --workspace=@astra/core && npm run build --workspace=astra && npm run build --workspace=@astra/agent-mcp-server",
+    "typecheck": "npm run typecheck --workspaces --if-present",
     "extension:catalog": "node src/extension/scripts/build-catalog.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
     "tsx": "^4.20.0",
     "typescript": "^5.8.3"
-  },
-  "dependencies": {
-    "@inquirer/prompts": "^7.8.0",
-    "@modelcontextprotocol/sdk": "^1.29.0",
-    "astra-cli": "*",
-    "commander": "^14.0.3",
-    "consola": "^3.4.2",
-    "dotenv": "^16.4.7",
-    "yaml": "^2.8.3",
-    "zod": "^4.1.5"
   }
 }

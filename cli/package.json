@@ -1,16 +1,11 @@
 {
-  "name": "astra-cli",
+  "name": "astra",
   "version": "0.1.0",
-  "description": "Astra CLI — AI red team scanner (TypeScript implementation)",
+  "description": "Astra CLI — security testing for AI agents and MCP servers (astra setup|generate|run)",
   "license": "Apache-2.0",
   "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
-    }
+  "bin": {
+    "astra": "./dist/index.js"
   },
   "files": [
     "dist/"
@@ -18,8 +13,8 @@
   "scripts": {
     "dev": "tsx src/index.ts",
     "build": "tsc -p tsconfig.json",
-    "prepare": "echo 'run npm run build from the repo root'",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@astra/core": "*",
