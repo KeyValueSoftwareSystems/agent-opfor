@@ -35,7 +35,8 @@ function isProductOrSignupNavLink(el) {
     const h = u.hostname.toLowerCase();
     if (h.includes("aol.com") && p.includes("/products/")) return true;
     if (p.includes("live-support-plus") || p.includes("live_support_plus")) return true;
-    if (p.includes("/products/") && (p.includes("tech-support") || p.includes("bundle"))) return true;
+    if (p.includes("/products/") && (p.includes("tech-support") || p.includes("bundle")))
+      return true;
   } catch {
     if (/\/products\/|live-support-plus/i.test(raw)) return true;
   }
@@ -52,7 +53,14 @@ function robustClick(el) {
   const clientY = rect ? Math.round(rect.top + Math.min(10, rect.height / 2)) : 1;
   const fireMouse = (type) =>
     el.dispatchEvent(
-      new MouseEvent(type, { bubbles: true, cancelable: true, composed: true, view: window, clientX, clientY })
+      new MouseEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+        view: window,
+        clientX,
+        clientY,
+      })
     );
   fireMouse("pointerdown");
   fireMouse("mousedown");
@@ -62,9 +70,9 @@ function robustClick(el) {
 }
 
 function findLikelyChatLauncherButtons() {
-  const btns = Array.from(document.querySelectorAll("button, [role='button'], a[role='button'], a, summary")).filter(
-    (el) => el instanceof Element && isVisible(el) && !isProductOrSignupNavLink(el)
-  );
+  const btns = Array.from(
+    document.querySelectorAll("button, [role='button'], a[role='button'], a, summary")
+  ).filter((el) => el instanceof Element && isVisible(el) && !isProductOrSignupNavLink(el));
 
   const scored = btns
     .map((el) => {
@@ -75,7 +83,12 @@ function findLikelyChatLauncherButtons() {
       let s = 0;
       // Prefer real controls over marketing links (same keywords often appear on "Try Live Support Plus" CTAs)
       if (el instanceof HTMLAnchorElement) s -= 6;
-      if (blob.includes("try it free") || blob.includes("try free") || /\border\b.*\bnow\b/.test(blob)) s -= 15;
+      if (
+        blob.includes("try it free") ||
+        blob.includes("try free") ||
+        /\border\b.*\bnow\b/.test(blob)
+      )
+        s -= 15;
       if (blob.includes("start a conversation") || blob.includes("start conversation")) s += 12;
       if (blob.includes("live expert") || blob.includes("get live")) s += 12;
       if (blob.includes("live chat")) s += 10;
@@ -115,16 +128,33 @@ function isProbablyFloatingWidget(el) {
   // Bottom-right overlays (fixed/sticky) — typical embed chat launchers
   if (pos === "fixed" || pos === "sticky") {
     const nearRight = rect.right > window.innerWidth * 0.62;
-    const nearBottom = rect.bottom > window.innerHeight * 0.72 || rect.top > window.innerHeight * 0.55;
-    if (nearRight && nearBottom && rect.width <= window.innerWidth * 0.55 && rect.height <= window.innerHeight * 0.45)
+    const nearBottom =
+      rect.bottom > window.innerHeight * 0.72 || rect.top > window.innerHeight * 0.55;
+    if (
+      nearRight &&
+      nearBottom &&
+      rect.width <= window.innerWidth * 0.55 &&
+      rect.height <= window.innerHeight * 0.45
+    )
       return true;
   }
 
   // Fixed bubble hugging bottom edge (some AOL / legacy widgets)
-  if (pos === "fixed" && rect.bottom >= window.innerHeight - 140 && rect.right >= window.innerWidth * 0.55 && rect.width < 120 && rect.height < 120)
+  if (
+    pos === "fixed" &&
+    rect.bottom >= window.innerHeight - 140 &&
+    rect.right >= window.innerWidth * 0.55 &&
+    rect.width < 120 &&
+    rect.height < 120
+  )
     return true;
 
-  if (vendorHint && pos === "fixed" && rect.width < window.innerWidth * 0.45 && rect.height < window.innerHeight * 0.35)
+  if (
+    vendorHint &&
+    pos === "fixed" &&
+    rect.width < window.innerWidth * 0.45 &&
+    rect.height < window.innerHeight * 0.35
+  )
     return true;
 
   return false;
@@ -148,7 +178,8 @@ function scoreFloatingWidget(el) {
   if (rect) {
     const area = rect.width * rect.height;
     if (area >= 900 && area <= 40_000) s += 2;
-    const nearCorner = rect.right > window.innerWidth * 0.9 && rect.bottom > window.innerHeight * 0.9;
+    const nearCorner =
+      rect.right > window.innerWidth * 0.9 && rect.bottom > window.innerHeight * 0.9;
     if (nearCorner) s += 2;
   }
 
@@ -167,7 +198,11 @@ function findFloatingWidgetCandidates() {
     if (isProductOrSignupNavLink(el)) continue;
     if (!isProbablyFloatingWidget(el)) continue;
     const tag = el.tagName.toLowerCase();
-    const clickable = tag === "button" || tag === "a" || el.getAttribute("role") === "button" || typeof el.onclick === "function";
+    const clickable =
+      tag === "button" ||
+      tag === "a" ||
+      el.getAttribute("role") === "button" ||
+      typeof el.onclick === "function";
     if (!clickable) continue;
     candidates.push(el);
   }
@@ -197,7 +232,8 @@ function findFloatingWidgetCandidates() {
 
   const candidates = [];
   // Floaters first: bottom-right chat bubble is usually the real widget; launchers often duplicate "Live support" promos that are `<a href=/products/...>`.
-  for (const el of floaters) candidates.push({ kind: "floating", el, s: scoreFloatingWidget(el) + 120 });
+  for (const el of floaters)
+    candidates.push({ kind: "floating", el, s: scoreFloatingWidget(el) + 120 });
   for (const el of launchers) candidates.push({ kind: "launcher", el, s: 100 });
 
   if (!candidates.length) return { ok: true, clicked: false };
@@ -214,4 +250,3 @@ function findFloatingWidgetCandidates() {
     return { ok: true, clicked: false, error: e instanceof Error ? e.message : String(e) };
   }
 })();
-

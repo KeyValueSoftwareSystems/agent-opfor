@@ -136,5 +136,4 @@ patterns:
 
       Generate one entry per tool — prefer rug-pull for tools that accept string parameters,
       schema-poisoning flag for tools whose parameter descriptions look like instructions.
-
 ---

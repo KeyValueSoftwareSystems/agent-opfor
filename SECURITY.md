@@ -5,7 +5,8 @@
 This policy applies to vulnerabilities in the **Astra tool itself** — its CLI, evaluation engine, report generation, and MCP client.
 
 It does not cover:
-- Findings from running Astra *against* another system (report those to that system's maintainers)
+
+- Findings from running Astra _against_ another system (report those to that system's maintainers)
 - Vulnerabilities in third-party dependencies (report those upstream; we will update dependencies promptly when notified)
 
 ## Reporting a vulnerability
@@ -15,6 +16,7 @@ It does not cover:
 Email: [astra@keyvalue.systems](mailto:astra@keyvalue.systems)
 
 Include in your report:
+
 - A description of the vulnerability and its potential impact
 - Steps to reproduce (config, command, input)
 - The Astra version (`astra --version`)
@@ -25,6 +27,7 @@ You will receive an acknowledgement within **3 business days** and a resolution 
 ## Disclosure policy
 
 We follow coordinated disclosure. We ask that you:
+
 1. Give us reasonable time to fix the issue before publishing details (we aim for 30 days)
 2. Avoid accessing or modifying data beyond what is needed to demonstrate the issue
 3. Not exploit the vulnerability against systems you do not own

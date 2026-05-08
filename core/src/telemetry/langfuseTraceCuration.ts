@@ -3,7 +3,10 @@ import path from "node:path";
 import { generateText } from "ai";
 import type { LanguageModel } from "ai";
 import type { TelemetryConfig } from "../config/types.js";
-import { fetchLangfuseTracesListPage, hydrateLangfuseTraceRecord } from "./providers/langfuse/traces.js";
+import {
+  fetchLangfuseTracesListPage,
+  hydrateLangfuseTraceRecord,
+} from "./providers/langfuse/traces.js";
 
 const MAX_TARGET_DESC = 2_000;
 const TRACE_SUMMARY_MD_FILENAME = "trace-summary.md";
@@ -93,9 +96,7 @@ async function summarizeCuratedTracesToMarkdown(opts: {
 
   const safeDesc = targetDescription ?? "";
   const desc =
-    safeDesc.length > MAX_TARGET_DESC
-      ? safeDesc.slice(0, MAX_TARGET_DESC) + "…"
-      : safeDesc;
+    safeDesc.length > MAX_TARGET_DESC ? safeDesc.slice(0, MAX_TARGET_DESC) + "…" : safeDesc;
 
   let payloadJson = JSON.stringify({ curation, traces }, null, 2);
   if (payloadJson.length > summarizerSourceJsonMaxChars) {
@@ -227,9 +228,10 @@ export async function runLangfuseSetupTraceCuration(opts: {
       tracesJson.slice(0, limits.curationListJsonMaxChars) + "\n…[truncated for LLM context]";
   }
 
-  const desc = targetDescription.length > MAX_TARGET_DESC
-    ? targetDescription.slice(0, MAX_TARGET_DESC) + "…"
-    : targetDescription || "(not provided — infer from traces)";
+  const desc =
+    targetDescription.length > MAX_TARGET_DESC
+      ? targetDescription.slice(0, MAX_TARGET_DESC) + "…"
+      : targetDescription || "(not provided — infer from traces)";
 
   const system = [
     `You help an AI red-team scanner choose which Langfuse production traces are most useful.`,
@@ -314,7 +316,9 @@ export async function runLangfuseSetupTraceCuration(opts: {
       `  Curator: model returned ${relevantTraceIds.length} id(s); ${selected.length} trace(s) in output (list had ${rows.length} row(s)).`
     );
   } else {
-    console.log(`  Curator: model output was not parseable JSON; traces array empty (see rawLlmText in tracedata.json).`);
+    console.log(
+      `  Curator: model output was not parseable JSON; traces array empty (see rawLlmText in tracedata.json).`
+    );
   }
 
   const curationBlock = {

@@ -75,5 +75,4 @@ patterns:
       ]
 
       Generate one entry per tool with the most realistic arguments you can infer from the schema.
-
 ---

@@ -21,6 +21,7 @@ patterns:
 ## What It Tests
 
 Improper Output Handling (LLM05) occurs when model outputs are not properly validated, sanitized, or escaped before use. This includes:
+
 - Code injection through model output
 - HTML/XSS injection
 - SQL injection from model-generated queries

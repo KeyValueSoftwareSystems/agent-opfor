@@ -1,4 +1,8 @@
-import type { LangfuseTelemetryConfig, LangfuseTraceSelectionConfig, TelemetryConfig } from "../../../config/types.js";
+import type {
+  LangfuseTelemetryConfig,
+  LangfuseTraceSelectionConfig,
+  TelemetryConfig,
+} from "../../../config/types.js";
 
 const DEFAULT_LANGFUSE_ORIGIN = "https://cloud.langfuse.com";
 /** First page size when listing with no server-side filters (Langfuse still paginates). */
@@ -53,20 +57,23 @@ function isPlaceholderTraceId(id: string): boolean {
  * Wires every field from LangfuseTraceSelectionConfig to the Langfuse API.
  * `filter` (advanced JSON) takes precedence over the equivalent direct params when both are set.
  */
-function buildTraceListParams(sel: LangfuseTraceSelectionConfig | undefined, page: number): URLSearchParams {
+function buildTraceListParams(
+  sel: LangfuseTraceSelectionConfig | undefined,
+  page: number
+): URLSearchParams {
   const params = new URLSearchParams();
   params.set("page", String(Math.max(1, page)));
   params.set("limit", String(sel?.listLimit ?? DEFAULT_LIST_LIMIT));
   if (!sel) return params;
 
   // Direct filter params
-  if (sel.userId?.trim())    params.set("userId",    sel.userId.trim());
-  if (sel.name?.trim())      params.set("name",      sel.name.trim());
+  if (sel.userId?.trim()) params.set("userId", sel.userId.trim());
+  if (sel.name?.trim()) params.set("name", sel.name.trim());
   if (sel.sessionId?.trim()) params.set("sessionId", sel.sessionId.trim());
-  if (sel.version?.trim())   params.set("version",   sel.version.trim());
-  if (sel.release?.trim())   params.set("release",   sel.release.trim());
-  if (sel.orderBy?.trim())   params.set("orderBy",   sel.orderBy.trim());
-  if (sel.fields?.trim())    params.set("fields",    sel.fields.trim());
+  if (sel.version?.trim()) params.set("version", sel.version.trim());
+  if (sel.release?.trim()) params.set("release", sel.release.trim());
+  if (sel.orderBy?.trim()) params.set("orderBy", sel.orderBy.trim());
+  if (sel.fields?.trim()) params.set("fields", sel.fields.trim());
 
   // Time window: fromTimestamp / lookbackHours
   if (sel.fromTimestamp?.trim()) {
@@ -79,13 +86,17 @@ function buildTraceListParams(sel: LangfuseTraceSelectionConfig | undefined, pag
 
   // Tags — repeated query params: ?tags=a&tags=b
   if (Array.isArray(sel.tags)) {
-    for (const t of sel.tags) { if (t?.trim()) params.append("tags", t.trim()); }
+    for (const t of sel.tags) {
+      if (t?.trim()) params.append("tags", t.trim());
+    }
   }
 
   // Environment — may be string or string[]
   if (sel.environment != null) {
     const envs = Array.isArray(sel.environment) ? sel.environment : [sel.environment];
-    for (const e of envs) { if (e?.trim()) params.append("environment", e.trim()); }
+    for (const e of envs) {
+      if (e?.trim()) params.append("environment", e.trim());
+    }
   }
 
   // Advanced JSON filter — takes precedence over the params above when Langfuse processes it
@@ -131,7 +142,9 @@ function previewJson(label: string, data: unknown): void {
     s = String(data);
   }
   if (s.length > LOG_PREVIEW_CHARS) {
-    console.log(`${label} (${s.length} chars, showing first ${LOG_PREVIEW_CHARS}):\n${s.slice(0, LOG_PREVIEW_CHARS)}\n… [truncated]`);
+    console.log(
+      `${label} (${s.length} chars, showing first ${LOG_PREVIEW_CHARS}):\n${s.slice(0, LOG_PREVIEW_CHARS)}\n… [truncated]`
+    );
   } else {
     console.log(`${label}:\n${s}`);
   }
@@ -164,7 +177,10 @@ async function fetchTraceIdsByObservationName(
     const got = await httpJson(url, creds.publicKey, creds.secretKey);
     if (!got.ok) break;
 
-    const body = got.body as { data?: Array<{ traceId?: string }>; meta?: { cursor?: string | null } };
+    const body = got.body as {
+      data?: Array<{ traceId?: string }>;
+      meta?: { cursor?: string | null };
+    };
     const chunk = Array.isArray(body?.data) ? body.data : [];
     for (const obs of chunk) {
       if (obs.traceId?.trim()) traceIds.add(obs.traceId.trim());
@@ -186,15 +202,14 @@ type TraceListRow = Record<string, unknown>;
  * Fetches one or more pages of `GET /api/public/traces` (see `traceSelection.listMaxPages` and `listLimit`),
  * merges `data` arrays, and returns a single synthetic list body for curation / logging.
  */
-export async function fetchLangfuseTracesListPage(
-  telemetry: TelemetryConfig
-): Promise<
-  (LangfuseListFetchResult & {
-    publicKey: string;
-    secretKey: string;
-    listPagesFetched: number;
-    listRowCount: number;
-  }) | null
+export async function fetchLangfuseTracesListPage(telemetry: TelemetryConfig): Promise<
+  | (LangfuseListFetchResult & {
+      publicKey: string;
+      secretKey: string;
+      listPagesFetched: number;
+      listRowCount: number;
+    })
+  | null
 > {
   if (telemetry.provider !== "langfuse") return null;
   const lf = telemetry.langfuse;
@@ -209,13 +224,17 @@ export async function fetchLangfuseTracesListPage(
   // Two-step observation-name pre-filter: collect allowed trace IDs first
   let observationTraceIdFilter: Set<string> | null = null;
   if (sel?.observationName?.trim()) {
-    console.log(`  [Langfuse] observation-name pre-filter: fetching trace IDs for name="${sel.observationName}"${sel.observationType ? ` type=${sel.observationType}` : ""}`);
+    console.log(
+      `  [Langfuse] observation-name pre-filter: fetching trace IDs for name="${sel.observationName}"${sel.observationType ? ` type=${sel.observationType}` : ""}`
+    );
     observationTraceIdFilter = await fetchTraceIdsByObservationName(
       creds,
       sel.observationName,
-      sel.observationType,
+      sel.observationType
     );
-    console.log(`  [Langfuse] observation pre-filter matched ${observationTraceIdFilter.size} trace ID(s)`);
+    console.log(
+      `  [Langfuse] observation pre-filter matched ${observationTraceIdFilter.size} trace ID(s)`
+    );
   }
 
   const merged: TraceListRow[] = [];
@@ -258,9 +277,14 @@ export async function fetchLangfuseTracesListPage(
         const id = typeof row.id === "string" ? row.id.trim() : "";
         return id && observationTraceIdFilter!.has(id);
       });
-      console.log(`  [Langfuse] page ${page}: ${before} traces → ${chunk.length} after observation-name intersection`);
+      console.log(
+        `  [Langfuse] page ${page}: ${before} traces → ${chunk.length} after observation-name intersection`
+      );
       if (chunk.length > 0) {
-        console.log(`  [Langfuse] matched trace IDs:`, chunk.map((r) => r.id));
+        console.log(
+          `  [Langfuse] matched trace IDs:`,
+          chunk.map((r) => r.id)
+        );
       }
     }
     if (page === 1) firstMeta = body.meta ?? null;
@@ -283,7 +307,9 @@ export async function fetchLangfuseTracesListPage(
   };
 
   if (observationTraceIdFilter !== null) {
-    console.log(`  [Langfuse] DEBUG observation-name filter summary: ${merged.length} trace(s) kept across ${listPagesFetched} page(s) (observationName="${sel?.observationName}")`);
+    console.log(
+      `  [Langfuse] DEBUG observation-name filter summary: ${merged.length} trace(s) kept across ${listPagesFetched} page(s) (observationName="${sel?.observationName}")`
+    );
   }
 
   return {
@@ -338,7 +364,9 @@ export async function logLangfuseTracesDuringSetup(telemetry: TelemetryConfig): 
     previewJson("  List body (JSON)", fetched.listBody);
   }
 
-  const validIds = (sel?.setupTraceIds ?? []).map((id) => id.trim()).filter((id) => id && !isPlaceholderTraceId(id));
+  const validIds = (sel?.setupTraceIds ?? [])
+    .map((id) => id.trim())
+    .filter((id) => id && !isPlaceholderTraceId(id));
 
   if (validIds.length === 0) {
     const raw = sel?.setupTraceIds ?? [];
@@ -349,7 +377,9 @@ export async function logLangfuseTracesDuringSetup(telemetry: TelemetryConfig): 
       console.log(`  By-id: no setupTraceIds to fetch`);
     }
   } else {
-    console.log(`  By-id: fetching ${validIds.length} trace(s) (full trace payload, no ?fields filter)`);
+    console.log(
+      `  By-id: fetching ${validIds.length} trace(s) (full trace payload, no ?fields filter)`
+    );
     for (const id of validIds) {
       const url = `${fetched.baseUrl}/api/public/traces/${encodeURIComponent(id)}`;
       console.log(`  GET /api/public/traces/${id}`);
@@ -516,7 +546,11 @@ export async function hydrateLangfuseTraceRecord(
   const got = await fetchLangfuseTraceById(telemetry, id, { fields: traceFields });
   if (!got?.ok || got.body === null || typeof got.body !== "object") return null;
 
-  return mergeLangfuseObservationsIntoTraceObject(telemetry, id, got.body as Record<string, unknown>);
+  return mergeLangfuseObservationsIntoTraceObject(
+    telemetry,
+    id,
+    got.body as Record<string, unknown>
+  );
 }
 
 export interface FetchLangfuseTraceForJudgeOptions {
@@ -546,8 +580,7 @@ export async function fetchLangfuseTraceJsonForJudge(
   let lastStatus = 0;
   let lastBody: unknown;
 
-  const traceFields =
-    telemetry.langfuse?.traceDetailFields?.trim() || DEFAULT_TRACE_GET_FIELDS;
+  const traceFields = telemetry.langfuse?.traceDetailFields?.trim() || DEFAULT_TRACE_GET_FIELDS;
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const got = await fetchLangfuseTraceById(telemetry, traceId, { fields: traceFields });

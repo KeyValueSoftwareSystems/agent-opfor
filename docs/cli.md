@@ -6,13 +6,13 @@ The CLI is a self-contained tool that handles everything: interactive setup, att
 
 ## How the pieces fit together
 
-| Command | What it does |
-|---------|--------------|
-| **`astra init`** | Writes a starter `astra.config.json` in the current directory. Optional — skip if you prefer the wizard or hand-write YAML/JSON. |
-| **`astra init --example …`** | Writes sample `astra-local-target.py` / `.js` stubs only (no config). For local-script targets. |
-| **`astra setup`** | Interactive wizard — chooses mode (MCP vs agent) and writes `.astra/configs/astra-config-<timestamp>-<id>.json`. |
-| **`astra generate --config <file>`** | Non-interactive — reads your config, then writes `.astra/attacks/astra-attacks-<timestamp>-<configId>.json`. Use this in CI. |
-| **`astra run --attacks <attacks.json>`** | Runs attacks from the attacks file, judges responses, writes HTML + JSON reports. |
+| Command                                  | What it does                                                                                                                     |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| **`astra init`**                         | Writes a starter `astra.config.json` in the current directory. Optional — skip if you prefer the wizard or hand-write YAML/JSON. |
+| **`astra init --example …`**             | Writes sample `astra-local-target.py` / `.js` stubs only (no config). For local-script targets.                                  |
+| **`astra setup`**                        | Interactive wizard — chooses mode (MCP vs agent) and writes `.astra/configs/astra-config-<timestamp>-<id>.json`.                 |
+| **`astra generate --config <file>`**     | Non-interactive — reads your config, then writes `.astra/attacks/astra-attacks-<timestamp>-<configId>.json`. Use this in CI.     |
+| **`astra run --attacks <attacks.json>`** | Runs attacks from the attacks file, judges responses, writes HTML + JSON reports.                                                |
 
 **Typical paths:**
 
@@ -178,11 +178,11 @@ When your target is not a single HTTP URL, use a local script as an adapter.
 
 **stdin/stdout contract (one attack = one process):**
 
-| Stream | Content |
-|--------|---------|
-| **Stdin** | `{"prompt":"...","context":{...},"sessionId":"..."}`. `sessionId` present for multi-turn; omitted for single-turn. |
-| **Stdout** | `{"response":"..."}` on success, or `{"error":"..."}` on failure. Do not print debug lines to stdout. |
-| **Stderr** | Log freely — the CLI forwards stderr to your terminal. |
+| Stream     | Content                                                                                                            |
+| ---------- | ------------------------------------------------------------------------------------------------------------------ |
+| **Stdin**  | `{"prompt":"...","context":{...},"sessionId":"..."}`. `sessionId` present for multi-turn; omitted for single-turn. |
+| **Stdout** | `{"response":"..."}` on success, or `{"error":"..."}` on failure. Do not print debug lines to stdout.              |
+| **Stderr** | Log freely — the CLI forwards stderr to your terminal.                                                             |
 
 **Interpreter:** picked from file extension — `.py` / `.pyw` → `python3`, `.js` / `.mjs` / `.cjs` → `node`.
 
@@ -305,59 +305,59 @@ For a custom env var name use `netra.apiKeyEnv` in the config. `propagation.trac
 
 ## Commands reference
 
-| Command | Description |
-|---------|-------------|
-| `astra init` | Generate a sample `astra.config.json` |
-| `astra init --example python` / `node` / `both` | Write sample local-target stubs only; optional `--script-dir` |
-| `astra setup` | Interactive wizard — generate attack prompts |
-| `astra setup --config <file>` | Non-interactive setup from a JSON or YAML config file |
-| `astra setup --config <file> --api-key <key>` | Setup with API key override |
-| `astra run --attacks <file>` | Fire attacks and generate HTML + JSON report |
-| `astra run --attacks <file> --target-script <path>` | Run attacks via a local `.js`/`.py` adapter |
-| `astra run --attacks <file> --api-key <key>` | Run with API key override |
+| Command                                             | Description                                                   |
+| --------------------------------------------------- | ------------------------------------------------------------- |
+| `astra init`                                        | Generate a sample `astra.config.json`                         |
+| `astra init --example python` / `node` / `both`     | Write sample local-target stubs only; optional `--script-dir` |
+| `astra setup`                                       | Interactive wizard — generate attack prompts                  |
+| `astra setup --config <file>`                       | Non-interactive setup from a JSON or YAML config file         |
+| `astra setup --config <file> --api-key <key>`       | Setup with API key override                                   |
+| `astra run --attacks <file>`                        | Fire attacks and generate HTML + JSON report                  |
+| `astra run --attacks <file> --target-script <path>` | Run attacks via a local `.js`/`.py` adapter                   |
+| `astra run --attacks <file> --api-key <key>`        | Run with API key override                                     |
 
 ---
 
 ## Config fields reference
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `llm.provider` | No | `groq`, `openai`, `anthropic`, `google`, or `other`. Defaults to `groq`. |
-| `llm.model` | No | Model name. Defaults to provider's recommended model. |
-| `llm.apiKey` | No | API key. If omitted, read from the corresponding env var. |
-| `llm.baseURL` | Only for `other` | Base URL for custom OpenAI-compatible endpoints. |
-| `target.name` | Yes | Human-readable name for the target. |
-| `target.description` | No | What the target does, data it handles, restrictions. More detail = better attacks. Optional when Langfuse enrichment is used. |
-| `target.type` | Yes | `http-endpoint` or `local-script`. |
-| `target.scriptPath` | For `local-script` | Path to the adapter script, relative to cwd. |
-| `target.endpoint` | For HTTP | Full URL to POST attacks to. |
-| `target.requestFormat` | For HTTP | `openai`, `json`, or `auto` (default). |
-| `target.targetModel` | For HTTP / openai | Model name to send in the request body. |
-| `target.targetApiKey` | No | Bearer token for the target endpoint. |
-| `target.promptPath` | No | Dot-path for the prompt field (e.g. `input.message`). Defaults to `prompt`. |
-| `target.responsePath` | No | Dot-path to extract the reply (e.g. `data.reply`). Falls back to built-in chain. |
-| `target.sessionIdField` | No | Body field to inject a session ID for multi-turn attacks. |
-| `selection.mode` | Yes | `suite` or `evaluators`. |
-| `selection.suite` | For suite | `owasp-llm-top10` or `owasp-agentic-ai`. |
-| `selection.evaluators` | For evaluators | Array of evaluator IDs. |
-| `turnMode` | No | `single` (default) or `multi`. |
-| `turns` | No | Number of turns per attack when `turnMode` is `multi`. Defaults to `3`. |
-| `telemetry.provider` | No | `langfuse`, `netra`, or `none` (default). |
-| `telemetry.propagation.traceIdBodyField` | No | Request body field to inject a trace ID into (e.g. `trace_id`). Requires the target agent to forward it to the telemetry SDK. |
-| `telemetry.propagation.traceIdStrategy` | No | `per-attack` (default) or `per-run`. |
-| `telemetry.enrichJudgeFromTrace` | No | Fetch the recorded trace after each attack and pass spans to the LLM judge. Default `false`. |
+| Field                                    | Required           | Description                                                                                                                   |
+| ---------------------------------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| `llm.provider`                           | No                 | `groq`, `openai`, `anthropic`, `google`, or `other`. Defaults to `groq`.                                                      |
+| `llm.model`                              | No                 | Model name. Defaults to provider's recommended model.                                                                         |
+| `llm.apiKey`                             | No                 | API key. If omitted, read from the corresponding env var.                                                                     |
+| `llm.baseURL`                            | Only for `other`   | Base URL for custom OpenAI-compatible endpoints.                                                                              |
+| `target.name`                            | Yes                | Human-readable name for the target.                                                                                           |
+| `target.description`                     | No                 | What the target does, data it handles, restrictions. More detail = better attacks. Optional when Langfuse enrichment is used. |
+| `target.type`                            | Yes                | `http-endpoint` or `local-script`.                                                                                            |
+| `target.scriptPath`                      | For `local-script` | Path to the adapter script, relative to cwd.                                                                                  |
+| `target.endpoint`                        | For HTTP           | Full URL to POST attacks to.                                                                                                  |
+| `target.requestFormat`                   | For HTTP           | `openai`, `json`, or `auto` (default).                                                                                        |
+| `target.targetModel`                     | For HTTP / openai  | Model name to send in the request body.                                                                                       |
+| `target.targetApiKey`                    | No                 | Bearer token for the target endpoint.                                                                                         |
+| `target.promptPath`                      | No                 | Dot-path for the prompt field (e.g. `input.message`). Defaults to `prompt`.                                                   |
+| `target.responsePath`                    | No                 | Dot-path to extract the reply (e.g. `data.reply`). Falls back to built-in chain.                                              |
+| `target.sessionIdField`                  | No                 | Body field to inject a session ID for multi-turn attacks.                                                                     |
+| `selection.mode`                         | Yes                | `suite` or `evaluators`.                                                                                                      |
+| `selection.suite`                        | For suite          | `owasp-llm-top10` or `owasp-agentic-ai`.                                                                                      |
+| `selection.evaluators`                   | For evaluators     | Array of evaluator IDs.                                                                                                       |
+| `turnMode`                               | No                 | `single` (default) or `multi`.                                                                                                |
+| `turns`                                  | No                 | Number of turns per attack when `turnMode` is `multi`. Defaults to `3`.                                                       |
+| `telemetry.provider`                     | No                 | `langfuse`, `netra`, or `none` (default).                                                                                     |
+| `telemetry.propagation.traceIdBodyField` | No                 | Request body field to inject a trace ID into (e.g. `trace_id`). Requires the target agent to forward it to the telemetry SDK. |
+| `telemetry.propagation.traceIdStrategy`  | No                 | `per-attack` (default) or `per-run`.                                                                                          |
+| `telemetry.enrichJudgeFromTrace`         | No                 | Fetch the recorded trace after each attack and pass spans to the LLM judge. Default `false`.                                  |
 
 ---
 
 ## Supported LLM providers
 
-| Provider | Env var | Default model |
-|----------|---------|---------------|
-| `groq` | `GROQ_API_KEY` | `llama-3.3-70b-versatile` |
-| `openai` | `OPENAI_API_KEY` | `gpt-4o-mini` |
-| `anthropic` | `ANTHROPIC_API_KEY` | `claude-3-5-haiku-20241022` |
-| `google` | `GOOGLE_GENERATIVE_AI_API_KEY` | `gemini-2.0-flash` |
-| `other` | `ASTRA_API_KEY` | (requires `llm.baseURL`) |
+| Provider    | Env var                        | Default model               |
+| ----------- | ------------------------------ | --------------------------- |
+| `groq`      | `GROQ_API_KEY`                 | `llama-3.3-70b-versatile`   |
+| `openai`    | `OPENAI_API_KEY`               | `gpt-4o-mini`               |
+| `anthropic` | `ANTHROPIC_API_KEY`            | `claude-3-5-haiku-20241022` |
+| `google`    | `GOOGLE_GENERATIVE_AI_API_KEY` | `gemini-2.0-flash`          |
+| `other`     | `ASTRA_API_KEY`                | (requires `llm.baseURL`)    |
 
 ---
 

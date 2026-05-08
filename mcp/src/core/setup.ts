@@ -4,7 +4,11 @@ import { randomUUID } from "node:crypto";
 import { parse as parseYaml } from "yaml";
 import { loadBuiltinEvaluator } from "../../../core/dist/evaluators/parseEvaluator.js";
 import { generateAttackPrompts } from "../../../core/dist/evaluators/generatePrompts.js";
-import { createModel, PROVIDER_DEFAULTS, PROVIDER_ENV_VARS } from "../../../core/dist/providers/factory.js";
+import {
+  createModel,
+  PROVIDER_DEFAULTS,
+  PROVIDER_ENV_VARS,
+} from "../../../core/dist/providers/factory.js";
 import {
   loadSkillCatalog,
   resolveSuiteEvaluatorIds,
@@ -47,9 +51,10 @@ export async function runSetup(opts: SetupOptions): Promise<SetupResult> {
 
   const raw = await readFile(path.resolve(configPath), "utf8");
   const ext = path.extname(configPath).toLowerCase();
-  const cfg: SetupConfigFile = (ext === ".yml" || ext === ".yaml")
-    ? parseYaml(raw) as SetupConfigFile
-    : JSON.parse(raw) as SetupConfigFile;
+  const cfg: SetupConfigFile =
+    ext === ".yml" || ext === ".yaml"
+      ? (parseYaml(raw) as SetupConfigFile)
+      : (JSON.parse(raw) as SetupConfigFile);
 
   const catalog = await loadSkillCatalog();
   const { suites: SUITES } = catalog;
@@ -275,7 +280,10 @@ async function runSetupCore({
     }
   }
 
-  const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, "").slice(0, 14);
+  const timestamp = new Date()
+    .toISOString()
+    .replace(/[-:T.Z]/g, "")
+    .slice(0, 14);
   const uuid = randomUUID().slice(0, 6);
   const filename = `astra-prompts-${timestamp}-${uuid}.json`;
   const outputPath = path.join(resolvedOutputDir, filename);

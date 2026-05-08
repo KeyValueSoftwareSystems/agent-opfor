@@ -94,5 +94,4 @@ patterns:
       ]
 
       Generate one entry per tool. Pick the most likely attack type given the tool's name and schema.
-
 ---

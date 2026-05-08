@@ -294,7 +294,7 @@ export interface LlmConfig {
   provider: ProviderName;
   model: string;
   apiKeyEnv: string; // env var name, resolved at runtime
-  baseURL?: string;  // only for "other"
+  baseURL?: string; // only for "other"
 }
 
 export interface TargetConfig {
@@ -380,9 +380,7 @@ export interface InlineSetupConfig {
     /** For multi-turn: body field to inject a session ID on every request (e.g. "session_id"). */
     sessionIdField?: string;
   };
-  selection:
-    | { mode: "suite"; suite: string }
-    | { mode: "evaluators"; evaluators: string[] };
+  selection: { mode: "suite"; suite: string } | { mode: "evaluators"; evaluators: string[] };
   /** Model config for the attack generation phase. */
   attackLlm?: LlmConfigInput;
   /** Separate model config for the judge phase. Falls back to `attackLlm` when absent. */
@@ -426,9 +424,7 @@ export interface SetupConfigFile {
     scriptPath?: string;
     functionSignature?: string;
   };
-  selection:
-    | { mode: "suite"; suite: string }
-    | { mode: "evaluators"; evaluators: string[] };
+  selection: { mode: "suite"; suite: string } | { mode: "evaluators"; evaluators: string[] };
   telemetry?: TelemetryConfig;
   /** "single" (default) or "multi" — applied to all generated attack entries. */
   turnMode?: "single" | "multi";

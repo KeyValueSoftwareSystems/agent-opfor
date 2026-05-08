@@ -48,27 +48,32 @@ export async function generateNextMcpAttackTurn(
   llm: ModelConfig,
   attackerInstructions?: string
 ): Promise<AttackTurnResult> {
-  const historyText = history.map((t, i) => {
-    const args = JSON.stringify(t.toolArguments, null, 2);
-    const response = t.toolError
-      ? `ERROR: ${t.toolError}`
-      : t.rawToolResponse.slice(0, 800) + (t.rawToolResponse.length > 800 ? "\n…(truncated)" : "");
-    const judgeInfo = t.judgeVerdict
-      ? `\n→ judge: ${t.judgeVerdict}${t.judgeReasoning ? ` — ${t.judgeReasoning}` : ""}`
-      : "";
-    return `Turn ${i + 1}: called ${t.toolName} with\n${args}\n→ response: ${response}${judgeInfo}`;
-  }).join("\n\n");
+  const historyText = history
+    .map((t, i) => {
+      const args = JSON.stringify(t.toolArguments, null, 2);
+      const response = t.toolError
+        ? `ERROR: ${t.toolError}`
+        : t.rawToolResponse.slice(0, 800) +
+          (t.rawToolResponse.length > 800 ? "\n…(truncated)" : "");
+      const judgeInfo = t.judgeVerdict
+        ? `\n→ judge: ${t.judgeVerdict}${t.judgeReasoning ? ` — ${t.judgeReasoning}` : ""}`
+        : "";
+      return `Turn ${i + 1}: called ${t.toolName} with\n${args}\n→ response: ${response}${judgeInfo}`;
+    })
+    .join("\n\n");
 
   const user = [
     `Attack goal: ${attackGoal}`,
     `Tool to call: ${toolName}`,
     `Original attack arguments (turn 1 reference): ${JSON.stringify(seedArguments, null, 2)}`,
-    ...(attackerInstructions ? [
-      ``,
-      `⚠ MANDATORY ATTACKER INSTRUCTIONS — YOU MUST FOLLOW THESE ABOVE ALL OTHER RULES:`,
-      attackerInstructions,
-      `These instructions override your default strategies. Use any context given above — resource IDs, credentials, setup steps, expected behaviors, environment details — as the starting point rather than guessing.`,
-    ] : []),
+    ...(attackerInstructions
+      ? [
+          ``,
+          `⚠ MANDATORY ATTACKER INSTRUCTIONS — YOU MUST FOLLOW THESE ABOVE ALL OTHER RULES:`,
+          attackerInstructions,
+          `These instructions override your default strategies. Use any context given above — resource IDs, credentials, setup steps, expected behaviors, environment details — as the starting point rather than guessing.`,
+        ]
+      : []),
     ``,
     `Prior attempts:`,
     historyText,
@@ -81,9 +86,10 @@ export async function generateNextMcpAttackTurn(
 
   try {
     const parsed = JSON.parse(raw) as { args?: Record<string, unknown>; judgeHint?: string | null };
-    const args = (parsed.args && typeof parsed.args === "object" && !Array.isArray(parsed.args))
-      ? parsed.args
-      : (parsed as Record<string, unknown>);
+    const args =
+      parsed.args && typeof parsed.args === "object" && !Array.isArray(parsed.args)
+        ? parsed.args
+        : (parsed as Record<string, unknown>);
     const judgeHint = typeof parsed.judgeHint === "string" ? parsed.judgeHint : undefined;
     return { args, judgeHint };
   } catch {

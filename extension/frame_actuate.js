@@ -32,7 +32,10 @@ function resolveDeepSelector(sel) {
   // Supports custom syntax produced by frame_collect:
   // shadow(<hostSel>) >> shadow(<hostSel2>) >> <innerSel>
   if (typeof sel !== "string" || !sel.trim()) return null;
-  const parts = sel.split(">>").map((p) => p.trim()).filter(Boolean);
+  const parts = sel
+    .split(">>")
+    .map((p) => p.trim())
+    .filter(Boolean);
 
   const queryOne = (root, selector) => {
     try {
@@ -88,12 +91,22 @@ function setInputValue(el, value) {
   el.focus?.();
 
   if (el instanceof HTMLTextAreaElement || el instanceof HTMLInputElement) {
-    const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+    const proto =
+      el instanceof HTMLTextAreaElement
+        ? HTMLTextAreaElement.prototype
+        : HTMLInputElement.prototype;
     const desc = Object.getOwnPropertyDescriptor(proto, "value");
     if (desc?.set) desc.set.call(el, value);
     else el.value = value;
     try {
-      el.dispatchEvent(new InputEvent("input", { bubbles: true, composed: true, data: value, inputType: "insertText" }));
+      el.dispatchEvent(
+        new InputEvent("input", {
+          bubbles: true,
+          composed: true,
+          data: value,
+          inputType: "insertText",
+        })
+      );
     } catch {
       el.dispatchEvent(new Event("input", { bubbles: true }));
     }
@@ -103,7 +116,14 @@ function setInputValue(el, value) {
 
   if (el.isContentEditable) {
     try {
-      el.dispatchEvent(new InputEvent("beforeinput", { bubbles: true, composed: true, data: value, inputType: "insertText" }));
+      el.dispatchEvent(
+        new InputEvent("beforeinput", {
+          bubbles: true,
+          composed: true,
+          data: value,
+          inputType: "insertText",
+        })
+      );
     } catch {}
     el.textContent = value;
     try {
@@ -115,7 +135,14 @@ function setInputValue(el, value) {
       sel?.addRange(range);
     } catch {}
     try {
-      el.dispatchEvent(new InputEvent("input", { bubbles: true, composed: true, data: value, inputType: "insertText" }));
+      el.dispatchEvent(
+        new InputEvent("input", {
+          bubbles: true,
+          composed: true,
+          data: value,
+          inputType: "insertText",
+        })
+      );
     } catch {
       el.dispatchEvent(new Event("input", { bubbles: true }));
     }
@@ -128,7 +155,8 @@ function setInputValue(el, value) {
 }
 
 function getInputText(el) {
-  if (el instanceof HTMLTextAreaElement || el instanceof HTMLInputElement) return String(el.value || "");
+  if (el instanceof HTMLTextAreaElement || el instanceof HTMLInputElement)
+    return String(el.value || "");
   if (el?.isContentEditable) return String(el.textContent || "");
   return String(el?.textContent || "");
 }
@@ -146,7 +174,16 @@ async function waitForInputToClear(el, { originalText, timeoutMs }) {
 function pressEnter(el, extra = {}) {
   const fire = (type) =>
     el.dispatchEvent(
-      new KeyboardEvent(type, { bubbles: true, cancelable: true, composed: true, key: "Enter", code: "Enter", keyCode: 13, which: 13, ...extra })
+      new KeyboardEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+        key: "Enter",
+        code: "Enter",
+        keyCode: 13,
+        which: 13,
+        ...extra,
+      })
     );
   fire("keydown");
   fire("keypress");
@@ -159,7 +196,16 @@ function robustClick(el) {
   const clientX = rect ? Math.round(rect.left + Math.min(10, rect.width / 2)) : 1;
   const clientY = rect ? Math.round(rect.top + Math.min(10, rect.height / 2)) : 1;
   const fireMouse = (type) =>
-    el.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, composed: true, view: window, clientX, clientY }));
+    el.dispatchEvent(
+      new MouseEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+        view: window,
+        clientX,
+        clientY,
+      })
+    );
   fireMouse("pointerdown");
   fireMouse("mousedown");
   fireMouse("pointerup");
@@ -180,7 +226,7 @@ function findGlobalSendButton() {
     "button[data-testid='fruitjuice-send-button']",
     "button[aria-label*='Send' i]",
     "button[type='submit']",
-    "input[type='submit']"
+    "input[type='submit']",
   ];
   for (const sel of selectors) {
     const el = document.querySelector(sel);
@@ -236,8 +282,7 @@ async function submitWithRetries({ inputEl, desiredMethod, buttonEl, originalTex
     if (!plan?.inputSelector) return { ok: false, error: "Missing plan.inputSelector" };
     // Never pass deep-selector syntax into querySelector (it will throw). Use deep resolver first.
     const input =
-      resolveDeepSelector(plan.inputSelector) ||
-      safeQuerySelector(document, plan.inputSelector);
+      resolveDeepSelector(plan.inputSelector) || safeQuerySelector(document, plan.inputSelector);
     if (!input) return { ok: false, error: "inputSelector did not match" };
 
     const injectedText = String(plan.text ?? "hi");
@@ -245,8 +290,11 @@ async function submitWithRetries({ inputEl, desiredMethod, buttonEl, originalTex
 
     const method = plan?.submit?.method === "click" ? "click" : "enter";
     const btn =
-      method === "click" && typeof plan?.submit?.buttonSelector === "string" && plan.submit.buttonSelector
-        ? resolveDeepSelector(plan.submit.buttonSelector) || safeQuerySelector(document, plan.submit.buttonSelector)
+      method === "click" &&
+      typeof plan?.submit?.buttonSelector === "string" &&
+      plan.submit.buttonSelector
+        ? resolveDeepSelector(plan.submit.buttonSelector) ||
+          safeQuerySelector(document, plan.submit.buttonSelector)
         : null;
 
     return (async () => {
@@ -254,7 +302,7 @@ async function submitWithRetries({ inputEl, desiredMethod, buttonEl, originalTex
         inputEl: input,
         desiredMethod: method,
         buttonEl: btn instanceof Element ? btn : null,
-        originalText: injectedText
+        originalText: injectedText,
       });
       return { ok: res.ok, inputKind: kind, attempts: res.attempts };
     })();
@@ -262,4 +310,3 @@ async function submitWithRetries({ inputEl, desiredMethod, buttonEl, originalTex
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
 })();
-

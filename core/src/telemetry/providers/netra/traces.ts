@@ -1,4 +1,8 @@
-import type { NetraTelemetryConfig, NetraTraceSelectionConfig, TelemetryConfig } from "../../../config/types.js";
+import type {
+  NetraTelemetryConfig,
+  NetraTraceSelectionConfig,
+  TelemetryConfig,
+} from "../../../config/types.js";
 
 const DEFAULT_LIST_LIMIT = 50;
 const DEFAULT_MAX_PAGES = 1;
@@ -77,13 +81,28 @@ export async function fetchNetraTracesPage(
   // Build filters — field/type/operator match Netra's FilterItem + FilterOperatorEnum
   const filters: Array<{ field: string; type: string; operator: string; value: string }> = [];
   if (selection?.sessionId?.trim()) {
-    filters.push({ field: "session_id", type: "string", operator: "equals", value: selection.sessionId.trim() });
+    filters.push({
+      field: "session_id",
+      type: "string",
+      operator: "equals",
+      value: selection.sessionId.trim(),
+    });
   }
   if (selection?.userId?.trim()) {
-    filters.push({ field: "user_id", type: "string", operator: "equals", value: selection.userId.trim() });
+    filters.push({
+      field: "user_id",
+      type: "string",
+      operator: "equals",
+      value: selection.userId.trim(),
+    });
   }
   if (selection?.environment?.trim()) {
-    filters.push({ field: "environment", type: "string", operator: "equals", value: selection.environment.trim() });
+    filters.push({
+      field: "environment",
+      type: "string",
+      operator: "equals",
+      value: selection.environment.trim(),
+    });
   }
 
   const body: Record<string, unknown> = {
@@ -108,11 +127,15 @@ export async function fetchNetraTracesPage(
       return { ok: false, status, data: [], hasNextPage: false, baseUrl: creds.baseUrl };
     }
     // API returns { success, data: { data: [...], pageInfo: {...} } }
-    const json = (await res.json()) as { data?: { data?: unknown[]; pageInfo?: { hasNextPage?: boolean; nextCursor?: string } } };
+    const json = (await res.json()) as {
+      data?: { data?: unknown[]; pageInfo?: { hasNextPage?: boolean; nextCursor?: string } };
+    };
     const inner = json.data ?? {};
     const data = Array.isArray(inner.data) ? inner.data : [];
     const hasNextPage = inner.pageInfo?.hasNextPage ?? false;
-    const nextCursor = (inner.pageInfo as Record<string, unknown> | undefined)?.nextCursor as string | undefined;
+    const nextCursor = (inner.pageInfo as Record<string, unknown> | undefined)?.nextCursor as
+      | string
+      | undefined;
     return { ok: true, status, data, hasNextPage, nextCursor, baseUrl: creds.baseUrl };
   } catch (e: unknown) {
     console.warn(`[Netra] Fetch error for ${url}: ${e instanceof Error ? e.message : String(e)}`);
@@ -166,7 +189,10 @@ export async function fetchNetraSpansForTrace(
         headers: { ...apiKeyHeader(creds.apiKey) },
       });
       if (!res.ok) break;
-      const json = (await res.json()) as { data?: unknown[]; pageInfo?: { hasNextPage?: boolean; nextCursor?: string } };
+      const json = (await res.json()) as {
+        data?: unknown[];
+        pageInfo?: { hasNextPage?: boolean; nextCursor?: string };
+      };
       const chunk = Array.isArray(json.data) ? json.data : [];
       out.push(...chunk);
       if (!json.pageInfo?.hasNextPage) break;

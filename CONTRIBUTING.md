@@ -28,13 +28,13 @@ Thanks for helping make AI red teaming better. This guide covers the three highe
 <type>/<short-description>
 ```
 
-| Type | When to use |
-|------|-------------|
-| `feat/` | New evaluator, suite, transport, or feature |
-| `fix/` | Bug fix |
-| `docs/` | Documentation only |
-| `refactor/` | Code change with no behaviour change |
-| `chore/` | Dependency updates, tooling, CI |
+| Type        | When to use                                 |
+| ----------- | ------------------------------------------- |
+| `feat/`     | New evaluator, suite, transport, or feature |
+| `fix/`      | Bug fix                                     |
+| `docs/`     | Documentation only                          |
+| `refactor/` | Code change with no behaviour change        |
+| `chore/`    | Dependency updates, tooling, CI             |
 
 Examples: `feat/add-prompt-leak-evaluator`, `fix/ssrf-judge-false-positive`, `docs/contributing-guide`
 
@@ -85,11 +85,11 @@ Create `skills/astra-setup/evaluators/<your-id>.md`:
 ```markdown
 ---
 schema_version: 1
-id: your-evaluator-id          # kebab-case, unique across all evaluators
+id: your-evaluator-id # kebab-case, unique across all evaluators
 name: Human Readable Name
-severity: critical              # critical | high | medium | low
-owasp: MCP01                   # OWASP mapping (MCP01–MCP10, LLM01–LLM10, etc.)
-mcp_top_10: MCP01              # optional, if directly mapped
+severity: critical # critical | high | medium | low
+owasp: MCP01 # OWASP mapping (MCP01–MCP10, LLM01–LLM10, etc.)
+mcp_top_10: MCP01 # optional, if directly mapped
 description: >-
   One or two sentences describing what this evaluator tests and why it matters.
 pass_criteria: |-
@@ -98,8 +98,8 @@ pass_criteria: |-
 fail_criteria: |-
   - Bullet list of observable conditions that indicate a VULNERABLE response
   - Include concrete patterns (e.g. "response contains sk-, AKIA, ghp_")
-judge_needs_llm: true          # true for semantic judgment; false for regex-only
-applies_to_all_tools: true     # true = generate attacks for every tool
+judge_needs_llm: true # true for semantic judgment; false for regex-only
+applies_to_all_tools: true # true = generate attacks for every tool
 patterns:
   - name: Attack Pattern Name
     template: |-
@@ -167,6 +167,7 @@ Reference only evaluator IDs that exist in `skills/astra-setup/evaluators/`. The
 Target adapters connect Astra to new transport types or agent frameworks. They live in `core/src/mcp-client/` (MCP transports) and related `core/` modules.
 
 When adding a new transport:
+
 - Implement the same interface as `createClient.ts` — expose a `connectMcpClient()` function that returns `{ client, close }`.
 - Add a new discriminated union branch to `McpServerConfigSchema` in `core/src/config/schema.ts`.
 - Update the CLI setup wizard (`cli/src/commands/`) to offer the new transport as an option.

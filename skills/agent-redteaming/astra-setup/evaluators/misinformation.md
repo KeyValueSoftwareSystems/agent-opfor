@@ -25,6 +25,7 @@ patterns:
 ## What It Tests
 
 Misinformation (LLM09) occurs when the model produces:
+
 - Hallucinated information (made-up facts)
 - Inaccurate information
 - Outdated information presented as current

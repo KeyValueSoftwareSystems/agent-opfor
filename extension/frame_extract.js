@@ -20,7 +20,11 @@ function* walkNodes(root) {
       continue;
     }
 
-    if (node instanceof ShadowRoot || node instanceof Document || node instanceof DocumentFragment) {
+    if (
+      node instanceof ShadowRoot ||
+      node instanceof Document ||
+      node instanceof DocumentFragment
+    ) {
       const children = node.children || node.childNodes;
       if (!children) continue;
       for (let i = children.length - 1; i >= 0; i--) stack.push(children[i]);
@@ -48,7 +52,14 @@ function textOf(el) {
 function isInteractive(el) {
   for (let n = el; n instanceof Element; n = n.parentElement) {
     const tag = n.tagName;
-    if (tag === "BUTTON" || tag === "A" || tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return true;
+    if (
+      tag === "BUTTON" ||
+      tag === "A" ||
+      tag === "INPUT" ||
+      tag === "SELECT" ||
+      tag === "TEXTAREA"
+    )
+      return true;
     const role = (n.getAttribute && n.getAttribute("role")) || "";
     if (/^(button|link|menuitem|option|tab)$/i.test(role)) return true;
     const cls = ((n.className || "") + "").toLowerCase();
@@ -143,7 +154,10 @@ function extractFromRoleLog() {
     .filter((el) => el instanceof Element && isVisible(el))
     .map((el) => {
       const label = (el.getAttribute("aria-label") || "").toLowerCase();
-      const score = (label.includes("chat") ? 5 : 0) + (label.includes("message") ? 3 : 0) + (label.includes("messages") ? 3 : 0);
+      const score =
+        (label.includes("chat") ? 5 : 0) +
+        (label.includes("message") ? 3 : 0) +
+        (label.includes("messages") ? 3 : 0);
       return { el, score };
     })
     .sort((a, b) => b.score - a.score);
@@ -165,7 +179,10 @@ function extractByCommonLabels() {
   const candidates = queryAllDeep("[aria-label]")
     .filter((el) => el instanceof Element && isVisible(el))
     .map((el) => ({ el, label: (el.getAttribute("aria-label") || "").toLowerCase() }))
-    .filter((x) => x.label.includes("chat") && (x.label.includes("message") || x.label.includes("messages")));
+    .filter(
+      (x) =>
+        x.label.includes("chat") && (x.label.includes("message") || x.label.includes("messages"))
+    );
   if (!candidates.length) return null;
   const best = candidates[0].el;
   return textOf(best) || null;
@@ -173,13 +190,15 @@ function extractByCommonLabels() {
 
 /** AOL ais-chatbot / similar: ul.chatbot__dialogue + li.chatbot__message--is-bot (no role=log). */
 function extractFromVendorChatbotDialogue() {
-  const dialogues = queryAllDeep('[class*="chatbot__dialogue"]').filter((el) => el instanceof Element && isVisible(el));
+  const dialogues = queryAllDeep('[class*="chatbot__dialogue"]').filter(
+    (el) => el instanceof Element && isVisible(el)
+  );
   const dialogue = dialogues[0];
   if (!dialogue) return null;
 
-  const botMsgs = Array.from(dialogue.querySelectorAll('[class*="chatbot__message--is-bot"]')).filter(
-    (el) => el instanceof Element && isVisible(el)
-  );
+  const botMsgs = Array.from(
+    dialogue.querySelectorAll('[class*="chatbot__message--is-bot"]')
+  ).filter((el) => el instanceof Element && isVisible(el));
   const lastBot = botMsgs[botMsgs.length - 1];
   if (!lastBot) return null;
 
@@ -204,7 +223,7 @@ function extractFromAssistantBubbles() {
     "[class*='bot-message']",
     "[class*='incoming-message']",
     "[class*='cp-message' i]",
-    "[class*='chilipiper' i]"
+    "[class*='chilipiper' i]",
   ].join(", ");
   const els = queryAllDeep(sel).filter(
     (el) =>
@@ -263,7 +282,7 @@ function extractFromMessageLikeRows() {
     '[class*="Message"]',
     '[class*="bubble" i]',
     '[class*="Bubble"]',
-    '[data-testid*="message" i]'
+    '[data-testid*="message" i]',
   ];
   const seen = new Set();
   const candidates = [];
@@ -372,12 +391,14 @@ function extractFromAriaLiveRegion() {
 }
 
 function extractFromRoleFeed() {
-  const feeds = queryAllDeep('[role="feed"], [role="list"][aria-label*="message" i]')
-    .filter((el) => el instanceof Element && isVisible(el));
+  const feeds = queryAllDeep('[role="feed"], [role="list"][aria-label*="message" i]').filter(
+    (el) => el instanceof Element && isVisible(el)
+  );
   const feed = feeds[0];
   if (!feed) return null;
-  const items = Array.from(feed.querySelectorAll("[role='article'], li, [class*='message' i]"))
-    .filter((el) => el instanceof Element && isVisible(el) && !isInteractive(el) && !isPinned(el));
+  const items = Array.from(
+    feed.querySelectorAll("[role='article'], li, [class*='message' i]")
+  ).filter((el) => el instanceof Element && isVisible(el) && !isInteractive(el) && !isPinned(el));
   const last = items[items.length - 1];
   if (!last) return null;
   const t = textOf(last);
@@ -398,4 +419,3 @@ function extractFromRoleFeed() {
   if (!text) return { ok: false, error: "No transcript text found in this frame." };
   return { ok: true, text };
 })();
-

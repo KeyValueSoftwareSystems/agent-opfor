@@ -57,7 +57,8 @@
       }
 
       .mono {
-        font-family: "IBM Plex Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-family:
+          "IBM Plex Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
       }
 
       @keyframes pulse {
@@ -215,7 +216,9 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        transition: border-color 0.15s, color 0.15s;
+        transition:
+          border-color 0.15s,
+          color 0.15s;
       }
       .icon-btn:hover {
         border-color: var(--line-3);
@@ -297,7 +300,9 @@
         height: 14px;
         border-radius: 999px;
         background: var(--muted-2);
-        transition: left 0.2s, background 0.2s;
+        transition:
+          left 0.2s,
+          background 0.2s;
       }
       .toggle[aria-checked="true"] {
         background: var(--accent);
@@ -322,7 +327,9 @@
         outline: none;
         box-sizing: border-box;
         line-height: 1.5;
-        transition: border-color 0.15s, box-shadow 0.15s;
+        transition:
+          border-color 0.15s,
+          box-shadow 0.15s;
       }
       textarea {
         resize: none;
@@ -378,7 +385,9 @@
         align-items: center;
         justify-content: space-between;
         gap: 8px;
-        transition: border-color 0.15s, box-shadow 0.15s;
+        transition:
+          border-color 0.15s,
+          box-shadow 0.15s;
       }
       .dd-button .label {
         overflow: hidden;
@@ -598,8 +607,12 @@
         justify-content: center;
         gap: 8px;
         letter-spacing: 0.01em;
-        box-shadow: 0 4px 14px rgba(245, 165, 36, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.2);
-        transition: transform 0.08s, box-shadow 0.15s;
+        box-shadow:
+          0 4px 14px rgba(245, 165, 36, 0.25),
+          inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        transition:
+          transform 0.08s,
+          box-shadow 0.15s;
       }
       .btn-primary:active {
         transform: translateY(1px);
@@ -1322,9 +1335,25 @@
       <div class="header">
         <div class="wordmark">
           <svg width="20" height="20" viewBox="0 0 24 24">
-            <circle cx="12" cy="12" r="9" fill="none" stroke="var(--accent)" stroke-width="1.5" opacity="0.4" />
-            <path d="M12 3v4M12 17v4M3 12h4M17 12h4" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" />
-            <path d="M12 8l1.6 2.4L16 12l-2.4 1.6L12 16l-1.6-2.4L8 12l2.4-1.6z" fill="var(--accent)" />
+            <circle
+              cx="12"
+              cy="12"
+              r="9"
+              fill="none"
+              stroke="var(--accent)"
+              stroke-width="1.5"
+              opacity="0.4"
+            />
+            <path
+              d="M12 3v4M12 17v4M3 12h4M17 12h4"
+              stroke="var(--accent)"
+              stroke-width="1.5"
+              stroke-linecap="round"
+            />
+            <path
+              d="M12 8l1.6 2.4L16 12l-2.4 1.6L12 16l-1.6-2.4L8 12l2.4-1.6z"
+              fill="var(--accent)"
+            />
           </svg>
           <div class="wordmark-text">
             <span class="name">ASTRA</span>
@@ -1338,7 +1367,13 @@
           </div>
           <button id="advancedBtn" class="icon-btn" title="Advanced" aria-label="Advanced settings">
             <svg width="13" height="13" viewBox="0 0 24 24">
-              <g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <g
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
                 <circle cx="12" cy="12" r="3" />
                 <path
                   d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
@@ -1359,7 +1394,13 @@
             <div class="field-row">
               <div class="left">
                 <svg width="14" height="14" viewBox="0 0 24 24">
-                  <g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                  <g
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.7"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
                     <circle cx="12" cy="12" r="9" />
                     <circle cx="12" cy="12" r="5" />
                     <circle cx="12" cy="12" r="1.5" fill="currentColor" />
@@ -1370,7 +1411,13 @@
                   <div id="scrapeMeta" class="meta mono">—</div>
                 </div>
               </div>
-              <button id="scrapeToggle" class="toggle" role="switch" aria-checked="true" aria-label="Scrape from website">
+              <button
+                id="scrapeToggle"
+                class="toggle"
+                role="switch"
+                aria-checked="true"
+                aria-label="Scrape from website"
+              >
                 <div class="knob"></div>
               </button>
             </div>
@@ -1390,7 +1437,14 @@
                 <span class="label">Loading…</span>
                 <span class="chev">
                   <svg width="12" height="12" viewBox="0 0 24 24">
-                    <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                    <path
+                      d="M6 9l6 6 6-6"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
                   </svg>
                 </span>
               </button>
@@ -1403,7 +1457,14 @@
                 <span class="left">
                   <span class="chev">
                     <svg width="10" height="10" viewBox="0 0 24 24">
-                      <path d="M9 18l6-6-6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                      <path
+                        d="M9 18l6-6-6-6"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
                     </svg>
                   </span>
                   <span style="font-weight: 500">Evaluators</span>
@@ -1423,7 +1484,14 @@
                 <span class="label">gpt-4o-mini</span>
                 <span class="chev">
                   <svg width="12" height="12" viewBox="0 0 24 24">
-                    <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                    <path
+                      d="M6 9l6 6 6-6"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
                   </svg>
                 </span>
               </button>
@@ -1441,7 +1509,13 @@
               <input id="apiKey" type="password" placeholder="sk-…" autocomplete="off" />
               <button id="apiKeyEye" class="eye-btn" type="button" title="Show">
                 <svg id="eyeIcon" width="14" height="14" viewBox="0 0 24 24">
-                  <g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                  <g
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.7"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z" />
                     <circle cx="12" cy="12" r="3" />
                   </g>
@@ -1453,7 +1527,9 @@
           <!-- Run button -->
           <div style="display: flex; gap: 8px; margin-top: 4px">
             <button id="runBtn" class="btn-primary" disabled>
-              <svg width="13" height="13" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" fill="currentColor" /></svg>
+              <svg width="13" height="13" viewBox="0 0 24 24">
+                <path d="M8 5v14l11-7z" fill="currentColor" />
+              </svg>
               Run red-team
             </button>
           </div>
@@ -1463,7 +1539,9 @@
         <div id="screenRunning" class="screen" hidden>
           <div>
             <div class="progress-row">
-              <div class="left mono"><span id="runEvalIdx">0</span> of <span id="runEvalTotal">0</span></div>
+              <div class="left mono">
+                <span id="runEvalIdx">0</span> of <span id="runEvalTotal">0</span>
+              </div>
               <div id="runOverallPct" class="pct mono">0%</div>
             </div>
             <div class="progress-track"><div id="runOverallFill" class="progress-fill"></div></div>
@@ -1479,7 +1557,9 @@
               <div id="runTurnLabel" class="turn">init</div>
             </div>
             <div id="runPhaseText" class="status-phase mono">// finding chat widget</div>
-            <div id="runTurnTrack" class="turn-track"><div id="runTurnFill" class="turn-fill"></div></div>
+            <div id="runTurnTrack" class="turn-track">
+              <div id="runTurnFill" class="turn-fill"></div>
+            </div>
             <div id="runBubbles" class="bubbles" hidden></div>
             <div id="runJudgeRow" class="judge-row" hidden>
               <div class="judge-spinner"></div>
@@ -1491,11 +1571,15 @@
 
           <div class="grid-2">
             <button id="pauseBtn" class="btn-ghost">
-              <svg width="11" height="11" viewBox="0 0 24 24"><path d="M6 5h4v14H6zM14 5h4v14h-4z" fill="currentColor" /></svg>
+              <svg width="11" height="11" viewBox="0 0 24 24">
+                <path d="M6 5h4v14H6zM14 5h4v14h-4z" fill="currentColor" />
+              </svg>
               Pause
             </button>
             <button id="stopBtn" class="btn-danger">
-              <svg width="11" height="11" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1.5" fill="currentColor" /></svg>
+              <svg width="11" height="11" viewBox="0 0 24 24">
+                <rect x="6" y="6" width="12" height="12" rx="1.5" fill="currentColor" />
+              </svg>
               Stop
             </button>
           </div>
@@ -1507,7 +1591,9 @@
           <div class="paused-card">
             <div class="paused-head">
               <div class="paused-icon">
-                <svg width="14" height="14" viewBox="0 0 24 24"><path d="M6 5h4v14H6zM14 5h4v14h-4z" fill="currentColor" /></svg>
+                <svg width="14" height="14" viewBox="0 0 24 24">
+                  <path d="M6 5h4v14H6zM14 5h4v14h-4z" fill="currentColor" />
+                </svg>
               </div>
               <div>
                 <div class="paused-title">Run paused</div>
@@ -1515,19 +1601,38 @@
               </div>
             </div>
             <div class="paused-meta">
-              <div class="paused-meta-row"><span class="k">suite</span><span id="pausedSuite" class="v">—</span></div>
-              <div class="paused-meta-row"><span class="k">evaluator</span><span id="pausedEvaluator" class="v">—</span></div>
-              <div class="paused-meta-row"><span class="k">model</span><span id="pausedModel" class="v">—</span></div>
-              <div class="paused-meta-row"><span class="k">elapsed</span><span id="pausedElapsed" class="v">—</span></div>
+              <div class="paused-meta-row">
+                <span class="k">suite</span><span id="pausedSuite" class="v">—</span>
+              </div>
+              <div class="paused-meta-row">
+                <span class="k">evaluator</span><span id="pausedEvaluator" class="v">—</span>
+              </div>
+              <div class="paused-meta-row">
+                <span class="k">model</span><span id="pausedModel" class="v">—</span>
+              </div>
+              <div class="paused-meta-row">
+                <span class="k">elapsed</span><span id="pausedElapsed" class="v">—</span>
+              </div>
             </div>
           </div>
           <div class="grid-2">
             <button id="discardPausedBtn" class="btn-ghost">
-              <svg width="11" height="11" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
+              <svg width="11" height="11" viewBox="0 0 24 24">
+                <path
+                  d="M18 6L6 18M6 6l12 12"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
               Discard
             </button>
             <button id="resumeBtn" class="btn-primary">
-              <svg width="11" height="11" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" fill="currentColor" /></svg>
+              <svg width="11" height="11" viewBox="0 0 24 24">
+                <path d="M8 5v14l11-7z" fill="currentColor" />
+              </svg>
               Resume
             </button>
           </div>
@@ -1539,7 +1644,15 @@
             <div class="glow"></div>
             <div class="verdict-head">
               <div id="verdictIcon" class="verdict-icon">
-                <svg width="16" height="16" viewBox="0 0 24 24"><path d="M12 2l8 4v6c0 5-3.5 9-8 10-4.5-1-8-5-8-10V6l8-4z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" /></svg>
+                <svg width="16" height="16" viewBox="0 0 24 24">
+                  <path
+                    d="M12 2l8 4v6c0 5-3.5 9-8 10-4.5-1-8-5-8-10V6l8-4z"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.7"
+                    stroke-linejoin="round"
+                  />
+                </svg>
               </div>
               <div style="flex: 1">
                 <div class="verdict-kicker mono">Aggregate verdict</div>
@@ -1571,7 +1684,13 @@
           <div class="grid-2">
             <button id="newRunBtn" class="btn-ghost">
               <svg width="11" height="11" viewBox="0 0 24 24">
-                <g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <g
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.7"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
                   <polyline points="23 4 23 10 17 10" />
                   <polyline points="1 20 1 14 7 14" />
                   <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
@@ -1581,7 +1700,13 @@
             </button>
             <button id="downloadBtn" class="btn-primary">
               <svg width="11" height="11" viewBox="0 0 24 24">
-                <g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <g
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.7"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                   <polyline points="7 10 12 15 17 10" />
                   <line x1="12" y1="15" x2="12" y2="3" />
@@ -1604,7 +1729,13 @@
         <div class="adv-head">
           <div class="title">
             <svg width="14" height="14" viewBox="0 0 24 24">
-              <g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <g
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
                 <circle cx="12" cy="12" r="3" />
                 <path
                   d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
@@ -1615,7 +1746,14 @@
           </div>
           <button id="advCloseBtn" class="icon-btn" aria-label="Close advanced">
             <svg width="14" height="14" viewBox="0 0 24 24">
-              <path d="M18 6L6 18M6 6l12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+              <path
+                d="M18 6L6 18M6 6l12 12"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
             </svg>
           </button>
         </div>
@@ -1627,7 +1765,9 @@
             </div>
             <div class="stepper-help">How many adversarial messages before judging.</div>
             <div class="stepper-row">
-              <button class="step-btn" data-step="-1" data-target="maxTurns" type="button">−</button>
+              <button class="step-btn" data-step="-1" data-target="maxTurns" type="button">
+                −
+              </button>
               <input id="maxTurns" type="range" min="1" max="20" value="10" />
               <button class="step-btn" data-step="1" data-target="maxTurns" type="button">+</button>
             </div>
@@ -1646,7 +1786,9 @@
           </div>
           <div>
             <div class="adv-field-label">Business use case</div>
-            <div class="adv-field-help">Helps the attacker model craft realistic, in-context probes.</div>
+            <div class="adv-field-help">
+              Helps the attacker model craft realistic, in-context probes.
+            </div>
             <textarea
               id="businessUseCase"
               style="min-height: 80px"
@@ -1655,7 +1797,9 @@
           </div>
           <div>
             <div class="adv-field-label">Custom evaluator hint</div>
-            <div class="adv-field-help">Optional steering for the judge model (e.g. "treat any tool name leak as critical").</div>
+            <div class="adv-field-help">
+              Optional steering for the judge model (e.g. "treat any tool name leak as critical").
+            </div>
             <textarea id="judgeHint" placeholder="Optional…"></textarea>
           </div>
           <div class="toggle-row">

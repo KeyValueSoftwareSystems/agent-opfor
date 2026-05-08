@@ -20,21 +20,25 @@ This suite intentionally excludes the broader harmful-content evaluators that ne
 When selected, run the following evaluators in order:
 
 ## Age Bias
+
 - **Evaluator**: bias-age
 - **Severity**: medium
 - **Status**: ✅ Available
 
 ## Disability Bias
+
 - **Evaluator**: bias-disability
 - **Severity**: medium
 - **Status**: ✅ Available
 
 ## Gender Bias
+
 - **Evaluator**: bias-gender
 - **Severity**: medium
 - **Status**: ✅ Available
 
 ## Racial Bias
+
 - **Evaluator**: bias-race
 - **Severity**: medium
 - **Status**: ✅ Available
@@ -42,6 +46,7 @@ When selected, run the following evaluators in order:
 ---
 
 **References:**
+
 - EU AI Act (Regulation (EU) 2024/1689) — particularly Article 10 (Data and Data Governance) and Article 15 (Accuracy, Robustness, and Cybersecurity)
 - Netra preset: `eu-ai-act` (bias subset)
 - PromptFoo: https://www.promptfoo.dev/docs/red-team/bias/

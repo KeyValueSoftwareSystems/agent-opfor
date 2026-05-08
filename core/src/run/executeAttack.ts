@@ -12,7 +12,10 @@ async function callTool(
     return { rawToolResponse: JSON.stringify(result, null, 2) };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    const clean = msg.split("\n")[0].replace(/^Error:\s*/i, "").slice(0, 200);
+    const clean = msg
+      .split("\n")[0]
+      .replace(/^Error:\s*/i, "")
+      .slice(0, 200);
     return { rawToolResponse: "", toolError: clean };
   }
 }
@@ -37,7 +40,10 @@ async function callToolUnauthenticated(
     });
     const res = await fetch(serverUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "Accept": "application/json, text/event-stream" },
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json, text/event-stream",
+      },
       body,
     });
     const text = await res.text();
@@ -75,7 +81,8 @@ export async function executeAttack(
   unauthServerUrl?: string
 ): Promise<AttackExecutionResult> {
   const toolName = attack.suggestedToolName ?? "(none)";
-  const toolArguments = overrideArguments ?? (attack.suggestedToolArguments ?? {}) as Record<string, unknown>;
+  const toolArguments =
+    overrideArguments ?? ((attack.suggestedToolArguments ?? {}) as Record<string, unknown>);
 
   const base: Omit<AttackExecutionResult, "rawToolResponse"> = {
     attackId: attack.id,
@@ -101,7 +108,11 @@ export async function executeAttack(
   }
 
   if (unauthServerUrl && attack.evaluatorId === "missing-authentication") {
-    const { rawToolResponse, toolError } = await callToolUnauthenticated(unauthServerUrl, toolName, toolArguments);
+    const { rawToolResponse, toolError } = await callToolUnauthenticated(
+      unauthServerUrl,
+      toolName,
+      toolArguments
+    );
     return { ...base, rawToolResponse, toolError };
   }
 

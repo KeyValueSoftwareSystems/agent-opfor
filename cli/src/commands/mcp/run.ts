@@ -4,7 +4,11 @@ import { Command } from "commander";
 import { log } from "../../../../core/dist/lib/logger.js";
 import { connectMcpClient } from "../../../../core/dist/mcp-client/createClient.js";
 import { executeAttack } from "../../../../core/dist/run/executeAttack.js";
-import { judgeToolResponse, sanitizeJudgeResult, errorJudge } from "../../../../core/dist/run/judge.js";
+import {
+  judgeToolResponse,
+  sanitizeJudgeResult,
+  errorJudge,
+} from "../../../../core/dist/run/judge.js";
 import { generateNextMcpAttackTurn } from "../../../../core/dist/run/generateNextMcpAttackTurn.js";
 import type { ToolCallTurn } from "../../../../core/dist/run/generateNextMcpAttackTurn.js";
 
@@ -69,7 +73,9 @@ export async function runMcpAttackPlan(opts: {
 
   const evaluatorIds = [...new Set(plan.attacks.map((a) => a.evaluatorId))];
   const criteriaMap = new Map(
-    await Promise.all(evaluatorIds.map(async (id) => [id, await loadEvaluatorCriteria(id)] as const))
+    await Promise.all(
+      evaluatorIds.map(async (id) => [id, await loadEvaluatorCriteria(id)] as const)
+    )
   );
 
   const resolvedOutDir = path.resolve(outDir);
@@ -217,11 +223,15 @@ export async function runMcpAttackPlan(opts: {
                 : "✖ FAIL";
           log.log(
             `     ${verdict}${
-              judgeResult.verdict !== "ERROR" ? ` · score ${judgeResult.score}/10` : ` · ${judgeResult.errorMessage}`
+              judgeResult.verdict !== "ERROR"
+                ? ` · score ${judgeResult.score}/10`
+                : ` · ${judgeResult.errorMessage}`
             }`
           );
 
-          log.log(`     ↑ ${turnExec.toolName}  ${JSON.stringify(turnExec.toolArguments, null, 2)}`);
+          log.log(
+            `     ↑ ${turnExec.toolName}  ${JSON.stringify(turnExec.toolArguments, null, 2)}`
+          );
           if (turnExec.toolError) {
             log.log(`     ↓ err  ${turnExec.toolError}`);
           } else {
@@ -255,7 +265,12 @@ export async function runMcpAttackPlan(opts: {
   } catch (runErr: unknown) {
     if (runResults.length > 0) {
       try {
-        let partialReport = buildReport({ plan, results: runResults, generatorModel: plan.generatorModel, judgeModel: judgeModelCfg });
+        let partialReport = buildReport({
+          plan,
+          results: runResults,
+          generatorModel: plan.generatorModel,
+          judgeModel: judgeModelCfg,
+        });
         partialReport = enrichReportWithCriteria(
           partialReport,
           new Map(
@@ -266,7 +281,9 @@ export async function runMcpAttackPlan(opts: {
           )
         );
         const { html, json } = await writeHtmlReport(partialReport, resolvedOutDir);
-        log.warn(`Run interrupted — partial report (${runResults.length}/${plan.attacks.length} attacks):`);
+        log.warn(
+          `Run interrupted — partial report (${runResults.length}/${plan.attacks.length} attacks):`
+        );
         log.log(`  HTML: ${html}`);
         log.log(`  JSON: ${json}`);
       } catch {
@@ -278,7 +295,12 @@ export async function runMcpAttackPlan(opts: {
     await mcp.close().catch(() => undefined);
   }
 
-  let report = buildReport({ plan, results: runResults, generatorModel: plan.generatorModel, judgeModel: judgeModelCfg });
+  let report = buildReport({
+    plan,
+    results: runResults,
+    generatorModel: plan.generatorModel,
+    judgeModel: judgeModelCfg,
+  });
   report = enrichReportWithCriteria(
     report,
     new Map(
@@ -306,8 +328,16 @@ export function registerRunCommand(program: Command) {
   program
     .command("run")
     .description("Execute attacks from a plan file, judge each result, and write an HTML report")
-    .option("-i, --input <path>", `Attack plan file (default: ./${DEFAULT_ATTACKS_FILE})`, DEFAULT_ATTACKS_FILE)
-    .option("-o, --out-dir <path>", `Report output directory (default: ./${DEFAULT_REPORT_DIR})`, DEFAULT_REPORT_DIR)
+    .option(
+      "-i, --input <path>",
+      `Attack plan file (default: ./${DEFAULT_ATTACKS_FILE})`,
+      DEFAULT_ATTACKS_FILE
+    )
+    .option(
+      "-o, --out-dir <path>",
+      `Report output directory (default: ./${DEFAULT_REPORT_DIR})`,
+      DEFAULT_REPORT_DIR
+    )
     .action(async ({ input, outDir }: { input: string; outDir: string }) => {
       try {
         await runMcpAttackPlan({ input, outDir });

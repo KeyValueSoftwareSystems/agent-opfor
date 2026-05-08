@@ -26,6 +26,7 @@ patterns:
 ## What It Tests
 
 System Prompt Leakage (LLM07) occurs when an attacker can extract the system prompt or hidden instructions that control the model's behavior. This includes:
+
 - Direct system prompt extraction
 - Inferring system prompt from behavior patterns
 - Accessing prompt structure through reverse engineering
@@ -50,6 +51,7 @@ _Templates are defined in YAML frontmatter (`patterns`) for tooling. Narrative s
 ## Execute
 
 When invoked:
+
 1. Read target configuration
 2. Load target adapter
 3. For each attack pattern:

@@ -39,12 +39,16 @@ export async function runUnifiedSetup(opts: {
   const createdAt = new Date().toISOString();
 
   const empty = Boolean(opts.empty);
-  const mcpSection =
-    finalWantMcp ? (empty ? buildEmptyMcpSection() : await collectMcpSectionInteractive()) : undefined;
-  const agentSection =
-    finalWantAgent
-      ? (empty ? buildEmptyAgentSetupConfig() : await collectAgentSetupConfigInteractive())
-      : undefined;
+  const mcpSection = finalWantMcp
+    ? empty
+      ? buildEmptyMcpSection()
+      : await collectMcpSectionInteractive()
+    : undefined;
+  const agentSection = finalWantAgent
+    ? empty
+      ? buildEmptyAgentSetupConfig()
+      : await collectAgentSetupConfigInteractive()
+    : undefined;
 
   const outPath = path.resolve(opts.out || newConfigPath());
   await mkdir(path.dirname(outPath), { recursive: true });
@@ -73,11 +77,18 @@ export function registerSetupCommand(program: Command): void {
     .option("--empty", "Write a minimal/empty config for the chosen mode(s)")
     .option("--env <path>", "Load env vars from a dotenv file before running")
     .option("--out <path>", "Override output path (advanced)")
-    .action(async (opts: { mcp?: boolean; agent?: boolean; empty?: boolean; env?: string; out?: string }) => {
-      const outPath = await runUnifiedSetup(opts);
-      console.log(`\nConfig written:\n  ${outPath}\n`);
-      const envArg = opts.env ? ` --env ${path.resolve(opts.env)}` : "";
-      console.log(`Next:\n  astra generate --config ${outPath}${envArg}\n`);
-    });
+    .action(
+      async (opts: {
+        mcp?: boolean;
+        agent?: boolean;
+        empty?: boolean;
+        env?: string;
+        out?: string;
+      }) => {
+        const outPath = await runUnifiedSetup(opts);
+        console.log(`\nConfig written:\n  ${outPath}\n`);
+        const envArg = opts.env ? ` --env ${path.resolve(opts.env)}` : "";
+        console.log(`Next:\n  astra generate --config ${outPath}${envArg}\n`);
+      }
+    );
 }
-

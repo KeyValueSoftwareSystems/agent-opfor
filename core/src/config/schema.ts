@@ -76,4 +76,3 @@ export function extractMcpScannerConfig(raw: unknown): AstraMcpConfig {
   }
   return parsed.data;
 }
-

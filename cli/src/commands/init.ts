@@ -153,7 +153,11 @@ export function registerInitCommand(program: Command): void {
     .description(
       "Generate a sample astra.config.json, and/or sample local target scripts (--example)."
     )
-    .option("-o, --output <path>", "Config output path (default: astra.config.json)", "astra.config.json")
+    .option(
+      "-o, --output <path>",
+      "Config output path (default: astra.config.json)",
+      "astra.config.json"
+    )
     .option(
       "--example <kind>",
       "Write sample .py and/or .js local targets (JSON stdin → JSON stdout; does not write config)"
@@ -187,9 +191,7 @@ export function registerInitCommand(program: Command): void {
           console.log(
             'Test: echo \'{"prompt":"hi","context":{}}\' | python3 astra-local-target.py'
           );
-          console.log(
-            '      echo \'{"prompt":"hi","context":{}}\' | node astra-local-target.js'
-          );
+          console.log('      echo \'{"prompt":"hi","context":{}}\' | node astra-local-target.js');
           console.log(
             "\nConfig: use `astra setup --agent` to create a timestamped config under .astra/configs/.\n" +
               "Then: `astra generate --config .astra/configs/astra-config-....json` and `astra run --attacks .astra/attacks/astra-attacks-....json`.\n"

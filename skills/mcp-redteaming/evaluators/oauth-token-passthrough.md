@@ -91,5 +91,4 @@ patterns:
 
       Generate one entry per relevant tool. If no OAuth tools are found, generate token-surface
       probes for all tools (they will still catch accidental token leakage in error paths).
-
 ---

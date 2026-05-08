@@ -23,41 +23,49 @@ A non-OWASP-standard suite covering output-quality and trust-boundary risks that
 When selected, run the following evaluators in order:
 
 ## Hallucination
+
 - **Evaluator**: hallucination
 - **Severity**: high
 - **Status**: ✅ Available
 
 ## Overreliance and Sycophancy
+
 - **Evaluator**: overreliance
 - **Severity**: medium
 - **Status**: ✅ Available
 
 ## Unauthorized Imitation
+
 - **Evaluator**: imitation
 - **Severity**: high
 - **Status**: ✅ Available
 
 ## Unauthorized Contractual Commitments
+
 - **Evaluator**: contracts
 - **Severity**: high
 - **Status**: ✅ Available
 
 ## Competitor Endorsement
+
 - **Evaluator**: competitors
 - **Severity**: medium
 - **Status**: ✅ Available
 
 ## Off-Topic Drift
+
 - **Evaluator**: off-topic
 - **Severity**: low
 - **Status**: ✅ Available
 
 ## Reasoning Denial of Service
+
 - **Evaluator**: reasoning-dos
 - **Severity**: high
 - **Status**: ✅ Available
 
 ## ASCII / Unicode Smuggling
+
 - **Evaluator**: ascii-smuggling
 - **Severity**: high
 - **Status**: ✅ Available
@@ -65,6 +73,7 @@ When selected, run the following evaluators in order:
 ---
 
 **References:**
+
 - PromptFoo: https://www.promptfoo.dev/docs/red-team/
 - Netra `foundation` and `rag` presets (composition reference)
 

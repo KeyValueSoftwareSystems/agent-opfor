@@ -6,19 +6,19 @@ import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import type { LlmConfig, ProviderName } from "../config/types.js";
 
 export const PROVIDER_DEFAULTS: Record<ProviderName, string> = {
-  openai:    "gpt-4o-mini",
+  openai: "gpt-4o-mini",
   anthropic: "claude-3-5-haiku-20241022",
-  groq:      "llama-3.3-70b-versatile",
-  google:    "gemini-2.0-flash",
-  other:     "",
+  groq: "llama-3.3-70b-versatile",
+  google: "gemini-2.0-flash",
+  other: "",
 };
 
 export const PROVIDER_ENV_VARS: Record<ProviderName, string> = {
-  openai:    "OPENAI_API_KEY",
+  openai: "OPENAI_API_KEY",
   anthropic: "ANTHROPIC_API_KEY",
-  groq:      "GROQ_API_KEY",
-  google:    "GOOGLE_GENERATIVE_AI_API_KEY",
-  other:     "ASTRA_API_KEY",
+  groq: "GROQ_API_KEY",
+  google: "GOOGLE_GENERATIVE_AI_API_KEY",
+  other: "ASTRA_API_KEY",
 };
 
 export function createModel(llm: LlmConfig): LanguageModel {

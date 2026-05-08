@@ -13,10 +13,7 @@ export const netraAdapter: TelemetryAdapter = {
     return { traces: fetched.listRows, providerLabel: "Netra" };
   },
 
-  async hydrateTrace(
-    telemetry: TelemetryConfig,
-    traceId: string
-  ): Promise<unknown | null> {
+  async hydrateTrace(telemetry: TelemetryConfig, traceId: string): Promise<unknown | null> {
     return hydrateNetraTraceRecord(telemetry, traceId);
   },
 

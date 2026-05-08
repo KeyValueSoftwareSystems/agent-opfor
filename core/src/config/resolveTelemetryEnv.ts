@@ -4,7 +4,9 @@ import type { LangfuseTelemetryConfig, NetraTelemetryConfig, TelemetryConfig } f
  * Apply env-based overrides for telemetry (e.g. host from LANGFUSE_BASE_URL or NETRA_BASE_URL).
  * Mutates a shallow copy so the original config object is not modified.
  */
-export function resolveTelemetryEnv(telemetry: TelemetryConfig | undefined): TelemetryConfig | undefined {
+export function resolveTelemetryEnv(
+  telemetry: TelemetryConfig | undefined
+): TelemetryConfig | undefined {
   if (!telemetry) return undefined;
 
   const out: TelemetryConfig = { ...telemetry };

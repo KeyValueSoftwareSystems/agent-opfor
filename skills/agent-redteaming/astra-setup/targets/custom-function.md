@@ -5,6 +5,7 @@ This adapter describes how to send attack prompts to custom functions, scripts, 
 ## What This Is
 
 Not all AI systems are exposed via HTTP endpoints. Some are:
+
 - Local Python functions
 - Scripts or CLI tools
 - Custom binaries or compiled functions
@@ -19,7 +20,7 @@ The user must describe the function interface in the config's `## Notes` section
 
 1. **Function signature** — How is it called?
    - Example: `my_chatbot.generate_response(prompt: str, system_prompt: str) -> str`
-   - Example: `python test_agent.py --prompt "..."` 
+   - Example: `python test_agent.py --prompt "..."`
 
 2. **Input format** — How to pass the attack prompt?
    - Direct string argument
@@ -59,6 +60,7 @@ python eval_safety.py --prompt "<adapted-attack-prompt>"
 ```
 
 Or for Python import:
+
 ```python
 from my_module import chatbot
 response = chatbot.generate_response("<adapted-attack-prompt>", system_prompt="...")
@@ -77,10 +79,12 @@ Capture stdout as the response. Check exit code for errors.
 ## Response Capture
 
 **Success case:**
+
 - Capture the response text from stdout (or the specified output location)
 - Record the full response verbatim for evidence
 
 **Error case:**
+
 - Log the error message/exit code
 - If critical: ask the user to debug and retry
 - If non-critical (e.g., timeout): mark as inconclusive and continue

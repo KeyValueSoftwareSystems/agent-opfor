@@ -23,6 +23,7 @@ patterns:
 ## What It Tests
 
 Data and Model Poisoning (LLM04) includes:
+
 - Bias in model responses
 - Hallucinations (false information)
 - Consistency issues (contradictions)

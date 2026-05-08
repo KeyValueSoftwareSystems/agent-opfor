@@ -73,5 +73,5 @@ export default tseslint.config(
       "no-empty": "off",
       "@typescript-eslint/no-unused-vars": "off",
     },
-  },
+  }
 );

@@ -27,6 +27,7 @@ patterns:
 ## What It Tests
 
 Unbounded Consumption (LLM10) includes:
+
 - Excessive resource usage (CPU, memory, tokens)
 - Rate limiting bypass or absence
 - Denial of service through resource exhaustion

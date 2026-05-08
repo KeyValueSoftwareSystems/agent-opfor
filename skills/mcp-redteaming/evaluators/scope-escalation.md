@@ -94,5 +94,4 @@ patterns:
       ]
 
       Generate one entry per tool — filesystem probes take precedence whenever path-capable arguments exist.
-
 ---

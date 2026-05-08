@@ -10,9 +10,11 @@ const TRACE_SUMMARY_MD_FILENAME = "trace-summary.md";
 
 function resolveCurationLimits(telemetry: TelemetryConfig) {
   const cfg =
-    telemetry.provider === "langfuse" ? telemetry.langfuse
-    : telemetry.provider === "netra"  ? telemetry.netra
-    : undefined;
+    telemetry.provider === "langfuse"
+      ? telemetry.langfuse
+      : telemetry.provider === "netra"
+        ? telemetry.netra
+        : undefined;
   return {
     curationListJsonMaxChars: cfg?.traceCurationListJsonMaxChars ?? 28_000,
     summarizerSourceJsonMaxChars: cfg?.traceSummarySourceJsonMaxChars ?? 100_000,
@@ -213,7 +215,9 @@ export async function runSetupTraceCuration(opts: {
   console.log(`\n--- ${providerLabel}: trace curation (LLM) → tracedata.json ---`);
   console.log(`  Fetched ${fetched.traces.length} trace(s) from ${providerLabel}`);
   if (fetched.traces.length === 0) {
-    console.log(`  [${providerLabel}] No traces returned — check credentials, baseUrl, time window, and filters.`);
+    console.log(
+      `  [${providerLabel}] No traces returned — check credentials, baseUrl, time window, and filters.`
+    );
   }
 
   const rows = fetched.traces as TraceRow[];
@@ -293,8 +297,8 @@ export async function runSetupTraceCuration(opts: {
         const n = Array.isArray((detail as TraceRow).spans)
           ? ((detail as TraceRow).spans as unknown[]).length
           : Array.isArray((detail as TraceRow).observations)
-          ? ((detail as TraceRow).observations as unknown[]).length
-          : 0;
+            ? ((detail as TraceRow).observations as unknown[]).length
+            : 0;
         console.log(`  Trace ${id.slice(0, 12)}...: hydrated + ${n} span(s)`);
       } else {
         const row = byId.get(id);
@@ -311,7 +315,9 @@ export async function runSetupTraceCuration(opts: {
       `  Curator: model returned ${relevantTraceIds.length} id(s); ${selected.length} trace(s) in output (list had ${rows.length} row(s)).`
     );
   } else {
-    console.log(`  Curator: model output was not parseable JSON; traces array empty (see rawLlmText in tracedata.json).`);
+    console.log(
+      `  Curator: model output was not parseable JSON; traces array empty (see rawLlmText in tracedata.json).`
+    );
   }
 
   const curationBlock = {

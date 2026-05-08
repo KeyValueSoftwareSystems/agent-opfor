@@ -13,15 +13,15 @@ Specification for HTML and JSON report generation. Read this file before generat
 
 All metrics are derived from test execution results. Define them as follows:
 
-| Metric | Calculation | Type | Example |
-|--------|-------------|------|---------|
-| **Safety Score** | (Passed Tests / Total Tests) × 100 | percentage | 64% |
-| **Attack Success Rate** | (Failed Tests / Total Tests) × 100 | percentage | 36% |
-| **Evaluations Failed** | Count of evaluators with ≥1 FAIL verdict | integer | 8 |
-| **Clean Rules** | Count of tests with PASS verdict | integer | 32 |
-| **Pass Rate** (per evaluator) | (Passed / Total) × 100 | percentage | 60% |
-| **Fail Rate** (per evaluator) | (Failed / Total) × 100 | percentage | 40% |
-| **Avg Score** (per evaluator) | Mean of all test scores | decimal (0-10) | 6.2 |
+| Metric                        | Calculation                              | Type           | Example |
+| ----------------------------- | ---------------------------------------- | -------------- | ------- |
+| **Safety Score**              | (Passed Tests / Total Tests) × 100       | percentage     | 64%     |
+| **Attack Success Rate**       | (Failed Tests / Total Tests) × 100       | percentage     | 36%     |
+| **Evaluations Failed**        | Count of evaluators with ≥1 FAIL verdict | integer        | 8       |
+| **Clean Rules**               | Count of tests with PASS verdict         | integer        | 32      |
+| **Pass Rate** (per evaluator) | (Passed / Total) × 100                   | percentage     | 60%     |
+| **Fail Rate** (per evaluator) | (Failed / Total) × 100                   | percentage     | 40%     |
+| **Avg Score** (per evaluator) | Mean of all test scores                  | decimal (0-10) | 6.2     |
 
 ---
 
@@ -39,7 +39,7 @@ All metrics are derived from test execution results. Define them as follows:
     "duration": "string (minutes, e.g. '12 minutes')",
     "llmJudge": "string (model name, e.g. 'claude-opus-4-6')"
   },
-  
+
   "target": {
     "name": "string",
     "type": "string (chatbot|api|agent|rag-pipeline)",
@@ -48,7 +48,7 @@ All metrics are derived from test execution results. Define them as follows:
     "model": "string (e.g. gpt-4, claude-3-opus)",
     "assessmentDate": "string (ISO 8601 timestamp)"
   },
-  
+
   "applicationContext": {
     "purpose": "string",
     "userTypes": ["array of strings"],
@@ -56,7 +56,7 @@ All metrics are derived from test execution results. Define them as follows:
     "dangerousActions": ["array of strings"],
     "forbiddenTopics": ["array of strings"]
   },
-  
+
   "summary": {
     "totalEvaluators": "integer",
     "totalTests": "integer",
@@ -67,7 +67,7 @@ All metrics are derived from test execution results. Define them as follows:
     "criticalFindings": "integer (count of critical severity failures)",
     "highFindings": "integer (count of high severity failures)"
   },
-  
+
   "evaluatorResults": [
     {
       "id": "string (evaluator id, e.g. prompt-injection)",
@@ -92,7 +92,7 @@ All metrics are derived from test execution results. Define them as follows:
       ]
     }
   ],
-  
+
   "criticalFindings": [
     {
       "rank": "integer (1-based, sorted by score descending)",
@@ -102,7 +102,7 @@ All metrics are derived from test execution results. Define them as follows:
       "description": "string (brief vulnerability description)"
     }
   ],
-  
+
   "highFindings": [
     {
       "rank": "integer (1-based, sorted by score descending)",
@@ -132,6 +132,7 @@ All metrics are derived from test execution results. Define them as follows:
 **File:** `astra-report-<uuid>-<YYYYMMDD-HHMMSS>.html`
 
 ### Header Section
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │ Run ID: config-20260416-1530-xyz7                           │
@@ -142,33 +143,41 @@ All metrics are derived from test execution results. Define them as follows:
 ```
 
 ### Summary Cards Section
+
 Four metric cards displayed horizontally:
 
 **Card 1: Safety Score**
+
 - Large percentage number (0-100)
 - Bar or progress indicator
 - Color: Green (>70%), Yellow (50-70%), Red (<50%)
 
 **Card 2: Evaluations Failed**
+
 - Count + percentage format: "N (X%)"
 - Color: Red for any failures
 
 **Card 3: Attack Success Rate**
+
 - Percentage (0-100)
 - Color: Red (higher = more vulnerable)
 
 **Card 4: Clean Rules**
+
 - Count of passed tests
 - Color: Green
 
 ### Evaluation Suite Results Section
+
 - Suite name and description
 - Pass/Fail pie chart (visual split)
 - Evaluators count
 - Total tests breakdown (passed / failed)
 
 ### Detailed Results Table
+
 Columns:
+
 - Evaluator Name (with severity badge icon: 🔴 critical, 🟠 high, 🟡 medium, 🟢 low)
 - Tests Count (e.g., "5")
 - Passed Count (e.g., "3")
@@ -179,9 +188,11 @@ Columns:
 Rows: One per evaluator, sorted by severity (critical first) then by score (descending).
 
 ### Critical & High Findings Section
+
 **Two subsections:**
 
 **Critical Findings:**
+
 - Header: "Critical (N total)"
 - List format:
   ```
@@ -190,15 +201,18 @@ Rows: One per evaluator, sorted by severity (critical first) then by score (desc
   ```
 
 **High Findings:**
+
 - Header: "High (N total)"
 - Same list format as critical
 
 Both sorted by score descending (highest score first).
 
 ### Appendix (Collapsible)
+
 Label: "Full Test Cases and Responses"
 
 For each evaluator:
+
 ```
 [Evaluator Name] — [Severity Badge]
 ├─ Test Case 1: [Pattern Name]
@@ -211,6 +225,7 @@ For each evaluator:
 ```
 
 ### HTML Styling Guidelines
+
 - **Responsive**: Works on desktop (1024px+) and mobile (320px+)
 - **Color Scheme**:
   - Critical: #DC2626 (red)
@@ -251,11 +266,13 @@ For each evaluator:
    - highFindings: by score (desc)
 
 ### JSON Generation
+
 - Serialize all collected data into JSON structure above
 - Ensure all fields match types specified
 - Timestamp = current ISO 8601 time
 
 ### HTML Generation
+
 - Render header with config metadata
 - Render four metric cards with values from summary
 - Render pie chart (pass vs fail counts)
@@ -271,11 +288,13 @@ For each evaluator:
 ### Metric Calculation Example
 
 **Given:**
+
 - Total tests executed: 50
 - PASS verdicts: 32
 - FAIL verdicts: 18
 
 **Calculated:**
+
 - Safety Score = (32 / 50) × 100 = 64%
 - Attack Success Rate = (18 / 50) × 100 = 36%
 - Clean Rules = 32

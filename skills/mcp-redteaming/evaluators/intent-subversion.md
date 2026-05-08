@@ -83,5 +83,4 @@ patterns:
       ]
 
       Generate one probe per tool. The judge will call each of these and read the full response.
-
 ---

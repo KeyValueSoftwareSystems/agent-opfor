@@ -94,5 +94,4 @@ patterns:
 
       Generate one probe per tool. For tools named 'echo', 'ping', 'hello_world', or 'example_*',
       flag them immediately in the judge_hint as default scaffold names.
-
 ---

@@ -159,11 +159,11 @@ For a remote MCP server over HTTP/SSE:
 
 ## Evaluator suites
 
-| Suite ID | Covers | Evaluators |
-|---|---|---|
-| `owasp-llm-top10` | OWASP LLM Top 10 (2025) | prompt-injection, jailbreaking, sensitive-disclosure, system-prompt-leakage, misinformation, improper-output-handling, … |
-| `owasp-agentic-ai` | OWASP Agentic AI Top 10 | excessive-agency, tool-misuse, agent-goal-hijack, rogue-agents, memory-poisoning, cascading-failures, … |
-| `owasp-mcp-top10` | OWASP MCP Top 10 | secret-exposure, oauth-token-passthrough, scope-escalation, tool-description-injection, command-injection, ssrf, missing-authentication, intent-subversion, cross-resource-leakage, … |
+| Suite ID           | Covers                  | Evaluators                                                                                                                                                                            |
+| ------------------ | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `owasp-llm-top10`  | OWASP LLM Top 10 (2025) | prompt-injection, jailbreaking, sensitive-disclosure, system-prompt-leakage, misinformation, improper-output-handling, …                                                              |
+| `owasp-agentic-ai` | OWASP Agentic AI Top 10 | excessive-agency, tool-misuse, agent-goal-hijack, rogue-agents, memory-poisoning, cascading-failures, …                                                                               |
+| `owasp-mcp-top10`  | OWASP MCP Top 10        | secret-exposure, oauth-token-passthrough, scope-escalation, tool-description-injection, command-injection, ssrf, missing-authentication, intent-subversion, cross-resource-leakage, … |
 
 Run a specific subset instead of a full suite:
 
@@ -194,26 +194,26 @@ Never commit API keys. Add `.astra/` to `.gitignore`.
 
 ### Native providers
 
-| `llm.provider` | Env var | Default model |
-|---|---|---|
-| `openai` | `OPENAI_API_KEY` | `gpt-4o-mini` |
-| `anthropic` | `ANTHROPIC_API_KEY` | `claude-3-5-haiku-20241022` |
-| `google` | `GOOGLE_GENERATIVE_AI_API_KEY` | `gemini-2.0-flash` |
-| `groq` | `GROQ_API_KEY` | `llama-3.3-70b-versatile` |
+| `llm.provider` | Env var                        | Default model               |
+| -------------- | ------------------------------ | --------------------------- |
+| `openai`       | `OPENAI_API_KEY`               | `gpt-4o-mini`               |
+| `anthropic`    | `ANTHROPIC_API_KEY`            | `claude-3-5-haiku-20241022` |
+| `google`       | `GOOGLE_GENERATIVE_AI_API_KEY` | `gemini-2.0-flash`          |
+| `groq`         | `GROQ_API_KEY`                 | `llama-3.3-70b-versatile`   |
 
 ### OpenAI-compatible endpoints (`provider: "other"`)
 
 Any service that exposes an OpenAI-compatible `/chat/completions` API works via `provider: "other"` + `llm.baseURL`. Examples:
 
-| Service | `llm.baseURL` | Notes |
-|---|---|---|
-| **LiteLLM** (self-hosted proxy) | `https://your-litellm-host/v1` | Route to any model behind one key |
-| **OpenRouter** | `https://openrouter.ai/api/v1` | 200+ models, one API key |
-| **Together AI** | `https://api.together.xyz/v1` | Open-source models |
-| **Azure OpenAI** | `https://<resource>.openai.azure.com/openai/deployments/<deployment>` | Enterprise Azure deployments |
-| **Google Gemini (OpenAI-compat)** | `https://generativelanguage.googleapis.com/v1beta/openai` | Alternative to `provider: "google"` |
-| **Ollama** (local) | `http://localhost:11434/v1` | Fully offline, no API key needed |
-| **Any OpenAI-compatible host** | Your endpoint | Works out of the box |
+| Service                           | `llm.baseURL`                                                         | Notes                               |
+| --------------------------------- | --------------------------------------------------------------------- | ----------------------------------- |
+| **LiteLLM** (self-hosted proxy)   | `https://your-litellm-host/v1`                                        | Route to any model behind one key   |
+| **OpenRouter**                    | `https://openrouter.ai/api/v1`                                        | 200+ models, one API key            |
+| **Together AI**                   | `https://api.together.xyz/v1`                                         | Open-source models                  |
+| **Azure OpenAI**                  | `https://<resource>.openai.azure.com/openai/deployments/<deployment>` | Enterprise Azure deployments        |
+| **Google Gemini (OpenAI-compat)** | `https://generativelanguage.googleapis.com/v1beta/openai`             | Alternative to `provider: "google"` |
+| **Ollama** (local)                | `http://localhost:11434/v1`                                           | Fully offline, no API key needed    |
+| **Any OpenAI-compatible host**    | Your endpoint                                                         | Works out of the box                |
 
 Config example for LiteLLM:
 

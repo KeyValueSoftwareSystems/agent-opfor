@@ -23,51 +23,61 @@ Security testing framework for agentic AI systems (agents, tool-using models, au
 When selected, run the following evaluators in order:
 
 ## ASI01: Agent Goal Hijacking
+
 - **Evaluator**: agent-goal-hijack
 - **Severity**: critical
 - **Status**: ✅ Available
 
 ## ASI02: Tool Misuse and Exploitation
+
 - **Evaluator**: tool-misuse
 - **Severity**: critical
 - **Status**: ✅ Available
 
 ## ASI03: Identity and Privilege Abuse
+
 - **Evaluator**: identity-privilege-abuse
 - **Severity**: critical
 - **Status**: ✅ Available
 
 ## ASI04: Agentic Supply Chain Vulnerabilities
+
 - **Evaluator**: supply-chain
 - **Severity**: high
 - **Status**: ✅ Available
 
 ## ASI05: Unexpected Code Execution
+
 - **Evaluator**: unexpected-code-execution
 - **Severity**: critical
 - **Status**: ✅ Available
 
 ## ASI06: Memory and Context Poisoning
+
 - **Evaluator**: memory-poisoning
 - **Severity**: high
 - **Status**: ✅ Available
 
 ## ASI07: Insecure Inter-Agent Communication
+
 - **Evaluator**: inter-agent-communication
 - **Severity**: high
 - **Status**: ✅ Available
 
 ## ASI08: Cascading Failures
+
 - **Evaluator**: cascading-failures
 - **Severity**: high
 - **Status**: ✅ Available
 
 ## ASI09: Human-Agent Trust Exploitation
+
 - **Evaluator**: human-agent-trust
 - **Severity**: high
 - **Status**: ✅ Available
 
 ## ASI10: Rogue Agents
+
 - **Evaluator**: rogue-agents
 - **Severity**: critical
 - **Status**: ✅ Available
@@ -87,5 +97,6 @@ See OWASP LLM Top 10 suite for testing these.
 ---
 
 **References:**
+
 - https://owasp.org/www-project-agentic-ai/
 - https://www.promptfoo.dev/docs/red-team/owasp-agentic-ai/

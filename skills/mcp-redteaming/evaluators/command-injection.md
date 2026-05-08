@@ -83,5 +83,4 @@ patterns:
       ]
 
       Generate one entry per tool. Pick the most injection-prone parameter for each.
-
 ---

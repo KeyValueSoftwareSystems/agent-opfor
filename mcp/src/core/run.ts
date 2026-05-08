@@ -5,12 +5,21 @@ import { createModel } from "../../../core/dist/providers/factory.js";
 import { judgeResponse, errorJudge } from "../../../core/dist/evaluators/judge.js";
 import type { ConversationTurn, JudgeResult } from "../../../core/dist/evaluators/judge.js";
 import { generateReport } from "../../../core/dist/report/generateReport.js";
-import type { EvaluatorReport, TestResult, TurnRecord } from "../../../core/dist/report/generateReport.js";
+import type {
+  EvaluatorReport,
+  TestResult,
+  TurnRecord,
+} from "../../../core/dist/report/generateReport.js";
 import type { EvaluatorSpec } from "../../../core/dist/evaluators/parseEvaluator.js";
 import type { AttackEntry, PromptsFile } from "../../../core/dist/config/types.js";
 import { resolveTelemetryEnv } from "../../../core/dist/config/resolveTelemetryEnv.js";
 import type { RunAgentConfigHttp } from "../../../core/dist/lib/agent.js";
-import { callTargetHttp, generateNextAttackTurn, isTargetError, extractErrorMessage } from "../../../core/dist/lib/agent.js";
+import {
+  callTargetHttp,
+  generateNextAttackTurn,
+  isTargetError,
+  extractErrorMessage,
+} from "../../../core/dist/lib/agent.js";
 import { invokeLocalTargetScript } from "../../../core/dist/lib/localScriptTarget.js";
 import { newOtelTraceId } from "../../../core/dist/lib/tracePropagation.js";
 
@@ -89,9 +98,8 @@ export async function runScan(opts: RunOptions): Promise<RunSummary> {
   const targetFormat = target.requestFormat ?? "auto";
   const targetModel = target.targetModel ?? "gpt-4o-mini";
   const generatorLabel = `${attackLlm.provider}/${attackLlm.model}`;
-  const judgeLabel = judgeLlm === attackLlm
-    ? generatorLabel
-    : `${judgeLlm.provider}/${judgeLlm.model}`;
+  const judgeLabel =
+    judgeLlm === attackLlm ? generatorLabel : `${judgeLlm.provider}/${judgeLlm.model}`;
 
   // Group by evaluator
   const byEvaluator = new Map<string, AttackEntry[]>();
@@ -131,7 +139,7 @@ export async function runScan(opts: RunOptions): Promise<RunSummary> {
     for (const attack of entries) {
       const isMultiTurn = attack.turnMode === "multi";
       const numTurns = isMultiTurn ? (attack.turns ?? 3) : 1;
-      const sessionId = (isMultiTurn || target.sessionIdField) ? randomUUID() : undefined;
+      const sessionId = isMultiTurn || target.sessionIdField ? randomUUID() : undefined;
 
       const agentCfg: RunAgentConfigHttp = {
         attack,
@@ -173,7 +181,8 @@ export async function runScan(opts: RunOptions): Promise<RunSummary> {
             sessionId,
           });
         } else {
-          response = "(no target configured — configure local-script / scriptPath or pass targetScript)";
+          response =
+            "(no target configured — configure local-script / scriptPath or pass targetScript)";
         }
 
         // Update conversation history
@@ -239,7 +248,8 @@ export async function runScan(opts: RunOptions): Promise<RunSummary> {
       : target.type === "python-function"
         ? "python-function (no script path)"
         : "(not configured)";
-  const reportEndpoint = useLocalScript && resolvedScript ? resolvedScript : endpoint || transportLabel;
+  const reportEndpoint =
+    useLocalScript && resolvedScript ? resolvedScript : endpoint || transportLabel;
 
   const reportPaths = await generateReport(
     reports,
@@ -251,19 +261,19 @@ export async function runScan(opts: RunOptions): Promise<RunSummary> {
   );
 
   // Build summary — errors excluded from safety score denominator
-  const allResults = reports.flatMap(r => r.results);
-  const passed = allResults.filter(r => r.judge.verdict === "PASS").length;
-  const errors = allResults.filter(r => r.judge.verdict === "ERROR").length;
+  const allResults = reports.flatMap((r) => r.results);
+  const passed = allResults.filter((r) => r.judge.verdict === "PASS").length;
+  const errors = allResults.filter((r) => r.judge.verdict === "ERROR").length;
   const failed = totalRun - passed - errors;
   const scoreDenominator = passed + failed;
   const safetyScore = scoreDenominator > 0 ? Math.round((passed / scoreDenominator) * 100) : 0;
 
   const criticalFindings = reports
-    .filter(r => r.evaluator.severity === "critical")
-    .flatMap(r =>
+    .filter((r) => r.evaluator.severity === "critical")
+    .flatMap((r) =>
       r.results
-        .filter(t => t.judge.verdict === "FAIL")
-        .map(t => ({
+        .filter((t) => t.judge.verdict === "FAIL")
+        .map((t) => ({
           evaluator: r.evaluator.name,
           score: t.judge.score,
           description: t.judge.reasoning,
@@ -271,8 +281,8 @@ export async function runScan(opts: RunOptions): Promise<RunSummary> {
     )
     .sort((a, b) => b.score - a.score);
 
-  const evaluatorResults = reports.map(r => {
-    const p = r.results.filter(t => t.judge.verdict === "PASS").length;
+  const evaluatorResults = reports.map((r) => {
+    const p = r.results.filter((t) => t.judge.verdict === "PASS").length;
     const f = r.results.length - p;
     return {
       id: r.evaluator.id,

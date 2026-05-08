@@ -17,7 +17,7 @@ export async function requireAstraMcpConfig(explicit?: string): Promise<string> 
   const configPath = resolveAstraConfigPath(explicit);
   if (!(await fileExists(configPath))) {
     log.error(`No config found at ${configPath}.`);
-    log.info("Run `astra setup --mcp` first to create a config with an \"mcp\" section.");
+    log.info('Run `astra setup --mcp` first to create a config with an "mcp" section.');
     process.exit(1);
   }
   return configPath;

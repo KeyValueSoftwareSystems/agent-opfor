@@ -157,5 +157,4 @@ patterns:
       ]
 
       Generate one probe per tool using the most applicable attack type.
-
 ---

@@ -6,7 +6,11 @@ import { input, select, checkbox, password, confirm } from "@inquirer/prompts";
 import { parse as parseYaml } from "yaml";
 import { loadBuiltinEvaluator } from "../../../../core/dist/evaluators/parseEvaluator.js";
 import { generateAttackPrompts } from "../../../../core/dist/evaluators/generatePrompts.js";
-import { createModel, PROVIDER_DEFAULTS, PROVIDER_ENV_VARS } from "../../../../core/dist/providers/factory.js";
+import {
+  createModel,
+  PROVIDER_DEFAULTS,
+  PROVIDER_ENV_VARS,
+} from "../../../../core/dist/providers/factory.js";
 import {
   loadSkillCatalog,
   resolveSuiteEvaluatorIds,
@@ -58,7 +62,9 @@ function logTelemetryFromConfig(telemetry: TelemetryConfig | undefined): void {
   const baseUrlEnv = lf?.baseUrlEnv?.trim();
   const envFlag = (name: string) => (process.env[name]?.trim() ? "set" : "missing");
 
-  console.log(`  Langfuse baseUrl (resolved): ${lf?.baseUrl?.trim() || "(none — adapter may use default)"}`);
+  console.log(
+    `  Langfuse baseUrl (resolved): ${lf?.baseUrl?.trim() || "(none — adapter may use default)"}`
+  );
   if (baseUrlEnv) console.log(`  baseUrlEnv: ${baseUrlEnv} → ${envFlag(baseUrlEnv)}`);
   console.log(`  ${pubName}: ${envFlag(pubName)}`);
   console.log(`  ${secName}: ${envFlag(secName)}`);
@@ -68,7 +74,9 @@ function logTelemetryFromConfig(telemetry: TelemetryConfig | undefined): void {
   } else {
     console.log(`  traceSelection (Langfuse list / fetch filters):`);
     if (sel.setupTraceIds?.length) {
-      console.log(`    setupTraceIds (${sel.setupTraceIds.length}): ${sel.setupTraceIds.join(", ")}`);
+      console.log(
+        `    setupTraceIds (${sel.setupTraceIds.length}): ${sel.setupTraceIds.join(", ")}`
+      );
     } else {
       console.log(`    setupTraceIds: (none)`);
     }
@@ -76,7 +84,9 @@ function logTelemetryFromConfig(telemetry: TelemetryConfig | undefined): void {
     if (sel.fromTimestamp) console.log(`    fromTimestamp: ${sel.fromTimestamp}`);
     if (sel.toTimestamp) console.log(`    toTimestamp: ${sel.toTimestamp}`);
     if (sel.tags?.length) {
-      console.log(`    tags (Langfuse query): ${sel.tags.map((t) => JSON.stringify(t)).join(", ")}`);
+      console.log(
+        `    tags (Langfuse query): ${sel.tags.map((t) => JSON.stringify(t)).join(", ")}`
+      );
     } else {
       console.log(`    tags: (none)`);
     }
@@ -89,9 +99,12 @@ function logTelemetryFromConfig(telemetry: TelemetryConfig | undefined): void {
     if (sel.listMaxPages != null) console.log(`    listMaxPages: ${sel.listMaxPages}`);
     if (sel.fields) console.log(`    fields: ${sel.fields}`);
     if (sel.observationName) {
-      console.log(`    observationName (pre-filter): ${sel.observationName}${sel.observationType ? ` [type=${sel.observationType}]` : ""}`);
+      console.log(
+        `    observationName (pre-filter): ${sel.observationName}${sel.observationType ? ` [type=${sel.observationType}]` : ""}`
+      );
     }
-    if (sel.filter?.length) console.log(`    filter (advanced JSON): ${sel.filter.length} condition(s)`);
+    if (sel.filter?.length)
+      console.log(`    filter (advanced JSON): ${sel.filter.length} condition(s)`);
   }
   if (lf?.traceCurationListJsonMaxChars != null) {
     console.log(`  traceCurationListJsonMaxChars: ${lf.traceCurationListJsonMaxChars}`);
@@ -178,7 +191,10 @@ async function runInteractiveWizard(
     ],
   });
 
-  const targetName = await input({ message: "Target name:", validate: (v) => v.trim() !== "" || "Required" });
+  const targetName = await input({
+    message: "Target name:",
+    validate: (v) => v.trim() !== "" || "Required",
+  });
   const targetDescription = await input({
     message: "Target description (what it does, sensitive data, forbidden topics):",
     validate: (v) => v.trim() !== "" || "Required",
@@ -194,8 +210,11 @@ async function runInteractiveWizard(
     const requestFormat = await select<"openai" | "json">({
       message: "Request format:",
       choices: [
-        { name: "openai  — POST {model, messages:[{role,content}]}, response at choices[0].message.content", value: "openai" },
-        { name: "json    — POST {prompt: \"...\"}, response at .response field", value: "json" },
+        {
+          name: "openai  — POST {model, messages:[{role,content}]}, response at choices[0].message.content",
+          value: "openai",
+        },
+        { name: 'json    — POST {prompt: "..."}, response at .response field', value: "json" },
       ],
     });
     const targetModel = await input({
@@ -217,14 +236,16 @@ async function runInteractiveWizard(
       promptPath = customPromptPath.trim() || undefined;
 
       const customResponsePath = await input({
-        message: "Dot-path to extract response from JSON reply (leave blank for default: response):",
+        message:
+          "Dot-path to extract response from JSON reply (leave blank for default: response):",
         default: "",
       });
       responsePath = customResponsePath.trim() || undefined;
     }
 
     const sessionIdFieldInput = await input({
-      message: "Session ID body field for multi-turn attacks (leave blank to skip, e.g. session_id):",
+      message:
+        "Session ID body field for multi-turn attacks (leave blank to skip, e.g. session_id):",
       default: "",
     });
 
@@ -272,7 +293,9 @@ async function runInteractiveWizard(
     );
   } else {
     const severityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
-    const sorted = [...EVALUATORS].sort((a, b) => (severityOrder[a.severity] ?? 9) - (severityOrder[b.severity] ?? 9));
+    const sorted = [...EVALUATORS].sort(
+      (a, b) => (severityOrder[a.severity] ?? 9) - (severityOrder[b.severity] ?? 9)
+    );
     selectedEvaluatorIds = await checkbox<string>({
       message: "Select evaluators (space to toggle, enter to confirm):",
       choices: sorted.map((e) => ({
@@ -315,7 +338,7 @@ function extractAgentSetupPayload(parsed: unknown): SetupConfigFile {
   }
   const o = parsed as Record<string, unknown>;
   if (typeof o.configId !== "string" || o.configId.trim() === "") {
-    throw new Error('Not a valid astra config file (missing configId). Run `astra setup`.');
+    throw new Error("Not a valid astra config file (missing configId). Run `astra setup`.");
   }
   if (!o.agent || typeof o.agent !== "object") {
     throw new Error('Missing "agent" section in astra.config.json.');
@@ -333,8 +356,7 @@ async function loadConfigFile(
 
   // Support both JSON and YAML
   const ext = path.extname(configPath).toLowerCase();
-  const parsed: unknown =
-    ext === ".yml" || ext === ".yaml" ? parseYaml(raw) : JSON.parse(raw);
+  const parsed: unknown = ext === ".yml" || ext === ".yaml" ? parseYaml(raw) : JSON.parse(raw);
   const cfg = extractAgentSetupPayload(parsed);
 
   // Resolve evaluator selection
@@ -343,7 +365,8 @@ async function loadConfigFile(
     selectedEvaluatorIds = resolveSuiteEvaluatorIds(cfg.selection.suite, SUITES);
   } else {
     const invalid = cfg.selection.evaluators.filter((id) => !EVALUATOR_IDS.has(id));
-    if (invalid.length > 0) throw new Error(`Unknown evaluator IDs in config: ${invalid.join(", ")}`);
+    if (invalid.length > 0)
+      throw new Error(`Unknown evaluator IDs in config: ${invalid.join(", ")}`);
     selectedEvaluatorIds = cfg.selection.evaluators;
   }
 
@@ -386,10 +409,13 @@ export function registerSetupCommand(program: Command) {
     .command("setup")
     .description(
       "Configure an Astra scan and generate attack prompts JSON.\n" +
-      "  Run interactively: astra setup --agent\n" +
-      "  From config file:  astra generate --config <config.json>"
+        "  Run interactively: astra setup --agent\n" +
+        "  From config file:  astra generate --config <config.json>"
     )
-    .option("--config <path>", "Path to a JSON or YAML setup config file (skips interactive prompts)")
+    .option(
+      "--config <path>",
+      "Path to a JSON or YAML setup config file (skips interactive prompts)"
+    )
     .option("--output-dir <path>", "Directory to write the prompts JSON file", ".")
     .action(async (opts) => {
       let answers: CollectedAnswers;
@@ -416,7 +442,8 @@ export function registerSetupCommand(program: Command) {
         return;
       }
 
-      const { attackLlm, judgeLlm, target, selectedEvaluatorIds, telemetry, turnMode, turns } = answers;
+      const { attackLlm, judgeLlm, target, selectedEvaluatorIds, telemetry, turnMode, turns } =
+        answers;
       const model = createModel(attackLlm);
       const outputDir = path.resolve(opts.outputDir);
 
@@ -431,15 +458,21 @@ export function registerSetupCommand(program: Command) {
             outputDir,
           });
           if (langfuseTraceContext) {
-            console.log(`  Trace summary (markdown) for attack generation: ${langfuseTraceContext.length} chars`);
+            console.log(
+              `  Trace summary (markdown) for attack generation: ${langfuseTraceContext.length} chars`
+            );
           }
         } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : String(err);
-          console.warn(`\n[${telemetry.provider}] Trace curation failed (continuing setup): ${msg}\n`);
+          console.warn(
+            `\n[${telemetry.provider}] Trace curation failed (continuing setup): ${msg}\n`
+          );
         }
       }
 
-      console.log(`\nGenerating attack prompts for ${selectedEvaluatorIds.length} evaluator(s)...\n`);
+      console.log(
+        `\nGenerating attack prompts for ${selectedEvaluatorIds.length} evaluator(s)...\n`
+      );
 
       const allAttacks: AttackEntry[] = [];
 
@@ -483,7 +516,10 @@ export function registerSetupCommand(program: Command) {
         }
       }
 
-      const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, "").slice(0, 14);
+      const timestamp = new Date()
+        .toISOString()
+        .replace(/[-:T.Z]/g, "")
+        .slice(0, 14);
       const uuid = randomUUID().slice(0, 6);
       const filename = `astra-prompts-${timestamp}-${uuid}.json`;
       const outputPath = path.join(outputDir, filename);
@@ -511,14 +547,17 @@ export function registerSetupCommand(program: Command) {
         console.log(`  Attack mode: multi-turn (${turns ?? 3} turns per attack)`);
       }
       if (telemetry !== undefined) {
-        const strat = telemetry.propagation?.traceIdStrategy ?? "(not set — defaults apply when run is implemented)";
+        const strat =
+          telemetry.propagation?.traceIdStrategy ??
+          "(not set — defaults apply when run is implemented)";
         const hdrs = telemetry.propagation?.headers;
         const hdrSummary =
-          hdrs && Object.keys(hdrs).length > 0
-            ? Object.keys(hdrs).join(", ")
-            : "none";
+          hdrs && Object.keys(hdrs).length > 0 ? Object.keys(hdrs).join(", ") : "none";
         const setupIds = telemetry.langfuse?.traceSelection?.setupTraceIds?.length ?? 0;
-        console.log(`  Telemetry: ${telemetry.provider}` + (setupIds ? ` (${setupIds} setup trace id(s))` : ""));
+        console.log(
+          `  Telemetry: ${telemetry.provider}` +
+            (setupIds ? ` (${setupIds} setup trace id(s))` : "")
+        );
         if (telemetry.provider === "langfuse") {
           const lf = telemetry.langfuse;
           const base =
@@ -542,7 +581,9 @@ export function registerSetupCommand(program: Command) {
               : "(baseUrl not set)");
           const keyEnv = nt?.apiKeyEnv ?? "NETRA_API_KEY";
           console.log(`    Netra: ${base}`);
-          console.log(`    Key:   set ${keyEnv} in the environment (do not commit keys to this file).`);
+          console.log(
+            `    Key:   set ${keyEnv} in the environment (do not commit keys to this file).`
+          );
         }
         console.log(`    Propagation: strategy=${strat}, headers=${hdrSummary}`);
       }
@@ -550,7 +591,9 @@ export function registerSetupCommand(program: Command) {
       if (telemetry && (telemetry.provider === "langfuse" || telemetry.provider === "netra")) {
         console.log(`  Trace data:    ${path.join(outputDir, "tracedata.json")}`);
         if (langfuseTraceContext?.trim()) {
-          console.log(`  Trace summary: ${path.join(outputDir, "trace-summary.md")} (also embedded in attack LLM context)`);
+          console.log(
+            `  Trace summary: ${path.join(outputDir, "trace-summary.md")} (also embedded in attack LLM context)`
+          );
         }
       }
       console.log(`\n  ⚠  The prompts file contains your API key — add it to .gitignore`);

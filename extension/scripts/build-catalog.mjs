@@ -23,7 +23,7 @@ function splitYamlFrontmatter(raw) {
     if (lines[i].trim() === "---") {
       return {
         yaml: lines.slice(1, i).join("\n"),
-        body: lines.slice(i + 1).join("\n")
+        body: lines.slice(i + 1).join("\n"),
       };
     }
   }
@@ -77,7 +77,7 @@ async function parseEvaluatorMd(filePath, fname) {
     description: str(doc, "description"),
     passCriteria: str(doc, "pass_criteria") || str(doc, "passCriteria"),
     failCriteria: str(doc, "fail_criteria") || str(doc, "failCriteria"),
-    patterns
+    patterns,
   };
 }
 
@@ -97,7 +97,7 @@ async function parseSuiteMd(filePath, fname) {
     id: id.trim(),
     name: typeof doc.name === "string" ? doc.name.trim() : id.trim(),
     description: typeof doc.description === "string" ? doc.description.trim() : "",
-    evaluatorIds: ev.map((x) => String(x).trim()).filter(Boolean)
+    evaluatorIds: ev.map((x) => String(x).trim()).filter(Boolean),
   };
 }
 
@@ -126,7 +126,9 @@ async function main() {
   for (const s of suites) {
     const missing = s.evaluatorIds.filter((id) => !byId.has(id));
     if (missing.length) {
-      console.warn(`[build-catalog] suite ${s.id} references unknown evaluator ids: ${missing.join(", ")}`);
+      console.warn(
+        `[build-catalog] suite ${s.id} references unknown evaluator ids: ${missing.join(", ")}`
+      );
     }
   }
 
@@ -135,7 +137,7 @@ async function main() {
     generatedAt: new Date().toISOString(),
     source: "skills/agent-redteaming/astra-setup",
     suites,
-    evaluators
+    evaluators,
   };
 
   await writeFile(OUT, JSON.stringify(payload, null, 2) + "\n", "utf8");

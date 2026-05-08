@@ -14,7 +14,10 @@ export async function ensureAstraDirs(): Promise<void> {
 }
 
 export function compactTimestamp(d = new Date()): string {
-  return d.toISOString().replace(/[-:T.Z]/g, "").slice(0, 14);
+  return d
+    .toISOString()
+    .replace(/[-:T.Z]/g, "")
+    .slice(0, 14);
 }
 
 export function newId(): string {
@@ -31,4 +34,3 @@ export function newAttacksPath(configId: string, now = new Date()): string {
   const ts = compactTimestamp(now);
   return path.join(ASTRA_ATTACKS_DIR, `astra-attacks-${ts}-${configId}.json`);
 }
-

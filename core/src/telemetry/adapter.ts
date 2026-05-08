@@ -22,19 +22,14 @@ export interface TelemetryAdapter {
    * Fetch a flat list of trace rows for curation during `astra setup`.
    * Returns null if credentials are missing or the provider is misconfigured.
    */
-  fetchTraceList(
-    telemetry: TelemetryConfig
-  ): Promise<TraceListResult | null>;
+  fetchTraceList(telemetry: TelemetryConfig): Promise<TraceListResult | null>;
 
   /**
    * Load a single trace with all its spans/observations merged — used during
    * setup curation to hydrate the traces the curator LLM selected.
    * Returns null if the trace is unavailable or credentials are missing.
    */
-  hydrateTrace(
-    telemetry: TelemetryConfig,
-    traceId: string
-  ): Promise<unknown | null>;
+  hydrateTrace(telemetry: TelemetryConfig, traceId: string): Promise<unknown | null>;
 
   /**
    * After an attack, wait for the trace to be available (ingestion lag) and return

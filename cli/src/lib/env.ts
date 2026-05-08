@@ -5,4 +5,3 @@ export function loadEnvFromFlag(envPath: string): void {
   const p = path.resolve(envPath);
   dotenvConfig({ path: p });
 }
-

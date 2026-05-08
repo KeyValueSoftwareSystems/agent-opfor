@@ -39,7 +39,11 @@ function* walkNodes(root) {
       continue;
     }
 
-    if (node instanceof ShadowRoot || node instanceof Document || node instanceof DocumentFragment) {
+    if (
+      node instanceof ShadowRoot ||
+      node instanceof Document ||
+      node instanceof DocumentFragment
+    ) {
       const children = node.children || node.childNodes;
       if (!children) continue;
       for (let i = children.length - 1; i >= 0; i--) stack.push(children[i]);
@@ -79,8 +83,10 @@ function deepPathSelector(el) {
 function isEmbeddedChatComposer(el) {
   if (!(el instanceof Element)) return false;
   const cls = (el.className || "").toString().toLowerCase();
-  if (cls.includes("chatbot__input") || cls.includes("composer") || cls.includes("chat-input")) return true;
-  if (el.closest?.("#ais-chatbot, .chatbot__form, .chatbot__window, [class*='chatbot__']")) return true;
+  if (cls.includes("chatbot__input") || cls.includes("composer") || cls.includes("chat-input"))
+    return true;
+  if (el.closest?.("#ais-chatbot, .chatbot__form, .chatbot__window, [class*='chatbot__']"))
+    return true;
   return false;
 }
 
@@ -100,7 +106,12 @@ function looksLikeSiteSearch(el) {
   const aria = (el.getAttribute("aria-label") || "").toLowerCase();
 
   if (/^(q|query|keyword|search|find|st)$/.test(name) || /\b(search|query)\b/.test(id)) return true;
-  if (placeholder.includes("search") && !placeholder.includes("message") && !placeholder.includes("chat")) return true;
+  if (
+    placeholder.includes("search") &&
+    !placeholder.includes("message") &&
+    !placeholder.includes("chat")
+  )
+    return true;
   if (aria.includes("search") && !aria.includes("message") && !aria.includes("chat")) return true;
 
   let p = el.parentElement;
@@ -110,7 +121,12 @@ function looksLikeSiteSearch(el) {
     const cls = (p.className || "").toString().toLowerCase();
     const pid = (p.id || "").toLowerCase();
     if (pr === "search" || tag === "header") return true;
-    if (cls.includes("header-search") || cls.includes("site-search") || cls.includes("global-search")) return true;
+    if (
+      cls.includes("header-search") ||
+      cls.includes("site-search") ||
+      cls.includes("global-search")
+    )
+      return true;
     if (/\bsearch\b/.test(pid) && !pid.includes("chat")) return true;
     p = p.parentElement;
   }
@@ -232,7 +248,9 @@ function collectSanitizedDomSnapshot() {
   lines.push(`frame_url="${location.href}"`);
 
   const chatScore = scoreChatSignals();
-  const chatLogs = Array.from(queryAllDeep("[role='log']")).filter((el) => el instanceof Element && isVisible(el));
+  const chatLogs = Array.from(queryAllDeep("[role='log']")).filter(
+    (el) => el instanceof Element && isVisible(el)
+  );
   const embeddedChatNotes = [];
   if (queryAllDeep('[class*="chatbot__dialogue"]').length) {
     embeddedChatNotes.push(
@@ -241,7 +259,7 @@ function collectSanitizedDomSnapshot() {
   }
   if (queryAllDeep("textarea.chatbot__input, form.chatbot__form").length) {
     embeddedChatNotes.push(
-      '- composer=textarea.chatbot__input inside form.chatbot__form; pair send with button.chatbot__send if present'
+      "- composer=textarea.chatbot__input inside form.chatbot__form; pair send with button.chatbot__send if present"
     );
   }
   if (chatLogs.length || embeddedChatNotes.length) {
@@ -256,12 +274,28 @@ function collectSanitizedDomSnapshot() {
     for (const note of embeddedChatNotes) lines.push(note);
   }
 
-  const inputs = Array.from(queryAllDeep("textarea, input, [contenteditable='true'], [role='textbox']"))
+  const inputs = Array.from(
+    queryAllDeep("textarea, input, [contenteditable='true'], [role='textbox']")
+  )
     .filter((el) => el instanceof Element && isVisible(el))
     .filter((el) => {
       if (el instanceof HTMLInputElement) {
         const t = (el.type || "").toLowerCase();
-        if (["hidden", "checkbox", "radio", "file", "submit", "button", "range", "color", "date", "datetime-local"].includes(t)) return false;
+        if (
+          [
+            "hidden",
+            "checkbox",
+            "radio",
+            "file",
+            "submit",
+            "button",
+            "range",
+            "color",
+            "date",
+            "datetime-local",
+          ].includes(t)
+        )
+          return false;
         if (t === "password") return false;
       }
       return true;
@@ -271,9 +305,13 @@ function collectSanitizedDomSnapshot() {
   lines.push("CANDIDATE_INPUTS:");
   for (const el of inputs.slice(0, 40)) {
     const rect = el.getBoundingClientRect?.();
-    const pos = rect ? `pos=${Math.round(rect.left)},${Math.round(rect.top)} size=${Math.round(rect.width)}x${Math.round(rect.height)}` : "";
+    const pos = rect
+      ? `pos=${Math.round(rect.left)},${Math.round(rect.top)} size=${Math.round(rect.width)}x${Math.round(rect.height)}`
+      : "";
     const ss = looksLikeSiteSearch(el) ? " site_search_hint=1" : "";
-    lines.push(`- score=${scoreInput(el)}${ss} selector="${deepPathSelector(el)}" ${pos} ${describeEl(el)}`);
+    lines.push(
+      `- score=${scoreInput(el)}${ss} selector="${deepPathSelector(el)}" ${pos} ${describeEl(el)}`
+    );
   }
 
   const buttons = Array.from(queryAllDeep("button, [role='button'], input[type='submit']"))
@@ -288,7 +326,8 @@ function collectSanitizedDomSnapshot() {
     const rect = el.getBoundingClientRect?.();
     if (!rect) return false;
     if (rect.width < 24 || rect.height < 24) return false;
-    if (rect.width > window.innerWidth * 0.7 || rect.height > window.innerHeight * 0.7) return false;
+    if (rect.width > window.innerWidth * 0.7 || rect.height > window.innerHeight * 0.7)
+      return false;
     const nearRight = rect.right > window.innerWidth * 0.6;
     const nearBottom = rect.bottom > window.innerHeight * 0.6;
     if (!nearRight || !nearBottom) return false;
@@ -345,7 +384,8 @@ function collectSanitizedDomSnapshot() {
         blob.includes("message us") ||
         blob.includes("need help") ||
         blob.includes("support");
-      const seemsLikeNav = href && (href.startsWith("http") || href.startsWith("/")) && !href.startsWith("#");
+      const seemsLikeNav =
+        href && (href.startsWith("http") || href.startsWith("/")) && !href.startsWith("#");
       let score = 0;
       if (looksLikeLauncher) score += 6;
       if (blob.includes("contact us") || blob.includes("contact")) score -= 4;
@@ -362,16 +402,24 @@ function collectSanitizedDomSnapshot() {
   for (const el of buttons) {
     const aria = (el.getAttribute?.("aria-label") || "").toLowerCase();
     const text = (el.textContent || "").trim().toLowerCase();
-    const looksLikeSend = aria.includes("send") || text === "send" || text.includes("send") || text.includes("submit");
-    lines.push(`- ${looksLikeSend ? "sendish=1" : "sendish=0"} selector="${deepPathSelector(el)}" ${describeEl(el)}`);
+    const looksLikeSend =
+      aria.includes("send") || text === "send" || text.includes("send") || text.includes("submit");
+    lines.push(
+      `- ${looksLikeSend ? "sendish=1" : "sendish=0"} selector="${deepPathSelector(el)}" ${describeEl(el)}`
+    );
   }
 
   if (maybeLaunchers.length) {
     lines.push("");
     lines.push("LIKELY_CHAT_LAUNCHERS:");
     for (const x of maybeLaunchers) {
-      const href = x.el instanceof HTMLAnchorElement ? String(x.el.getAttribute("href") || "").slice(0, 200) : "";
-      lines.push(`- score=${x.score} selector="${deepPathSelector(x.el)}" href="${href}" ${describeEl(x.el)}`);
+      const href =
+        x.el instanceof HTMLAnchorElement
+          ? String(x.el.getAttribute("href") || "").slice(0, 200)
+          : "";
+      lines.push(
+        `- score=${x.score} selector="${deepPathSelector(x.el)}" href="${href}" ${describeEl(x.el)}`
+      );
     }
   }
 
@@ -379,8 +427,13 @@ function collectSanitizedDomSnapshot() {
     lines.push("");
     lines.push("FLOATING_WIDGET_CANDIDATES:");
     for (const x of floatingCandidates) {
-      const href = x.el instanceof HTMLAnchorElement ? String(x.el.getAttribute("href") || "").slice(0, 200) : "";
-      lines.push(`- score=${x.score} selector="${deepPathSelector(x.el)}" href="${href}" ${describeEl(x.el)}`);
+      const href =
+        x.el instanceof HTMLAnchorElement
+          ? String(x.el.getAttribute("href") || "").slice(0, 200)
+          : "";
+      lines.push(
+        `- score=${x.score} selector="${deepPathSelector(x.el)}" href="${href}" ${describeEl(x.el)}`
+      );
     }
   }
 
@@ -388,11 +441,9 @@ function collectSanitizedDomSnapshot() {
     ok: true,
     frameUrl: location.href,
     snapshot: lines.join("\n").slice(0, 60_000),
-    inputCount: inputs.length
-    ,
-    chatScore
+    inputCount: inputs.length,
+    chatScore,
   };
 }
 
 (() => collectSanitizedDomSnapshot())();
-

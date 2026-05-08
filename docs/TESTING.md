@@ -5,12 +5,14 @@
 ### Step 1: Get the Code
 
 **Option A: Clone the repo**
+
 ```bash
 git clone https://github.com/yourusername/astra.git
 cd astra
 ```
 
 **Option B: Install from GitHub (if supported)**
+
 ```bash
 npx skills add https://github.com/yourusername/astra
 ```
@@ -18,11 +20,13 @@ npx skills add https://github.com/yourusername/astra
 ### Step 2: Configure Your Target
 
 Tell your agent:
+
 ```
 "Configure a new red team target"
 ```
 
 The agent will use `skills/astra-setup/SKILL.md` to guide you through:
+
 - Target information (name, type, endpoint)
 - Application Context (purpose, users, data, actions, forbidden topics)
 - System prompt (if available)
@@ -34,11 +38,13 @@ Result: A `.astra/configs/my-target.md` file is created with all your answers.
 ### Step 3: Run the Assessment
 
 Tell your agent:
+
 ```
 "Run the red team assessment on my target"
 ```
 
 Or use the CLI:
+
 ```bash
 npx astra run --config .astra/configs/my-target.md
 ```
@@ -88,6 +94,7 @@ npx astra run --config .astra/configs/my-target.md --suite owasp-agentic-ai
 ## What to Test
 
 ### Configuration Wizard (`skills/astra-setup/SKILL.md`)
+
 - [ ] Asks for target information
 - [ ] Lists available target types
 - [ ] Lists available suites
@@ -95,6 +102,7 @@ npx astra run --config .astra/configs/my-target.md --suite owasp-agentic-ai
 - [ ] Saves config to `.astra/configs/` folder with all fields
 
 ### Assessment Runner (`skills/astra-run/SKILL.md`)
+
 - [ ] Loads config from `.astra/configs/` folder
 - [ ] Loads target adapter correctly
 - [ ] Runs selected evaluators
@@ -102,12 +110,14 @@ npx astra run --config .astra/configs/my-target.md --suite owasp-agentic-ai
 - [ ] Report includes target context and recommendations
 
 ### Evaluators
+
 - [ ] Each evaluator has `## Execute` section
 - [ ] Attack patterns are generalized (not hardcoded)
 - [ ] Evaluation criteria are clear (PASS/FAIL)
 - [ ] Remediation guidance is helpful
 
 ### Application Context
+
 - [ ] Config includes Application Context fields
 - [ ] Evaluators adapt attacks based on context
 - [ ] Attack patterns reference forbidden topics/data from context
@@ -141,6 +151,7 @@ If something doesn't work, report:
 ### "Can't find skill at ./skills/astra-setup/SKILL.md"
 
 **Solution**: Make sure you're in the repo root directory and path is correct:
+
 ```bash
 cd astra
 ls skills/astra-setup/SKILL.md  # Should exist
@@ -149,6 +160,7 @@ ls skills/astra-setup/SKILL.md  # Should exist
 ### "No config file found"
 
 **Solution**: Create one first:
+
 ```bash
 npx astra run --config .astra/configs/test.md
 # Or: Let /astra-setup skill create one
@@ -157,6 +169,7 @@ npx astra run --config .astra/configs/test.md
 ### "Evaluator not found"
 
 **Solution**: Make sure evaluators exist:
+
 ```bash
 ls skills/astra-setup/evaluators/  # Should show 20 evaluators
 ```
@@ -184,6 +197,7 @@ ls skills/astra-setup/evaluators/  # Should show 20 evaluators
 ## Questions?
 
 Check:
+
 1. `README.md` — quick start and feature overview
 2. `Agents.md` — architecture and schema documentation
 3. `.astra/configs/README.md` — configuration management

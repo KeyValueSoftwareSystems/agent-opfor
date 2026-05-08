@@ -51,10 +51,25 @@ function scoreInput(el) {
 
 function findBestChatInput() {
   const candidates = [];
-  for (const el of document.querySelectorAll("textarea, input, [contenteditable='true'], [role='textbox']")) {
+  for (const el of document.querySelectorAll(
+    "textarea, input, [contenteditable='true'], [role='textbox']"
+  )) {
     if (el instanceof HTMLInputElement) {
       const t = (el.type || "").toLowerCase();
-      if (["hidden", "checkbox", "radio", "file", "submit", "button", "range", "color", "date", "datetime-local"].includes(t)) {
+      if (
+        [
+          "hidden",
+          "checkbox",
+          "radio",
+          "file",
+          "submit",
+          "button",
+          "range",
+          "color",
+          "date",
+          "datetime-local",
+        ].includes(t)
+      ) {
         continue;
       }
     }
@@ -67,9 +82,9 @@ function findBestChatInput() {
 }
 
 function findLikelyChatLauncherButtons() {
-  const btns = Array.from(document.querySelectorAll("button, [role='button'], a[role='button'], a, summary")).filter(
-    (el) => el instanceof Element && isVisible(el)
-  );
+  const btns = Array.from(
+    document.querySelectorAll("button, [role='button'], a[role='button'], a, summary")
+  ).filter((el) => el instanceof Element && isVisible(el));
 
   const scored = btns
     .map((el) => {
@@ -121,7 +136,13 @@ function scoreFloatingWidget(el) {
   const text = (el.textContent || "").trim().replace(/\s+/g, " ").toLowerCase();
   const blob = `${aria} ${title} ${id} ${cls} ${text}`.trim();
 
-  if (blob.includes("chat") || blob.includes("help") || blob.includes("support") || blob.includes("assistant")) s += 6;
+  if (
+    blob.includes("chat") ||
+    blob.includes("help") ||
+    blob.includes("support") ||
+    blob.includes("assistant")
+  )
+    s += 6;
   if (blob.includes("live")) s += 1;
   if (blob.includes("conversation")) s += 2;
   if (blob.includes("message")) s += 1;
@@ -132,7 +153,8 @@ function scoreFloatingWidget(el) {
   if (rect) {
     const area = rect.width * rect.height;
     if (area >= 900 && area <= 40_000) s += 2; // typical icon/button bubble
-    const nearCorner = rect.right > window.innerWidth * 0.9 && rect.bottom > window.innerHeight * 0.9;
+    const nearCorner =
+      rect.right > window.innerWidth * 0.9 && rect.bottom > window.innerHeight * 0.9;
     if (nearCorner) s += 2;
   }
 
@@ -153,7 +175,11 @@ function findFloatingWidgetCandidates() {
     if (!isProbablyFloatingWidget(el)) continue;
     // Must be clickable-ish
     const tag = el.tagName.toLowerCase();
-    const clickable = tag === "button" || tag === "a" || el.getAttribute("role") === "button" || typeof el.onclick === "function";
+    const clickable =
+      tag === "button" ||
+      tag === "a" ||
+      el.getAttribute("role") === "button" ||
+      typeof el.onclick === "function";
     if (!clickable) continue;
     candidates.push(el);
   }
@@ -194,14 +220,24 @@ function setInputValue(el, value) {
 
   if (el instanceof HTMLTextAreaElement || el instanceof HTMLInputElement) {
     // Use the native value setter to trigger React/controlled-input listeners reliably.
-    const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+    const proto =
+      el instanceof HTMLTextAreaElement
+        ? HTMLTextAreaElement.prototype
+        : HTMLInputElement.prototype;
     const desc = Object.getOwnPropertyDescriptor(proto, "value");
     if (desc?.set) desc.set.call(el, value);
     else el.value = value;
 
     // Fire an InputEvent if possible; many apps rely on it rather than plain Event("input")
     try {
-      el.dispatchEvent(new InputEvent("input", { bubbles: true, composed: true, data: value, inputType: "insertText" }));
+      el.dispatchEvent(
+        new InputEvent("input", {
+          bubbles: true,
+          composed: true,
+          data: value,
+          inputType: "insertText",
+        })
+      );
     } catch {
       el.dispatchEvent(new Event("input", { bubbles: true }));
     }
@@ -214,7 +250,12 @@ function setInputValue(el, value) {
     // We try beforeinput → DOM update → input.
     try {
       el.dispatchEvent(
-        new InputEvent("beforeinput", { bubbles: true, composed: true, data: value, inputType: "insertText" })
+        new InputEvent("beforeinput", {
+          bubbles: true,
+          composed: true,
+          data: value,
+          inputType: "insertText",
+        })
       );
     } catch {
       // ignore
@@ -234,7 +275,14 @@ function setInputValue(el, value) {
     }
 
     try {
-      el.dispatchEvent(new InputEvent("input", { bubbles: true, composed: true, data: value, inputType: "insertText" }));
+      el.dispatchEvent(
+        new InputEvent("input", {
+          bubbles: true,
+          composed: true,
+          data: value,
+          inputType: "insertText",
+        })
+      );
     } catch {
       el.dispatchEvent(new Event("input", { bubbles: true }));
     }
@@ -256,7 +304,7 @@ function findGlobalSendButton() {
     "button[aria-label*='send' i]",
     // Generic
     "button[type='submit']",
-    "input[type='submit']"
+    "input[type='submit']",
   ];
   for (const sel of selectors) {
     const el = document.querySelector(sel);
@@ -272,7 +320,12 @@ function looksLikeSendButton(el) {
   const text = (el.textContent || "").trim().toLowerCase();
   const blob = `${testid} ${aria} ${text}`.trim();
   const sendish = blob.includes("send") || blob.includes("submit");
-  const bad = blob.includes("plus") || blob.includes("attach") || blob.includes("paperclip") || blob.includes("mic") || blob.includes("microphone");
+  const bad =
+    blob.includes("plus") ||
+    blob.includes("attach") ||
+    blob.includes("paperclip") ||
+    blob.includes("mic") ||
+    blob.includes("microphone");
   return sendish && !bad;
 }
 
@@ -285,7 +338,8 @@ function isDisabledButton(el) {
 }
 
 function getInputText(el) {
-  if (el instanceof HTMLTextAreaElement || el instanceof HTMLInputElement) return String(el.value || "");
+  if (el instanceof HTMLTextAreaElement || el instanceof HTMLInputElement)
+    return String(el.value || "");
   if (el?.isContentEditable) return String(el.textContent || "");
   return String(el?.textContent || "");
 }
@@ -348,7 +402,7 @@ function pressEnterToSubmit(el) {
         code: "Enter",
         keyCode: 13,
         which: 13,
-        ...extra
+        ...extra,
       })
     );
   fire("keydown");
@@ -360,7 +414,7 @@ function pressShortcutEnterToSubmit(el) {
   // Some chat UIs send on Cmd/Ctrl+Enter.
   const combos = [
     { metaKey: true, ctrlKey: false, label: "meta+enter" },
-    { metaKey: false, ctrlKey: true, label: "ctrl+enter" }
+    { metaKey: false, ctrlKey: true, label: "ctrl+enter" },
   ];
 
   for (const combo of combos) {
@@ -375,7 +429,7 @@ function pressShortcutEnterToSubmit(el) {
           keyCode: 13,
           which: 13,
           metaKey: combo.metaKey,
-          ctrlKey: combo.ctrlKey
+          ctrlKey: combo.ctrlKey,
         })
       );
     fire("keydown");
@@ -392,7 +446,14 @@ function robustClick(el) {
 
   const fireMouse = (type) =>
     el.dispatchEvent(
-      new MouseEvent(type, { bubbles: true, cancelable: true, composed: true, view: window, clientX, clientY })
+      new MouseEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+        view: window,
+        clientX,
+        clientY,
+      })
     );
   fireMouse("pointerdown");
   fireMouse("mousedown");
@@ -450,7 +511,7 @@ async function submitWithRetries({ inputEl, desiredMethod, desiredButtonEl, orig
           code: "Enter",
           keyCode: 13,
           which: 13,
-          metaKey: true
+          metaKey: true,
         })
       );
     fireMeta("keydown");
@@ -470,7 +531,7 @@ async function submitWithRetries({ inputEl, desiredMethod, desiredButtonEl, orig
           code: "Enter",
           keyCode: 13,
           which: 13,
-          ctrlKey: true
+          ctrlKey: true,
         })
       );
     fireCtrl("keydown");
@@ -511,7 +572,11 @@ async function submitWithRetries({ inputEl, desiredMethod, desiredButtonEl, orig
     await sleep(200);
   }
 
-  return { ok: false, attempts, submitMethod: desiredMethod === "click" ? "button.click" : "enter.key" };
+  return {
+    ok: false,
+    attempts,
+    submitMethod: desiredMethod === "click" ? "button.click" : "enter.key",
+  };
 }
 
 function escapeCssValue(v) {
@@ -561,8 +626,12 @@ function buildSanitizedDomSnapshot() {
     lines.push("FLOATING_WIDGET_CANDIDATES:");
     for (const el of floaters) {
       const rect = el.getBoundingClientRect?.();
-      const pos = rect ? `pos=${Math.round(rect.left)},${Math.round(rect.top)} size=${Math.round(rect.width)}x${Math.round(rect.height)}` : "";
-      lines.push(`- score=${scoreFloatingWidget(el)} selector="${selectorFromEl(el)}" ${pos} ${describeEl(el)}`);
+      const pos = rect
+        ? `pos=${Math.round(rect.left)},${Math.round(rect.top)} size=${Math.round(rect.width)}x${Math.round(rect.height)}`
+        : "";
+      lines.push(
+        `- score=${scoreFloatingWidget(el)} selector="${selectorFromEl(el)}" ${pos} ${describeEl(el)}`
+      );
     }
   }
 
@@ -573,7 +642,21 @@ function buildSanitizedDomSnapshot() {
     if (!isVisible(el)) return false;
     if (el instanceof HTMLInputElement) {
       const t = (el.type || "").toLowerCase();
-      if (["hidden", "checkbox", "radio", "file", "submit", "button", "range", "color", "date", "datetime-local"].includes(t)) return false;
+      if (
+        [
+          "hidden",
+          "checkbox",
+          "radio",
+          "file",
+          "submit",
+          "button",
+          "range",
+          "color",
+          "date",
+          "datetime-local",
+        ].includes(t)
+      )
+        return false;
       if (t === "password") return false;
     }
     return true;
@@ -583,7 +666,9 @@ function buildSanitizedDomSnapshot() {
   lines.push("CANDIDATE_INPUTS:");
   for (const el of inputCandidates.slice(0, 40)) {
     const rect = el.getBoundingClientRect?.();
-    const pos = rect ? `pos=${Math.round(rect.left)},${Math.round(rect.top)} size=${Math.round(rect.width)}x${Math.round(rect.height)}` : "";
+    const pos = rect
+      ? `pos=${Math.round(rect.left)},${Math.round(rect.top)} size=${Math.round(rect.width)}x${Math.round(rect.height)}`
+      : "";
     const score = scoreInput(el);
     const sel = selectorFromEl(el);
     lines.push(`- score=${score} selector="${sel}" ${pos} ${describeEl(el)}`);
@@ -598,11 +683,16 @@ function buildSanitizedDomSnapshot() {
   for (const el of buttonCandidates.slice(0, 60)) {
     const aria = (el.getAttribute?.("aria-label") || "").toLowerCase();
     const text = (el.textContent || "").trim().toLowerCase();
-    const looksLikeSend = aria.includes("send") || text === "send" || text.includes("send") || text.includes("submit");
+    const looksLikeSend =
+      aria.includes("send") || text === "send" || text.includes("send") || text.includes("submit");
     const rect = el.getBoundingClientRect?.();
-    const pos = rect ? `pos=${Math.round(rect.left)},${Math.round(rect.top)} size=${Math.round(rect.width)}x${Math.round(rect.height)}` : "";
+    const pos = rect
+      ? `pos=${Math.round(rect.left)},${Math.round(rect.top)} size=${Math.round(rect.width)}x${Math.round(rect.height)}`
+      : "";
     const sel = selectorFromEl(el);
-    lines.push(`- ${looksLikeSend ? "sendish=1" : "sendish=0"} selector="${sel}" ${pos} ${describeEl(el)}`);
+    lines.push(
+      `- ${looksLikeSend ? "sendish=1" : "sendish=0"} selector="${sel}" ${pos} ${describeEl(el)}`
+    );
   }
 
   return lines.join("\n").slice(0, 60_000);
@@ -625,7 +715,7 @@ async function aiPickInputAndSubmit({ sanitizedDom }) {
   const resp = await chrome.runtime.sendMessage({
     type: "ASTRA_AI_PICK_INPUT",
     task: "Identify the chat prompt/input element and how to submit a message.",
-    sanitizedDom
+    sanitizedDom,
   });
   if (!resp?.ok) throw new Error(resp?.error || "AI fallback failed");
   return resp;
@@ -638,22 +728,32 @@ function validateAndResolveAiResult(ai) {
   if (!input) throw new Error("AI inputSelector did not match any element");
 
   const method = ai?.submit?.method;
-  if (method !== "enter" && method !== "click") throw new Error("AI returned invalid submit.method");
+  if (method !== "enter" && method !== "click")
+    throw new Error("AI returned invalid submit.method");
 
   let button = null;
   if (method === "click") {
     const bs = ai?.submit?.buttonSelector;
-    if (typeof bs !== "string" || !bs) throw new Error("AI chose click but did not provide buttonSelector");
+    if (typeof bs !== "string" || !bs)
+      throw new Error("AI chose click but did not provide buttonSelector");
     button = document.querySelector(bs);
     // Don't hard-fail here; some pages mutate DOM after input events.
   }
 
   const confidence = typeof ai?.confidence === "number" ? ai.confidence : 0;
-  return { input, inputSelector, submit: { method, button, buttonSelector: ai?.submit?.buttonSelector }, confidence, notes: ai?.notes };
+  return {
+    input,
+    inputSelector,
+    submit: { method, button, buttonSelector: ai?.submit?.buttonSelector },
+    confidence,
+    notes: ai?.notes,
+  };
 }
 
 function findAnySendishButton() {
-  const buttons = Array.from(document.querySelectorAll("button, [role='button'], input[type='submit']"));
+  const buttons = Array.from(
+    document.querySelectorAll("button, [role='button'], input[type='submit']")
+  );
   const sendish = buttons
     .filter((el) => el instanceof Element && isVisible(el))
     .map((el) => {
@@ -684,7 +784,9 @@ function findAnySendishButton() {
 
       // Retry submit attempts until we detect "sent" (composer cleared/changed).
       const desiredButtonEl =
-        resolved.submit.method === "click" && resolved.submit.button && looksLikeSendButton(resolved.submit.button)
+        resolved.submit.method === "click" &&
+        resolved.submit.button &&
+        looksLikeSendButton(resolved.submit.button)
           ? resolved.submit.button
           : null;
 
@@ -692,7 +794,7 @@ function findAnySendishButton() {
         inputEl: resolved.input,
         desiredMethod: resolved.submit.method,
         desiredButtonEl,
-        originalText: injectedText
+        originalText: injectedText,
       });
 
       const submitMethod = submitResult.submitMethod;
@@ -707,21 +809,22 @@ function findAnySendishButton() {
           inputSelector: resolved.inputSelector,
           submitMethod: resolved.submit.method,
           buttonSelector: resolved.submit.buttonSelector,
-          notes: resolved.notes
+          notes: resolved.notes,
         },
         launcherClicked: launcherResult.clicked,
         launcherSelector: launcherResult.selector,
         submitAttempts: submitResult.attempts,
-        sentDetected: submitResult.ok
+        sentDetected: submitResult.ok,
       };
     } catch (e) {
       const heurInput = findBestChatInput();
       const heurMsg = heurInput
         ? `Heuristic candidate existed (selector ${selectorFromEl(heurInput)} score=${scoreInput(heurInput)}), but heuristics are disabled.`
         : "No heuristic candidate found (heuristics are disabled).";
-      return { ok: false, error: `${heurMsg}\nAI error: ${e instanceof Error ? e.message : String(e)}` };
+      return {
+        ok: false,
+        error: `${heurMsg}\nAI error: ${e instanceof Error ? e.message : String(e)}`,
+      };
     }
   })();
-
 })();
-

@@ -3,7 +3,10 @@ import { Command } from "commander";
 import { generateAttackPlan } from "../../../../core/dist/attacks/generatePlan.js";
 import { loadCatalog, getEvaluatorIdSet } from "../../../../core/dist/catalog/loadCatalog.js";
 import { loadEvaluatorDoc } from "../../../../core/dist/catalog/loadEvaluatorPatterns.js";
-import { DEFAULT_ASTRA_CONFIG, requireAstraMcpConfig } from "../../../../core/dist/lib/astraConfig.js";
+import {
+  DEFAULT_ASTRA_CONFIG,
+  requireAstraMcpConfig,
+} from "../../../../core/dist/lib/astraConfig.js";
 import { loadAstraMcpConfigFile } from "../../../../core/dist/lib/loadAstraMcpConfig.js";
 import { writeJsonFile } from "../../../../core/dist/lib/jsonFile.js";
 import { log } from "../../../../core/dist/lib/logger.js";
@@ -46,11 +49,13 @@ export async function runMcpGenerateAttackPlan(opts: {
   let tools: Array<{ name: string; description?: string; inputSchema?: Record<string, unknown> }>;
   try {
     const listed = await mcp.client.listTools();
-    tools = (listed.tools ?? []).map((t: { name: string; description?: string; inputSchema?: Record<string, unknown> }) => ({
-      name: t.name,
-      ...(t.description ? { description: t.description } : {}),
-      ...(t.inputSchema ? { inputSchema: t.inputSchema } : {}),
-    }));
+    tools = (listed.tools ?? []).map(
+      (t: { name: string; description?: string; inputSchema?: Record<string, unknown> }) => ({
+        name: t.name,
+        ...(t.description ? { description: t.description } : {}),
+        ...(t.inputSchema ? { inputSchema: t.inputSchema } : {}),
+      })
+    );
     log.success(
       `tools/list: ${tools.length} tool(s) (${tools.filter((t) => t.inputSchema).length} with inputSchema)`
     );
@@ -102,10 +107,7 @@ export function registerSetupCommand(program: Command) {
   program
     .command("setup")
     .description("Discover MCP tools, call the setup LLM, and write an attack plan JSON")
-    .option(
-      "-c, --config <path>",
-      `Path to config file (default: ./${DEFAULT_ASTRA_CONFIG})`
-    )
+    .option("-c, --config <path>", `Path to config file (default: ./${DEFAULT_ASTRA_CONFIG})`)
     .option(
       "-o, --out <path>",
       `Output path for attack plan JSON (default: ./${DEFAULT_ATTACK_PLAN_OUT})`,
@@ -115,13 +117,15 @@ export function registerSetupCommand(program: Command) {
       "--max-tools <n>",
       "Limit to the first N tools from tools/list (useful for rate-limited LLMs)"
     )
-    .action(async ({ config, out, maxTools }: { config?: string; out: string; maxTools?: string }) => {
-      try {
-        await runMcpGenerateAttackPlan({ config, out, maxTools });
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
-        log.error(msg);
-        process.exitCode = 1;
+    .action(
+      async ({ config, out, maxTools }: { config?: string; out: string; maxTools?: string }) => {
+        try {
+          await runMcpGenerateAttackPlan({ config, out, maxTools });
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          log.error(msg);
+          process.exitCode = 1;
+        }
       }
-    });
+    );
 }

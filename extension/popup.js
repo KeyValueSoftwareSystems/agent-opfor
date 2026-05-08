@@ -13,7 +13,7 @@ const MODELS = [
   "claude-sonnet-4-6",
   "claude-haiku-4-5",
   "llama-3.1-70b",
-  "llama-3.3-70b-versatile"
+  "llama-3.3-70b-versatile",
 ];
 
 const $ = (id) => document.getElementById(id);
@@ -38,10 +38,11 @@ const state = {
   screen: /** @type {"idle"|"running"|"paused"|"done"} */ ("idle"),
   queue: /** @type {{id:string;name:string;sev:string}[]} */ ([]),
   evIdx: 0,
-  results: /** @type {{id:string;name:string;sev:string;verdict:string;summary:string;raw:any}[]} */ ([]),
+  results:
+    /** @type {{id:string;name:string;sev:string;verdict:string;summary:string;raw:any}[]} */ ([]),
   running: false,
   cancelRequested: false,
-  pauseRequested: false
+  pauseRequested: false,
 };
 
 // ── Screen / status ────────────────────────────────────────────
@@ -126,7 +127,7 @@ function buildDropdown(rootId, options, value, onChange) {
     setOptions(next) {
       options = next;
       render();
-    }
+    },
   };
 }
 
@@ -278,7 +279,7 @@ async function loadSettings() {
     businessUseCase: s.businessUseCase ?? "",
     judgeHint: s.judgeHint ?? "",
     saveTranscript: s.saveTranscript ?? true,
-    verbose: s.verbose ?? false
+    verbose: s.verbose ?? false,
   });
   const profiles = stored.astraLlmProfiles;
   if (profiles?.attacker) {
@@ -298,8 +299,8 @@ async function saveSettings() {
       businessUseCase: state.businessUseCase,
       judgeHint: state.judgeHint,
       saveTranscript: state.saveTranscript,
-      verbose: state.verbose
-    }
+      verbose: state.verbose,
+    },
   });
 }
 
@@ -312,7 +313,7 @@ async function saveModelAndKey() {
       baseUrl,
       model: state.model,
       apiKey: state.apiKey,
-      enabled: true
+      enabled: true,
     };
   }
   await chrome.storage.local.set({ astraLlmProfiles: next });
@@ -322,12 +323,15 @@ async function saveModelAndKey() {
 async function loadCatalog() {
   const url = chrome.runtime.getURL("catalog.json");
   const r = await fetch(url);
-  if (!r.ok) throw new Error(`catalog.json (${r.status}). Run: node src/extension/scripts/build-catalog.mjs`);
+  if (!r.ok)
+    throw new Error(
+      `catalog.json (${r.status}). Run: node src/extension/scripts/build-catalog.mjs`
+    );
   state.catalog = await r.json();
   const opts = state.catalog.suites.map((s) => ({
     value: s.id,
     label: s.name,
-    meta: `${s.evaluatorIds.length} evals`
+    meta: `${s.evaluatorIds.length} evals`,
   }));
   suiteDD.setOptions(opts);
   const first = state.catalog.suites[0]?.id || "";
@@ -385,7 +389,13 @@ function renderRunStrip() {
   state.queue.forEach((ev, i) => {
     const result = state.results[i];
     const isCurrent = i === state.evIdx && !result;
-    const stateAttr = result ? (result.verdict === "PASS" ? "pass" : "fail") : isCurrent ? "current" : "pending";
+    const stateAttr = result
+      ? result.verdict === "PASS"
+        ? "pass"
+        : "fail"
+      : isCurrent
+        ? "current"
+        : "pending";
     const chip = document.createElement("div");
     chip.className = "ev-strip-chip";
     chip.dataset.state = stateAttr;
@@ -400,7 +410,7 @@ const LOCATE_HINTS = [
   "Loading page DOM",
   "Scanning iframes and shadow roots",
   "Matching widget signatures",
-  "Probing message input"
+  "Probing message input",
 ];
 let locateHintInterval = null;
 function startLocateHintLoop() {
@@ -452,7 +462,8 @@ function setTurnProgress(turn) {
   const pct = Math.min(100, (turn / total) * 100);
   $("runTurnFill").style.width = `${pct}%`;
   if (state.currentPhase !== "locating") {
-    $("runTurnLabel").textContent = `${String(turn).padStart(2, "0")}/${String(total).padStart(2, "0")}`;
+    $("runTurnLabel").textContent =
+      `${String(turn).padStart(2, "0")}/${String(total).padStart(2, "0")}`;
   }
   state.subProgress = turn / total;
   renderRunningHeader();
@@ -566,9 +577,10 @@ function renderDone() {
   $("verdictText").textContent = verdict;
 
   // Verdict icon: check on PASS, shield on FAIL
-  $("verdictIcon").innerHTML = verdict === "PASS"
-    ? `<svg width="16" height="16" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`
-    : `<svg width="16" height="16" viewBox="0 0 24 24"><path d="M12 2l8 4v6c0 5-3.5 9-8 10-4.5-1-8-5-8-10V6l8-4z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>`;
+  $("verdictIcon").innerHTML =
+    verdict === "PASS"
+      ? `<svg width="16" height="16" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`
+      : `<svg width="16" height="16" viewBox="0 0 24 24"><path d="M12 2l8 4v6c0 5-3.5 9-8 10-4.5-1-8-5-8-10V6l8-4z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>`;
 
   $("verdictSummary").textContent =
     verdict === "PASS"
@@ -621,11 +633,7 @@ function evidenceFor(record) {
   const findings = Array.isArray(j.findings) ? j.findings : [];
   const first = findings[0];
   const text =
-    (typeof first === "string" && first) ||
-    first?.evidence ||
-    first?.quote ||
-    j.evidence ||
-    "";
+    (typeof first === "string" && first) || first?.evidence || first?.quote || j.evidence || "";
   if (!text) return "N/A";
   return text.length > 200 ? text.slice(0, 200) + "…" : text;
 }
@@ -658,14 +666,16 @@ function buildReport() {
           score,
           confidence: clamp(Math.round(Number(r.raw?.judgment?.confidence ?? 90)), 0, 100),
           evidence: evidenceFor(r),
-          reasoning: r.summary || "—"
-        }
+          reasoning: r.summary || "—",
+        },
       ],
-      raw: r.raw
+      raw: r.raw,
     };
   });
 
-  evaluatorResults.sort((a, b) => SEV_ORDER[a.severity] - SEV_ORDER[b.severity] || b.avgScore - a.avgScore);
+  evaluatorResults.sort(
+    (a, b) => SEV_ORDER[a.severity] - SEV_ORDER[b.severity] || b.avgScore - a.avgScore
+  );
 
   const failedRecords = state.results.filter((r) => r.verdict === "FAIL");
   const findings = (sev) =>
@@ -676,7 +686,7 @@ function buildReport() {
         evaluatorId: r.id,
         testNumber: 1,
         score: scoreFor(r),
-        description: r.summary || "—"
+        description: r.summary || "—",
       }))
       .sort((a, b) => b.score - a.score)
       .map((f, i) => ({ rank: i + 1, ...f }));
@@ -686,11 +696,7 @@ function buildReport() {
   const evalsWithFailures = new Set(failedRecords.map((r) => r.id)).size;
 
   const now = new Date();
-  const stamp = now
-    .toISOString()
-    .replace(/[-:]/g, "")
-    .replace(/\..+/, "")
-    .replace("T", "-");
+  const stamp = now.toISOString().replace(/[-:]/g, "").replace(/\..+/, "").replace("T", "-");
   const reportId = `astra-${state.suiteId || "run"}-${stamp}`;
 
   const targetUrl =
@@ -705,7 +711,7 @@ function buildReport() {
       framework: "astra v0.2",
       generated: now.toISOString(),
       duration: "—",
-      llmJudge: state.model
+      llmJudge: state.model,
     },
     target: {
       name: targetUrl,
@@ -713,14 +719,14 @@ function buildReport() {
       targetType: "http-endpoint",
       endpoint: targetUrl,
       model: state.model,
-      assessmentDate: now.toISOString()
+      assessmentDate: now.toISOString(),
     },
     applicationContext: {
       purpose: state.businessUseCase || "—",
       userTypes: [],
       sensitiveData: [],
       dangerousActions: [],
-      forbiddenTopics: []
+      forbiddenTopics: [],
     },
     summary: {
       totalEvaluators: total,
@@ -732,11 +738,11 @@ function buildReport() {
       cleanRules: passed,
       evaluationsFailed: evalsWithFailures,
       criticalFindings: criticalFindings.length,
-      highFindings: highFindings.length
+      highFindings: highFindings.length,
     },
     evaluatorResults,
     criticalFindings,
-    highFindings
+    highFindings,
   };
 }
 
@@ -779,8 +785,10 @@ function generateHtmlReport(report) {
       <div class="card">
         <div class="card-label">Evaluations Failed</div>
         <div class="card-value" style="color:#EF4444">${summary.evaluationsFailed} <span class="card-sub">(${
-    summary.totalEvaluators ? Math.round((summary.evaluationsFailed / summary.totalEvaluators) * 100) : 0
-  }%)</span></div>
+          summary.totalEvaluators
+            ? Math.round((summary.evaluationsFailed / summary.totalEvaluators) * 100)
+            : 0
+        }%)</span></div>
       </div>
       <div class="card">
         <div class="card-label">Attack Success Rate</div>
@@ -797,8 +805,8 @@ function generateHtmlReport(report) {
       (e) => `
         <tr>
           <td><span class="sev-badge" style="background:${SEV_HEX[e.severity]}1A;color:${SEV_HEX[e.severity]};border-color:${SEV_HEX[e.severity]}55">${sevDot(
-        e.severity
-      )} ${escapeHtml(e.severity)}</span> ${escapeHtml(e.name)}</td>
+            e.severity
+          )} ${escapeHtml(e.severity)}</span> ${escapeHtml(e.name)}</td>
           <td>${e.totalTests}</td>
           <td style="color:#10B981">${e.passed}</td>
           <td style="color:#EF4444">${e.failed}</td>
@@ -843,34 +851,44 @@ function generateHtmlReport(report) {
     }
     const tl = Array.isArray(raw?.turns) ? raw.turns : [];
     return tl.map((t) => ({
-      user: String(t.userMessage || t.user || t.attacker || (t.role === "user" ? t.content : "") || ""),
-      assistant: String(t.assistantPreview || t.bot || t.agent || t.assistant || (t.role === "assistant" ? t.content : "") || "")
+      user: String(
+        t.userMessage || t.user || t.attacker || (t.role === "user" ? t.content : "") || ""
+      ),
+      assistant: String(
+        t.assistantPreview ||
+          t.bot ||
+          t.agent ||
+          t.assistant ||
+          (t.role === "assistant" ? t.content : "") ||
+          ""
+      ),
     }));
   };
 
   const appendix = evaluatorResults
     .map((e) => {
       const turns = turnsForReport(e.raw);
-      const transcript = state.saveTranscript && turns.length
-        ? `<div class="transcript">${turns
-            .map(
-              (t, i) => `
+      const transcript =
+        state.saveTranscript && turns.length
+          ? `<div class="transcript">${turns
+              .map(
+                (t, i) => `
               <div class="turn">
                 <div class="turn-label">Turn ${i + 1} · attacker</div>
                 <pre>${escapeHtml(truncate(t.user, 4000))}</pre>
                 <div class="turn-label">Turn ${i + 1} · agent</div>
                 <pre>${escapeHtml(truncate(t.assistant, 4000))}</pre>
               </div>`
-            )
-            .join("")}</div>`
-        : "";
+              )
+              .join("")}</div>`
+          : "";
       const tr = e.testResults[0] || {};
       return `
         <details class="evaluator-block">
           <summary>
             <span class="sev-badge" style="background:${SEV_HEX[e.severity]}1A;color:${SEV_HEX[e.severity]};border-color:${SEV_HEX[e.severity]}55">${sevDot(
-        e.severity
-      )} ${escapeHtml(e.severity)}</span>
+              e.severity
+            )} ${escapeHtml(e.severity)}</span>
             ${escapeHtml(e.name)}
             <span class="verdict-pill" data-v="${tr.verdict}">${tr.verdict}</span>
           </summary>
@@ -981,8 +999,8 @@ function generateHtmlReport(report) {
       <div>
         <h2>${escapeHtml(metadata.configId)}</h2>
         <p>${summary.totalEvaluators} evaluator${summary.totalEvaluators === 1 ? "" : "s"} · ${summary.totalTests} test${
-    summary.totalTests === 1 ? "" : "s"
-  } · <span style="color:#10B981">${summary.passed} passed</span> · <span style="color:#EF4444">${summary.failed} failed</span></p>
+          summary.totalTests === 1 ? "" : "s"
+        } · <span style="color:#10B981">${summary.passed} passed</span> · <span style="color:#EF4444">${summary.failed} failed</span></p>
       </div>
       <div class="donut" aria-label="Pass/fail breakdown">
         <div class="donut-text"><b>${summary.safetyScore}%</b><span>safety</span></div>
@@ -1035,7 +1053,7 @@ async function runOneEvaluator(ev, { resume = false } = {}) {
         suiteId: state.suiteId,
         evaluatorId: ev.id,
         maxRounds: state.maxTurns,
-        waitMs: state.waitSec * 1000
+        waitMs: state.waitSec * 1000,
       };
   setPhase("locating");
   let result;
@@ -1054,7 +1072,8 @@ async function runOneEvaluator(ev, { resume = false } = {}) {
   setPhase("judging");
   await new Promise((r) => setTimeout(r, 250));
 
-  const verdict = String(result.judgment?.verdict || "FAIL").toUpperCase() === "PASS" ? "PASS" : "FAIL";
+  const verdict =
+    String(result.judgment?.verdict || "FAIL").toUpperCase() === "PASS" ? "PASS" : "FAIL";
   return {
     record: {
       id: ev.id,
@@ -1062,8 +1081,8 @@ async function runOneEvaluator(ev, { resume = false } = {}) {
       sev: ev.sev,
       verdict,
       summary: result.judgment?.summary || "",
-      raw: result
-    }
+      raw: result,
+    },
   };
 }
 
@@ -1119,7 +1138,14 @@ async function startRun({ resume = false } = {}) {
     }
     if (state.cancelRequested) break;
     if (out.error) {
-      state.results.push({ id: ev.id, name: ev.name, sev: ev.sev, verdict: "FAIL", summary: `Error: ${out.error}`, raw: null });
+      state.results.push({
+        id: ev.id,
+        name: ev.name,
+        sev: ev.sev,
+        verdict: "FAIL",
+        summary: `Error: ${out.error}`,
+        raw: null,
+      });
     } else if (out.record) {
       state.results.push(out.record);
     }
@@ -1168,7 +1194,7 @@ async function requestStop() {
         sev: cur?.sev || "low",
         verdict: "FAIL",
         summary: "Stopped by user (partial result saved).",
-        raw: astraLastResult
+        raw: astraLastResult,
       });
       state.evIdx = Math.min(state.evIdx + 1, state.queue.length);
       renderDone();
@@ -1203,7 +1229,9 @@ async function discardPaused() {
 // ── Wiring ─────────────────────────────────────────────────────
 function wire() {
   // Dropdowns
-  suiteDD = buildDropdown("suiteDropdown", [{ value: "", label: "Loading…" }], "", (v) => setSuite(v));
+  suiteDD = buildDropdown("suiteDropdown", [{ value: "", label: "Loading…" }], "", (v) =>
+    setSuite(v)
+  );
   modelDD = buildDropdown(
     "modelDropdown",
     MODELS.map((m) => ({ value: m, label: m, meta: "" })),

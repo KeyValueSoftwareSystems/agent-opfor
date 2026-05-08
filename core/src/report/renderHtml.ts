@@ -14,31 +14,46 @@ function esc(s: string): string {
 
 function severityColor(s: string): string {
   switch (s.toLowerCase()) {
-    case "critical": return "#DC2626";
-    case "high":     return "#EA580C";
-    case "medium":   return "#D97706";
-    case "low":      return "#16A34A";
-    default:         return "#6B7280";
+    case "critical":
+      return "#DC2626";
+    case "high":
+      return "#EA580C";
+    case "medium":
+      return "#D97706";
+    case "low":
+      return "#16A34A";
+    default:
+      return "#6B7280";
   }
 }
 
 function severityEmoji(s: string): string {
   switch (s.toLowerCase()) {
-    case "critical": return "🔴";
-    case "high":     return "🟠";
-    case "medium":   return "🟡";
-    case "low":      return "🟢";
-    default:         return "⚪";
+    case "critical":
+      return "🔴";
+    case "high":
+      return "🟠";
+    case "medium":
+      return "🟡";
+    case "low":
+      return "🟢";
+    default:
+      return "⚪";
   }
 }
 
 function severityBadgeClass(s: string): string {
   switch (s.toLowerCase()) {
-    case "critical": return "sev-critical";
-    case "high":     return "sev-high";
-    case "medium":   return "sev-medium";
-    case "low":      return "sev-low";
-    default:         return "sev-low";
+    case "critical":
+      return "sev-critical";
+    case "high":
+      return "sev-high";
+    case "medium":
+      return "sev-medium";
+    case "low":
+      return "sev-low";
+    default:
+      return "sev-low";
   }
 }
 
@@ -82,14 +97,16 @@ function attackCard(result: AttackRunResult, index: number): string {
   // Multi-turn breakdown
   let turnsHtml = "";
   if (result.turns && result.turns.length > 1) {
-    const turnItems = result.turns.map((turn) => {
-      const turnArgs = esc(JSON.stringify(turn.toolArguments, null, 2));
-      const turnResp = turn.toolError
-        ? `<span style="color:#EF4444">Error: ${esc(turn.toolError)}</span>`
-        : `<div class="tc-turn-text">${esc(turn.rawToolResponse.slice(0, 800))}${turn.rawToolResponse.length > 800 ? "\n…" : ""}</div>`;
-      const turnVerdict = turn.judge.verdict;
-      const turnVerdictColor = turnVerdict === "PASS" ? "#16A34A" : turnVerdict === "ERROR" ? "#D97706" : "#DC2626";
-      return `
+    const turnItems = result.turns
+      .map((turn) => {
+        const turnArgs = esc(JSON.stringify(turn.toolArguments, null, 2));
+        const turnResp = turn.toolError
+          ? `<span style="color:#EF4444">Error: ${esc(turn.toolError)}</span>`
+          : `<div class="tc-turn-text">${esc(turn.rawToolResponse.slice(0, 800))}${turn.rawToolResponse.length > 800 ? "\n…" : ""}</div>`;
+        const turnVerdict = turn.judge.verdict;
+        const turnVerdictColor =
+          turnVerdict === "PASS" ? "#16A34A" : turnVerdict === "ERROR" ? "#D97706" : "#DC2626";
+        return `
           <div style="margin-bottom:10px;padding:8px 10px;background:#F8FAFC;border-radius:6px;border-left:2px solid #CBD5E1">
             <div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:4px">Turn ${turn.turnIndex} — <code>${esc(turn.toolName)}</code> <span style="color:${turnVerdictColor}">${turnVerdict}</span>${turnVerdict !== "ERROR" ? ` · score ${turn.judge.score}/10` : ""}</div>
             <div class="tc-turn-label">Arguments</div>
@@ -98,7 +115,8 @@ function attackCard(result: AttackRunResult, index: number): string {
             ${turnResp}
             ${turn.judge.reasoning ? `<div style="font-size:11px;color:#6B7280;margin-top:4px;font-style:italic">${esc(turn.judge.reasoning)}</div>` : ""}
           </div>`;
-    }).join("");
+      })
+      .join("");
     turnsHtml = `
         <details style="margin-bottom:10px">
           <summary style="font-size:13px">Multi-turn breakdown (${result.turns.length} turns)</summary>
@@ -132,11 +150,14 @@ function attackCard(result: AttackRunResult, index: number): string {
   }
 
   // Judge block (skip for ERROR)
-  const judgeBlock = verdict === "ERROR" ? "" : (() => {
-    const judgeBg = verdict === "PASS" ? "#F0FDF4" : "#FEF2F2";
-    const judgeBorder = verdict === "PASS" ? "#BBF7D0" : "#FECACA";
-    const judgeStrong = verdict === "PASS" ? "#065F46" : "#991B1B";
-    return `
+  const judgeBlock =
+    verdict === "ERROR"
+      ? ""
+      : (() => {
+          const judgeBg = verdict === "PASS" ? "#F0FDF4" : "#FEF2F2";
+          const judgeBorder = verdict === "PASS" ? "#BBF7D0" : "#FECACA";
+          const judgeStrong = verdict === "PASS" ? "#065F46" : "#991B1B";
+          return `
         <div class="tc-judge ${verdict === "FAIL" ? "fail" : ""}" style="background:${judgeBg};border-color:${judgeBorder}">
           <strong style="color:${judgeStrong}">${verdict}</strong>
           &nbsp;·&nbsp;Score ${result.judge.score}/10
@@ -144,7 +165,7 @@ function attackCard(result: AttackRunResult, index: number): string {
           ${result.judge.evidence && result.judge.evidence !== "N/A" ? `&nbsp;·&nbsp;Evidence: <em>${esc(result.judge.evidence)}</em>` : ""}
           <br><span style="color:#374151">${esc(result.judge.reasoning)}</span>
         </div>`;
-  })();
+        })();
 
   return `
       <div class="tc-item ${tcClass}">
@@ -161,7 +182,10 @@ function attackCard(result: AttackRunResult, index: number): string {
 
 // ─── main export ──────────────────────────────────────────────────────────────
 
-export async function writeHtmlReport(report: RunReport, outputDir: string): Promise<{ html: string; json: string }> {
+export async function writeHtmlReport(
+  report: RunReport,
+  outputDir: string
+): Promise<{ html: string; json: string }> {
   const now = new Date(report.generatedAt);
   const runDir = path.join(outputDir, `report-${runTimestamp(now)}`);
 
@@ -171,18 +195,27 @@ export async function writeHtmlReport(report: RunReport, outputDir: string): Pro
   const errors = summary.errors ?? 0;
 
   // Score colors
-  const scoreColor = noScoreableTests ? "#6B7280"
-    : summary.safetyScore >= 70 ? "#16A34A"
-    : summary.safetyScore >= 50 ? "#EAB308"
-    : "#DC2626";
-  const scoreClass = noScoreableTests ? "color-gray"
-    : summary.safetyScore >= 70 ? "color-green"
-    : summary.safetyScore >= 50 ? "color-yellow"
-    : "color-red";
-  const scoreFillClass = noScoreableTests ? "fill-gray"
-    : summary.safetyScore >= 70 ? "fill-green"
-    : summary.safetyScore >= 50 ? "fill-yellow"
-    : "fill-red";
+  const scoreColor = noScoreableTests
+    ? "#6B7280"
+    : summary.safetyScore >= 70
+      ? "#16A34A"
+      : summary.safetyScore >= 50
+        ? "#EAB308"
+        : "#DC2626";
+  const scoreClass = noScoreableTests
+    ? "color-gray"
+    : summary.safetyScore >= 70
+      ? "color-green"
+      : summary.safetyScore >= 50
+        ? "color-yellow"
+        : "color-red";
+  const scoreFillClass = noScoreableTests
+    ? "fill-gray"
+    : summary.safetyScore >= 70
+      ? "fill-green"
+      : summary.safetyScore >= 50
+        ? "fill-yellow"
+        : "fill-red";
   const attackClass = summary.attackSuccessRate > 30 ? "color-red" : "color-green";
   const evalsFailed = evaluators.filter((e) => e.failed > 0).length;
   const evalsClass = evalsFailed > 0 ? "color-red" : errors > 0 ? "color-amber" : "color-green";
@@ -190,7 +223,9 @@ export async function writeHtmlReport(report: RunReport, outputDir: string): Pro
 
   // ── Assessment Scope ───────────────────────────────────────────────────────
   const scopeDesc = evaluators
-    .map((e) => `${(e.evaluatorName || e.evaluatorId).toLowerCase()}${e.owasp ? ` (${e.owasp})` : ""}`)
+    .map(
+      (e) => `${(e.evaluatorName || e.evaluatorId).toLowerCase()}${e.owasp ? ` (${e.owasp})` : ""}`
+    )
     .join(" · ");
 
   const scopeSection = `
@@ -218,28 +253,34 @@ export async function writeHtmlReport(report: RunReport, outputDir: string): Pro
           <div class="suite-stat-num color-red">${summary.failed}</div>
           <div class="suite-stat-label">Failed</div>
         </div>
-        ${errors > 0 ? `
+        ${
+          errors > 0
+            ? `
         <div class="suite-stat">
           <div class="suite-stat-num color-amber">${errors}</div>
           <div class="suite-stat-label">Errors</div>
-        </div>` : ""}
+        </div>`
+            : ""
+        }
       </div>
     </div>
   </section>`;
 
   // ── Evaluator Results Table ────────────────────────────────────────────────
   const anyErrors = evaluators.some((e) => (e.errors ?? 0) > 0);
-  const evaluatorRows = evaluators.map((e) => {
-    const evalErrors = e.errors ?? 0;
-    const passDenom = e.passed + e.failed;
-    const passRate = passDenom > 0 ? Math.round((e.passed / passDenom) * 100) : 0;
-    const scoreable = e.results.filter((r) => r.judge.verdict !== "ERROR");
-    const avgScore = scoreable.length > 0
-      ? (scoreable.reduce((s, r) => s + r.judge.score, 0) / scoreable.length).toFixed(1)
-      : "—";
-    const emoji = severityEmoji(e.severity);
-    const badgeClass = severityBadgeClass(e.severity);
-    return `
+  const evaluatorRows = evaluators
+    .map((e) => {
+      const evalErrors = e.errors ?? 0;
+      const passDenom = e.passed + e.failed;
+      const passRate = passDenom > 0 ? Math.round((e.passed / passDenom) * 100) : 0;
+      const scoreable = e.results.filter((r) => r.judge.verdict !== "ERROR");
+      const avgScore =
+        scoreable.length > 0
+          ? (scoreable.reduce((s, r) => s + r.judge.score, 0) / scoreable.length).toFixed(1)
+          : "—";
+      const emoji = severityEmoji(e.severity);
+      const badgeClass = severityBadgeClass(e.severity);
+      return `
         <tr>
           <td><strong>${emoji} ${esc(e.evaluatorName || e.evaluatorId)}</strong>${e.owasp ? `<br><span style="font-size:11px;color:#6B7280">${esc(e.owasp)}</span>` : ""}</td>
           <td>${e.severity ? `<span class="sev-badge ${badgeClass}">${esc(e.severity)}</span>` : "—"}</td>
@@ -250,17 +291,30 @@ export async function writeHtmlReport(report: RunReport, outputDir: string): Pro
           <td>${passDenom > 0 ? `${passRate}%` : "—"}</td>
           <td>${avgScore !== "—" ? `${avgScore} / 10` : "—"}</td>
         </tr>`;
-  }).join("\n");
+    })
+    .join("\n");
 
   // ── Findings ──────────────────────────────────────────────────────────────
-  type Finding = { rank: number; evaluator: string; attackId: string; score: number; description: string };
+  type Finding = {
+    rank: number;
+    evaluator: string;
+    attackId: string;
+    score: number;
+    description: string;
+  };
   const criticalFindings: Finding[] = [];
   const highFindings: Finding[] = [];
   for (const e of evaluators) {
     if (e.severity === "critical") {
       for (const r of e.results) {
         if (r.judge.verdict === "FAIL") {
-          criticalFindings.push({ rank: 0, evaluator: e.evaluatorName || e.evaluatorId, attackId: r.attackId, score: r.judge.score, description: r.judge.reasoning });
+          criticalFindings.push({
+            rank: 0,
+            evaluator: e.evaluatorName || e.evaluatorId,
+            attackId: r.attackId,
+            score: r.judge.score,
+            description: r.judge.reasoning,
+          });
         }
       }
     }
@@ -269,15 +323,25 @@ export async function writeHtmlReport(report: RunReport, outputDir: string): Pro
     if (e.severity === "high") {
       for (const r of e.results) {
         if (r.judge.verdict === "FAIL") {
-          highFindings.push({ rank: 0, evaluator: e.evaluatorName || e.evaluatorId, attackId: r.attackId, score: r.judge.score, description: r.judge.reasoning });
+          highFindings.push({
+            rank: 0,
+            evaluator: e.evaluatorName || e.evaluatorId,
+            attackId: r.attackId,
+            score: r.judge.score,
+            description: r.judge.reasoning,
+          });
         }
       }
     }
   }
   criticalFindings.sort((a, b) => b.score - a.score);
   highFindings.sort((a, b) => b.score - a.score);
-  criticalFindings.forEach((f, i) => { f.rank = i + 1; });
-  highFindings.forEach((f, i) => { f.rank = i + 1; });
+  criticalFindings.forEach((f, i) => {
+    f.rank = i + 1;
+  });
+  highFindings.forEach((f, i) => {
+    f.rank = i + 1;
+  });
 
   const findingCard = (f: Finding, color: string) => `
       <div class="finding-card" style="border-left-color:${color}">
@@ -307,19 +371,24 @@ export async function writeHtmlReport(report: RunReport, outputDir: string): Pro
   })();
 
   // ── Appendix ──────────────────────────────────────────────────────────────
-  const appendix = evaluators.map((e) => {
-    const color = severityColor(e.severity);
-    const evalErrors = e.errors ?? 0;
-    const cards = e.results.map((r, i) => attackCard(r, i)).join("\n");
-    const summaryLabel = `<span style="color:${color}">${esc(e.evaluatorName || e.evaluatorId)}</span>`
-      + (e.owasp ? ` <span style="font-weight:400;font-size:12px;color:#6B7280"> · ${esc(e.owasp)}</span>` : "")
-      + ` <span style="font-weight:400;font-size:12px;color:#6B7280"> · ${e.severity} · ${e.passed}/${e.total - evalErrors} passed${evalErrors > 0 ? ` · ${evalErrors} error${evalErrors !== 1 ? "s" : ""}` : ""}</span>`;
-    return `
+  const appendix = evaluators
+    .map((e) => {
+      const color = severityColor(e.severity);
+      const evalErrors = e.errors ?? 0;
+      const cards = e.results.map((r, i) => attackCard(r, i)).join("\n");
+      const summaryLabel =
+        `<span style="color:${color}">${esc(e.evaluatorName || e.evaluatorId)}</span>` +
+        (e.owasp
+          ? ` <span style="font-weight:400;font-size:12px;color:#6B7280"> · ${esc(e.owasp)}</span>`
+          : "") +
+        ` <span style="font-weight:400;font-size:12px;color:#6B7280"> · ${e.severity} · ${e.passed}/${e.total - evalErrors} passed${evalErrors > 0 ? ` · ${evalErrors} error${evalErrors !== 1 ? "s" : ""}` : ""}</span>`;
+      return `
       <details>
         <summary>${summaryLabel}</summary>
         <div class="tc-block">${cards}</div>
       </details>`;
-  }).join("\n");
+    })
+    .join("\n");
 
   // ── JSON report ───────────────────────────────────────────────────────────
   const jsonReport = {

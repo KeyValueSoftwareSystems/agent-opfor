@@ -10,11 +10,7 @@ export function jsonRpcLine(method: string, params: unknown, id: number): string
   return JSON.stringify({ jsonrpc: "2.0", id, method, params }) + "\n";
 }
 
-export function buildToolsListCurl(
-  url: string,
-  headers: Record<string, string>,
-  id = 1
-): string {
+export function buildToolsListCurl(url: string, headers: Record<string, string>, id = 1): string {
   const body = { jsonrpc: "2.0", id, method: "tools/list", params: {} };
   const hdrParts = Object.entries(headers).map(([k, v]) => `-H ${shellQuote(`${k}: ${v}`)}`);
   const hdr = hdrParts.length ? `${hdrParts.join(" ")} ` : "";

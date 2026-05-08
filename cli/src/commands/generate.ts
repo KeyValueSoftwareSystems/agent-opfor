@@ -21,56 +21,68 @@ export function registerGenerateCommand(program: Command): void {
     .option("--out <path>", "Override output path for attacks JSON (advanced)")
     .option("--mcp", "Force MCP mode (useful when config contains both blocks)")
     .option("--agent", "Force agent mode (useful when config contains both blocks)")
-    .action(async (opts: { config?: string; env?: string; out?: string; mcp?: boolean; agent?: boolean }) => {
-      if (opts.env) loadEnvFromFlag(opts.env);
-      await ensureAstraDirs();
+    .action(
+      async (opts: {
+        config?: string;
+        env?: string;
+        out?: string;
+        mcp?: boolean;
+        agent?: boolean;
+      }) => {
+        if (opts.env) loadEnvFromFlag(opts.env);
+        await ensureAstraDirs();
 
-      let configPath = opts.config ? path.resolve(opts.config) : "";
-      if (!configPath) {
-        configPath = await runUnifiedSetup({ env: opts.env });
+        let configPath = opts.config ? path.resolve(opts.config) : "";
+        if (!configPath) {
+          configPath = await runUnifiedSetup({ env: opts.env });
+        }
+
+        const cfg = await loadUnifiedConfigFile(configPath);
+
+        const forcedMode: UnifiedMode | null = opts.mcp ? "mcp" : opts.agent ? "agent" : null;
+
+        let mode: UnifiedMode;
+        if (forcedMode) {
+          mode = forcedMode;
+        } else if (cfg.mode === "mcp" || cfg.mode === "agent") {
+          mode = cfg.mode;
+        } else if (cfg.mcp && !cfg.agent) {
+          mode = "mcp";
+        } else if (cfg.agent && !cfg.mcp) {
+          mode = "agent";
+        } else {
+          mode = await select<UnifiedMode>({
+            message:
+              "Config contains both MCP and agent settings. Which mode should we generate attacks for?",
+            choices: [
+              { name: "MCP", value: "mcp" },
+              { name: "Agent", value: "agent" },
+            ],
+          });
+        }
+
+        const outPath = path.resolve(opts.out || newAttacksPath(cfg.configId));
+
+        if (mode === "mcp") {
+          await runMcpGenerateAttackPlan({
+            config: configPath,
+            out: outPath,
+            configId: cfg.configId,
+          });
+        } else {
+          await generateAgentAttacksFromConfig({
+            configPath,
+            outputPath: outPath,
+            configId: cfg.configId,
+          });
+        }
+
+        // Ensure the file exists (best-effort sanity check)
+        await readFile(outPath, "utf8");
+
+        console.log(`\nAttacks written:\n  ${outPath}\n`);
+        const envArg = opts.env ? ` --env ${path.resolve(opts.env)}` : "";
+        console.log(`Next:\n  astra run --attacks ${outPath}${envArg}\n`);
       }
-
-      const cfg = await loadUnifiedConfigFile(configPath);
-
-      const forcedMode: UnifiedMode | null = opts.mcp ? "mcp" : opts.agent ? "agent" : null;
-
-      let mode: UnifiedMode;
-      if (forcedMode) {
-        mode = forcedMode;
-      } else if (cfg.mode === "mcp" || cfg.mode === "agent") {
-        mode = cfg.mode;
-      } else if (cfg.mcp && !cfg.agent) {
-        mode = "mcp";
-      } else if (cfg.agent && !cfg.mcp) {
-        mode = "agent";
-      } else {
-        mode = await select<UnifiedMode>({
-          message: "Config contains both MCP and agent settings. Which mode should we generate attacks for?",
-          choices: [
-            { name: "MCP", value: "mcp" },
-            { name: "Agent", value: "agent" },
-          ],
-        });
-      }
-
-      const outPath = path.resolve(opts.out || newAttacksPath(cfg.configId));
-
-      if (mode === "mcp") {
-        await runMcpGenerateAttackPlan({ config: configPath, out: outPath, configId: cfg.configId });
-      } else {
-        await generateAgentAttacksFromConfig({
-          configPath,
-          outputPath: outPath,
-          configId: cfg.configId,
-        });
-      }
-
-      // Ensure the file exists (best-effort sanity check)
-      await readFile(outPath, "utf8");
-
-      console.log(`\nAttacks written:\n  ${outPath}\n`);
-      const envArg = opts.env ? ` --env ${path.resolve(opts.env)}` : "";
-      console.log(`Next:\n  astra run --attacks ${outPath}${envArg}\n`);
-    });
+    );
 }
-

@@ -1,5 +1,9 @@
 import { input, select, confirm } from "@inquirer/prompts";
-import type { SetupConfigFile, ProviderName, TargetConfig } from "../../../../core/dist/config/types.js";
+import type {
+  SetupConfigFile,
+  ProviderName,
+  TargetConfig,
+} from "../../../../core/dist/config/types.js";
 import { PROVIDER_CHOICES } from "../../../../core/dist/config/types.js";
 import { PROVIDER_DEFAULTS, PROVIDER_ENV_VARS } from "../../../../core/dist/providers/factory.js";
 import { loadSkillCatalog } from "../../../../core/dist/config/loadSkillCatalog.js";
@@ -53,7 +57,10 @@ export async function collectAgentSetupConfigInteractive(): Promise<SetupConfigF
     ],
   });
 
-  const name = await input({ message: "Target name:", validate: (v) => (v.trim() ? true : "Required") });
+  const name = await input({
+    message: "Target name:",
+    validate: (v) => (v.trim() ? true : "Required"),
+  });
   const description = await input({
     message: "Target description (what it does, sensitive data, forbidden topics):",
     validate: (v) => (v.trim() ? true : "Required"),
@@ -137,7 +144,11 @@ export async function collectAgentSetupConfigInteractive(): Promise<SetupConfigF
       default: PROVIDER_DEFAULTS[judgeProvider] || undefined,
       validate: (v) => (v.trim() ? true : "Model is required"),
     });
-    judgeLlm = { provider: judgeProvider, model: judgeModel.trim(), apiKeyEnv: PROVIDER_ENV_VARS[judgeProvider] };
+    judgeLlm = {
+      provider: judgeProvider,
+      model: judgeModel.trim(),
+      apiKeyEnv: PROVIDER_ENV_VARS[judgeProvider],
+    };
   }
 
   const addTelemetry = await confirm({
@@ -155,4 +166,3 @@ export async function collectAgentSetupConfigInteractive(): Promise<SetupConfigF
     telemetry: addTelemetry ? { provider: "langfuse" } : { provider: "none" },
   };
 }
-

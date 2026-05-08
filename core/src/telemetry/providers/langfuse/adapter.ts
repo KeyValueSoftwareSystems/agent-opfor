@@ -16,10 +16,7 @@ export const langfuseAdapter: TelemetryAdapter = {
     return { traces, providerLabel: "Langfuse" };
   },
 
-  async hydrateTrace(
-    telemetry: TelemetryConfig,
-    traceId: string
-  ): Promise<unknown | null> {
+  async hydrateTrace(telemetry: TelemetryConfig, traceId: string): Promise<unknown | null> {
     return hydrateLangfuseTraceRecord(telemetry, traceId);
   },
 

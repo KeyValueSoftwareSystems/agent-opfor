@@ -90,5 +90,4 @@ patterns:
       ]
 
       Generate one probe per tool.
-
 ---

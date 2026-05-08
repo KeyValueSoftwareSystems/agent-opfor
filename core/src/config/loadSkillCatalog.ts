@@ -65,16 +65,12 @@ export async function loadSkillCatalog(): Promise<{
     if (!sp) throw new Error(`Evaluator ${f}: missing YAML frontmatter`);
     const doc = parseYaml(sp.yaml) as Record<string, unknown>;
     const id =
-      typeof doc.id === "string" && doc.id.trim()
-        ? doc.id.trim()
-        : f.replace(/\.md$/i, "");
+      typeof doc.id === "string" && doc.id.trim() ? doc.id.trim() : f.replace(/\.md$/i, "");
     evaluators.push({
       id,
       name: typeof doc.name === "string" ? doc.name : id,
       owasp: typeof doc.owasp === "string" ? doc.owasp : "",
-      severity: normalizeSeverity(
-        typeof doc.severity === "string" ? doc.severity : "high"
-      ),
+      severity: normalizeSeverity(typeof doc.severity === "string" ? doc.severity : "high"),
     });
   }
   evaluators.sort((a, b) => a.id.localeCompare(b.id));

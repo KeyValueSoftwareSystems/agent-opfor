@@ -87,32 +87,32 @@ Generates attack prompts. Accepts **inline parameters** (preferred) or a **confi
 
 #### Inline parameters
 
-| Parameter | Type | Required | Description |
-|---|---|---|---|
-| `target_name` | string | Yes (inline) | Name of the AI app (e.g. `"Support Bot"`) |
-| `target_endpoint` | string | For HTTP | URL to attack (e.g. `http://localhost:4000/chat`) |
-| `target_type` | `http-endpoint` \| `local-script` | No | Defaults to `http-endpoint` |
-| `target_description` | string | No | What the app does, sensitive data, dangerous ops. Optional when `use_langfuse=true` |
-| `target_request_format` | `auto` \| `openai` \| `json` | No | Request shape. Defaults to `auto` |
-| `target_api_key` | string | No | Auth token for the target endpoint |
-| `target_script_path` | string | For `local-script` | Path to the local script |
-| `suite` | string | One of these | Suite ID (e.g. `owasp-llm-top10`). Mutually exclusive with `evaluator_ids` |
-| `evaluator_ids` | string[] | One of these | Specific evaluator IDs. Mutually exclusive with `suite` |
-| `llm_provider` | string | No | `groq`, `openai`, `anthropic`, `google`. Defaults to `groq` |
-| `llm_model` | string | No | Model name. Uses provider default if omitted |
-| `llm_api_key` | string | No | Overrides `GROQ_API_KEY` etc. from environment |
-| `use_langfuse` | boolean | No | Fetch production traces to ground attack prompts. Requires `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` in env |
-| `langfuse_lookback_hours` | number | No | How many hours back to fetch traces when `use_langfuse=true`. Default: 24 |
-| `langfuse_trace_ids` | string[] | No | Explicit trace IDs to use instead of a lookback window |
-| `output_dir` | string | No | Where to write `astra-prompts-*.json`. Defaults to `.` |
+| Parameter                 | Type                              | Required           | Description                                                                                                     |
+| ------------------------- | --------------------------------- | ------------------ | --------------------------------------------------------------------------------------------------------------- |
+| `target_name`             | string                            | Yes (inline)       | Name of the AI app (e.g. `"Support Bot"`)                                                                       |
+| `target_endpoint`         | string                            | For HTTP           | URL to attack (e.g. `http://localhost:4000/chat`)                                                               |
+| `target_type`             | `http-endpoint` \| `local-script` | No                 | Defaults to `http-endpoint`                                                                                     |
+| `target_description`      | string                            | No                 | What the app does, sensitive data, dangerous ops. Optional when `use_langfuse=true`                             |
+| `target_request_format`   | `auto` \| `openai` \| `json`      | No                 | Request shape. Defaults to `auto`                                                                               |
+| `target_api_key`          | string                            | No                 | Auth token for the target endpoint                                                                              |
+| `target_script_path`      | string                            | For `local-script` | Path to the local script                                                                                        |
+| `suite`                   | string                            | One of these       | Suite ID (e.g. `owasp-llm-top10`). Mutually exclusive with `evaluator_ids`                                      |
+| `evaluator_ids`           | string[]                          | One of these       | Specific evaluator IDs. Mutually exclusive with `suite`                                                         |
+| `llm_provider`            | string                            | No                 | `groq`, `openai`, `anthropic`, `google`. Defaults to `groq`                                                     |
+| `llm_model`               | string                            | No                 | Model name. Uses provider default if omitted                                                                    |
+| `llm_api_key`             | string                            | No                 | Overrides `GROQ_API_KEY` etc. from environment                                                                  |
+| `use_langfuse`            | boolean                           | No                 | Fetch production traces to ground attack prompts. Requires `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` in env |
+| `langfuse_lookback_hours` | number                            | No                 | How many hours back to fetch traces when `use_langfuse=true`. Default: 24                                       |
+| `langfuse_trace_ids`      | string[]                          | No                 | Explicit trace IDs to use instead of a lookback window                                                          |
+| `output_dir`              | string                            | No                 | Where to write `astra-prompts-*.json`. Defaults to `.`                                                          |
 
 #### Config file (backward-compatible)
 
-| Parameter | Type | Description |
-|---|---|---|
+| Parameter     | Type   | Description                                      |
+| ------------- | ------ | ------------------------------------------------ |
 | `config_path` | string | Path to an existing `astra.config.json` / `.yml` |
-| `llm_api_key` | string | Optional override for the key in the config |
-| `output_dir` | string | Output directory. Defaults to `.` |
+| `llm_api_key` | string | Optional override for the key in the config      |
+| `output_dir`  | string | Output directory. Defaults to `.`                |
 
 ---
 
@@ -120,11 +120,11 @@ Generates attack prompts. Accepts **inline parameters** (preferred) or a **confi
 
 Fires attacks and generates reports.
 
-| Parameter | Type | Required | Description |
-|---|---|---|---|
-| `input_path` | string | Yes | Path to the `astra-prompts-*.json` file from `astra_setup` |
-| `api_key` | string | No | Override the LLM key stored in the prompts file |
-| `output_dir` | string | No | Report directory. Defaults to `.astra/reports` |
+| Parameter    | Type   | Required | Description                                                |
+| ------------ | ------ | -------- | ---------------------------------------------------------- |
+| `input_path` | string | Yes      | Path to the `astra-prompts-*.json` file from `astra_setup` |
+| `api_key`    | string | No       | Override the LLM key stored in the prompts file            |
+| `output_dir` | string | No       | Report directory. Defaults to `.astra/reports`             |
 
 ---
 

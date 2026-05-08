@@ -15,4 +15,3 @@ export async function writeJsonFile(p: string, data: unknown): Promise<void> {
   const text = JSON.stringify(data, null, 2) + "\n";
   await writeFile(p, text, "utf8");
 }
-

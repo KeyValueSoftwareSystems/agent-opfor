@@ -21,6 +21,7 @@ patterns:
 ## What It Tests
 
 Vector and Embedding Weaknesses (LLM08) includes:
+
 - Role-Based Access Control (RBAC) bypass in vector stores
 - Business Logic Access Abuse (BOLA)
 - Broken Function Level Access (BFLA)

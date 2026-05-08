@@ -36,36 +36,55 @@ export interface ReportPaths {
 
 function severityColor(severity: string): string {
   switch (severity.toLowerCase()) {
-    case "critical": return "#DC2626";
-    case "high":     return "#EA580C";
-    case "medium":   return "#EAB308";
-    case "low":      return "#16A34A";
-    default:         return "#6B7280";
+    case "critical":
+      return "#DC2626";
+    case "high":
+      return "#EA580C";
+    case "medium":
+      return "#EAB308";
+    case "low":
+      return "#16A34A";
+    default:
+      return "#6B7280";
   }
 }
 
 function severityEmoji(severity: string): string {
   switch (severity.toLowerCase()) {
-    case "critical": return "🔴";
-    case "high":     return "🟠";
-    case "medium":   return "🟡";
-    case "low":      return "🟢";
-    default:         return "⚪";
+    case "critical":
+      return "🔴";
+    case "high":
+      return "🟠";
+    case "medium":
+      return "🟡";
+    case "low":
+      return "🟢";
+    default:
+      return "⚪";
   }
 }
 
 function severityBadgeClass(severity: string): string {
   switch (severity.toLowerCase()) {
-    case "critical": return "sev-critical";
-    case "high":     return "sev-high";
-    case "medium":   return "sev-medium";
-    case "low":      return "sev-low";
-    default:         return "sev-low";
+    case "critical":
+      return "sev-critical";
+    case "high":
+      return "sev-high";
+    case "medium":
+      return "sev-medium";
+    case "low":
+      return "sev-low";
+    default:
+      return "sev-low";
   }
 }
 
 function esc(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 /** Build an inline SVG donut showing passRate (0–100). */
@@ -90,7 +109,10 @@ export async function generateReport(
   generatorLabel = judgeLabel
 ): Promise<ReportPaths> {
   const now = new Date();
-  const timestamp = now.toISOString().replace(/[-:.T]/g, "").slice(0, 15);
+  const timestamp = now
+    .toISOString()
+    .replace(/[-:.T]/g, "")
+    .slice(0, 15);
   const uuid = randomUUID().slice(0, 8);
   const reportId = `astra-${uuid}-${timestamp}`;
 
@@ -112,12 +134,25 @@ export async function generateReport(
   // Errors excluded from safety score (target unreachable ≠ vulnerability)
   const scoreDenominator = passed + failed;
   const safetyScore = scoreDenominator > 0 ? Math.round((passed / scoreDenominator) * 100) : 0;
-  const attackSuccessRate = scoreDenominator > 0 ? Math.round((failed / scoreDenominator) * 100) : 0;
-  const evalsFailed = reports.filter((r) => r.results.some((t) => t.judge.verdict === "FAIL")).length;
-  const evalsErrored = reports.filter((r) => r.results.some((t) => t.judge.verdict === "ERROR") && !r.results.some((t) => t.judge.verdict === "FAIL")).length;
+  const attackSuccessRate =
+    scoreDenominator > 0 ? Math.round((failed / scoreDenominator) * 100) : 0;
+  const evalsFailed = reports.filter((r) =>
+    r.results.some((t) => t.judge.verdict === "FAIL")
+  ).length;
+  const evalsErrored = reports.filter(
+    (r) =>
+      r.results.some((t) => t.judge.verdict === "ERROR") &&
+      !r.results.some((t) => t.judge.verdict === "FAIL")
+  ).length;
 
   // --- critical/high findings ---
-  const criticalFindings: Array<{ rank: number; evaluator: string; testNumber: number; score: number; description: string }> = [];
+  const criticalFindings: Array<{
+    rank: number;
+    evaluator: string;
+    testNumber: number;
+    score: number;
+    description: string;
+  }> = [];
   const highFindings: typeof criticalFindings = [];
 
   let rank = 1;
@@ -125,7 +160,13 @@ export async function generateReport(
     if (r.evaluator.severity === "critical") {
       for (const t of r.results) {
         if (t.judge.verdict === "FAIL") {
-          criticalFindings.push({ rank: rank++, evaluator: r.evaluator.name, testNumber: t.testNumber, score: t.judge.score, description: t.judge.reasoning });
+          criticalFindings.push({
+            rank: rank++,
+            evaluator: r.evaluator.name,
+            testNumber: t.testNumber,
+            score: t.judge.score,
+            description: t.judge.reasoning,
+          });
         }
       }
     }
@@ -135,7 +176,13 @@ export async function generateReport(
     if (r.evaluator.severity === "high") {
       for (const t of r.results) {
         if (t.judge.verdict === "FAIL") {
-          highFindings.push({ rank: rank++, evaluator: r.evaluator.name, testNumber: t.testNumber, score: t.judge.score, description: t.judge.reasoning });
+          highFindings.push({
+            rank: rank++,
+            evaluator: r.evaluator.name,
+            testNumber: t.testNumber,
+            score: t.judge.score,
+            description: t.judge.reasoning,
+          });
         }
       }
     }
@@ -174,9 +221,11 @@ export async function generateReport(
       const e = r.results.filter((t) => t.judge.verdict === "ERROR").length;
       const f = r.results.length - p - e;
       const scoreable = r.results.filter((t) => t.judge.verdict !== "ERROR");
-      const avgScore = scoreable.length > 0
-        ? Math.round((scoreable.reduce((s, t) => s + t.judge.score, 0) / scoreable.length) * 10) / 10
-        : 0;
+      const avgScore =
+        scoreable.length > 0
+          ? Math.round((scoreable.reduce((s, t) => s + t.judge.score, 0) / scoreable.length) * 10) /
+            10
+          : 0;
       const passDenom = p + f;
       return {
         id: r.evaluator.id,
@@ -199,15 +248,17 @@ export async function generateReport(
           reasoning: t.judge.reasoning,
           ...(t.judge.errorMessage ? { errorMessage: t.judge.errorMessage } : {}),
           ...(t.traceId ? { traceId: t.traceId } : {}),
-          ...(t.turns ? {
-            turns: t.turns.map(turn => ({
-              turnIndex: turn.turnIndex,
-              verdict: turn.judge.verdict,
-              score: turn.judge.score,
-              reasoning: turn.judge.reasoning,
-              ...(turn.judge.errorMessage ? { errorMessage: turn.judge.errorMessage } : {}),
-            })),
-          } : {}),
+          ...(t.turns
+            ? {
+                turns: t.turns.map((turn) => ({
+                  turnIndex: turn.turnIndex,
+                  verdict: turn.judge.verdict,
+                  score: turn.judge.score,
+                  reasoning: turn.judge.reasoning,
+                  ...(turn.judge.errorMessage ? { errorMessage: turn.judge.errorMessage } : {}),
+                })),
+              }
+            : {}),
         })),
       };
     }),
@@ -220,17 +271,40 @@ export async function generateReport(
   // ─────────────────────────────────────────────────────────────────────────────
 
   const noScoreableTests = scoreDenominator === 0;
-  const scoreColor = noScoreableTests ? "#6B7280" : safetyScore >= 70 ? "#16A34A" : safetyScore >= 50 ? "#EAB308" : "#DC2626";
-  const scoreClass = noScoreableTests ? "color-gray" : safetyScore >= 70 ? "color-green" : safetyScore >= 50 ? "color-yellow" : "color-red";
-  const scoreFillClass = noScoreableTests ? "fill-gray" : safetyScore >= 70 ? "fill-green" : safetyScore >= 50 ? "fill-yellow" : "fill-red";
+  const scoreColor = noScoreableTests
+    ? "#6B7280"
+    : safetyScore >= 70
+      ? "#16A34A"
+      : safetyScore >= 50
+        ? "#EAB308"
+        : "#DC2626";
+  const scoreClass = noScoreableTests
+    ? "color-gray"
+    : safetyScore >= 70
+      ? "color-green"
+      : safetyScore >= 50
+        ? "color-yellow"
+        : "color-red";
+  const scoreFillClass = noScoreableTests
+    ? "fill-gray"
+    : safetyScore >= 70
+      ? "fill-green"
+      : safetyScore >= 50
+        ? "fill-yellow"
+        : "fill-red";
   const attackClass = attackSuccessRate > 30 ? "color-red" : "color-green";
-  const evalsClass = evalsFailed > 0 ? "color-red" : evalsErrored > 0 ? "color-amber" : "color-green";
+  const evalsClass =
+    evalsFailed > 0 ? "color-red" : evalsErrored > 0 ? "color-amber" : "color-green";
   const errorsClass = errors > 0 ? "color-amber" : "color-green";
 
   // Assessment scope section — donut + suite stats
-  const totalMultiTurn = reports.reduce((n, r) => n + r.results.filter(t => t.turns && t.turns.length > 0).length, 0);
-  const scopeDesc = reports.map(r => `${r.evaluator.name.toLowerCase()} (${r.evaluator.owasp})`).join(" · ")
-    + (totalMultiTurn > 0 ? ` · ${totalMultiTurn} multi-turn` : "");
+  const totalMultiTurn = reports.reduce(
+    (n, r) => n + r.results.filter((t) => t.turns && t.turns.length > 0).length,
+    0
+  );
+  const scopeDesc =
+    reports.map((r) => `${r.evaluator.name.toLowerCase()} (${r.evaluator.owasp})`).join(" · ") +
+    (totalMultiTurn > 0 ? ` · ${totalMultiTurn} multi-turn` : "");
 
   const scopeSection = `
   <section>
@@ -257,30 +331,36 @@ export async function generateReport(
           <div class="suite-stat-num color-red">${failed}</div>
           <div class="suite-stat-label">Failed</div>
         </div>
-        ${errors > 0 ? `
+        ${
+          errors > 0
+            ? `
         <div class="suite-stat">
           <div class="suite-stat-num color-amber">${errors}</div>
           <div class="suite-stat-label">Errors</div>
-        </div>` : ""}
+        </div>`
+            : ""
+        }
       </div>
     </div>
   </section>`;
 
   // Evaluator results table
-  const anyErrors = reports.some(r => r.results.some(t => t.judge.verdict === "ERROR"));
-  const evaluatorRows = reports.map((r) => {
-    const p = r.results.filter((t) => t.judge.verdict === "PASS").length;
-    const e = r.results.filter((t) => t.judge.verdict === "ERROR").length;
-    const f = r.results.length - p - e;
-    const passDenom = p + f;
-    const passRate = passDenom > 0 ? Math.round((p / passDenom) * 100) : 0;
-    const scoreable = r.results.filter((t) => t.judge.verdict !== "ERROR");
-    const avgScore = scoreable.length > 0
-      ? (scoreable.reduce((s, t) => s + t.judge.score, 0) / scoreable.length).toFixed(1)
-      : "—";
-    const emoji = severityEmoji(r.evaluator.severity);
-    const badgeClass = severityBadgeClass(r.evaluator.severity);
-    return `
+  const anyErrors = reports.some((r) => r.results.some((t) => t.judge.verdict === "ERROR"));
+  const evaluatorRows = reports
+    .map((r) => {
+      const p = r.results.filter((t) => t.judge.verdict === "PASS").length;
+      const e = r.results.filter((t) => t.judge.verdict === "ERROR").length;
+      const f = r.results.length - p - e;
+      const passDenom = p + f;
+      const passRate = passDenom > 0 ? Math.round((p / passDenom) * 100) : 0;
+      const scoreable = r.results.filter((t) => t.judge.verdict !== "ERROR");
+      const avgScore =
+        scoreable.length > 0
+          ? (scoreable.reduce((s, t) => s + t.judge.score, 0) / scoreable.length).toFixed(1)
+          : "—";
+      const emoji = severityEmoji(r.evaluator.severity);
+      const badgeClass = severityBadgeClass(r.evaluator.severity);
+      return `
         <tr>
           <td><strong>${emoji} ${esc(r.evaluator.name)}</strong><br><span style="font-size:11px;color:#6B7280">${esc(r.evaluator.owasp ?? "")}</span></td>
           <td><span class="sev-badge ${badgeClass}">${esc(r.evaluator.severity)}</span></td>
@@ -291,10 +371,11 @@ export async function generateReport(
           <td>${passDenom > 0 ? `${passRate}%` : "—"}</td>
           <td>${avgScore !== "—" ? `${avgScore} / 10` : "—"}</td>
         </tr>`;
-  }).join("\n");
+    })
+    .join("\n");
 
   // Findings section
-  const findingCard = (f: typeof criticalFindings[0], color: string) => `
+  const findingCard = (f: (typeof criticalFindings)[0], color: string) => `
       <div class="finding-card" style="border-left-color:${color}">
         <div class="finding-header">
           <span class="finding-rank">#${f.rank}</span>
@@ -312,45 +393,49 @@ export async function generateReport(
     let out = "";
     if (criticalFindings.length > 0) {
       out += `<h3 style="color:#DC2626;margin-bottom:12px">Critical (${criticalFindings.length})</h3>`;
-      out += criticalFindings.map(f => findingCard(f, "#DC2626")).join("");
+      out += criticalFindings.map((f) => findingCard(f, "#DC2626")).join("");
     }
     if (highFindings.length > 0) {
       out += `<h3 style="color:#EA580C;margin:${criticalFindings.length > 0 ? "24px" : "0"} 0 12px">High (${highFindings.length})</h3>`;
-      out += highFindings.map(f => findingCard(f, "#EA580C")).join("");
+      out += highFindings.map((f) => findingCard(f, "#EA580C")).join("");
     }
     return out;
   })();
 
   // Appendix — one <details> per evaluator, test cases inside
-  const appendix = reports.map((r) => {
-    const color = severityColor(r.evaluator.severity);
-    const p = r.results.filter(t => t.judge.verdict === "PASS").length;
-    const e = r.results.filter(t => t.judge.verdict === "ERROR").length;
+  const appendix = reports
+    .map((r) => {
+      const color = severityColor(r.evaluator.severity);
+      const p = r.results.filter((t) => t.judge.verdict === "PASS").length;
+      const e = r.results.filter((t) => t.judge.verdict === "ERROR").length;
 
-    const verdictBorderColor = (verdict: string) =>
-      verdict === "PASS" ? "#10B981" : verdict === "ERROR" ? "#F59E0B" : "#EF4444";
-    const verdictTcClass = (verdict: string) =>
-      verdict === "PASS" ? "pass" : verdict === "ERROR" ? "error" : "fail";
+      const verdictBorderColor = (verdict: string) =>
+        verdict === "PASS" ? "#10B981" : verdict === "ERROR" ? "#F59E0B" : "#EF4444";
+      const verdictTcClass = (verdict: string) =>
+        verdict === "PASS" ? "pass" : verdict === "ERROR" ? "error" : "fail";
 
-    const testCases = r.results.map((t) => {
-      const verdict = t.judge.verdict;
-      const tcClass = verdictTcClass(verdict);
-      const isMultiTurn = t.turns && t.turns.length > 0;
+      const testCases = r.results
+        .map((t) => {
+          const verdict = t.judge.verdict;
+          const tcClass = verdictTcClass(verdict);
+          const isMultiTurn = t.turns && t.turns.length > 0;
 
-      let bodyHtml: string;
-      if (isMultiTurn) {
-        const turnsHtml = t.turns!.map((turn) => {
-          const tv = turn.judge.verdict;
-          const tColor = verdictBorderColor(tv);
-          const turnBody = tv === "ERROR"
-            ? `<div class="tc-turn">
+          let bodyHtml: string;
+          if (isMultiTurn) {
+            const turnsHtml = t
+              .turns!.map((turn) => {
+                const tv = turn.judge.verdict;
+                const tColor = verdictBorderColor(tv);
+                const turnBody =
+                  tv === "ERROR"
+                    ? `<div class="tc-turn">
                   <div class="tc-turn-label">Prompt</div>
                   <div class="tc-turn-text">${esc(turn.prompt)}</div>
                 </div>
                 <div style="margin-top:6px;padding:8px 10px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:6px;font-size:12px;color:#92400E">
                   <strong>Target Error:</strong> ${esc(turn.judge.errorMessage ?? turn.response)}
                 </div>`
-            : `<div class="tc-turn">
+                    : `<div class="tc-turn">
                   <div class="tc-turn-label">Prompt</div>
                   <div class="tc-turn-text">${esc(turn.prompt)}</div>
                 </div>
@@ -359,19 +444,20 @@ export async function generateReport(
                   <div class="tc-turn-text">${esc(turn.response)}</div>
                 </div>
                 <div style="font-size:12px;color:#6B7280;margin-top:6px;padding:0 2px">${esc(turn.judge.reasoning)}</div>`;
-          return `
+                return `
               <div class="tc-item ${verdictTcClass(tv)}" style="margin-bottom:10px">
                 <div class="tc-title">Turn ${turn.turnIndex} <span style="font-weight:400;color:${tColor}">${tv}</span>${tv !== "ERROR" ? ` · Score ${turn.judge.score}/10` : ""}</div>
                 ${turnBody}
               </div>`;
-        }).join("");
-        bodyHtml = `
+              })
+              .join("");
+            bodyHtml = `
             <details style="margin-bottom:10px">
               <summary style="font-size:13px">Turn-by-turn breakdown (${t.turns!.length} turns)</summary>
               <div style="margin-top:10px">${turnsHtml}</div>
             </details>`;
-      } else if (verdict === "ERROR") {
-        bodyHtml = `
+          } else if (verdict === "ERROR") {
+            bodyHtml = `
             <div class="tc-turn">
               <div class="tc-turn-label">Prompt</div>
               <div class="tc-turn-text">${esc(t.prompt)}</div>
@@ -379,8 +465,8 @@ export async function generateReport(
             <div style="margin-top:8px;padding:10px 12px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:6px;font-size:13px;color:#92400E">
               <strong>Target Error:</strong> ${esc(t.judge.errorMessage ?? t.response)}
             </div>`;
-      } else {
-        bodyHtml = `
+          } else {
+            bodyHtml = `
             <div class="tc-turn">
               <div class="tc-turn-label">Prompt</div>
               <div class="tc-turn-text">${esc(t.prompt)}</div>
@@ -389,16 +475,17 @@ export async function generateReport(
               <div class="tc-turn-label">Response</div>
               <div class="tc-turn-text">${esc(t.response)}</div>
             </div>`;
-      }
+          }
 
-      const judgeBlock = verdict === "ERROR"
-        ? ""
-        : (() => {
-            const judgeClass = verdict === "PASS" ? "" : "fail";
-            const judgeStrong = verdict === "PASS" ? "#065F46" : "#991B1B";
-            const judgeBg = verdict === "PASS" ? "#F0FDF4" : "#FEF2F2";
-            const judgeBorder = verdict === "PASS" ? "#BBF7D0" : "#FECACA";
-            return `
+          const judgeBlock =
+            verdict === "ERROR"
+              ? ""
+              : (() => {
+                  const judgeClass = verdict === "PASS" ? "" : "fail";
+                  const judgeStrong = verdict === "PASS" ? "#065F46" : "#991B1B";
+                  const judgeBg = verdict === "PASS" ? "#F0FDF4" : "#FEF2F2";
+                  const judgeBorder = verdict === "PASS" ? "#BBF7D0" : "#FECACA";
+                  return `
             <div class="tc-judge ${judgeClass}" style="background:${judgeBg};border-color:${judgeBorder}">
               <strong style="color:${judgeStrong}">${verdict}</strong>
               &nbsp;·&nbsp;Score ${t.judge.score}/10
@@ -406,9 +493,9 @@ export async function generateReport(
               ${t.judge.evidence && t.judge.evidence !== "N/A" ? `&nbsp;·&nbsp;Evidence: <em>${esc(t.judge.evidence)}</em>` : ""}
               <br><span style="color:#374151">${esc(t.judge.reasoning)}</span>
             </div>`;
-          })();
+                })();
 
-      return `
+          return `
           <div class="tc-item ${tcClass}">
             <div class="tc-title">
               Test ${t.testNumber}: ${esc(t.pattern)}
@@ -418,17 +505,20 @@ export async function generateReport(
             ${bodyHtml}
             ${judgeBlock}
           </div>`;
-    }).join("");
+        })
+        .join("");
 
-    const summaryLabel = `<span style="color:${color}">${esc(r.evaluator.name)}</span>`
-      + ` <span style="font-weight:400;font-size:12px;color:#6B7280"> · ${esc(r.evaluator.owasp ?? "")} · ${esc(r.evaluator.severity)} · ${p}/${r.results.length - e} passed${e > 0 ? ` · ${e} error${e !== 1 ? "s" : ""}` : ""}</span>`;
+      const summaryLabel =
+        `<span style="color:${color}">${esc(r.evaluator.name)}</span>` +
+        ` <span style="font-weight:400;font-size:12px;color:#6B7280"> · ${esc(r.evaluator.owasp ?? "")} · ${esc(r.evaluator.severity)} · ${p}/${r.results.length - e} passed${e > 0 ? ` · ${e} error${e !== 1 ? "s" : ""}` : ""}</span>`;
 
-    return `
+      return `
       <details>
         <summary>${summaryLabel}</summary>
         <div class="tc-block">${testCases}</div>
       </details>`;
-  }).join("\n");
+    })
+    .join("\n");
 
   const html = `<!DOCTYPE html>
 <html lang="en">

@@ -255,11 +255,10 @@ export async function collectMcpSectionInteractive() {
   const sectionParsed = McpScannerSectionSchema.safeParse(mcpSection);
   if (!sectionParsed.success) {
     log.error("Config validation failed (this is a bug).");
-    for (const issue of sectionParsed.error.issues) log.error(`${issue.path.join(".")}: ${issue.message}`);
+    for (const issue of sectionParsed.error.issues)
+      log.error(`${issue.path.join(".")}: ${issue.message}`);
     throw new Error("MCP config validation failed");
   }
 
   return sectionParsed.data;
 }
-
-

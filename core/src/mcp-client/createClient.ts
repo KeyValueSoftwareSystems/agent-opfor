@@ -1,6 +1,9 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
-import { StdioClientTransport, getDefaultEnvironment } from "@modelcontextprotocol/sdk/client/stdio.js";
+import {
+  StdioClientTransport,
+  getDefaultEnvironment,
+} from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { AstraMcpConfig } from "../config/schema.js";
 
@@ -17,7 +20,10 @@ function headersFromRecord(h: Record<string, string>): Headers {
   return headers;
 }
 
-async function connectUrlTransport(url: string, headers: Record<string, string>): Promise<McpConnectedClient> {
+async function connectUrlTransport(
+  url: string,
+  headers: Record<string, string>
+): Promise<McpConnectedClient> {
   const u = new URL(url);
   const requestInit = { headers: headersFromRecord(headers) };
   const client = new Client({ name: "astra-mcp", version: "0.0.1" });

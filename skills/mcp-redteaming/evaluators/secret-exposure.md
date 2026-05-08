@@ -77,5 +77,4 @@ patterns:
 
       Generate one entry per tool. Pick the argument most likely to trigger a verbose error for
       that specific tool based on its name and description.
-
 ---

@@ -22,8 +22,7 @@ export async function loadEvaluatorDoc(evaluatorId: string): Promise<EvaluatorDo
   const sp = splitYamlFrontmatter(raw);
   if (!sp) throw new Error(`Evaluator ${evaluatorId}: missing YAML frontmatter`);
   const doc = parseYaml(sp.yaml) as Record<string, unknown>;
-  const id =
-    typeof doc.id === "string" && doc.id.trim() ? doc.id.trim() : evaluatorId;
+  const id = typeof doc.id === "string" && doc.id.trim() ? doc.id.trim() : evaluatorId;
   const name = typeof doc.name === "string" ? doc.name : id;
   const patternsRaw = doc.patterns;
   const patterns: EvaluatorPattern[] = [];

@@ -30,19 +30,19 @@ evaluators:
 
 14 evaluators covering the full MCP attack surface.
 
-| OWASP id | Evaluator id | Theme |
-|---|---|---|
-| MCP01 | secret-exposure | API keys, tokens, credentials leaked via error paths or responses |
-| MCP01 | oauth-token-passthrough | OAuth confused deputy and token passthrough attacks |
-| MCP02 | scope-escalation | Privilege escalation and scope bypass |
-| MCP03 | tool-description-injection | Hidden instructions injected via adversarial tool inputs |
-| MCP03 | content-injection | Second-order content injection via scraped/fetched page content |
-| MCP03 | tool-description-scan | Static scan of tool descriptions for hidden LLM directives |
-| MCP04 | supply-chain | Software supply chain attacks and dependency tampering |
-| MCP05 | ssrf | Server-Side Request Forgery — internal IPs, cloud metadata, localhost |
-| MCP05 | command-injection | Command injection and shell metacharacter attacks |
-| MCP06 | intent-subversion | Agent intent redirection via tool responses |
-| MCP07 | missing-authentication | Unauthenticated or weakly authenticated tool access |
-| MCP08 | audit-telemetry | Lack of audit logging and telemetry — actions taken without traceability |
-| MCP09 | shadow-mcp-server | Shadow/rogue MCP server detection and spoofing |
-| MCP10 | cross-resource-leakage | Cross-user, cross-tenant, and cross-session data leakage |
+| OWASP id | Evaluator id               | Theme                                                                    |
+| -------- | -------------------------- | ------------------------------------------------------------------------ |
+| MCP01    | secret-exposure            | API keys, tokens, credentials leaked via error paths or responses        |
+| MCP01    | oauth-token-passthrough    | OAuth confused deputy and token passthrough attacks                      |
+| MCP02    | scope-escalation           | Privilege escalation and scope bypass                                    |
+| MCP03    | tool-description-injection | Hidden instructions injected via adversarial tool inputs                 |
+| MCP03    | content-injection          | Second-order content injection via scraped/fetched page content          |
+| MCP03    | tool-description-scan      | Static scan of tool descriptions for hidden LLM directives               |
+| MCP04    | supply-chain               | Software supply chain attacks and dependency tampering                   |
+| MCP05    | ssrf                       | Server-Side Request Forgery — internal IPs, cloud metadata, localhost    |
+| MCP05    | command-injection          | Command injection and shell metacharacter attacks                        |
+| MCP06    | intent-subversion          | Agent intent redirection via tool responses                              |
+| MCP07    | missing-authentication     | Unauthenticated or weakly authenticated tool access                      |
+| MCP08    | audit-telemetry            | Lack of audit logging and telemetry — actions taken without traceability |
+| MCP09    | shadow-mcp-server          | Shadow/rogue MCP server detection and spoofing                           |
+| MCP10    | cross-resource-leakage     | Cross-user, cross-tenant, and cross-session data leakage                 |

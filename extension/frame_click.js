@@ -6,7 +6,10 @@ function resolveDeepSelector(sel) {
   // Supports custom syntax produced by frame_collect:
   // shadow(<hostSel>) >> shadow(<hostSel2>) >> <innerSel>
   if (typeof sel !== "string" || !sel.trim()) return null;
-  const parts = sel.split(">>").map((p) => p.trim()).filter(Boolean);
+  const parts = sel
+    .split(">>")
+    .map((p) => p.trim())
+    .filter(Boolean);
 
   const queryOne = (root, selector) => {
     try {
@@ -75,7 +78,14 @@ function robustClick(el) {
   const clientY = rect ? Math.round(rect.top + Math.min(10, rect.height / 2)) : 1;
   const fireMouse = (type) =>
     el.dispatchEvent(
-      new MouseEvent(type, { bubbles: true, cancelable: true, composed: true, view: window, clientX, clientY })
+      new MouseEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+        view: window,
+        clientX,
+        clientY,
+      })
     );
   fireMouse("pointerdown");
   fireMouse("mousedown");
@@ -87,7 +97,8 @@ function robustClick(el) {
 (async () => {
   try {
     const sel = globalThis.__ASTRA_CLICK_SELECTOR__;
-    if (typeof sel !== "string" || !sel.trim()) return { ok: false, error: "Missing __ASTRA_CLICK_SELECTOR__" };
+    if (typeof sel !== "string" || !sel.trim())
+      return { ok: false, error: "Missing __ASTRA_CLICK_SELECTOR__" };
     const el = resolveDeepSelector(sel) || safeQuerySelector(document, sel);
     if (!(el instanceof Element)) return { ok: false, error: "Selector did not match" };
     if (!isVisible(el)) return { ok: false, error: "Target not visible" };
@@ -102,4 +113,3 @@ function robustClick(el) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
 })();
-
