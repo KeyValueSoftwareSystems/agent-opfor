@@ -622,7 +622,8 @@ export async function generateReport(
 </html>`;
 
   // --- write files ---
-  const reportDir = path.join(outputDir, `report-${reportId}`);
+  const folderTs = timestamp.slice(0, 8) + "-" + timestamp.slice(8, 14);
+  const reportDir = path.join(outputDir, `report-${folderTs}`);
   await mkdir(reportDir, { recursive: true });
 
   const htmlPath = path.join(reportDir, `report.html`);
