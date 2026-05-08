@@ -10,9 +10,10 @@ function modelLabel(model: ModelConfig): string {
 export function buildReport(args: {
   plan: AttackPlanWritten;
   results: AttackRunResult[];
-  runLlm: ModelConfig;
+  generatorModel: ModelConfig;
+  judgeModel: ModelConfig;
 }): RunReport {
-  const { plan, results, runLlm } = args;
+  const { plan, results, generatorModel, judgeModel } = args;
 
   // Group results by evaluatorId
   const byEvaluator = new Map<string, AttackRunResult[]>();
@@ -57,7 +58,8 @@ export function buildReport(args: {
     suiteId: plan.suiteId,
     serverSummary: plan.serverSummary,
     transport: plan.transport,
-    judgeModel: modelLabel(runLlm),
+    generatorModel: modelLabel(generatorModel),
+    judgeModel: modelLabel(judgeModel),
     summary: {
       total,
       passed,

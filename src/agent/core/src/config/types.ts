@@ -273,6 +273,23 @@ export interface TelemetryConfig {
 
 export type ProviderName = "openai" | "anthropic" | "groq" | "google" | "other";
 
+export const PROVIDER_CHOICES: { name: string; value: ProviderName }[] = [
+  { name: "OpenAI", value: "openai" },
+  { name: "Anthropic (Claude)", value: "anthropic" },
+  { name: "Google (Gemini)", value: "google" },
+  { name: "Groq", value: "groq" },
+  { name: "Other (OpenAI-compatible)", value: "other" },
+];
+
+/** Partial LLM config used in setup/config file inputs — all fields optional before resolution. */
+export interface LlmConfigInput {
+  provider?: ProviderName;
+  model?: string;
+  apiKeyEnv?: string;
+  baseURL?: string;
+}
+
+/** Fully resolved LLM config — all required fields present after setup resolution. */
 export interface LlmConfig {
   provider: ProviderName;
   model: string;
@@ -330,7 +347,10 @@ export interface AttackEntry {
 
 export interface PromptsFile {
   generatedAt: string;
-  llm: LlmConfig;
+  /** Model config for the attack generation phase. */
+  attackLlm: LlmConfig;
+  /** Separate model config for the judge phase. Falls back to `attackLlm` when absent. */
+  judgeLlm?: LlmConfig;
   target: TargetConfig;
   attacks: AttackEntry[];
   /** Copied from setup config when present; drives telemetry adapters during `astra run`. */
@@ -363,12 +383,10 @@ export interface InlineSetupConfig {
   selection:
     | { mode: "suite"; suite: string }
     | { mode: "evaluators"; evaluators: string[] };
-  llm?: {
-    provider?: ProviderName;
-    model?: string;
-    apiKeyEnv?: string;
-    baseURL?: string;
-  };
+  /** Model config for the attack generation phase. */
+  attackLlm?: LlmConfigInput;
+  /** Separate model config for the judge phase. Falls back to `attackLlm` when absent. */
+  judgeLlm?: LlmConfigInput;
   /**
    * When true and Langfuse credentials are present in the environment
    * (`LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY`), astra will fetch
@@ -390,12 +408,10 @@ export interface InlineSetupConfig {
 
 // Shape of the optional config file passed to `astra setup --config`
 export interface SetupConfigFile {
-  llm?: {
-    provider?: ProviderName;
-    model?: string;
-    apiKeyEnv?: string;
-    baseURL?: string;
-  };
+  /** Model config for the attack generation phase. */
+  attackLlm?: LlmConfigInput;
+  /** Separate model config for the judge phase. Falls back to `attackLlm` when absent. */
+  judgeLlm?: LlmConfigInput;
   target: {
     name: string;
     description: string;

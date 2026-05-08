@@ -5,7 +5,7 @@ import path from "node:path";
 /** Legacy helper: writes only an `"agent"` block; unified CLI uses `astra setup --agent`. */
 const SAMPLE_CONFIG = `{
   "agent": {
-    "llm": {
+    "attackLlm": {
       "provider": "openai",
       "model": "gpt-4o-mini",
       "apiKeyEnv": "OPENAI_API_KEY"

@@ -345,7 +345,7 @@ server.tool(
               ...(session_id_field ? { sessionIdField: session_id_field } : {}),
             },
             selection,
-            llm: llm_provider || llm_model || llm_api_key_env
+            attackLlm: llm_provider || llm_model || llm_api_key_env
               ? {
                   ...(llm_provider ? { provider: llm_provider } : {}),
                   ...(llm_model ? { model: llm_model } : {}),
