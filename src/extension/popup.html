@@ -1,0 +1,129 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Astra Agent UI Tester</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+      body {
+        font: 13px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+        margin: 0;
+        padding: 12px;
+        width: 380px;
+      }
+      h1 {
+        font-size: 14px;
+        margin: 0 0 8px;
+      }
+      button {
+        width: 100%;
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: 1px solid rgba(127, 127, 127, 0.35);
+        background: rgba(127, 127, 127, 0.12);
+        cursor: pointer;
+      }
+      input,
+      select {
+        width: 100%;
+        padding: 8px 10px;
+        border-radius: 10px;
+        border: 1px solid rgba(127, 127, 127, 0.35);
+        background: rgba(127, 127, 127, 0.08);
+      }
+      button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+      .secondary {
+        background: rgba(127, 127, 127, 0.08);
+      }
+      .card {
+        border: 1px solid rgba(127, 127, 127, 0.25);
+        border-radius: 12px;
+        padding: 10px;
+        margin: 10px 0;
+        background: rgba(127, 127, 127, 0.06);
+      }
+      .label {
+        font-size: 12px;
+        opacity: 0.8;
+        margin-bottom: 6px;
+      }
+      .row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-top: 8px;
+      }
+      .status {
+        margin-top: 10px;
+        font-size: 12px;
+        white-space: pre-wrap;
+        word-break: break-word;
+        opacity: 0.9;
+      }
+      .results {
+        margin-top: 8px;
+        font-size: 11px;
+        white-space: pre-wrap;
+        word-break: break-word;
+        max-height: 280px;
+        overflow: auto;
+      }
+      .hint {
+        margin-top: 8px;
+        font-size: 12px;
+        opacity: 0.75;
+      }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Adaptive red-team (single flow)</h1>
+
+    <div id="resumeBanner" class="card" style="display: none">
+      <div class="label">Paused session</div>
+      <div id="resumeDetail" class="hint"></div>
+      <div class="hint">Continue from saved progress, or discard.</div>
+      <div class="row">
+        <button id="resumeBtn">Continue</button>
+        <button id="discardPausedBtn" class="secondary">Discard</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="hint">
+        Pick one <strong>suite</strong> and one <strong>evaluator</strong> from <code>skills/astra-setup</code> (bundled as <code>catalog.json</code>). Messages use a
+        <strong>gentle</strong>, gradual tone—not blunt “dump everything” demands. Each user turn is generated after reading the assistant reply; one judge pass uses evaluator pass/fail criteria.
+      </div>
+      <div class="label">Suite</div>
+      <select id="suiteSelect"></select>
+      <div class="label" style="margin-top: 10px">Evaluator</div>
+      <select id="evaluatorSelect"></select>
+      <div class="row">
+        <div>
+          <div class="label">User rounds</div>
+          <input id="maxRounds" type="number" min="1" max="20" value="10" />
+        </div>
+        <div>
+          <div class="label">Wait after send (sec)</div>
+          <input id="waitSec" type="number" min="3" max="30" value="10" />
+        </div>
+      </div>
+      <button id="run">Run conversation → judge</button>
+      <button id="stop" class="secondary">Stop</button>
+    </div>
+
+    <div class="status" id="status"></div>
+    <div class="results" id="results"></div>
+
+    <div class="hint">Configure LLM in extension Options. Regenerate catalog: <code>node src/extension/scripts/build-catalog.mjs</code></div>
+    <script src="popup.js"></script>
+  </body>
+</html>
