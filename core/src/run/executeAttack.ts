@@ -1,4 +1,4 @@
-import type { McpConnectedClient } from "../mcp/createClient.js";
+import type { McpConnectedClient } from "../mcp-client/createClient.js";
 import type { AttackExecutionResult } from "./types.js";
 import type { AttackScenarioWithReplay } from "../attacks/planSchema.js";
 

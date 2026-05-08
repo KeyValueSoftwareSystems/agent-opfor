@@ -5,7 +5,7 @@
   "license": "Apache-2.0",
   "type": "module",
   "workspaces": [
-    "src/agent/core",
+    "core",
     "src/agent/mcp",
     "src/agent/cli"
   ],
