@@ -12,7 +12,8 @@ const MODELS = [
   "claude-opus-4-7",
   "claude-sonnet-4-6",
   "claude-haiku-4-5",
-  "llama-3.1-70b"
+  "llama-3.1-70b",
+  "llama-3.3-70b-versatile"
 ];
 
 const $ = (id) => document.getElementById(id);

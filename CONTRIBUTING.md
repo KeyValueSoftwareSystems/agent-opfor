@@ -164,12 +164,12 @@ Reference only evaluator IDs that exist in `skills/astra-setup/evaluators/`. The
 
 ## Adding a target adapter
 
-Target adapters connect Astra to new transport types or agent frameworks. They live in `src/mcp/mcp/` (MCP transports) or `src/agent/core/` (agent-side adapters).
+Target adapters connect Astra to new transport types or agent frameworks. They live in `core/src/mcp-client/` (MCP transports) and related `core/` modules.
 
 When adding a new transport:
 - Implement the same interface as `createClient.ts` — expose a `connectMcpClient()` function that returns `{ client, close }`.
-- Add a new discriminated union branch to `McpServerConfigSchema` in `src/mcp/config/schema.ts`.
-- Update the `init.ts` setup wizard to offer the new transport as an option.
+- Add a new discriminated union branch to `McpServerConfigSchema` in `core/src/config/schema.ts`.
+- Update the CLI setup wizard (`cli/src/commands/`) to offer the new transport as an option.
 - Add a fixture config so others can test it.
 
 ---
@@ -226,7 +226,7 @@ npx tsc --noEmit    # type-check without emitting
 - TypeScript with strict mode. No `any` without a comment explaining why.
 - Zod for all external input validation (config files, LLM responses, MCP responses).
 - Errors surfaced to the user should be actionable — tell the user what to fix, not just what went wrong.
-- No external dependencies unless genuinely necessary. Check existing utilities in `src/mcp/lib/` and `src/mcp/util/` first.
+- No external dependencies unless genuinely necessary. Check existing utilities in `core/src/lib/` first.
 
 ---
 

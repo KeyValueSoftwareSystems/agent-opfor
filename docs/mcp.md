@@ -36,7 +36,7 @@ Add to `~/.cursor/mcp.json` (global — works in all projects):
   "mcpServers": {
     "astra": {
       "command": "node",
-      "args": ["/absolute/path/to/astra/src/agent/mcp/dist/index.js"]
+      "args": ["/absolute/path/to/astra/mcp/dist/index.js"]
     }
   }
 }
@@ -51,7 +51,7 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
   "mcpServers": {
     "astra": {
       "command": "node",
-      "args": ["/absolute/path/to/astra/src/agent/mcp/dist/index.js"]
+      "args": ["/absolute/path/to/astra/mcp/dist/index.js"]
     }
   }
 }

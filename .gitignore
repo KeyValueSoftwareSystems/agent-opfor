@@ -30,3 +30,6 @@ tracedata.json
 
 # Back-compat / legacy artifacts (kept ignored)
 astra-mcp-attacks.json
+
+# Pre-refactor local trees / accidental rebuilds (canonical code is cli/, core/, mcp/)
+/src/

@@ -4,7 +4,7 @@ This repo builds and publishes **astra** — an evaluator-centric, provider-agno
 
 Read this file before making any changes to this repo.
 
-**Current packaging:** One npm package at the repo root (`@astra/mcp`), one binary **`astra`**, with top-level commands **`astra setup`**, **`astra generate`**, and **`astra run`** (mode selected during setup). User-facing install and usage live in the root **`README.md`**. Workspace packages are under **`src/agent/`** (core, cli, MCP server) plus **`src/mcp/`** for the MCP scanner CLI implementation.
+**Current packaging:** Workspace packages at the repo root: **`core/`** (shared engine), **`cli/`** (`astra` binary), **`mcp/`** (MCP server package). User-facing install and usage live in the root **`README.md`**.
 
 ---
 
