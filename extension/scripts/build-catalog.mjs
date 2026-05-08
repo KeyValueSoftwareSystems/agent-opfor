@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
- * Bundles evaluator + suite metadata from `src/agent/skills/astra-setup` into
- * `extension/catalog.json` for the MV3 extension (no filesystem access at runtime).
+ * Bundles evaluator + suite metadata from `skills/agent-redteaming/astra-setup`
+ * into `extension/catalog.json` for the MV3 extension (no filesystem access at
+ * runtime).
  *
  * Run from repo root: node extension/scripts/build-catalog.mjs
  */
@@ -12,7 +13,7 @@ import { parse as parseYaml } from "yaml";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "../..");
-const SETUP_ROOT = path.join(REPO_ROOT, "src/agent/skills/astra-setup");
+const SETUP_ROOT = path.join(REPO_ROOT, "skills/agent-redteaming/astra-setup");
 const OUT = path.join(REPO_ROOT, "extension/catalog.json");
 
 function splitYamlFrontmatter(raw) {
