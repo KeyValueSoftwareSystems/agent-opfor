@@ -40,6 +40,9 @@
       * {
         box-sizing: border-box;
       }
+      [hidden] {
+        display: none !important;
+      }
       html,
       body {
         margin: 0;
@@ -92,6 +95,14 @@
       @keyframes spin {
         to {
           transform: rotate(360deg);
+        }
+      }
+      @keyframes scan {
+        0% {
+          transform: translateX(-100%);
+        }
+        100% {
+          transform: translateX(100%);
         }
       }
 
@@ -725,11 +736,9 @@
         margin-left: 8px;
       }
       .status-phase {
-        font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
         font-size: 13.5px;
         color: var(--muted-2);
-        letter-spacing: 0.1em;
-        text-transform: uppercase;
+        letter-spacing: 0.01em;
         margin-bottom: 10px;
       }
       .turn-track {
@@ -746,6 +755,67 @@
         transition: width 0.4s;
         box-shadow: 0 0 12px var(--accent);
         width: 0%;
+      }
+      .turn-track[data-scanning="true"] .turn-fill {
+        width: 100% !important;
+        background: linear-gradient(90deg, transparent, var(--accent), transparent);
+        box-shadow: none;
+        animation: scan 1.4s linear infinite;
+        transition: none;
+      }
+
+      .bubbles {
+        margin-top: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        position: relative;
+      }
+      .bubble {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+      }
+      .bubble[data-who="attacker"] {
+        align-items: flex-end;
+      }
+      .bubble[data-who="agent"] {
+        align-items: flex-start;
+      }
+      .bubble .kicker {
+        font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+        font-size: 9.5px;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        font-weight: 500;
+        color: var(--muted-2);
+      }
+      .bubble[data-who="attacker"] .kicker {
+        color: var(--accent);
+      }
+      .bubble .body {
+        background: var(--bg-3);
+        border: 1px solid var(--line-3);
+        border-radius: 8px;
+        padding: 8px 10px;
+        font-size: 13.5px;
+        line-height: 1.5;
+        color: var(--text-2);
+        max-width: 92%;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .bubble[data-who="attacker"] .body {
+        background: rgba(245, 165, 36, 0.08);
+        border-color: rgba(245, 165, 36, 0.25);
+        color: var(--text);
+      }
+      .bubble .body[data-pending="true"]::after {
+        content: "▍";
+        margin-left: 2px;
+        color: var(--accent);
+        font-weight: 700;
+        animation: blink 1s step-end infinite;
       }
 
       .judge-row {
@@ -1359,6 +1429,14 @@
               </button>
               <div class="dd-menu" role="listbox"></div>
             </div>
+            <input
+              id="baseUrl"
+              type="text"
+              placeholder="https://api.openai.com/v1"
+              autocomplete="off"
+              spellcheck="false"
+              style="margin-top: 8px"
+            />
             <div class="api-key-wrap">
               <input id="apiKey" type="password" placeholder="sk-…" autocomplete="off" />
               <button id="apiKeyEye" class="eye-btn" type="button" title="Show">
@@ -1401,7 +1479,8 @@
               <div id="runTurnLabel" class="turn">init</div>
             </div>
             <div id="runPhaseText" class="status-phase mono">// finding chat widget</div>
-            <div class="turn-track"><div id="runTurnFill" class="turn-fill"></div></div>
+            <div id="runTurnTrack" class="turn-track"><div id="runTurnFill" class="turn-fill"></div></div>
+            <div id="runBubbles" class="bubbles" hidden></div>
             <div id="runJudgeRow" class="judge-row" hidden>
               <div class="judge-spinner"></div>
               <div class="judge-text">Sending transcript to the judge…</div>

@@ -22,6 +22,7 @@ const state = {
   catalog: /** @type {null | { suites: any[]; evaluators: any[] }} */ (null),
   suiteId: "",
   selectedEvaluators: new Set(),
+  baseUrl: "https://api.openai.com/v1",
   model: "gpt-4o-mini",
   apiKey: "",
   scrapeFromSite: true,
@@ -280,6 +281,7 @@ async function loadSettings() {
   });
   const profiles = stored.astraLlmProfiles;
   if (profiles?.attacker) {
+    state.baseUrl = profiles.attacker.baseUrl || state.baseUrl;
     state.model = profiles.attacker.model || state.model;
     state.apiKey = profiles.attacker.apiKey || "";
   }
@@ -301,16 +303,15 @@ async function saveSettings() {
 }
 
 async function saveModelAndKey() {
-  const { astraLlmProfiles } = await chrome.storage.local.get("astraLlmProfiles");
-  const base = astraLlmProfiles && typeof astraLlmProfiles === "object" ? astraLlmProfiles : {};
-  const next = { v: 1, provider: base.provider || "openai_compat" };
+  // Single popup-driven config — same baseUrl/model/apiKey for all three roles.
+  const baseUrl = (state.baseUrl || "").trim() || "https://api.openai.com/v1";
+  const next = { v: 1, provider: "openai_compat" };
   for (const k of ["attacker", "judge", "reader"]) {
-    const existing = base[k] || {};
     next[k] = {
-      baseUrl: existing.baseUrl || "https://api.openai.com/v1",
+      baseUrl,
       model: state.model,
       apiKey: state.apiKey,
-      enabled: existing.enabled ?? true
+      enabled: true
     };
   }
   await chrome.storage.local.set({ astraLlmProfiles: next });
@@ -371,8 +372,10 @@ function renderRunningHeader() {
   const overall = total ? ((idx + (state.subProgress || 0)) / total) * 100 : 0;
   $("runOverallPct").textContent = `${Math.round(overall)}%`;
   $("runOverallFill").style.width = `${overall}%`;
-  const cur = state.queue[idx];
-  $("runEvalName").textContent = cur?.name || "—";
+  if (state.currentPhase !== "locating") {
+    const cur = state.queue[idx];
+    $("runEvalName").textContent = cur?.name || "—";
+  }
 }
 
 function renderRunStrip() {
@@ -392,18 +395,54 @@ function renderRunStrip() {
   });
 }
 
+const LOCATE_HINTS = [
+  "Loading page DOM",
+  "Scanning iframes and shadow roots",
+  "Matching widget signatures",
+  "Probing message input"
+];
+let locateHintInterval = null;
+function startLocateHintLoop() {
+  stopLocateHintLoop();
+  let i = 0;
+  $("runPhaseText").textContent = LOCATE_HINTS[i];
+  locateHintInterval = setInterval(() => {
+    if (state.currentPhase !== "locating") {
+      stopLocateHintLoop();
+      return;
+    }
+    i = (i + 1) % LOCATE_HINTS.length;
+    $("runPhaseText").textContent = LOCATE_HINTS[i];
+  }, 1300);
+}
+function stopLocateHintLoop() {
+  if (locateHintInterval) clearInterval(locateHintInterval);
+  locateHintInterval = null;
+}
+
 function setPhase(phase) {
-  const map = {
-    locating: "// finding chat widget",
-    running: "// adversarial turn",
-    judging: "// evaluating transcript"
-  };
-  $("runPhaseText").textContent = map[phase] || "";
+  state.currentPhase = phase;
   $("runJudgeRow").hidden = phase !== "judging";
-  if (phase === "judging") {
-    $("runTurnLabel").textContent = "judge";
-  } else if (phase === "locating") {
-    $("runTurnLabel").textContent = "init";
+  $("runTurnTrack").dataset.scanning = String(phase === "locating");
+  $("runBubbles").hidden = phase !== "running";
+  if (phase === "locating") {
+    $("runEvalName").textContent = "Detecting chat widget";
+    $("runTurnLabel").textContent = "";
+    startLocateHintLoop();
+  } else {
+    stopLocateHintLoop();
+    if (phase === "judging") {
+      $("runPhaseText").textContent = "Evaluating transcript";
+      $("runTurnLabel").textContent = "judge";
+      const cur = state.queue[state.evIdx];
+      if (cur) $("runEvalName").textContent = cur.name;
+    } else if (phase === "running") {
+      $("runPhaseText").textContent = "Adversarial turn in progress";
+      const cur = state.queue[state.evIdx];
+      if (cur) $("runEvalName").textContent = cur.name;
+    } else {
+      $("runPhaseText").textContent = "";
+    }
   }
 }
 
@@ -411,29 +450,100 @@ function setTurnProgress(turn) {
   const total = state.maxTurns || 10;
   const pct = Math.min(100, (turn / total) * 100);
   $("runTurnFill").style.width = `${pct}%`;
-  $("runTurnLabel").textContent = `${String(turn).padStart(2, "0")}/${String(total).padStart(2, "0")}`;
+  if (state.currentPhase !== "locating") {
+    $("runTurnLabel").textContent = `${String(turn).padStart(2, "0")}/${String(total).padStart(2, "0")}`;
+  }
   state.subProgress = turn / total;
   renderRunningHeader();
 }
 
+// Latest in-flight turn pair, populated by progress events. Reset per evaluator.
+let latestTurn = { round: 0, user: "", assistant: "" };
+
+function renderBubbles() {
+  const box = $("runBubbles");
+  box.innerHTML = "";
+  if (!latestTurn.user && !latestTurn.assistant) {
+    box.hidden = true;
+    return;
+  }
+  box.hidden = false;
+  if (latestTurn.user) {
+    const a = document.createElement("div");
+    a.className = "bubble";
+    a.dataset.who = "attacker";
+    a.innerHTML = `<div class="kicker">// attacker</div><div class="body"></div>`;
+    a.querySelector(".body").textContent = latestTurn.user;
+    box.appendChild(a);
+  }
+  const g = document.createElement("div");
+  g.className = "bubble";
+  g.dataset.who = "agent";
+  g.innerHTML = `<div class="kicker">// agent</div><div class="body"></div>`;
+  const body = g.querySelector(".body");
+  if (latestTurn.assistant) {
+    body.textContent = latestTurn.assistant;
+  } else {
+    body.textContent = "";
+    body.dataset.pending = "true";
+  }
+  box.appendChild(g);
+}
+
+function resetBubbles() {
+  latestTurn = { round: 0, user: "", assistant: "" };
+  $("runBubbles").innerHTML = "";
+  $("runBubbles").hidden = true;
+}
+
+let progressActive = false;
+
+function handleProgress(message) {
+  if (state.screen !== "running") return;
+  progressActive = true;
+  stopCosmeticTicker();
+  if (message.kind === "phase") {
+    setPhase(message.phase);
+    if (message.phase === "running") setTurnProgress(0);
+    if (message.phase === "locating") {
+      resetBubbles();
+      setTurnProgress(0);
+    }
+  } else if (message.kind === "turn") {
+    setPhase("running");
+    if (message.round !== latestTurn.round) {
+      latestTurn = { round: message.round, user: "", assistant: "" };
+    }
+    if (message.role === "user") {
+      latestTurn.user = String(message.content || "");
+    } else if (message.role === "assistant") {
+      latestTurn.assistant = String(message.content || "");
+      setTurnProgress(message.round);
+    }
+    renderBubbles();
+  }
+}
+
 function startCosmeticTicker() {
-  // Animate turn progress over the estimated duration of one evaluator's run.
-  // The service worker run is opaque, so this is a visual estimate based on
-  // (maxTurns × waitSec) plus a small judge buffer.
+  // Fallback animation while real progress events haven't arrived yet.
+  // Stays in the locating state until either: a phase=running progress event
+  // (preferred), or — if the popup never receives one — the cosmetic timer
+  // can still advance turn progress once we've left locating.
   stopCosmeticTicker();
   setPhase("locating");
   setTurnProgress(0);
   let turn = 0;
-  let startedAt = Date.now();
+  let startedAt = null;
   const totalMs = Math.max(4000, state.maxTurns * state.waitSec * 1000);
   runTickInterval = setInterval(() => {
     if (state.cancelRequested || state.pauseRequested) return;
+    if (state.currentPhase !== "running") return;
+    if (startedAt == null) startedAt = Date.now();
     const elapsed = Date.now() - startedAt;
     const ratio = Math.min(0.95, elapsed / totalMs);
     const desired = Math.floor(ratio * state.maxTurns);
     if (desired > turn) {
       turn = desired;
-      if (turn >= 1 && $("runPhaseText").textContent.includes("widget")) setPhase("running");
       setTurnProgress(turn);
     }
   }, 400);
@@ -714,20 +824,41 @@ function generateHtmlReport(report) {
         </ol>
       </section>`;
 
-  const turnUser = (t) => t.user || t.attacker || (t.role === "user" ? t.content : "") || "";
-  const turnAgent = (t) => t.bot || t.agent || t.assistant || (t.role === "assistant" ? t.content : "") || "";
+  // Service worker returns BOTH `transcript` ([{role,content}, ...]) and
+  // `turns` (turnLog: [{round, userMessage, assistantPreview, ...}]). Prefer
+  // the transcript array since it carries full assistant responses; fall back
+  // to turnLog when transcript is missing or empty.
+  const turnsForReport = (raw) => {
+    const tr = Array.isArray(raw?.transcript) ? raw.transcript : [];
+    if (tr.length) {
+      const pairs = [];
+      for (let i = 0; i < tr.length; i += 2) {
+        const u = tr[i]?.role === "user" ? String(tr[i].content || "") : "";
+        const next = tr[i + 1];
+        const a = next && next.role === "assistant" ? String(next.content || "") : "";
+        if (u || a) pairs.push({ user: u, assistant: a });
+      }
+      if (pairs.length) return pairs;
+    }
+    const tl = Array.isArray(raw?.turns) ? raw.turns : [];
+    return tl.map((t) => ({
+      user: String(t.userMessage || t.user || t.attacker || (t.role === "user" ? t.content : "") || ""),
+      assistant: String(t.assistantPreview || t.bot || t.agent || t.assistant || (t.role === "assistant" ? t.content : "") || "")
+    }));
+  };
+
   const appendix = evaluatorResults
     .map((e) => {
-      const turns = Array.isArray(e.raw?.turns) ? e.raw.turns : [];
+      const turns = turnsForReport(e.raw);
       const transcript = state.saveTranscript && turns.length
         ? `<div class="transcript">${turns
             .map(
               (t, i) => `
               <div class="turn">
                 <div class="turn-label">Turn ${i + 1} · attacker</div>
-                <pre>${escapeHtml(truncate(turnUser(t), 1200))}</pre>
+                <pre>${escapeHtml(truncate(t.user, 4000))}</pre>
                 <div class="turn-label">Turn ${i + 1} · agent</div>
-                <pre>${escapeHtml(truncate(turnAgent(t), 1200))}</pre>
+                <pre>${escapeHtml(truncate(t.assistant, 4000))}</pre>
               </div>`
             )
             .join("")}</div>`
@@ -893,6 +1024,8 @@ function downloadReport() {
 
 // ── Run loop ───────────────────────────────────────────────────
 async function runOneEvaluator(ev, { resume = false } = {}) {
+  resetBubbles();
+  progressActive = false;
   startCosmeticTicker();
   const payload = resume
     ? { type: "ASTRA_UI_RESUME" }
@@ -1112,6 +1245,12 @@ function wire() {
     saveSettings();
   });
 
+  // Base URL
+  $("baseUrl").addEventListener("input", (e) => {
+    state.baseUrl = e.target.value;
+    saveModelAndKey();
+  });
+
   // API key
   $("apiKey").addEventListener("input", (e) => {
     state.apiKey = e.target.value;
@@ -1186,6 +1325,13 @@ function wire() {
 
   // NOTE: We intentionally do NOT stop the background run on popup close.
   // The service worker can continue running; the popup can be reopened to Stop or view status.
+
+  // Live progress events from the service worker (phase changes + transcript
+  // turns). Shows "Detecting chat widget" during locate and renders the
+  // attacker/agent bubbles for the current exchange while running.
+  chrome.runtime.onMessage.addListener((m) => {
+    if (m?.type === "ASTRA_UI_PROGRESS") handleProgress(m);
+  });
 }
 
 // ── Init ───────────────────────────────────────────────────────
@@ -1194,6 +1340,7 @@ async function init() {
   await loadSettings();
 
   // Apply loaded settings to UI fields
+  $("baseUrl").value = state.baseUrl;
   $("apiKey").value = state.apiKey;
   modelDD.setValue(state.model);
   $("agentDescription").value = state.agentDescription;

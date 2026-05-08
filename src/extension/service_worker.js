@@ -586,6 +586,14 @@ async function setRunStatus(status) {
   });
 }
 
+// Fire-and-forget progress broadcast for the popup. If no popup is listening
+// the send rejects — that's fine.
+function broadcastProgress(payload) {
+  try {
+    chrome.runtime.sendMessage({ type: "ASTRA_UI_PROGRESS", ...payload }).catch(() => {});
+  } catch {}
+}
+
 async function clearRunStatus() {
   await chrome.storage.local.set({
     astraRunStatus: { v: 1, running: false, updatedAt: Date.now() }
@@ -605,6 +613,12 @@ async function persistPartialResult(payload) {
 async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
   beginUiRunAbortController();
   ASTRA_STOP = false;
+  broadcastProgress({
+    kind: "phase",
+    phase: "locating",
+    suiteId: message?.suiteId,
+    evaluatorId: message?.evaluatorId
+  });
 
   let attackerCfg;
   let judgeCfg;
@@ -767,6 +781,14 @@ async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
       startedAt: Date.now()
     });
 
+    broadcastProgress({
+      kind: "phase",
+      phase: "running",
+      suiteId,
+      evaluatorId: evaluatorSnapshot?.id,
+      maxRounds
+    });
+
     const suiteRec = catalog.suites.find((s) => s.id === suiteId);
     const suiteLabel = suiteRec ? `${suiteRec.name} (${suiteRec.id})` : suiteId;
 
@@ -857,6 +879,14 @@ async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
       });
 
       transcript.push({ role: "user", content: userMessage });
+      broadcastProgress({
+        kind: "turn",
+        round: round + 1,
+        role: "user",
+        content: userMessage,
+        suiteId,
+        evaluatorId: evaluatorSnapshot?.id
+      });
 
       await sleepInterruptible(waitMs);
       if (ASTRA_STOP) {
@@ -901,6 +931,14 @@ async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
         role: "assistant",
         content: assistantText || "(Could not extract assistant reply from the page.)"
       });
+      broadcastProgress({
+        kind: "turn",
+        round: round + 1,
+        role: "assistant",
+        content: assistantText || "(Could not extract assistant reply from the page.)",
+        suiteId,
+        evaluatorId: evaluatorSnapshot?.id
+      });
 
       turnLog.push({
         round: round + 1,
@@ -911,6 +949,14 @@ async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
       });
     }
 
+    if (transcript.length >= 2) {
+      broadcastProgress({
+        kind: "phase",
+        phase: "judging",
+        suiteId,
+        evaluatorId: evaluatorSnapshot?.id
+      });
+    }
     let judgment =
       transcript.length >= 2
         ? await judgeConversationFinal(judgeCfg, { evaluatorSnapshot, transcript })

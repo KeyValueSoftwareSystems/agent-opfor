@@ -43,6 +43,101 @@ function textOf(el) {
   return (el?.textContent || "").replace(/\s+/g, " ").trim();
 }
 
+// True if `el` is itself an interactive control or sits inside one
+// (action chips, quick-reply pills, "Chat with Sales now" CTAs, etc.).
+function isInteractive(el) {
+  for (let n = el; n instanceof Element; n = n.parentElement) {
+    const tag = n.tagName;
+    if (tag === "BUTTON" || tag === "A" || tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return true;
+    const role = (n.getAttribute && n.getAttribute("role")) || "";
+    if (/^(button|link|menuitem|option|tab)$/i.test(role)) return true;
+    const cls = ((n.className || "") + "").toLowerCase();
+    if (
+      cls.includes("suggestion") ||
+      cls.includes("quick-repl") ||
+      cls.includes("quickrepl") ||
+      cls.includes("quick_repl") ||
+      cls.includes("cta") ||
+      cls.includes("call-to-action") ||
+      cls.includes("action-button") ||
+      cls.includes("action_button") ||
+      cls.includes("chips") ||
+      cls.includes("chip-")
+    )
+      return true;
+  }
+  return false;
+}
+
+// Boilerplate / disclaimer / branding text that frequently sticks to the
+// bottom of embedded chat widgets (Chili Piper, Drift, Intercom, etc.).
+function looksLikeFooter(text) {
+  if (!text) return false;
+  const t = text.toLowerCase();
+  return (
+    t.includes("provides this chat") ||
+    t.includes("you agree this chat") ||
+    t.includes("may be recorded") ||
+    t.includes("privacy statement") ||
+    t.includes("privacy policy") ||
+    t.includes("terms of service") ||
+    t.includes("powered by") ||
+    /^©\s/.test(text) ||
+    t.startsWith("by chatting") ||
+    t.includes("cookie policy")
+  );
+}
+
+// Skip pinned/sticky chrome (footer disclaimers, persistent CTA bars).
+function isPinned(el) {
+  for (let n = el, hops = 0; n instanceof Element && hops < 6; n = n.parentElement, hops++) {
+    try {
+      const pos = window.getComputedStyle(n).position;
+      if (pos === "sticky" || pos === "fixed") return true;
+    } catch {}
+  }
+  return false;
+}
+
+function isExtractable(el, text) {
+  if (!(el instanceof Element)) return false;
+  if (isInteractive(el)) return false;
+  if (isPinned(el)) return false;
+  if (isLikelyButtonRow(el)) return false;
+  if (looksLikeFooter(text || textOf(el))) return false;
+  return true;
+}
+
+// Returns true when most of the element's visible text actually lives inside
+// <button> or role="button" descendants — i.e. it's an action-chip row, not
+// a message bubble. Treats <a> as content (legit links inside replies).
+function isLikelyButtonRow(el) {
+  if (!(el instanceof Element)) return false;
+  const total = textOf(el);
+  if (!total) return false;
+  const buttons = Array.from(el.querySelectorAll('button, [role="button"]')).filter(
+    (b) => b instanceof Element && isVisible(b)
+  );
+  if (buttons.length === 0) return false;
+  let buttonText = 0;
+  for (const b of buttons) buttonText += textOf(b).length;
+  // Two or more buttons + dominant share of the element's text.
+  if (buttons.length >= 2 && buttonText / total.length > 0.6) return true;
+  // Single button that is essentially the entire content (a lone CTA).
+  if (buttons.length === 1 && buttonText / total.length > 0.8 && total.length < 80) return true;
+  return false;
+}
+
+// Heuristic: prefer text that reads like a sentence (or a multi-line bot
+// reply) over short, choppy chip labels.
+function looksSentencey(text) {
+  if (!text) return false;
+  const t = text.trim();
+  if (t.length >= 80) return true;
+  // Mid-text terminator (avoid trailing-only punctuation).
+  return /[\.\?!]\s+\S/.test(t) || /\n/.test(t);
+}
+
 function extractFromRoleLog() {
   const logs = queryAllDeep("[role='log']")
     .filter((el) => el instanceof Element && isVisible(el))
@@ -59,9 +154,11 @@ function extractFromRoleLog() {
   // Try list items first (common chat transcript structure)
   const items = Array.from(best.querySelectorAll("li, article, div"))
     .map((n) => ({ n, t: textOf(n) }))
-    .filter((x) => x.t.length > 0);
+    .filter((x) => x.t.length > 0 && isExtractable(x.n, x.t));
   const last = items[items.length - 1]?.t;
-  return last || textOf(best) || null;
+  if (last) return last;
+  const fallback = textOf(best);
+  return fallback && !looksLikeFooter(fallback) ? fallback : null;
 }
 
 function extractByCommonLabels() {
@@ -109,18 +206,40 @@ function extractFromAssistantBubbles() {
     "[class*='cp-message' i]",
     "[class*='chilipiper' i]"
   ].join(", ");
-  const els = queryAllDeep(sel).filter((el) => el instanceof Element && isVisible(el));
+  const els = queryAllDeep(sel).filter(
+    (el) =>
+      el instanceof Element &&
+      isVisible(el) &&
+      !isInteractive(el) &&
+      !isPinned(el) &&
+      !isLikelyButtonRow(el)
+  );
   if (!els.length) return null;
   const sorted = els.slice().sort((a, b) => {
     const ra = a.getBoundingClientRect().bottom;
     const rb = b.getBoundingClientRect().bottom;
-    return ra - rb;
+    return rb - ra;
   });
-  const last = sorted[sorted.length - 1];
-  const inner =
-    last.querySelector("[class*='message-content'], [class*='markdown'], [class*='text'], p") || last;
-  const t = textOf(inner);
-  return t.length ? t : null;
+  // Walk from the bottom and prefer a sentence-like reply over a chip row.
+  for (const candidate of sorted.slice(0, 4)) {
+    const inner =
+      candidate.querySelector(
+        "[class*='message-content'], [class*='markdown'], [class*='text'], p"
+      ) || candidate;
+    const t = textOf(inner);
+    if (!t.length || looksLikeFooter(t) || isLikelyButtonRow(candidate)) continue;
+    if (looksSentencey(t)) return t;
+  }
+  // Fallback: bottom-most that survived the filters, even if not sentencey.
+  for (const candidate of sorted) {
+    const inner =
+      candidate.querySelector(
+        "[class*='message-content'], [class*='markdown'], [class*='text'], p"
+      ) || candidate;
+    const t = textOf(inner);
+    if (t.length && !looksLikeFooter(t)) return t;
+  }
+  return null;
 }
 
 function findComposerElement() {
@@ -154,20 +273,49 @@ function extractFromMessageLikeRows() {
       if (seen.has(el)) continue;
       seen.add(el);
       const cls = ((el.className || "") + "").toLowerCase();
-      if (cls.includes("composer") || cls.includes("input-area") || cls.includes("textarea-wrap")) continue;
+      if (
+        cls.includes("composer") ||
+        cls.includes("input-area") ||
+        cls.includes("textarea-wrap") ||
+        cls.includes("footer") ||
+        cls.includes("disclaimer") ||
+        cls.includes("branding") ||
+        cls.includes("powered") ||
+        cls.includes("consent") ||
+        cls.includes("privacy") ||
+        cls.includes("suggestion") ||
+        cls.includes("quick-repl") ||
+        cls.includes("cta") ||
+        cls.includes("button") ||
+        cls.includes("btn-") ||
+        cls.includes("-btn") ||
+        cls.includes("pill") ||
+        cls.includes("options-") ||
+        cls.includes("-options") ||
+        cls.includes("actions") ||
+        cls.includes("answer-opt") ||
+        cls.includes("choice")
+      )
+        continue;
+      if (isInteractive(el) || isPinned(el) || isLikelyButtonRow(el)) continue;
       const r = el.getBoundingClientRect();
       if (r.bottom > composerTop - 6) continue;
       if (r.height > 900 || r.width < 24) continue;
       const t = textOf(el);
       if (t.length < 12 || t.length > 12_000) continue;
+      if (looksLikeFooter(t)) continue;
       candidates.push({ el, bottom: r.bottom, area: r.width * r.height, t });
     }
   }
   const leaves = candidates.filter((a) => !candidates.some((b) => a !== b && b.el.contains(a.el)));
   if (!leaves.length) return null;
+  // Prefer the bottom-most leaf, but if the lowest one is a short chip-like
+  // label and there's a recent "sentencey" leaf right above it, take that.
   leaves.sort((a, b) => b.bottom - a.bottom);
-  const best = leaves[0];
-  return best?.t || null;
+  for (const leaf of leaves.slice(0, 4)) {
+    if (looksSentencey(leaf.t)) return leaf.t;
+  }
+  return leaves[0]?.t || null;
 }
 
 /** Bottom-most text block sitting above the composer (fallback when vendors use hashed CSS). */
@@ -179,11 +327,13 @@ function extractLeafAboveComposer() {
   for (const el of queryAllDeep("div, p, li, article, section")) {
     if (!(el instanceof HTMLElement) || !isVisible(el)) continue;
     if (composer.contains(el) || el.contains(composer)) continue;
+    if (isInteractive(el) || isPinned(el) || isLikelyButtonRow(el)) continue;
     const r = el.getBoundingClientRect();
     if (r.bottom > cTop - 8) continue;
     if (r.height > 700 || r.height < 14) continue;
     const t = textOf(el);
     if (t.length < 15 || t.length > 10_000) continue;
+    if (looksLikeFooter(t)) continue;
     blocks.push({ el, bottom: r.bottom, area: r.width * r.height, t });
   }
   const leaves = blocks.filter((a) => !blocks.some((b) => a !== b && b.el.contains(a.el)));
@@ -193,22 +343,29 @@ function extractLeafAboveComposer() {
     if (Math.abs(d) > 2) return d;
     return a.area - b.area;
   });
+  // Walk from the bottom up to 4 candidates, picking the first that reads
+  // like a real reply rather than a short chip/label.
+  for (const leaf of leaves.slice(0, 4)) {
+    if (looksSentencey(leaf.t)) return leaf.t;
+  }
   return leaves[0]?.t || null;
 }
 
 /** Live regions sometimes mirror the latest bot line (Drift, Chili Piper, etc.). */
 function extractFromAriaLiveRegion() {
   const regions = queryAllDeep('[aria-live="polite"], [aria-live="assertive"]')
-    .filter((el) => el instanceof Element && isVisible(el))
+    .filter((el) => el instanceof Element && isVisible(el) && !isPinned(el))
     .sort((a, b) => b.getBoundingClientRect().bottom - a.getBoundingClientRect().bottom);
   for (const region of regions) {
     const t = textOf(region);
-    if (t.length >= 15 && t.length < 8000) return t;
-    const ps = Array.from(region.querySelectorAll("p, div")).filter((x) => isVisible(x));
+    if (t.length >= 15 && t.length < 8000 && !looksLikeFooter(t)) return t;
+    const ps = Array.from(region.querySelectorAll("p, div")).filter(
+      (x) => isVisible(x) && !isInteractive(x) && !isPinned(x)
+    );
     const lastP = ps[ps.length - 1];
     if (lastP) {
       const tp = textOf(lastP);
-      if (tp.length >= 12) return tp;
+      if (tp.length >= 12 && !looksLikeFooter(tp)) return tp;
     }
   }
   return null;
@@ -220,11 +377,12 @@ function extractFromRoleFeed() {
   const feed = feeds[0];
   if (!feed) return null;
   const items = Array.from(feed.querySelectorAll("[role='article'], li, [class*='message' i]"))
-    .filter((el) => el instanceof Element && isVisible(el));
+    .filter((el) => el instanceof Element && isVisible(el) && !isInteractive(el) && !isPinned(el));
   const last = items[items.length - 1];
   if (!last) return null;
   const t = textOf(last);
-  return t.length >= 10 ? t : null;
+  if (t.length < 10 || looksLikeFooter(t)) return null;
+  return t;
 }
 
 (() => {

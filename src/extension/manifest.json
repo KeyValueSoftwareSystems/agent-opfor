@@ -9,7 +9,6 @@
   },
   "permissions": ["activeTab", "scripting", "storage", "webNavigation"],
   "host_permissions": ["<all_urls>"],
-  "options_page": "options.html",
   "background": {
     "service_worker": "service_worker.js",
     "type": "module"
