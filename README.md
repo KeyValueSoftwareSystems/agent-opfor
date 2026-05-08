@@ -97,7 +97,7 @@ The config file written by `astra setup --agent` has an `agent` section with `ll
   "createdAt": "2026-05-05T00:00:00.000Z",
   "mode": "agent",
   "agent": {
-    "llm": { "provider": "groq", "model": "llama-3.3-70b-versatile" },
+    "llm": { "provider": "groq", "model": "llama-3.3-70b-versatile", "apiKeyEnv": "GROQ_API_KEY" },
     "target": {
       "name": "My Support Bot",
       "description": "A customer support chatbot with access to user booking data and PII.",
@@ -124,7 +124,7 @@ For a local script target (stdin/stdout adapter):
 
 Astra connects to your MCP server, calls `tools/list`, generates attacks per tool, fires real `tools/call` requests, and judges the responses.
 
-The config file written by `astra setup --mcp` has an `mcp` section with `server` and `model`:
+The config file written by `astra setup --mcp` has an `mcp` section with `server` and `llm`:
 
 ```json
 {
@@ -137,7 +137,7 @@ The config file written by `astra setup --mcp` has an `mcp` section with `server
       "command": "node",
       "args": ["dist/index.js"]
     },
-    "model": { "provider": "openai", "model": "gpt-4o-mini", "apiKeyEnv": "OPENAI_API_KEY" }
+    "llm": { "provider": "openai", "model": "gpt-4o-mini", "apiKeyEnv": "OPENAI_API_KEY" }
   }
 }
 ```
@@ -151,7 +151,7 @@ For a remote MCP server over HTTP/SSE:
     "url": "https://your-mcp-server.example.com/mcp",
     "headers": { "Authorization": "Bearer <token>" }
   },
-  "model": { "provider": "openai", "model": "gpt-4o-mini", "apiKeyEnv": "OPENAI_API_KEY" }
+  "llm": { "provider": "openai", "model": "gpt-4o-mini", "apiKeyEnv": "OPENAI_API_KEY" }
 }
 ```
 
@@ -186,11 +186,7 @@ export ANTHROPIC_API_KEY=sk-ant-...
 export GOOGLE_GENERATIVE_AI_API_KEY=...
 ```
 
-You can also embed the key directly in the config file (not recommended for shared configs):
-
-```json
-"llm": { "provider": "groq", "apiKey": "gsk_..." }
-```
+Both agent and MCP configs use `apiKeyEnv` — a reference to an environment variable name, not the key value itself. This keeps secrets out of config files.
 
 Never commit API keys. Add `.astra/` to `.gitignore`.
 

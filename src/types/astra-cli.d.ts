@@ -6,7 +6,6 @@ declare module "astra-cli" {
   export function generateAgentAttacksFromConfig(opts: {
     configPath: string;
     outputPath: string;
-    apiKeyOverride?: string;
     configId?: string;
   }): Promise<string>;
   export function runAgentAttacksFromFile(opts: {
@@ -14,6 +13,5 @@ declare module "astra-cli" {
     targetScript?: string;
     outputDir?: string;
     concurrency?: string;
-    apiKey?: string;
   }): Promise<{ html: string; json: string }>;
 }

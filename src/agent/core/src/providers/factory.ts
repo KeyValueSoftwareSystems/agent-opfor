@@ -22,7 +22,9 @@ export const PROVIDER_ENV_VARS: Record<ProviderName, string> = {
 };
 
 export function createModel(llm: LlmConfig): LanguageModel {
-  const { provider, model, apiKey, baseURL } = llm;
+  const apiKey = process.env[llm.apiKeyEnv]?.trim();
+  if (!apiKey) throw new Error(`Missing env var: ${llm.apiKeyEnv}`);
+  const { provider, model, baseURL } = llm;
 
   switch (provider) {
     case "openai":

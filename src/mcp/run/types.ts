@@ -57,6 +57,7 @@ export interface RunReport {
   suiteId: string;
   serverSummary: string;
   transport: "stdio" | "url";
+  generatorModel: string;
   judgeModel: string;
   summary: {
     total: number;

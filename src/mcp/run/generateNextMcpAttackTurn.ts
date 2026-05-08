@@ -45,7 +45,7 @@ export async function generateNextMcpAttackTurn(
   attackGoal: string,
   toolName: string,
   seedArguments: Record<string, unknown>,
-  model: ModelConfig,
+  llm: ModelConfig,
   attackerInstructions?: string
 ): Promise<AttackTurnResult> {
   const historyText = history.map((t, i) => {
@@ -77,7 +77,7 @@ export async function generateNextMcpAttackTurn(
     `Respond with ONLY a valid JSON object with "args" and "judgeHint" keys.`,
   ].join("\n");
 
-  const raw = await chatCompletionJsonContent({ model, system: ATTACKER_SYSTEM, user });
+  const raw = await chatCompletionJsonContent({ model: llm, system: ATTACKER_SYSTEM, user });
 
   try {
     const parsed = JSON.parse(raw) as { args?: Record<string, unknown>; judgeHint?: string | null };

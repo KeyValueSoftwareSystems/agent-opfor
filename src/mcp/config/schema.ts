@@ -31,7 +31,8 @@ export const McpServerConfigSchema = z.discriminatedUnion("transport", [
 
 export const AstraMcpConfigSchema = z.object({
   server: McpServerConfigSchema,
-  model: ModelConfigSchema,
+  generatorModel: ModelConfigSchema,
+  judgeModel: ModelConfigSchema.optional(),
   /** "single" (default) fires one attack per scenario; "multi" runs adaptive multi-turn red-teaming. */
   turnMode: z.enum(["single", "multi"]).optional(),
   /** Number of adaptive turns per attack when turnMode is "multi" (default 3). */

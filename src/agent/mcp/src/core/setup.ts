@@ -25,7 +25,6 @@ import type {
 
 export interface SetupOptions {
   configPath: string;
-  apiKey?: string;
   outputDir?: string;
 }
 
@@ -44,7 +43,7 @@ export interface SetupResult {
 }
 
 export async function runSetup(opts: SetupOptions): Promise<SetupResult> {
-  const { configPath, apiKey: apiKeyOverride, outputDir = "." } = opts;
+  const { configPath, outputDir = "." } = opts;
 
   const raw = await readFile(path.resolve(configPath), "utf8");
   const ext = path.extname(configPath).toLowerCase();
@@ -68,33 +67,35 @@ export async function runSetup(opts: SetupOptions): Promise<SetupResult> {
     selectedEvaluatorIds = cfg.selection.evaluators;
   }
 
-  // Resolve API key: argument > config file > env var
-  const provider: ProviderName = (cfg.llm?.provider as ProviderName) ?? "groq";
-  const envVar = PROVIDER_ENV_VARS[provider];
-  const apiKey = apiKeyOverride?.trim() || cfg.llm?.apiKey?.trim() || process.env[envVar] || "";
-  if (!apiKey) {
-    throw new Error(
-      `No API key for provider "${provider}". ` +
-      `Pass apiKey in the tool call, set llm.apiKey in the config, or set env var ${envVar}.`
-    );
-  }
-
-  const llm: LlmConfig = {
+  const provider: ProviderName = (cfg.attackLlm?.provider as ProviderName) ?? "groq";
+  const attackLlm: LlmConfig = {
     provider,
-    model: cfg.llm?.model ?? PROVIDER_DEFAULTS[provider],
-    apiKey,
-    baseURL: cfg.llm?.baseURL,
+    model: cfg.attackLlm?.model ?? PROVIDER_DEFAULTS[provider],
+    apiKeyEnv: cfg.attackLlm?.apiKeyEnv ?? PROVIDER_ENV_VARS[provider],
+    baseURL: cfg.attackLlm?.baseURL,
   };
+
+  let judgeLlm: LlmConfig | undefined;
+  if (cfg.judgeLlm) {
+    const judgeProvider: ProviderName = (cfg.judgeLlm.provider as ProviderName) ?? provider;
+    judgeLlm = {
+      provider: judgeProvider,
+      model: cfg.judgeLlm.model ?? PROVIDER_DEFAULTS[judgeProvider],
+      apiKeyEnv: cfg.judgeLlm.apiKeyEnv ?? PROVIDER_ENV_VARS[judgeProvider],
+      baseURL: cfg.judgeLlm.baseURL,
+    };
+  }
 
   const target = cfg.target as TargetConfig;
   const resolvedOutputDir = path.resolve(outputDir);
   await mkdir(resolvedOutputDir, { recursive: true });
 
   const telemetry = resolveTelemetryEnv(cfg.telemetry);
-  const model = createModel(llm);
+  const model = createModel(attackLlm);
 
   return runSetupCore({
-    llm,
+    attackLlm,
+    judgeLlm,
     target,
     telemetry,
     model,
@@ -128,22 +129,24 @@ export async function runSetupInline(
     selectedEvaluatorIds = inline.selection.evaluators;
   }
 
-  const provider: ProviderName = (inline.llm?.provider as ProviderName) ?? "groq";
-  const envVar = PROVIDER_ENV_VARS[provider];
-  const apiKey = inline.llm?.apiKey?.trim() || process.env[envVar] || "";
-  if (!apiKey) {
-    throw new Error(
-      `No API key for provider "${provider}". ` +
-      `Pass llm.apiKey in the tool call or set env var ${envVar}.`
-    );
-  }
-
-  const llm: LlmConfig = {
+  const provider: ProviderName = (inline.attackLlm?.provider as ProviderName) ?? "groq";
+  const attackLlm: LlmConfig = {
     provider,
-    model: inline.llm?.model ?? PROVIDER_DEFAULTS[provider],
-    apiKey,
-    baseURL: inline.llm?.baseURL,
+    model: inline.attackLlm?.model ?? PROVIDER_DEFAULTS[provider],
+    apiKeyEnv: inline.attackLlm?.apiKeyEnv ?? PROVIDER_ENV_VARS[provider],
+    baseURL: inline.attackLlm?.baseURL,
   };
+
+  let judgeLlm: LlmConfig | undefined;
+  if (inline.judgeLlm) {
+    const judgeProvider: ProviderName = (inline.judgeLlm.provider as ProviderName) ?? provider;
+    judgeLlm = {
+      provider: judgeProvider,
+      model: inline.judgeLlm.model ?? PROVIDER_DEFAULTS[judgeProvider],
+      apiKeyEnv: inline.judgeLlm.apiKeyEnv ?? PROVIDER_ENV_VARS[judgeProvider],
+      baseURL: inline.judgeLlm.baseURL,
+    };
+  }
 
   // Build telemetry: explicit block wins; fall back to useLangfuse shortcut
   let telemetry: TelemetryConfig | undefined = inline.telemetry;
@@ -167,10 +170,11 @@ export async function runSetupInline(
     }
   }
   const resolvedTelemetry = resolveTelemetryEnv(telemetry);
-  const model = createModel(llm);
+  const model = createModel(attackLlm);
 
   return runSetupCore({
-    llm,
+    attackLlm,
+    judgeLlm,
     target: inline.target as TargetConfig,
     telemetry: resolvedTelemetry,
     model,
@@ -186,7 +190,8 @@ export async function runSetupInline(
 // ---------------------------------------------------------------------------
 
 interface CoreSetupParams {
-  llm: LlmConfig;
+  attackLlm: LlmConfig;
+  judgeLlm?: LlmConfig;
   target: TargetConfig;
   telemetry: TelemetryConfig | undefined;
   model: ReturnType<typeof createModel>;
@@ -197,7 +202,8 @@ interface CoreSetupParams {
 }
 
 async function runSetupCore({
-  llm,
+  attackLlm,
+  judgeLlm,
   target,
   telemetry,
   model,
@@ -276,7 +282,8 @@ async function runSetupCore({
 
   const promptsFile: PromptsFile = {
     generatedAt: new Date().toISOString(),
-    llm,
+    attackLlm,
+    ...(judgeLlm ? { judgeLlm } : {}),
     target,
     attacks: allAttacks,
     telemetry,
@@ -289,8 +296,8 @@ async function runSetupCore({
     promptsFilePath: outputPath,
     evaluatorCount: selectedEvaluatorIds.length,
     totalAttacks: allAttacks.length,
-    provider: llm.provider,
-    model: llm.model,
+    provider: attackLlm.provider,
+    model: attackLlm.model,
     langfuseTraceCurationRan,
     langfuseCurationError,
     traceSummaryPath,

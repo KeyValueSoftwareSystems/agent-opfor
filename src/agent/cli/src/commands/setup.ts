@@ -23,13 +23,15 @@ import type {
   ProviderName,
   TelemetryConfig,
 } from "@astra/core/config/types";
+import { PROVIDER_CHOICES } from "@astra/core/config/types";
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 interface CollectedAnswers {
-  llm: LlmConfig;
+  attackLlm: LlmConfig;
+  judgeLlm?: LlmConfig;
   target: TargetConfig;
   selectedEvaluatorIds: string[];
   telemetry?: TelemetryConfig;
@@ -119,16 +121,10 @@ function logTelemetryFromConfig(telemetry: TelemetryConfig | undefined): void {
   console.log(`---`);
 }
 
-async function collectLlmConfig(): Promise<LlmConfig> {
+async function collectLlmConfig(label: string): Promise<LlmConfig> {
   const provider = await select<ProviderName>({
-    message: "LLM provider for attack generation and judging:",
-    choices: [
-      { name: "OpenAI", value: "openai" },
-      { name: "Anthropic (Claude)", value: "anthropic" },
-      { name: "Google (Gemini)", value: "google" },
-      { name: "Groq", value: "groq" },
-      { name: "Other (OpenAI-compatible)", value: "other" },
-    ],
+    message: `LLM provider for ${label}:`,
+    choices: PROVIDER_CHOICES,
   });
 
   const defaultModel = PROVIDER_DEFAULTS[provider];
@@ -145,26 +141,14 @@ async function collectLlmConfig(): Promise<LlmConfig> {
     });
   }
 
-  // API key — offer to reuse from env var if already set
-  const envVar = PROVIDER_ENV_VARS[provider];
-  const existingKey = process.env[envVar];
-  let apiKey: string;
+  const defaultEnvVar = PROVIDER_ENV_VARS[provider];
+  const apiKeyEnv = await input({
+    message: "Env var name for API key:",
+    default: defaultEnvVar,
+    validate: (v) => v.trim() !== "" || "Env var name is required",
+  });
 
-  if (existingKey) {
-    const useEnv = await confirm({
-      message: `Found ${envVar} in environment. Use it?`,
-      default: true,
-    });
-    apiKey = useEnv ? existingKey : await password({ message: "API key:", mask: "*" });
-  } else {
-    apiKey = await password({
-      message: `API key (or set ${envVar} env var):`,
-      mask: "*",
-      validate: (v) => v.trim() !== "" || "API key is required",
-    });
-  }
-
-  return { provider, model, apiKey, baseURL };
+  return { provider, model, apiKeyEnv: apiKeyEnv.trim(), baseURL };
 }
 
 async function runInteractiveWizard(
@@ -174,7 +158,13 @@ async function runInteractiveWizard(
 
   const { evaluators: EVALUATORS, suites: SUITES } = catalog;
 
-  const llm = await collectLlmConfig();
+  const attackLlm = await collectLlmConfig("attack generation");
+
+  const wantSeparateJudge = await confirm({
+    message: "Use a different model for judging? (defaults to same as attack generation)",
+    default: false,
+  });
+  const judgeLlm = wantSeparateJudge ? await collectLlmConfig("judging") : undefined;
 
   // --- Target type ---
   const targetType = await select<"http-endpoint" | "local-script">({
@@ -315,7 +305,7 @@ async function runInteractiveWizard(
     turns = parseInt(turnsStr, 10);
   }
 
-  return { llm, target, selectedEvaluatorIds, turnMode, turns };
+  return { attackLlm, judgeLlm, target, selectedEvaluatorIds, turnMode, turns };
 }
 
 /** Resolve `"agent"` section from unified `astra.config.json` (schemaVersion 3). */
@@ -335,8 +325,7 @@ function extractAgentSetupPayload(parsed: unknown): SetupConfigFile {
 
 async function loadConfigFile(
   configPath: string,
-  catalog: Awaited<ReturnType<typeof loadSkillCatalog>>,
-  apiKeyOverride?: string
+  catalog: Awaited<ReturnType<typeof loadSkillCatalog>>
 ): Promise<CollectedAnswers> {
   const { suites: SUITES } = catalog;
   const EVALUATOR_IDS = getEvaluatorIdSet(catalog);
@@ -358,26 +347,28 @@ async function loadConfigFile(
     selectedEvaluatorIds = cfg.selection.evaluators;
   }
 
-  // Resolve LLM — --api-key flag > config file > env var
-  const provider: ProviderName = (cfg.llm?.provider as ProviderName) ?? "groq";
-  const envVar = PROVIDER_ENV_VARS[provider];
-  const apiKey = apiKeyOverride?.trim() || cfg.llm?.apiKey?.trim() || process.env[envVar] || "";
-  if (!apiKey) {
-    throw new Error(
-      `No API key found for provider "${provider}". ` +
-      `Pass --api-key, set llm.apiKey in the config file, or export ${envVar}.`
-    );
-  }
-
-  const llm: LlmConfig = {
+  const provider: ProviderName = (cfg.attackLlm?.provider as ProviderName) ?? "groq";
+  const attackLlm: LlmConfig = {
     provider,
-    model: cfg.llm?.model ?? PROVIDER_DEFAULTS[provider],
-    apiKey,
-    baseURL: cfg.llm?.baseURL,
+    model: cfg.attackLlm?.model ?? PROVIDER_DEFAULTS[provider],
+    apiKeyEnv: cfg.attackLlm?.apiKeyEnv ?? PROVIDER_ENV_VARS[provider],
+    baseURL: cfg.attackLlm?.baseURL,
   };
 
+  let judgeLlm: LlmConfig | undefined;
+  if (cfg.judgeLlm) {
+    const judgeProvider: ProviderName = (cfg.judgeLlm.provider as ProviderName) ?? provider;
+    judgeLlm = {
+      provider: judgeProvider,
+      model: cfg.judgeLlm.model ?? PROVIDER_DEFAULTS[judgeProvider],
+      apiKeyEnv: cfg.judgeLlm.apiKeyEnv ?? PROVIDER_ENV_VARS[judgeProvider],
+      baseURL: cfg.judgeLlm.baseURL,
+    };
+  }
+
   return {
-    llm,
+    attackLlm,
+    judgeLlm,
     target: cfg.target as TargetConfig,
     selectedEvaluatorIds,
     telemetry: resolveTelemetryEnv(cfg.telemetry),
@@ -400,7 +391,6 @@ export function registerSetupCommand(program: Command) {
     )
     .option("--config <path>", "Path to a JSON or YAML setup config file (skips interactive prompts)")
     .option("--output-dir <path>", "Directory to write the prompts JSON file", ".")
-    .option("--api-key <key>", "LLM API key (overrides config file and environment variable)")
     .action(async (opts) => {
       let answers: CollectedAnswers;
       try {
@@ -408,12 +398,11 @@ export function registerSetupCommand(program: Command) {
         if (opts.config) {
           const resolvedPath = path.resolve(opts.config);
           console.log(`\nLoading config from: ${resolvedPath}`);
-          answers = await loadConfigFile(opts.config, catalog, opts.apiKey);
+          answers = await loadConfigFile(opts.config, catalog);
           logTelemetryFromConfig(answers.telemetry);
           console.log(`Starting setup (attack prompt generation)…`);
         } else {
           answers = await runInteractiveWizard(catalog);
-          if (opts.apiKey) answers.llm.apiKey = opts.apiKey;
         }
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -427,8 +416,8 @@ export function registerSetupCommand(program: Command) {
         return;
       }
 
-      const { llm, target, selectedEvaluatorIds, telemetry, turnMode, turns } = answers;
-      const model = createModel(llm);
+      const { attackLlm, judgeLlm, target, selectedEvaluatorIds, telemetry, turnMode, turns } = answers;
+      const model = createModel(attackLlm);
       const outputDir = path.resolve(opts.outputDir);
 
       let langfuseTraceContext: string | undefined;
@@ -501,7 +490,8 @@ export function registerSetupCommand(program: Command) {
 
       const promptsFile: PromptsFile = {
         generatedAt: new Date().toISOString(),
-        llm,
+        attackLlm,
+        ...(judgeLlm ? { judgeLlm } : {}),
         target,
         attacks: allAttacks,
         telemetry,
@@ -511,7 +501,10 @@ export function registerSetupCommand(program: Command) {
       await writeFile(outputPath, JSON.stringify(promptsFile, null, 2), "utf8");
 
       console.log(`\nSetup complete!`);
-      console.log(`  Provider:  ${llm.provider} / ${llm.model}`);
+      console.log(`  Generator: ${attackLlm.provider} / ${attackLlm.model}`);
+      if (judgeLlm) {
+        console.log(`  Judge:     ${judgeLlm.provider} / ${judgeLlm.model}`);
+      }
       console.log(`  Evaluators: ${selectedEvaluatorIds.length}`);
       console.log(`  Total attack prompts: ${allAttacks.length}`);
       if (turnMode === "multi") {
@@ -569,14 +562,13 @@ export function registerSetupCommand(program: Command) {
 export async function generateAgentAttacksFromConfig(opts: {
   configPath: string;
   outputPath: string;
-  apiKeyOverride?: string;
   configId?: string;
 }): Promise<string> {
   const catalog = await loadSkillCatalog();
-  const answers = await loadConfigFile(opts.configPath, catalog, opts.apiKeyOverride);
+  const answers = await loadConfigFile(opts.configPath, catalog);
 
-  const { llm, target, selectedEvaluatorIds, telemetry, turnMode, turns } = answers;
-  const model = createModel(llm);
+  const { attackLlm, judgeLlm, target, selectedEvaluatorIds, telemetry, turnMode, turns } = answers;
+  const model = createModel(attackLlm);
 
   let langfuseTraceContext: string | undefined;
   if (telemetry && telemetry.provider !== "none") {
@@ -632,7 +624,8 @@ export async function generateAgentAttacksFromConfig(opts: {
 
   const promptsFile: PromptsFile = {
     generatedAt: new Date().toISOString(),
-    llm,
+    attackLlm,
+    ...(judgeLlm ? { judgeLlm } : {}),
     target,
     attacks: allAttacks,
     telemetry,
