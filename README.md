@@ -1,169 +1,283 @@
 # `astra`
 
-**Open-source red teaming for AI agents and MCP servers.** One CLI — test LLM agents over HTTP, local scripts, or MCP tool calls. OWASP-mapped, LLM-judged, reports in HTML + JSON.
+**Open-source red teaming for AI agents and MCP servers.**
 
-[![License](https://img.shields.io/badge/license-Apache_2.0-444441?style=flat&labelColor=3d3d3a)](LICENSE)
+One tool to generate OWASP-mapped attack prompts, fire them at your target, and judge every response with an LLM. Works as a CLI, an MCP server inside Cursor or Claude Desktop, or a slash command in any AI coding agent.
+
+[![License: Apache 2.0](https://img.shields.io/badge/license-Apache_2.0-444441?style=flat&labelColor=3d3d3a)](LICENSE)
 [![OWASP LLM Top 10](https://img.shields.io/badge/OWASP_LLM_Top_10-covered-185FA5?style=flat&labelColor=3d3d3a)](#evaluator-suites)
 [![OWASP Agentic Top 10](https://img.shields.io/badge/OWASP_Agentic_Top_10-covered-185FA5?style=flat&labelColor=3d3d3a)](#evaluator-suites)
 [![OWASP MCP Top 10](https://img.shields.io/badge/OWASP_MCP_Top_10-covered-185FA5?style=flat&labelColor=3d3d3a)](#evaluator-suites)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat&labelColor=3d3d3a)](CONTRIBUTING.md)
+
+---
 
 ## Who this is for
 
 - **Agent builders** — find out how your agent gets exploited before your users do.
 - **MCP server authors** — regression-test tool behavior (scope, input validation, secret handling) before release.
-- **Security reviewers** — reproducible runs: fixed attack plans, logged requests/responses, LLM-as-judge verdicts per call.
+- **Security reviewers** — reproducible runs: fixed attack plans, logged requests/responses, LLM-judged verdicts per call.
 
-## Quick start
+---
+
+## Three ways to run astra
+
+| Mode           | How                                              | Best for                                            |
+| -------------- | ------------------------------------------------ | --------------------------------------------------- |
+| **CLI**        | `astra setup` → `astra generate` → `astra run`   | Terminal-first workflows, CI/CD                     |
+| **MCP Server** | Add to Cursor / Claude Desktop, then ask in chat | Agents that test agents                             |
+| **Skills**     | `/astra-setup` and `/astra-run` slash commands   | Any AI coding agent (Cursor, Claude Code, Windsurf) |
+
+All three modes share the same evaluators, attack templates, and judge logic.
+
+---
+
+## Install
 
 ```bash
-git clone https://github.com/yourusername/astra.git
+git clone https://github.com/KeyValueSoftwareSystems/astra.git
 cd astra
-npm install
+npm install --ignore-scripts
 npm run build
+npm install -g ./cli      # makes the `astra` command available globally
 ```
 
 Set an API key for your preferred LLM provider (used for attack generation and judging):
 
 ```bash
-export GROQ_API_KEY=your-key-here      # or OPENAI_API_KEY, ANTHROPIC_API_KEY, GOOGLE_GENERATIVE_AI_API_KEY
+export GROQ_API_KEY=your-key-here
+# or: OPENAI_API_KEY, ANTHROPIC_API_KEY, GOOGLE_GENERATIVE_AI_API_KEY
 ```
-
-Then follow the three steps below — [Configure](#step-1--configure), [Plan](#step-2--plan), [Execute](#step-3--execute) — each command prints the exact `Next:` command to run.
-
-## The three-step workflow
 
 ---
 
-### Step 1 — Configure
+## Mode 1 — CLI
+
+### Step 1 — Init (optional)
 
 ```bash
+astra init                        # writes a starter astra.config.json
+astra init --example python       # writes astra-local-target.py stub only
+astra init --example node         # writes astra-local-target.js stub only
+```
+
+Skip this step if you prefer the interactive wizard (`astra setup` with no flags).
+
+---
+
+### Step 2 — Generate attack prompts
+
+```bash
+# Interactive wizard — no config file needed
 astra setup
+
+# Non-interactive — reads a config file, good for CI
+astra generate --config astra.config.json
 ```
 
-Interactive wizard. Asks you what to test (MCP server or AI agent), which evaluator suite to use, and your LLM provider. Writes a timestamped config to:
+Both write a timestamped attacks file to `.astra/attacks/`. You can inspect this file before running — it contains every attack prompt, the target config, and the judge config.
 
-```
-.astra/configs/astra-config-<timestamp>-<id>.json
+**Minimal `astra.config.json`:**
+
+```json
+{
+  "llm": { "provider": "groq", "model": "llama-3.3-70b-versatile" },
+  "target": {
+    "name": "My Support Bot",
+    "description": "A customer support chatbot with access to user booking data and PII.",
+    "type": "http-endpoint",
+    "endpoint": "http://localhost:4000/chat"
+  },
+  "selection": { "mode": "suite", "suite": "owasp-llm-top10" }
+}
 ```
 
-Use `--mcp` or `--agent` to skip the mode prompt. Use `--empty` to write a minimal config you can fill in by hand.
+YAML is also supported (`astra.config.yml`).
 
 ---
 
-### Step 2 — Plan
-
-```bash
-astra generate --config .astra/configs/astra-config-<timestamp>-<id>.json
-```
-
-Reads your config, calls the LLM to generate adversarial attack prompts for each evaluator, and writes them to:
-
-```
-.astra/attacks/astra-attacks-<timestamp>-<id>.json
-```
-
-You can inspect this file before running — it contains every attack prompt, the target config, and the judge config. Re-use the same attacks file across multiple runs for reproducibility.
-
----
-
-### Step 3 — Execute
+### Step 3 — Run the scan
 
 ```bash
 astra run --attacks .astra/attacks/astra-attacks-<timestamp>-<id>.json
+
+# Override target at run time
+astra run --attacks .astra/attacks/astra-attacks-<timestamp>-<id>.json --target-script ./adapter.js
+
+# Custom report directory
+astra run --attacks .astra/attacks/astra-attacks-<timestamp>-<id>.json --out-dir ./reports
 ```
 
-Fires every attack against your target, judges each response with an LLM, and writes reports to:
+Reports are written to:
 
 ```
 .astra/reports/report-<timestamp>/
-  ├── report.html   ← human-readable, open in a browser
-  └── report.json   ← machine-readable, use in CI/CD
+  ├── report.html   ← open in a browser
+  └── report.json   ← use in CI/CD
 ```
+
+> **Shortcut:** `astra run` and `astra generate` work without arguments — they invoke the setup wizard automatically if no file is provided.
+
+Full CLI reference: [`docs/cli.md`](docs/cli.md)
 
 ---
 
-> **Shortcut:** `astra run` and `astra generate` both work without arguments — they will invoke the setup wizard automatically if no config or attacks file is provided.
+## Mode 2 — MCP Server (Cursor, Claude Desktop)
+
+Register astra as an MCP server and red-team directly from chat — no terminal required.
+
+**Cursor** — add to `~/.cursor/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "astra": {
+      "command": "node",
+      "args": ["/absolute/path/to/astra/mcp/dist/index.js"]
+    }
+  }
+}
+```
+
+**Claude Desktop** — add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "astra": {
+      "command": "node",
+      "args": ["/absolute/path/to/astra/mcp/dist/index.js"]
+    }
+  }
+}
+```
+
+Then just talk to your agent:
+
+```
+"Red team my chatbot at http://localhost:4000/chat using the OWASP LLM Top 10 suite"
+```
+
+The agent calls three tools in sequence:
+
+| Tool                    | What it does                                                            |
+| ----------------------- | ----------------------------------------------------------------------- |
+| `astra_list_evaluators` | Returns all evaluator IDs, severities, OWASP tags, and available suites |
+| `astra_setup`           | Generates targeted attack prompts (inline params or config file path)   |
+| `astra_run`             | Fires attacks, judges responses, writes HTML + JSON reports             |
+
+Full MCP reference: [`docs/mcp.md`](docs/mcp.md)
+
+---
+
+## Mode 3 — Skills (slash commands)
+
+In any AI coding agent that supports slash commands (Cursor, Claude Code, Windsurf):
+
+```
+/astra-setup    ← interactive wizard: picks target, suite, LLM provider
+/astra-run      ← fires attacks and generates a report in chat
+```
+
+No CLI install needed. The agent reads the skill files directly from the `skills/` directory.
+
+---
 
 ## What it tests
 
 ### Agent mode — HTTP or local-script targets
 
-The config file written by `astra setup --agent` has an `agent` section with `llm`, `target`, and `selection`:
+Send attack prompts to any HTTP endpoint or a local stdin/stdout adapter script.
 
 ```json
 {
-  "schemaVersion": 3,
-  "configId": "a1b2c3d4",
-  "createdAt": "2026-05-05T00:00:00.000Z",
-  "mode": "agent",
-  "agent": {
-    "llm": { "provider": "groq", "model": "llama-3.3-70b-versatile", "apiKeyEnv": "GROQ_API_KEY" },
-    "target": {
-      "name": "My Support Bot",
-      "description": "A customer support chatbot with access to user booking data and PII.",
-      "type": "http-endpoint",
-      "endpoint": "http://localhost:4000/chat"
-    },
-    "selection": { "mode": "suite", "suite": "owasp-llm-top10" }
+  "target": {
+    "name": "My Bot",
+    "type": "http-endpoint",
+    "endpoint": "http://localhost:4000/chat",
+    "requestFormat": "openai"
   }
 }
 ```
 
-For a local script target (stdin/stdout adapter):
-
-```json
-"target": {
-  "name": "My Bot",
-  "description": "...",
-  "type": "local-script",
-  "scriptPath": "./astra-local-target.js"
-}
-```
-
-### MCP mode — live tool calls against MCP servers
-
-Astra connects to your MCP server, calls `tools/list`, generates attacks per tool, fires real `tools/call` requests, and judges the responses.
-
-The config file written by `astra setup --mcp` has an `mcp` section with `server` and `llm`:
+For a local script adapter (when your target is not a single URL):
 
 ```json
 {
-  "configId": "a1b2c3d4",
-  "createdAt": "2026-05-05T00:00:00.000Z",
+  "target": {
+    "name": "My Bot",
+    "type": "local-script",
+    "scriptPath": "./astra-local-target.js"
+  }
+}
+```
+
+The script reads `{"prompt":"...","sessionId":"..."}` from stdin and writes `{"response":"..."}` to stdout.
+
+### MCP mode — live tool calls against MCP servers
+
+Astra connects to your MCP server, calls `tools/list`, generates tool-specific attacks, fires real `tools/call` requests, and judges the responses.
+
+**STDIO transport:**
+
+```json
+{
+  "mode": "mcp",
+  "mcp": {
+    "server": { "transport": "stdio", "command": "node", "args": ["dist/index.js"] },
+    "llm": { "provider": "openai", "model": "gpt-4o-mini", "apiKeyEnv": "OPENAI_API_KEY" }
+  }
+}
+```
+
+**HTTP/SSE transport:**
+
+```json
+{
   "mode": "mcp",
   "mcp": {
     "server": {
-      "transport": "stdio",
-      "command": "node",
-      "args": ["dist/index.js"]
+      "transport": "url",
+      "url": "https://your-mcp-server.example.com/mcp",
+      "headers": { "Authorization": "Bearer <token>" }
     },
     "llm": { "provider": "openai", "model": "gpt-4o-mini", "apiKeyEnv": "OPENAI_API_KEY" }
   }
 }
 ```
 
-For a remote MCP server over HTTP/SSE:
-
-```json
-"mcp": {
-  "server": {
-    "transport": "url",
-    "url": "https://your-mcp-server.example.com/mcp",
-    "headers": { "Authorization": "Bearer <token>" }
-  },
-  "llm": { "provider": "openai", "model": "gpt-4o-mini", "apiKeyEnv": "OPENAI_API_KEY" }
-}
-```
-
-> The easiest way to get a valid config is to run `astra setup` — the interactive wizard writes the correct structure for you.
+---
 
 ## Evaluator suites
 
-| Suite ID           | Covers                  | Evaluators                                                                                                                                                                            |
-| ------------------ | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `owasp-llm-top10`  | OWASP LLM Top 10 (2025) | prompt-injection, jailbreaking, sensitive-disclosure, system-prompt-leakage, misinformation, improper-output-handling, …                                                              |
-| `owasp-agentic-ai` | OWASP Agentic AI Top 10 | excessive-agency, tool-misuse, agent-goal-hijack, rogue-agents, memory-poisoning, cascading-failures, …                                                                               |
-| `owasp-mcp-top10`  | OWASP MCP Top 10        | secret-exposure, oauth-token-passthrough, scope-escalation, tool-description-injection, command-injection, ssrf, missing-authentication, intent-subversion, cross-resource-leakage, … |
+| Suite ID              | Standard                  | Evaluators                                                                                                   |
+| --------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `owasp-llm-top10`     | OWASP LLM Top 10 (2025)   | prompt-injection, jailbreaking, sensitive-disclosure, system-prompt-leakage, misinformation, …               |
+| `owasp-agentic-ai`    | OWASP Agentic AI Top 10   | excessive-agency, tool-misuse, agent-goal-hijack, rogue-agents, memory-poisoning, cascading-failures, …      |
+| `owasp-mcp-top10`     | OWASP MCP Top 10 (2025)   | secret-exposure, oauth-token-passthrough, scope-escalation, tool-description-injection, command-injection, … |
+| `owasp-api`           | OWASP API Security Top 10 | bola, bfla, sql-injection, …                                                                                 |
+| `eu-ai-act-bias`      | EU AI Act — Bias          | bias-age, bias-gender, bias-race, bias-disability                                                            |
+| `output-trust-safety` | Output trust & safety     | hallucination, misinformation, improper-output-handling, …                                                   |
+| `custom-ag1`          | Agentic AI (custom)       | ag1-grounding-poisoning, …                                                                                   |
+
+### OWASP MCP Top 10 — evaluator mapping
+
+| OWASP ID | Evaluator ID                 | What it probes                                               | Severity |
+| -------- | ---------------------------- | ------------------------------------------------------------ | -------- |
+| MCP01    | `secret-exposure`            | API keys, tokens, credentials leaked via errors or responses | Critical |
+| MCP01    | `oauth-token-passthrough`    | OAuth confused deputy and token passthrough attacks          | Critical |
+| MCP02    | `scope-escalation`           | Privilege escalation and scope bypass                        | High     |
+| MCP03    | `tool-description-injection` | Hidden instructions injected via adversarial tool inputs     | Critical |
+| MCP03    | `content-injection`          | Second-order content injection via fetched page content      | High     |
+| MCP03    | `tool-description-scan`      | Static scan of tool descriptions for hidden LLM directives   | High     |
+| MCP04    | `supply-chain`               | Software supply chain attacks and dependency tampering       | High     |
+| MCP05    | `ssrf`                       | SSRF — internal IPs, cloud metadata, localhost               | Critical |
+| MCP05    | `command-injection`          | Command injection and shell metacharacter attacks            | Critical |
+| MCP06    | `intent-subversion`          | Agent intent redirection via tool responses                  | High     |
+| MCP07    | `missing-authentication`     | Unauthenticated or weakly authenticated tool access          | High     |
+| MCP08    | `audit-telemetry`            | Actions taken without traceability                           | Medium   |
+| MCP09    | `shadow-mcp-server`          | Shadow / rogue MCP server detection and spoofing             | High     |
+| MCP10    | `cross-resource-leakage`     | Cross-user, cross-tenant, and cross-session data leakage     | High     |
 
 Run a specific subset instead of a full suite:
 
@@ -174,88 +288,39 @@ Run a specific subset instead of a full suite:
 }
 ```
 
-## API key
-
-Set the key for your chosen provider as an environment variable before running `astra generate` or `astra run`. The CLI loads `.env` from the current working directory automatically.
-
-```bash
-# Recommended — environment variable or .env file
-export GROQ_API_KEY=gsk_...
-export OPENAI_API_KEY=sk-...
-export ANTHROPIC_API_KEY=sk-ant-...
-export GOOGLE_GENERATIVE_AI_API_KEY=...
-```
-
-Both agent and MCP configs use `apiKeyEnv` — a reference to an environment variable name, not the key value itself. This keeps secrets out of config files.
-
-Never commit API keys. Add `.astra/` to `.gitignore`.
+---
 
 ## Supported LLM providers
 
-### Native providers
-
 | `llm.provider` | Env var                        | Default model               |
 | -------------- | ------------------------------ | --------------------------- |
+| `groq`         | `GROQ_API_KEY`                 | `llama-3.3-70b-versatile`   |
 | `openai`       | `OPENAI_API_KEY`               | `gpt-4o-mini`               |
 | `anthropic`    | `ANTHROPIC_API_KEY`            | `claude-3-5-haiku-20241022` |
 | `google`       | `GOOGLE_GENERATIVE_AI_API_KEY` | `gemini-2.0-flash`          |
-| `groq`         | `GROQ_API_KEY`                 | `llama-3.3-70b-versatile`   |
+| `other`        | `ASTRA_API_KEY`                | requires `llm.baseURL`      |
 
-### OpenAI-compatible endpoints (`provider: "other"`)
-
-Any service that exposes an OpenAI-compatible `/chat/completions` API works via `provider: "other"` + `llm.baseURL`. Examples:
-
-| Service                           | `llm.baseURL`                                                         | Notes                               |
-| --------------------------------- | --------------------------------------------------------------------- | ----------------------------------- |
-| **LiteLLM** (self-hosted proxy)   | `https://your-litellm-host/v1`                                        | Route to any model behind one key   |
-| **OpenRouter**                    | `https://openrouter.ai/api/v1`                                        | 200+ models, one API key            |
-| **Together AI**                   | `https://api.together.xyz/v1`                                         | Open-source models                  |
-| **Azure OpenAI**                  | `https://<resource>.openai.azure.com/openai/deployments/<deployment>` | Enterprise Azure deployments        |
-| **Google Gemini (OpenAI-compat)** | `https://generativelanguage.googleapis.com/v1beta/openai`             | Alternative to `provider: "google"` |
-| **Ollama** (local)                | `http://localhost:11434/v1`                                           | Fully offline, no API key needed    |
-| **Any OpenAI-compatible host**    | Your endpoint                                                         | Works out of the box                |
-
-Config example for LiteLLM:
+Any OpenAI-compatible endpoint (LiteLLM, OpenRouter, Azure, Ollama) works via `provider: "other"` + `llm.baseURL`:
 
 ```json
-"llm": {
-  "provider": "other",
-  "baseURL": "https://your-litellm-host/v1",
-  "model": "gpt-4o-mini",
-  "apiKey": "your-litellm-key"
-}
+"llm": { "provider": "other", "baseURL": "http://localhost:11434/v1", "model": "llama3.2" }
 ```
 
-Config example for Ollama (no API key):
+---
+
+## Advanced features
+
+### Multi-turn attacks
+
+Astra can run adversarial multi-turn conversations — after each response, an attacker LLM generates a more escalating follow-up:
 
 ```json
-"llm": {
-  "provider": "other",
-  "baseURL": "http://localhost:11434/v1",
-  "model": "llama3.2"
-}
+{ "turnMode": "multi", "turns": 3, "target": { "sessionIdField": "session_id" } }
 ```
 
-## Multi-turn attacks
+### Telemetry enrichment (Langfuse / Netra)
 
-By default astra fires single-turn attacks. Enable multi-turn to have an attacker LLM escalate based on each response:
-
-```json
-{
-  "turnMode": "multi",
-  "turns": 3,
-  "target": { "sessionIdField": "session_id" }
-}
-```
-
-After each response, if the target holds firm, astra generates a more escalating follow-up — up to `turns` rounds, or until the judge returns FAIL.
-
-## Telemetry enrichment (optional)
-
-When a telemetry provider (Langfuse or Netra) is configured, astra:
-
-1. **At generate** — pulls real production traces to ground attack prompts in actual user language and flows.
-2. **At run time** — injects a trace ID into each request so the recorded trace can be passed to the judge, giving it visibility into internal tool calls and retrieved data.
+When configured, astra pulls real production traces to ground attack prompts in actual user language, and injects trace IDs so the LLM judge has visibility into internal tool calls — not just the final response.
 
 ```json
 "telemetry": {
@@ -269,9 +334,7 @@ export LANGFUSE_PUBLIC_KEY=pk-lf-...
 export LANGFUSE_SECRET_KEY=sk-lf-...
 ```
 
-## CI/CD
-
-For non-interactive use, run `astra setup` once locally to produce the config file, commit it (without secrets), then use it in CI:
+### CI/CD
 
 ```yaml
 - name: Generate attacks
@@ -281,22 +344,37 @@ For non-interactive use, run `astra setup` once locally to produce the config fi
   run: astra run --attacks .astra/attacks/astra-attacks-*.json
 ```
 
-## Full CLI reference
+---
 
-See [`docs/cli.md`](docs/cli.md) for the complete commands and config fields reference.
+## API keys
+
+Keys are loaded in this order: `--api-key` CLI flag → `llm.apiKey` in config → provider env var. The CLI loads `.env` from the current working directory automatically.
+
+Never commit API keys. Add `.astra/` to `.gitignore`.
+
+---
 
 ## Contributing
 
-Highest-impact contributions:
+Astra is open source and contributions are welcome. Highest-impact ways to contribute:
 
-1. **New evaluators** — add a markdown file to `skills/agent-redteaming/astra-setup/evaluators/` (agent redteaming) or `skills/mcp-redteaming/evaluators/` (MCP redteaming) with attack templates, pass/fail criteria, and a CVE or paper citation.
-2. **Target adapters** — add support for new agent frameworks or transports.
+1. **New evaluators** — add a `.md` file to `skills/agent-redteaming/astra-setup/evaluators/` or `skills/mcp-redteaming/evaluators/` with attack templates, pass/fail criteria, and a CVE or paper citation. No TypeScript needed — the engine auto-discovers it.
+2. **New target adapters** — add support for new agent frameworks or transports in `core/src/mcp-client/`.
 3. **Findings** — run astra against a public agent or MCP server and open a PR to `findings/` with a writeup.
+4. **Bug reports** — open an [issue](https://github.com/KeyValueSoftwareSystems/astra/issues) with steps to reproduce.
+
+Read the full [Contributing Guide](CONTRIBUTING.md) before opening a PR.
+
+---
 
 ## Security disclosure
 
-Use astra only on systems you own or are authorized to test. To report a vulnerability in astra itself, see [SECURITY.md](SECURITY.md).
+Use astra only on systems you own or are authorized to test.
+
+To report a vulnerability in astra itself, see [SECURITY.md](SECURITY.md). Do not open a public issue — email [astra@keyvalue.systems](mailto:astra@keyvalue.systems) instead.
+
+---
 
 ## License
 
-Apache 2.0 — [LICENSE](LICENSE).
+[Apache 2.0](LICENSE) — free to use, modify, and distribute.
