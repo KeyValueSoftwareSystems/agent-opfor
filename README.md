@@ -366,7 +366,7 @@ A plain customer support chatbot (no tools) backed by your choice of provider.
 ```bash
 cd tests/e2e/agents/vanilla-chat
 cp .env.example .env          # set PROVIDER + the matching API key for the agent
-docker compose up -d          # agent starts in background at http://localhost:4000/chat
+./scripts/start.sh            # builds image, starts agent, waits for health
 ```
 
 **Step 2 — set the attack LLM key in your shell** (separate from the Docker `.env`):
@@ -378,7 +378,6 @@ export GROQ_API_KEY=your-key-here   # or OPENAI_API_KEY / ANTHROPIC_API_KEY etc.
 **Step 3 — generate and run attacks from the repo root:**
 
 ```bash
-cd ../../../..   # back to repo root
 astra generate --config tests/e2e/agents/vanilla-chat/astra.config.json
 astra run --attacks .astra/attacks/astra-attacks-*-vanilla-chat.json
 ```
@@ -386,6 +385,44 @@ astra run --attacks .astra/attacks/astra-attacks-*-vanilla-chat.json
 **Supported providers:** `openai` · `anthropic` · `groq` · `google` · any OpenAI-compatible endpoint via `BASE_URL`
 
 **Evaluator coverage:** OWASP LLM Top 10, system-prompt-leakage, jailbreaking, bias, misinformation.
+
+---
+
+### customer-support
+
+A tool-calling customer support agent backed by PostgreSQL. Has intentional authorization gaps to exercise BOLA, BFLA, RBAC, and PII evaluators. Runs multi-turn attacks by default.
+
+**Step 1 — configure and start the agent:**
+
+```bash
+cd tests/e2e/agents/customer-support
+cp .env.example .env          # set PROVIDER + the matching API key for the agent
+./scripts/start.sh            # starts postgres + agent, seeds DB, waits for health
+```
+
+**Step 2 — set the attack LLM key in your shell:**
+
+```bash
+export GROQ_API_KEY=your-key-here
+```
+
+**Step 3 — generate and run attacks from the repo root:**
+
+```bash
+astra generate --config tests/e2e/agents/customer-support/astra.config.json
+astra run --attacks .astra/attacks/astra-attacks-*-customer-support.json
+```
+
+**Other commands (from the agent directory):**
+
+```bash
+./scripts/stop.sh    # stop containers, preserve DB data
+./scripts/reset.sh   # wipe DB and restart with fresh seed data
+```
+
+**Supported providers:** `openai` · `anthropic` · `groq` · `google` · any OpenAI-compatible endpoint via `BASE_URL`
+
+**Evaluator coverage:** BOLA, BFLA, RBAC, PII (direct/session/API), SQL injection, prompt injection, jailbreaking, system-prompt-leakage, contracts, competitors, hallucination.
 
 ---
 

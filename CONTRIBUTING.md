@@ -187,8 +187,13 @@ tests/e2e/agents/<agent-name>/
   package.json        # private: true; all deps in devDependencies
   tsconfig.json
   src/index.ts        # HTTP server — POST /chat accepts {prompt}, returns {response}
+  db/                 # optional — init.sql for schema + seed data (postgres agents)
+  scripts/
+    start.sh          # validate .env → docker compose up -d --build → poll /health
+    stop.sh           # docker compose down
+    reset.sh          # docker compose down -v → start.sh  (DB agents only)
   Dockerfile
-  docker-compose.yml  # `docker compose up` starts the agent (and any dependencies)
+  docker-compose.yml  # agent + any dependencies (postgres, redis, etc.)
   .env.example        # documents required env vars
   astra.config.json   # ready-to-use Astra config pointing at localhost
 ```
@@ -196,10 +201,11 @@ tests/e2e/agents/<agent-name>/
 ### Requirements
 
 - The HTTP endpoint must accept `POST /chat` with at least `{ "prompt": "..." }` in the body and return `{ "response": "..." }`.
-- A `GET /health` endpoint should return `200` so the Docker healthcheck works.
+- A `GET /health` endpoint should return `200` so the Docker healthcheck works. For agents with dependencies (e.g. postgres), the health endpoint should also verify the dependency is reachable.
 - The agent must be configurable via environment variables — no hardcoded API keys.
-- `docker compose up` (from the agent directory) must be the only command needed to start it.
+- `./scripts/start.sh` (from the agent directory) must be the only command needed to start it. It should validate `.env`, run `docker compose up -d --build`, and poll `/health` until ready.
 - Add the package path to the `workspaces` array in the root `package.json`.
+- For agents with a database, add `scripts/reset.sh` that runs `docker compose down -v` then calls `start.sh` to restore clean seed data between test runs.
 - The `astra.config.json` must follow this structure:
 
 ```json
@@ -229,6 +235,7 @@ tests/e2e/agents/<agent-name>/
 ```
 
 - Include an `astra.config.json` that points at `http://localhost:<port>/chat` and selects a relevant evaluator suite. It must use the **unified config format** — not a flat config. The required top-level fields are `configId`, `createdAt`, `mode: "agent"`, and an `agent` block. The `apiKeyEnv` field inside `agent.attackLlm` takes the env var **name** (e.g. `"GROQ_API_KEY"`), never the key value itself.
+- For agents with session memory (multi-turn capable), add `"sessionIdField": "sessionId"` to the target block and `"turnMode": "multi"` + `"turns": 3` at the `agent` level. Astra will generate a UUID per attack, inject it into every request body, and escalate across turns.
 
 ---
 

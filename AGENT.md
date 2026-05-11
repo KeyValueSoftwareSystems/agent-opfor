@@ -66,12 +66,22 @@ astra/
 ├── tests/
 │   └── e2e/
 │       └── agents/              # Test agents for local developer testing (never published)
-│           └── vanilla-chat/    # Plain LLM chat agent — covers LLM Top 10 + Trust & Safety evaluators
-│               ├── package.json          # private workspace; all deps are devDependencies
-│               ├── src/index.ts          # Express + LangChain multi-provider server
+│           ├── vanilla-chat/    # Plain LLM chat agent — covers LLM Top 10 + Trust & Safety evaluators
+│           │   ├── package.json          # private workspace; all deps are devDependencies
+│           │   ├── src/index.ts          # Express + LangChain multi-provider server
+│           │   ├── scripts/              # start.sh, stop.sh
+│           │   ├── Dockerfile
+│           │   ├── docker-compose.yml    # `./scripts/start.sh` → agent on :4000
+│           │   ├── astra.config.json     # ready-to-use config pointing at localhost:4000
+│           │   └── .env.example
+│           └── customer-support/  # Tool-calling agent + PostgreSQL — covers BOLA, BFLA, RBAC, PII, SQL injection
+│               ├── package.json
+│               ├── src/index.ts          # Express + LangChain tool-calling agent, session memory
+│               ├── db/init.sql           # Schema + seed data (5 users, 10 orders, 3 tickets)
+│               ├── scripts/              # start.sh, stop.sh, reset.sh
 │               ├── Dockerfile
-│               ├── docker-compose.yml    # `docker compose up` → agent on :4000
-│               ├── astra.config.json     # ready-to-use config pointing at localhost:4000
+│               ├── docker-compose.yml    # postgres:16 + agent on :4001
+│               ├── astra.config.json     # multi-turn config, 16 evaluators
 │               └── .env.example
 ├── docs/
 │   ├── Agents.md                # Full developer guide (read this before editing)
@@ -171,28 +181,48 @@ Multi-turn loops steps 2–3 up to `turns` times, feeding each response back as 
 
 `tests/e2e/agents/` contains pre-built target agents developers can spin up locally to test evaluator changes without needing a real external service.
 
+Each agent has a `scripts/` directory for consistent DX — always use these instead of `docker compose` directly.
+
 ### vanilla-chat
 
 A plain Express + LangChain chat agent (no tools). Supports `openai`, `anthropic`, `groq`, `google`, and any OpenAI-compatible endpoint via `BASE_URL`.
 
 ```bash
-# 1. Start the agent (Docker)
 cd tests/e2e/agents/vanilla-chat
 cp .env.example .env          # set PROVIDER + the agent's API key
-docker compose up -d          # agent on http://localhost:4000/chat
+./scripts/start.sh            # builds image, starts agent, waits for /health
 
-# 2. Set the attack LLM key in your shell (separate from the Docker .env)
-export GROQ_API_KEY=your-key-here
+export GROQ_API_KEY=your-key-here   # attack LLM key (separate from Docker .env)
 
-# 3. Generate + run from repo root
-cd ../../../..
+# from repo root:
 astra generate --config tests/e2e/agents/vanilla-chat/astra.config.json
 astra run --attacks .astra/attacks/astra-attacks-*-vanilla-chat.json
 ```
 
-The `astra.config.json` uses the **unified config format** (`configId` + `createdAt` + `agent` block). The `apiKeyEnv` field takes the env var **name** (e.g. `"GROQ_API_KEY"`), not the key value itself.
-
 **Covered evaluators:** OWASP LLM Top 10, Trust & Safety (bias, misinformation), system-prompt-leakage, jailbreaking.
+
+### customer-support
+
+An Express + LangChain tool-calling agent backed by PostgreSQL. Has five tools (`lookup_order`, `lookup_user_profile`, `list_my_orders`, `create_ticket`, `process_refund`) with intentional authorization gaps. Runs multi-turn attacks (`turnMode: "multi"`, 3 turns) by default. Session memory is keyed by `sessionId` in the request body.
+
+```bash
+cd tests/e2e/agents/customer-support
+cp .env.example .env          # set PROVIDER + the agent's API key
+./scripts/start.sh            # starts postgres:16 + agent on :4001, seeds DB, waits for /health
+
+export GROQ_API_KEY=your-key-here
+
+# from repo root:
+astra generate --config tests/e2e/agents/customer-support/astra.config.json
+astra run --attacks .astra/attacks/astra-attacks-*-customer-support.json
+
+# reset DB to clean seed state between runs:
+./scripts/reset.sh
+```
+
+**Covered evaluators:** BOLA, BFLA, RBAC, PII (direct/session/API), SQL injection, prompt injection, jailbreaking, system-prompt-leakage, contracts, competitors, hallucination.
+
+The `astra.config.json` uses the **unified config format** (`configId` + `createdAt` + `agent` block). The `apiKeyEnv` field takes the env var **name** (e.g. `"GROQ_API_KEY"`), not the key value itself.
 
 ### Adding a new test agent
 
