@@ -353,6 +353,42 @@ Never commit API keys. Add `.astra/` to `.gitignore`.
 
 ---
 
+## Developer testing
+
+`tests/e2e/agents/` contains pre-built target agents you can spin up locally to test Astra against a real endpoint — no external service required.
+
+### vanilla-chat
+
+A plain customer support chatbot (no tools) backed by your choice of provider.
+
+**Step 1 — configure and start the agent:**
+
+```bash
+cd tests/e2e/agents/vanilla-chat
+cp .env.example .env          # set PROVIDER + the matching API key for the agent
+docker compose up -d          # agent starts in background at http://localhost:4000/chat
+```
+
+**Step 2 — set the attack LLM key in your shell** (separate from the Docker `.env`):
+
+```bash
+export GROQ_API_KEY=your-key-here   # or OPENAI_API_KEY / ANTHROPIC_API_KEY etc.
+```
+
+**Step 3 — generate and run attacks from the repo root:**
+
+```bash
+cd ../../../..   # back to repo root
+astra generate --config tests/e2e/agents/vanilla-chat/astra.config.json
+astra run --attacks .astra/attacks/astra-attacks-*-vanilla-chat.json
+```
+
+**Supported providers:** `openai` · `anthropic` · `groq` · `google` · any OpenAI-compatible endpoint via `BASE_URL`
+
+**Evaluator coverage:** OWASP LLM Top 10, system-prompt-leakage, jailbreaking, bias, misinformation.
+
+---
+
 ## Contributing
 
 Astra is open source and contributions are welcome. Highest-impact ways to contribute:

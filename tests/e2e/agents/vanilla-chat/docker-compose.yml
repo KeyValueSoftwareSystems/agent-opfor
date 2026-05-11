@@ -1,0 +1,24 @@
+services:
+  vanilla-chat:
+    build:
+      context: ../../../../ # repo root — Dockerfile copies from here
+      dockerfile: tests/e2e/agents/vanilla-chat/Dockerfile
+    ports:
+      - "4000:4000"
+    environment:
+      PORT: 4000
+      # Pick one provider and supply its key.
+      # PROVIDER accepts: openai | anthropic | groq | google
+      PROVIDER: ${PROVIDER:-openai}
+      MODEL: ${MODEL:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      # Optional: OpenAI-compatible base URL (Ollama, OpenRouter, Azure, etc.)
+      BASE_URL: ${BASE_URL:-}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:4000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
