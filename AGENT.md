@@ -63,6 +63,16 @@ astra/
 │   └── mcp-redteaming/
 │       ├── evaluators/          # MCP-native evaluator .md files (JSON-RPC payload style)
 │       └── suites/              # owasp-mcp-top10.md
+├── tests/
+│   └── e2e/
+│       └── agents/              # Test agents for local developer testing (never published)
+│           └── vanilla-chat/    # Plain LLM chat agent — covers LLM Top 10 + Trust & Safety evaluators
+│               ├── package.json          # private workspace; all deps are devDependencies
+│               ├── src/index.ts          # Express + LangChain multi-provider server
+│               ├── Dockerfile
+│               ├── docker-compose.yml    # `docker compose up` → agent on :4000
+│               ├── astra.config.json     # ready-to-use config pointing at localhost:4000
+│               └── .env.example
 ├── docs/
 │   ├── Agents.md                # Full developer guide (read this before editing)
 │   ├── cli.md                   # Complete CLI reference
@@ -154,6 +164,39 @@ patterns:
 4. Results → `generateReport()`
 
 Multi-turn loops steps 2–3 up to `turns` times, feeding each response back as context for the next attacker LLM call.
+
+---
+
+## Developer testing with test agents
+
+`tests/e2e/agents/` contains pre-built target agents developers can spin up locally to test evaluator changes without needing a real external service.
+
+### vanilla-chat
+
+A plain Express + LangChain chat agent (no tools). Supports `openai`, `anthropic`, `groq`, `google`, and any OpenAI-compatible endpoint via `BASE_URL`.
+
+```bash
+# 1. Start the agent (Docker)
+cd tests/e2e/agents/vanilla-chat
+cp .env.example .env          # set PROVIDER + the agent's API key
+docker compose up -d          # agent on http://localhost:4000/chat
+
+# 2. Set the attack LLM key in your shell (separate from the Docker .env)
+export GROQ_API_KEY=your-key-here
+
+# 3. Generate + run from repo root
+cd ../../../..
+astra generate --config tests/e2e/agents/vanilla-chat/astra.config.json
+astra run --attacks .astra/attacks/astra-attacks-*-vanilla-chat.json
+```
+
+The `astra.config.json` uses the **unified config format** (`configId` + `createdAt` + `agent` block). The `apiKeyEnv` field takes the env var **name** (e.g. `"GROQ_API_KEY"`), not the key value itself.
+
+**Covered evaluators:** OWASP LLM Top 10, Trust & Safety (bias, misinformation), system-prompt-leakage, jailbreaking.
+
+### Adding a new test agent
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) — "Adding a test agent" section.
 
 ---
 

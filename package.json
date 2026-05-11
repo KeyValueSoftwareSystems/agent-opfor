@@ -8,7 +8,8 @@
   "workspaces": [
     "cli",
     "mcp",
-    "extension"
+    "extension",
+    "tests/e2e/agents/vanilla-chat"
   ],
   "files": [
     "skills/",

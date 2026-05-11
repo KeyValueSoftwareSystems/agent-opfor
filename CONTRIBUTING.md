@@ -10,6 +10,7 @@ Thanks for helping make AI red teaming better. This guide covers the three highe
 - [Adding an evaluator](#adding-an-evaluator)
 - [Adding a suite](#adding-a-suite)
 - [Adding a target adapter](#adding-a-target-adapter)
+- [Adding a test agent](#adding-a-test-agent)
 - [Submitting findings](#submitting-findings)
 - [Code contributions](#code-contributions)
 - [Pull request checklist](#pull-request-checklist)
@@ -172,6 +173,62 @@ When adding a new transport:
 - Add a new discriminated union branch to `McpServerConfigSchema` in `core/src/config/schema.ts`.
 - Update the CLI setup wizard (`cli/src/commands/`) to offer the new transport as an option.
 - Add a fixture config so others can test it.
+
+---
+
+## Adding a test agent
+
+Test agents live in `tests/e2e/agents/` and give developers a real target to run Astra against locally. They are never published to npm.
+
+### Structure
+
+```
+tests/e2e/agents/<agent-name>/
+  package.json        # private: true; all deps in devDependencies
+  tsconfig.json
+  src/index.ts        # HTTP server — POST /chat accepts {prompt}, returns {response}
+  Dockerfile
+  docker-compose.yml  # `docker compose up` starts the agent (and any dependencies)
+  .env.example        # documents required env vars
+  astra.config.json   # ready-to-use Astra config pointing at localhost
+```
+
+### Requirements
+
+- The HTTP endpoint must accept `POST /chat` with at least `{ "prompt": "..." }` in the body and return `{ "response": "..." }`.
+- A `GET /health` endpoint should return `200` so the Docker healthcheck works.
+- The agent must be configurable via environment variables — no hardcoded API keys.
+- `docker compose up` (from the agent directory) must be the only command needed to start it.
+- Add the package path to the `workspaces` array in the root `package.json`.
+- The `astra.config.json` must follow this structure:
+
+```json
+{
+  "configId": "your-agent-name",
+  "createdAt": "2026-01-01T00:00:00.000Z",
+  "mode": "agent",
+  "agent": {
+    "attackLlm": {
+      "provider": "groq",
+      "model": "llama-3.3-70b-versatile",
+      "apiKeyEnv": "GROQ_API_KEY"
+    },
+    "target": {
+      "name": "Your Agent Name",
+      "description": "What the agent does and what sensitive data it holds.",
+      "type": "http-endpoint",
+      "endpoint": "http://localhost:4000/chat",
+      "requestFormat": "json"
+    },
+    "selection": {
+      "mode": "suite",
+      "suite": "owasp-llm-top10"
+    }
+  }
+}
+```
+
+- Include an `astra.config.json` that points at `http://localhost:<port>/chat` and selects a relevant evaluator suite. It must use the **unified config format** — not a flat config. The required top-level fields are `configId`, `createdAt`, `mode: "agent"`, and an `agent` block. The `apiKeyEnv` field inside `agent.attackLlm` takes the env var **name** (e.g. `"GROQ_API_KEY"`), never the key value itself.
 
 ---
 

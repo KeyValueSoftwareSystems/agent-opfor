@@ -1,0 +1,23 @@
+{
+  "name": "@astra/test-agent-vanilla-chat",
+  "version": "0.1.0",
+  "description": "Vanilla chat test agent — used for local developer testing of Astra evaluators",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js"
+  },
+  "devDependencies": {
+    "@langchain/anthropic": "^0.3.0",
+    "@langchain/core": "^0.3.0",
+    "@langchain/google-genai": "^0.1.0",
+    "@langchain/groq": "^0.1.0",
+    "@langchain/openai": "^0.3.0",
+    "@types/express": "^5.0.0",
+    "express": "^5.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.8.3"
+  }
+}
