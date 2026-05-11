@@ -12,6 +12,7 @@ import { z } from "zod";
 import { loadSkillCatalog, getEvaluatorIdSet } from "../../core/dist/config/loadSkillCatalog.js";
 import { runSetup, runSetupInline } from "./core/setup.js";
 import { runScan } from "./core/run.js";
+import type { ProviderName } from "../../core/dist/config/types.js";
 
 const server = new McpServer({
   name: "astra",
@@ -83,6 +84,167 @@ server.tool(
 // When both are supplied, inline parameters take precedence.
 // ---------------------------------------------------------------------------
 
+// Schemas are extracted to variables to avoid TypeScript type instantiation depth errors
+// that occur when large Zod schemas are defined inline inside server.tool() calls.
+const astraSetupSchemaShape: Record<string, z.ZodTypeAny> = {
+  // ── Inline target parameters ────────────────────────────────────────────
+  target_name: z
+    .string()
+    .optional()
+    .describe("Human-readable name of the AI app (e.g. 'Kera Travel Agent')."),
+
+  target_description: z
+    .string()
+    .optional()
+    .describe(
+      "What the target does, who uses it, sensitive data it handles, dangerous operations. " +
+        "Optional when use_langfuse=true — astra infers this from traces."
+    ),
+
+  target_endpoint: z
+    .string()
+    .optional()
+    .describe(
+      "HTTP endpoint to attack (e.g. 'http://localhost:4000/chat'). Required when target_type='http-endpoint'."
+    ),
+
+  target_type: z
+    .enum(["http-endpoint", "local-script"])
+    .optional()
+    .default("http-endpoint")
+    .describe("How astra sends attacks. 'http-endpoint' for HTTP, 'local-script' for subprocess."),
+
+  target_request_format: z
+    .enum(["auto", "openai", "json"])
+    .optional()
+    .default("auto")
+    .describe(
+      "Request shape sent to the endpoint. " +
+        "'openai' → {model,messages}. 'json' → {prompt}. 'auto' → sniff from endpoint."
+    ),
+
+  target_api_key: z
+    .string()
+    .optional()
+    .describe("API key for the target endpoint itself (not for the LLM used by astra)."),
+
+  target_script_path: z
+    .string()
+    .optional()
+    .describe("Path to the local script when target_type='local-script'."),
+
+  // ── Evaluator / suite selection ─────────────────────────────────────────
+  suite: z
+    .string()
+    .optional()
+    .describe(
+      "Run a predefined suite (e.g. 'owasp-llm-top10', 'owasp-agentic-ai'). " +
+        "Mutually exclusive with evaluator_ids. Call astra_list_evaluators to see options."
+    ),
+
+  evaluator_ids: z
+    .array(z.string())
+    .optional()
+    .describe(
+      "Specific evaluator ids to run (e.g. ['prompt-injection','excessive-agency']). " +
+        "Mutually exclusive with suite. Call astra_list_evaluators to see all ids."
+    ),
+
+  // ── LLM for attack generation ───────────────────────────────────────────
+  llm_provider: z
+    .enum(["groq", "openai", "anthropic", "google", "other"])
+    .optional()
+    .describe(
+      "LLM provider astra uses to generate attack prompts and judge responses. " +
+        "Defaults to 'groq'. The corresponding API key env var must be set (or pass llm_api_key_env to specify the var name)."
+    ),
+
+  llm_model: z
+    .string()
+    .optional()
+    .describe(
+      "Model name for the LLM (e.g. 'llama-3.3-70b-versatile'). Uses provider default if omitted."
+    ),
+
+  llm_api_key_env: z
+    .string()
+    .optional()
+    .describe(
+      "Name of the environment variable holding the API key for the attack/judge LLM " +
+        "(e.g. 'GROQ_API_KEY'). Defaults to the standard env var for the chosen provider."
+    ),
+
+  // ── Langfuse / traces ───────────────────────────────────────────────────
+  use_langfuse: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe(
+      "When true, astra reads production traces from Langfuse to: " +
+        "(1) select realistic evaluators based on what the app actually does, " +
+        "(2) ground attack prompts in real user language and behaviour, " +
+        "(3) enrich the judge with the target's internal trace after each attack. " +
+        "Requires LANGFUSE_PUBLIC_KEY and LANGFUSE_SECRET_KEY in the environment."
+    ),
+
+  langfuse_lookback_hours: z
+    .number()
+    .optional()
+    .describe("When use_langfuse=true, how many hours back to fetch traces. Default: 24."),
+
+  langfuse_trace_ids: z
+    .array(z.string())
+    .optional()
+    .describe(
+      "Explicit list of Langfuse trace IDs to use instead of the automatic lookback window."
+    ),
+
+  // ── Multi-turn ──────────────────────────────────────────────────────────
+  turn_mode: z
+    .enum(["single", "multi"])
+    .optional()
+    .default("single")
+    .describe(
+      "'single' (default) — one prompt per attack. " +
+        "'multi' — runs a short adversarial conversation per attack: after each response, an attacker LLM " +
+        "generates a more escalating follow-up until the target fails or the turn limit is reached. " +
+        "Requires the target to maintain conversation history across requests using a session ID."
+    ),
+
+  turns: z
+    .number()
+    .optional()
+    .default(3)
+    .describe("Maximum number of turns per attack when turn_mode='multi'. Defaults to 3."),
+
+  session_id_field: z
+    .string()
+    .optional()
+    .describe(
+      "JSON body field name to inject a session ID into every HTTP request for multi-turn attacks " +
+        "(e.g. 'session_id'). The target uses this field to look up and reconstruct conversation history. " +
+        "Required when turn_mode='multi' and target_type='http-endpoint'."
+    ),
+
+  // ── Config file (backward-compatible) ──────────────────────────────────
+  config_path: z
+    .string()
+    .optional()
+    .describe(
+      "Path to an astra config file (JSON or YAML). " +
+        "Used when inline parameters are not provided. " +
+        "Inline parameters take precedence if both are supplied."
+    ),
+
+  output_dir: z
+    .string()
+    .optional()
+    .default(".")
+    .describe(
+      "Directory where astra-prompts-*.json will be written. Defaults to current directory."
+    ),
+};
+
 server.tool(
   "astra_setup",
   "Generate targeted red-team attack prompts for an AI application. " +
@@ -92,167 +254,30 @@ server.tool(
     "(3) Whether to use Langfuse traces — ask if they have Langfuse set up and want trace-grounded attacks. " +
     "(4) Target description — ask what the chatbot does, what sensitive data it handles, and what operations it can perform (skip only if use_langfuse=true and traces will provide this). " +
     "Only call this tool once you have explicit answers to all of the above.",
-  {
-    // ── Inline target parameters ────────────────────────────────────────────
-    target_name: z
-      .string()
-      .optional()
-      .describe("Human-readable name of the AI app (e.g. 'Kera Travel Agent')."),
-
-    target_description: z
-      .string()
-      .optional()
-      .describe(
-        "What the target does, who uses it, sensitive data it handles, dangerous operations. " +
-          "Optional when use_langfuse=true — astra infers this from traces."
-      ),
-
-    target_endpoint: z
-      .string()
-      .optional()
-      .describe(
-        "HTTP endpoint to attack (e.g. 'http://localhost:4000/chat'). Required when target_type='http-endpoint'."
-      ),
-
-    target_type: z
-      .enum(["http-endpoint", "local-script"])
-      .optional()
-      .default("http-endpoint")
-      .describe(
-        "How astra sends attacks. 'http-endpoint' for HTTP, 'local-script' for subprocess."
-      ),
-
-    target_request_format: z
-      .enum(["auto", "openai", "json"])
-      .optional()
-      .default("auto")
-      .describe(
-        "Request shape sent to the endpoint. " +
-          "'openai' → {model,messages}. 'json' → {prompt}. 'auto' → sniff from endpoint."
-      ),
-
-    target_api_key: z
-      .string()
-      .optional()
-      .describe("API key for the target endpoint itself (not for the LLM used by astra)."),
-
-    target_script_path: z
-      .string()
-      .optional()
-      .describe("Path to the local script when target_type='local-script'."),
-
-    // ── Evaluator / suite selection ─────────────────────────────────────────
-    suite: z
-      .string()
-      .optional()
-      .describe(
-        "Run a predefined suite (e.g. 'owasp-llm-top10', 'owasp-agentic-ai'). " +
-          "Mutually exclusive with evaluator_ids. Call astra_list_evaluators to see options."
-      ),
-
-    evaluator_ids: z
-      .array(z.string())
-      .optional()
-      .describe(
-        "Specific evaluator ids to run (e.g. ['prompt-injection','excessive-agency']). " +
-          "Mutually exclusive with suite. Call astra_list_evaluators to see all ids."
-      ),
-
-    // ── LLM for attack generation ───────────────────────────────────────────
-    llm_provider: z
-      .enum(["groq", "openai", "anthropic", "google", "other"])
-      .optional()
-      .describe(
-        "LLM provider astra uses to generate attack prompts and judge responses. " +
-          "Defaults to 'groq'. The corresponding API key env var must be set (or pass llm_api_key_env to specify the var name)."
-      ),
-
-    llm_model: z
-      .string()
-      .optional()
-      .describe(
-        "Model name for the LLM (e.g. 'llama-3.3-70b-versatile'). Uses provider default if omitted."
-      ),
-
-    llm_api_key_env: z
-      .string()
-      .optional()
-      .describe(
-        "Name of the environment variable holding the API key for the attack/judge LLM " +
-          "(e.g. 'GROQ_API_KEY'). Defaults to the standard env var for the chosen provider."
-      ),
-
-    // ── Langfuse / traces ───────────────────────────────────────────────────
-    use_langfuse: z
-      .boolean()
-      .optional()
-      .default(false)
-      .describe(
-        "When true, astra reads production traces from Langfuse to: " +
-          "(1) select realistic evaluators based on what the app actually does, " +
-          "(2) ground attack prompts in real user language and behaviour, " +
-          "(3) enrich the judge with the target's internal trace after each attack. " +
-          "Requires LANGFUSE_PUBLIC_KEY and LANGFUSE_SECRET_KEY in the environment."
-      ),
-
-    langfuse_lookback_hours: z
-      .number()
-      .optional()
-      .describe("When use_langfuse=true, how many hours back to fetch traces. Default: 24."),
-
-    langfuse_trace_ids: z
-      .array(z.string())
-      .optional()
-      .describe(
-        "Explicit list of Langfuse trace IDs to use instead of the automatic lookback window."
-      ),
-
-    // ── Multi-turn ──────────────────────────────────────────────────────────
-    turn_mode: z
-      .enum(["single", "multi"])
-      .optional()
-      .default("single")
-      .describe(
-        "'single' (default) — one prompt per attack. " +
-          "'multi' — runs a short adversarial conversation per attack: after each response, an attacker LLM " +
-          "generates a more escalating follow-up until the target fails or the turn limit is reached. " +
-          "Requires the target to maintain conversation history across requests using a session ID."
-      ),
-
-    turns: z
-      .number()
-      .optional()
-      .default(3)
-      .describe("Maximum number of turns per attack when turn_mode='multi'. Defaults to 3."),
-
-    session_id_field: z
-      .string()
-      .optional()
-      .describe(
-        "JSON body field name to inject a session ID into every HTTP request for multi-turn attacks " +
-          "(e.g. 'session_id'). The target uses this field to look up and reconstruct conversation history. " +
-          "Required when turn_mode='multi' and target_type='http-endpoint'."
-      ),
-
-    // ── Config file (backward-compatible) ──────────────────────────────────
-    config_path: z
-      .string()
-      .optional()
-      .describe(
-        "Path to an astra config file (JSON or YAML). " +
-          "Used when inline parameters are not provided. " +
-          "Inline parameters take precedence if both are supplied."
-      ),
-
-    output_dir: z
-      .string()
-      .optional()
-      .default(".")
-      .describe(
-        "Directory where astra-prompts-*.json will be written. Defaults to current directory."
-      ),
-  },
-  async (args) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  astraSetupSchemaShape as Record<string, any>,
+  (async (args: {
+    target_name?: string;
+    target_description?: string;
+    target_endpoint?: string;
+    target_type?: "http-endpoint" | "local-script";
+    target_request_format?: "auto" | "openai" | "json";
+    target_api_key?: string;
+    target_script_path?: string;
+    suite?: string;
+    evaluator_ids?: string[];
+    llm_provider?: ProviderName;
+    llm_model?: string;
+    llm_api_key_env?: string;
+    use_langfuse?: boolean;
+    langfuse_lookback_hours?: number;
+    langfuse_trace_ids?: string[];
+    turn_mode?: "single" | "multi";
+    turns?: number;
+    session_id_field?: string;
+    config_path?: string;
+    output_dir?: string;
+  }) => {
     const {
       target_name,
       target_description,
@@ -417,31 +442,32 @@ server.tool(
         isError: true,
       };
     }
-  }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  }) as any
 );
 
 // ---------------------------------------------------------------------------
 // Tool: astra_run
 // ---------------------------------------------------------------------------
 
+// Extract schema for astra_run to avoid TypeScript complexity issues
+const astraRunSchemaShape: Record<string, z.ZodTypeAny> = {
+  input_path: z.string().describe("Path to the astra-prompts-*.json file produced by astra_setup."),
+  output_dir: z
+    .string()
+    .optional()
+    .default(".astra/reports")
+    .describe("Directory where HTML and JSON reports will be written. Defaults to .astra/reports."),
+};
+
 server.tool(
   "astra_run",
   "Execute a red team scan using a prompts file generated by astra_setup. " +
     "Fires each attack prompt at the target endpoint, judges every response with an LLM (PASS/FAIL), " +
     "and generates HTML + JSON reports. Returns a full summary of findings.",
-  {
-    input_path: z
-      .string()
-      .describe("Path to the astra-prompts-*.json file produced by astra_setup."),
-    output_dir: z
-      .string()
-      .optional()
-      .default(".astra/reports")
-      .describe(
-        "Directory where HTML and JSON reports will be written. Defaults to .astra/reports."
-      ),
-  },
-  async ({ input_path, output_dir }) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  astraRunSchemaShape as Record<string, any>,
+  (async ({ input_path, output_dir }: { input_path: string; output_dir: string }) => {
     try {
       const result = await runScan({
         inputPath: input_path,
@@ -494,7 +520,8 @@ server.tool(
         isError: true,
       };
     }
-  }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  }) as any
 );
 
 // ---------------------------------------------------------------------------
