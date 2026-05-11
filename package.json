@@ -9,7 +9,8 @@
     "cli",
     "mcp",
     "extension",
-    "tests/e2e/agents/vanilla-chat"
+    "tests/e2e/agents/vanilla-chat",
+    "tests/e2e/agents/customer-support"
   ],
   "files": [
     "skills/",

@@ -1,0 +1,51 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: support
+      POSTGRES_USER: support
+      POSTGRES_PASSWORD: support
+    volumes:
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "support", "-d", "support"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  customer-support:
+    build:
+      context: ../../../../ # repo root — Dockerfile copies from here
+      dockerfile: tests/e2e/agents/customer-support/Dockerfile
+    ports:
+      - "4001:4001"
+    environment:
+      PORT: 4001
+      # Pick one provider and supply its key.
+      # PROVIDER accepts: openai | anthropic | groq | google
+      PROVIDER: ${PROVIDER:-openai}
+      MODEL: ${MODEL:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      # Optional: OpenAI-compatible base URL (Ollama, OpenRouter, Azure, etc.)
+      BASE_URL: ${BASE_URL:-}
+      # PostgreSQL connection (resolved inside Docker network)
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: support
+      POSTGRES_USER: support
+      POSTGRES_PASSWORD: support
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:4001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
