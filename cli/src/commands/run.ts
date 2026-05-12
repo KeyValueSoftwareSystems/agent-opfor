@@ -121,6 +121,8 @@ export function registerRunCommand(program: Command): void {
             outputDir: resolvedOutDir,
           });
         }
+
+        process.exit(0);
       }
     );
 }

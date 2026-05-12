@@ -27,6 +27,9 @@ registerGenerateCommand(program);
 registerRunCommand(program);
 
 main().catch((err: unknown) => {
+  if (err instanceof Error && err.name === "ExitPromptError") {
+    process.exit(0);
+  }
   const message = err instanceof Error ? err.stack || err.message : String(err);
   console.error(message);
   process.exitCode = 1;

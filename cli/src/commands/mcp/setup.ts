@@ -20,8 +20,11 @@ export async function runMcpGenerateAttackPlan(opts: {
   out: string;
   maxTools?: string;
   configId?: string;
+  suite?: string;
+  evaluators?: string[];
+  toolFilter?: boolean;
 }): Promise<string> {
-  const { config, out, maxTools, configId } = opts;
+  const { config, out, maxTools, configId, toolFilter } = opts;
 
   const configPath = await requireAstraMcpConfig(config);
   log.info(`Using config: ${configPath}`);
@@ -32,17 +35,91 @@ export async function runMcpGenerateAttackPlan(opts: {
   const evalIds = getEvaluatorIdSet(catalog);
   log.info(`Evaluator catalog: ${catalog.evaluators.length} definitions`);
 
-  const suite = catalog.suites.find((s) => s.id === DEFAULT_SUITE_ID);
-  if (!suite) {
-    throw new Error(`Suite "${DEFAULT_SUITE_ID}" not found (check skills/astra-setup/suites/).`);
+  // Priority: CLI --evaluators > CLI --suite > config evaluators > config suite > default
+  const cliEvaluators = opts.evaluators;
+  const cliSuite = opts.suite;
+  const cfgEvaluators = cfg.evaluators;
+  const cfgSuite = cfg.suite;
+
+  let resolvedEvaluatorIds: string[];
+  let resolvedSuiteId: string;
+
+  if (cliEvaluators && cliEvaluators.length > 0) {
+    // Explicit evaluator list from CLI (highest priority)
+    const unknown = cliEvaluators.filter((id) => !evalIds.has(id));
+    if (unknown.length > 0) {
+      throw new Error(
+        `Unknown evaluator(s): ${unknown.join(", ")}. Run 'astra list-evaluators' to see available IDs.`
+      );
+    }
+    resolvedEvaluatorIds = cliEvaluators;
+    resolvedSuiteId = "custom";
+    log.success(
+      `Using ${resolvedEvaluatorIds.length} evaluators (from --evaluators): ${resolvedEvaluatorIds.join(", ")}`
+    );
+  } else if (cliSuite) {
+    // Suite from CLI flag
+    const suite = catalog.suites.find((s) => s.id === cliSuite);
+    if (!suite) {
+      const available = catalog.suites.map((s) => s.id).join(", ");
+      throw new Error(`Suite "${cliSuite}" not found. Available: ${available}`);
+    }
+    const missing = suite.evaluatorIds.filter((id) => !evalIds.has(id));
+    if (missing.length > 0) {
+      throw new Error(`Suite "${suite.id}" references missing evaluators: ${missing.join(", ")}`);
+    }
+    resolvedEvaluatorIds = suite.evaluatorIds;
+    resolvedSuiteId = suite.id;
+    log.success(
+      `Suite "${suite.id}" ready (${suite.evaluatorIds.length} evaluators: ${suite.evaluatorIds.join(", ")})`
+    );
+  } else if (cfgEvaluators && cfgEvaluators.length > 0) {
+    // Explicit evaluator list from config
+    const unknown = cfgEvaluators.filter((id) => !evalIds.has(id));
+    if (unknown.length > 0) {
+      throw new Error(
+        `Config references unknown evaluator(s): ${unknown.join(", ")}. Run 'astra list-evaluators' to see available IDs.`
+      );
+    }
+    resolvedEvaluatorIds = cfgEvaluators;
+    resolvedSuiteId = "custom";
+    log.success(
+      `Using ${resolvedEvaluatorIds.length} evaluators (from config): ${resolvedEvaluatorIds.join(", ")}`
+    );
+  } else if (cfgSuite) {
+    // Suite from config
+    const suite = catalog.suites.find((s) => s.id === cfgSuite);
+    if (!suite) {
+      const available = catalog.suites.map((s) => s.id).join(", ");
+      throw new Error(`Suite "${cfgSuite}" not found. Available: ${available}`);
+    }
+    const missing = suite.evaluatorIds.filter((id) => !evalIds.has(id));
+    if (missing.length > 0) {
+      throw new Error(`Suite "${suite.id}" references missing evaluators: ${missing.join(", ")}`);
+    }
+    resolvedEvaluatorIds = suite.evaluatorIds;
+    resolvedSuiteId = suite.id;
+    log.success(
+      `Suite "${suite.id}" ready (${suite.evaluatorIds.length} evaluators: ${suite.evaluatorIds.join(", ")})`
+    );
+  } else {
+    // Default suite
+    const suite = catalog.suites.find((s) => s.id === DEFAULT_SUITE_ID);
+    if (!suite) {
+      throw new Error(
+        `Default suite "${DEFAULT_SUITE_ID}" not found (check skills/mcp-redteaming/suites/).`
+      );
+    }
+    const missing = suite.evaluatorIds.filter((id) => !evalIds.has(id));
+    if (missing.length > 0) {
+      throw new Error(`Suite "${suite.id}" references missing evaluators: ${missing.join(", ")}`);
+    }
+    resolvedEvaluatorIds = suite.evaluatorIds;
+    resolvedSuiteId = suite.id;
+    log.success(
+      `Suite "${suite.id}" ready (${suite.evaluatorIds.length} evaluators: ${suite.evaluatorIds.join(", ")})`
+    );
   }
-  const missing = suite.evaluatorIds.filter((id) => !evalIds.has(id));
-  if (missing.length > 0) {
-    throw new Error(`Suite "${suite.id}" references missing evaluators: ${missing.join(", ")}`);
-  }
-  log.success(
-    `Suite "${suite.id}" ready (${suite.evaluatorIds.length} evaluators: ${suite.evaluatorIds.join(", ")})`
-  );
 
   log.start("Connecting to MCP server (stdio or URL)…");
   const mcp = await connectMcpClient(cfg.server);
@@ -72,7 +149,7 @@ export async function runMcpGenerateAttackPlan(opts: {
   }
 
   const evaluatorDocs = [];
-  for (const id of suite.evaluatorIds) {
+  for (const id of resolvedEvaluatorIds) {
     evaluatorDocs.push(await loadEvaluatorDoc(id));
   }
 
@@ -82,10 +159,11 @@ export async function runMcpGenerateAttackPlan(opts: {
   }
   const plan = await generateAttackPlan({
     cfg,
-    suiteId: suite.id,
+    suiteId: resolvedSuiteId,
     tools,
     evaluatorDocs,
     turns: cfg.turnMode === "multi" ? (cfg.turns ?? 3) : undefined,
+    toolFilter,
   });
 
   (plan as unknown as Record<string, unknown>).mode = "mcp";
@@ -117,10 +195,33 @@ export function registerSetupCommand(program: Command) {
       "--max-tools <n>",
       "Limit to the first N tools from tools/list (useful for rate-limited LLMs)"
     )
+    .option("--suite <id>", "Suite to use (overrides config; ignored if --evaluators is set)")
+    .option(
+      "--evaluators <ids...>",
+      "Specific evaluator IDs (highest priority, overrides --suite and config)"
+    )
+    .option(
+      "--no-tool-filter",
+      "Disable automatic tool-relevance filtering (test every tool against every evaluator)"
+    )
     .action(
-      async ({ config, out, maxTools }: { config?: string; out: string; maxTools?: string }) => {
+      async (rawOpts: {
+        config?: string;
+        out: string;
+        maxTools?: string;
+        suite?: string;
+        evaluators?: string[];
+        toolFilter: boolean;
+      }) => {
         try {
-          await runMcpGenerateAttackPlan({ config, out, maxTools });
+          await runMcpGenerateAttackPlan({
+            config: rawOpts.config,
+            out: rawOpts.out,
+            maxTools: rawOpts.maxTools,
+            suite: rawOpts.suite,
+            evaluators: rawOpts.evaluators,
+            toolFilter: rawOpts.toolFilter,
+          });
         } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : String(err);
           log.error(msg);

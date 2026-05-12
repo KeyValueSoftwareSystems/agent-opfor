@@ -21,6 +21,12 @@ export function registerGenerateCommand(program: Command): void {
     .option("--out <path>", "Override output path for attacks JSON (advanced)")
     .option("--mcp", "Force MCP mode (useful when config contains both blocks)")
     .option("--agent", "Force agent mode (useful when config contains both blocks)")
+    .option("--suite <id>", "Suite to use (overrides config; ignored if --evaluators is set)")
+    .option(
+      "--evaluators <ids...>",
+      "Specific evaluator IDs to run (highest priority, overrides --suite and config)"
+    )
+    .option("--no-tool-filter", "Disable automatic tool-relevance filtering")
     .action(
       async (opts: {
         config?: string;
@@ -28,6 +34,9 @@ export function registerGenerateCommand(program: Command): void {
         out?: string;
         mcp?: boolean;
         agent?: boolean;
+        suite?: string;
+        evaluators?: string[];
+        toolFilter: boolean;
       }) => {
         if (opts.env) loadEnvFromFlag(opts.env);
         await ensureAstraDirs();
@@ -68,6 +77,9 @@ export function registerGenerateCommand(program: Command): void {
             config: configPath,
             out: outPath,
             configId: cfg.configId,
+            suite: opts.suite,
+            evaluators: opts.evaluators,
+            toolFilter: opts.toolFilter,
           });
         } else {
           await generateAgentAttacksFromConfig({

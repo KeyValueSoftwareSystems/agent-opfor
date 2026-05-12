@@ -33,6 +33,10 @@ export const AstraMcpConfigSchema = z.object({
   server: McpServerConfigSchema,
   generatorModel: ModelConfigSchema,
   judgeModel: ModelConfigSchema.optional(),
+  /** Suite ID to use (default: "owasp-mcp-top10"). Ignored if evaluators[] is set. */
+  suite: z.string().min(1).optional(),
+  /** Explicit evaluator IDs. Takes priority over suite when both are set. */
+  evaluators: z.array(z.string().min(1)).optional(),
   /** "single" (default) fires one attack per scenario; "multi" runs adaptive multi-turn red-teaming. */
   turnMode: z.enum(["single", "multi"]).optional(),
   /** Number of adaptive turns per attack when turnMode is "multi" (default 3). */

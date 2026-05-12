@@ -143,7 +143,84 @@ async function generateAttacksForEvaluator(args: {
     throw new Error(`LLM JSON missing attacks[] for evaluator "${args.evaluatorDoc.id}"`);
   }
 
-  return z.array(AttackScenarioSchema).parse(attacksUnknown);
+  // Filter out malformed entries (null, undefined, or missing required fields) before parsing.
+  const cleaned = attacksUnknown.filter(
+    (item): item is Record<string, unknown> =>
+      item != null && typeof item === "object" && "id" in item && "summary" in item
+  );
+
+  return z.array(AttackScenarioSchema).parse(cleaned);
+}
+
+/**
+ * Ask the LLM which tools are relevant for each evaluator.
+ * Returns a map: evaluatorId → tool names. Filters out irrelevant pairs
+ * to dramatically reduce token usage and attack count for large MCPs.
+ */
+async function computeToolRelevanceMap(args: {
+  cfg: AstraMcpConfig;
+  tools: ToolInfo[];
+  evaluatorDocs: EvaluatorDoc[];
+}): Promise<Record<string, string[]>> {
+  const toolSummaries = args.tools.map((t) => ({
+    name: t.name,
+    description: t.description ?? "(no description)",
+  }));
+
+  const evaluatorSummaries = args.evaluatorDocs.map((e) => ({
+    id: e.id,
+    name: e.name,
+  }));
+
+  const system = [
+    "You are a security expert. Given a list of MCP tools and security evaluator categories,",
+    "determine which tools are RELEVANT for each evaluator.",
+    "",
+    "A tool is relevant if it could plausibly exhibit the vulnerability that the evaluator checks for.",
+    "For example: a tool that fetches URLs is relevant for SSRF but not for secret-exposure.",
+    "",
+    "Return ONLY valid JSON (no markdown, no prose) matching this exact shape:",
+    '{"relevance":{"evaluator-id":["tool1","tool2"],...}}',
+    "",
+    "Rules:",
+    "- Every evaluator MUST appear as a key, even if its array is empty.",
+    "- Tool names must exactly match the TOOLS list.",
+    "- Include at least 1 tool per evaluator when any reasonable connection exists.",
+    "- When in doubt, INCLUDE the tool (err on the side of coverage).",
+  ].join("\n");
+
+  const user = [
+    "TOOLS:",
+    JSON.stringify(toolSummaries, null, 2),
+    "",
+    "EVALUATORS:",
+    JSON.stringify(evaluatorSummaries, null, 2),
+  ].join("\n");
+
+  const raw = await chatCompletionJsonContent({
+    model: args.cfg.generatorModel,
+    system,
+    user,
+  });
+
+  const parsed = JSON.parse(raw) as { relevance?: Record<string, string[]> };
+  const relevance = parsed.relevance;
+  if (!relevance || typeof relevance !== "object") {
+    throw new Error("Tool relevance LLM response missing 'relevance' key");
+  }
+
+  const allToolNames = new Set(args.tools.map((t) => t.name));
+  const result: Record<string, string[]> = {};
+  for (const doc of args.evaluatorDocs) {
+    const mapped = relevance[doc.id];
+    if (Array.isArray(mapped)) {
+      result[doc.id] = mapped.filter((name) => allToolNames.has(name));
+    } else {
+      result[doc.id] = [];
+    }
+  }
+
+  return result;
 }
 
 export async function generateAttackPlan(args: {
@@ -152,6 +229,7 @@ export async function generateAttackPlan(args: {
   tools: ToolInfo[];
   evaluatorDocs: EvaluatorDoc[];
   turns?: number;
+  toolFilter?: boolean;
 }): Promise<AttackPlanWritten> {
   const transport = args.cfg.server.transport;
   const serverSummary =
@@ -165,14 +243,46 @@ export async function generateAttackPlan(args: {
   // tool-description-scan is handled programmatically — skip it in the LLM loop
   const llmEvaluatorDocs = args.evaluatorDocs.filter((d) => d.id !== "tool-description-scan");
 
+  // Tool filtering: for MCPs with many tools, ask the LLM to score
+  // which tools are relevant for each evaluator before generating attacks.
+  const enableFilter = args.toolFilter !== false && args.tools.length > 5;
+  let relevanceMap: Record<string, string[]> | undefined;
+  if (enableFilter) {
+    log.start(
+      `Scoring tool relevance (${args.tools.length} tools × ${llmEvaluatorDocs.length} evaluators)…`
+    );
+    try {
+      relevanceMap = await computeToolRelevanceMap({
+        cfg: args.cfg,
+        tools: args.tools,
+        evaluatorDocs: llmEvaluatorDocs,
+      });
+      const pairs = Object.values(relevanceMap).reduce((sum, arr) => sum + arr.length, 0);
+      log.success(
+        `Tool filtering: ${pairs} relevant pairs (down from ${args.tools.length * llmEvaluatorDocs.length})`
+      );
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      log.warn(`Tool relevance scoring failed (${msg}), using all tools for every evaluator`);
+      relevanceMap = undefined;
+    }
+  }
+
   for (const evaluatorDoc of llmEvaluatorDocs) {
-    log.start(`Generating attacks for evaluator: ${evaluatorDoc.id} (${evaluatorDoc.name})…`);
+    let toolsForEval = args.tools;
+    if (relevanceMap && relevanceMap[evaluatorDoc.id]?.length > 0) {
+      const relevantNames = new Set(relevanceMap[evaluatorDoc.id]);
+      toolsForEval = args.tools.filter((t) => relevantNames.has(t.name));
+    }
+    log.start(
+      `Generating attacks for evaluator: ${evaluatorDoc.id} (${evaluatorDoc.name}) [${toolsForEval.length} tools]…`
+    );
     const attacks = await generateAttacksForEvaluator({
       cfg: args.cfg,
       suiteId: args.suiteId,
       transport,
       serverSummary,
-      tools: args.tools,
+      tools: toolsForEval,
       evaluatorDoc,
     });
     log.success(`  ${evaluatorDoc.id}: ${attacks.length} attacks`);
@@ -219,6 +329,7 @@ export async function generateAttackPlan(args: {
     generatorModel: args.cfg.generatorModel,
     judgeModel: args.cfg.judgeModel,
     attackerInstructions: args.cfg.attackerInstructions,
+    ...(relevanceMap ? { toolRelevanceMap: relevanceMap } : {}),
   };
 
   return plan;

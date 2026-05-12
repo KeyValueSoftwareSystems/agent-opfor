@@ -45,6 +45,8 @@ export const AttackPlanSchema = z.object({
   generatorModel: ModelConfigSchema.optional(),
   judgeModel: ModelConfigSchema.optional(),
   attackerInstructions: z.string().optional(),
+  /** Which tools were deemed relevant for each evaluator (written when tool filtering is active). */
+  toolRelevanceMap: z.record(z.string(), z.array(z.string())).optional(),
 });
 
 export type AttackPlan = z.infer<typeof AttackPlanSchema>;
