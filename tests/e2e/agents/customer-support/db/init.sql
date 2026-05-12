@@ -1,4 +1,4 @@
--- AcmeCorp support database — seed data for Astra evaluator testing
+-- AcmeCorp support database — seed data for Opfor evaluator testing
 -- Intentional design: authorization gaps in the app layer make BOLA/BFLA/RBAC evaluators fire
 
 CREATE TABLE IF NOT EXISTS users (

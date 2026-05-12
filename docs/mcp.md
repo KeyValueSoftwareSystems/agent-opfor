@@ -1,6 +1,6 @@
-# Astra — MCP Server
+# Opfor — MCP Server
 
-The MCP server exposes Astra as tools that any MCP-compatible AI agent (Cursor, Claude Desktop, Windsurf) can call directly. No terminal required — the agent runs the full workflow from your chat.
+The MCP server exposes Opfor as tools that any MCP-compatible AI agent (Cursor, Claude Desktop, Windsurf) can call directly. No terminal required — the agent runs the full workflow from your chat.
 
 ---
 
@@ -8,9 +8,9 @@ The MCP server exposes Astra as tools that any MCP-compatible AI agent (Cursor, 
 
 The agent calls three tools in sequence:
 
-1. **`astra_list_evaluators`** — discover available evaluator IDs and suites
-2. **`astra_setup`** — generate targeted attack prompts (inline parameters or config file)
-3. **`astra_run`** — fire attacks, judge responses, write HTML + JSON reports
+1. **`opfor_list_evaluators`** — discover available evaluator IDs and suites
+2. **`opfor_setup`** — generate targeted attack prompts (inline parameters or config file)
+3. **`opfor_run`** — fire attacks, judge responses, write HTML + JSON reports
 
 No config file is required. The agent can pass all parameters inline based on what it finds in your repo.
 
@@ -19,8 +19,8 @@ No config file is required. The agent can pass all parameters inline based on wh
 ## Installation
 
 ```bash
-git clone https://github.com/yourusername/astra.git
-cd astra
+git clone https://github.com/yourusername/opfor.git
+cd opfor
 npm install
 npm run build
 ```
@@ -34,9 +34,9 @@ Add to `~/.cursor/mcp.json` (global — works in all projects):
 ```json
 {
   "mcpServers": {
-    "astra": {
+    "opfor": {
       "command": "node",
-      "args": ["/absolute/path/to/astra/mcp/dist/index.js"]
+      "args": ["/absolute/path/to/opfor/mcp/dist/index.js"]
     }
   }
 }
@@ -49,9 +49,9 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 ```json
 {
   "mcpServers": {
-    "astra": {
+    "opfor": {
       "command": "node",
-      "args": ["/absolute/path/to/astra/mcp/dist/index.js"]
+      "args": ["/absolute/path/to/opfor/mcp/dist/index.js"]
     }
   }
 }
@@ -69,19 +69,19 @@ Once registered, just talk to your agent:
 "Red team my chatbot at http://localhost:4000/chat"
 ```
 
-The agent will call `astra_list_evaluators` → `astra_setup` → `astra_run` and return a full findings summary in chat, with HTML and JSON reports saved to disk.
+The agent will call `opfor_list_evaluators` → `opfor_setup` → `opfor_run` and return a full findings summary in chat, with HTML and JSON reports saved to disk.
 
 ---
 
 ## Tools reference
 
-### `astra_list_evaluators`
+### `opfor_list_evaluators`
 
 No parameters. Returns every evaluator ID, severity, OWASP tag, and all predefined suites. Call this first when you haven't specified evaluator IDs.
 
 ---
 
-### `astra_setup`
+### `opfor_setup`
 
 Generates attack prompts. Accepts **inline parameters** (preferred) or a **config file path**.
 
@@ -104,27 +104,27 @@ Generates attack prompts. Accepts **inline parameters** (preferred) or a **confi
 | `use_langfuse`            | boolean                           | No                 | Fetch production traces to ground attack prompts. Requires `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` in env |
 | `langfuse_lookback_hours` | number                            | No                 | How many hours back to fetch traces when `use_langfuse=true`. Default: 24                                       |
 | `langfuse_trace_ids`      | string[]                          | No                 | Explicit trace IDs to use instead of a lookback window                                                          |
-| `output_dir`              | string                            | No                 | Where to write `astra-prompts-*.json`. Defaults to `.`                                                          |
+| `output_dir`              | string                            | No                 | Where to write `opfor-prompts-*.json`. Defaults to `.`                                                          |
 
 #### Config file (backward-compatible)
 
 | Parameter     | Type   | Description                                      |
 | ------------- | ------ | ------------------------------------------------ |
-| `config_path` | string | Path to an existing `astra.config.json` / `.yml` |
+| `config_path` | string | Path to an existing `opfor.config.json` / `.yml` |
 | `llm_api_key` | string | Optional override for the key in the config      |
 | `output_dir`  | string | Output directory. Defaults to `.`                |
 
 ---
 
-### `astra_run`
+### `opfor_run`
 
 Fires attacks and generates reports.
 
 | Parameter    | Type   | Required | Description                                                |
 | ------------ | ------ | -------- | ---------------------------------------------------------- |
-| `input_path` | string | Yes      | Path to the `astra-prompts-*.json` file from `astra_setup` |
+| `input_path` | string | Yes      | Path to the `opfor-prompts-*.json` file from `opfor_setup` |
 | `api_key`    | string | No       | Override the LLM key stored in the prompts file            |
-| `output_dir` | string | No       | Report directory. Defaults to `.astra/reports`             |
+| `output_dir` | string | No       | Report directory. Defaults to `.opfor/reports`             |
 
 ---
 
@@ -132,11 +132,11 @@ Fires attacks and generates reports.
 
 When `use_langfuse=true`:
 
-- Astra fetches the last N hours of Langfuse traces (or explicit IDs via `langfuse_trace_ids`)
+- Opfor fetches the last N hours of Langfuse traces (or explicit IDs via `langfuse_trace_ids`)
 - A Curator LLM picks the most relevant traces and a Summarizer LLM writes `trace-summary.md`
 - Attack prompts are grounded in real user language and real tool/error patterns from production
 - `target_description` can be omitted — the trace summary replaces it
-- After each attack, Astra polls Langfuse for the target's internal trace and passes it to the judge for a more accurate PASS/FAIL verdict
+- After each attack, Opfor polls Langfuse for the target's internal trace and passes it to the judge for a more accurate PASS/FAIL verdict
 
 Required environment variables:
 
@@ -167,9 +167,9 @@ Once published, users can run the MCP server without cloning the repo:
 ```json
 {
   "mcpServers": {
-    "astra": {
+    "opfor": {
       "command": "npx",
-      "args": ["-y", "@astra/mcp"]
+      "args": ["-y", "@opfor/mcp"]
     }
   }
 }

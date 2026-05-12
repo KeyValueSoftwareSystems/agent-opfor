@@ -1,5 +1,5 @@
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message?.type !== "ASTRA_INJECT_SEND_HI") return;
+  if (message?.type !== "OPFOR_INJECT_SEND_HI") return;
 
   (async () => {
     try {
@@ -103,7 +103,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         const act = await chrome.scripting.executeScript({
           target: { tabId: tab.id, frameIds: [f.frameId] },
           func: (plan) => {
-            globalThis.__ASTRA_PLAN__ = plan;
+            globalThis.__OPFOR_PLAN__ = plan;
           },
           args: [
             {
@@ -114,7 +114,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           ],
         });
 
-        // Now run the actual actuator file (reads globalThis.__ASTRA_PLAN__).
+        // Now run the actual actuator file (reads globalThis.__OPFOR_PLAN__).
         const act2 = await chrome.scripting.executeScript({
           target: { tabId: tab.id, frameIds: [f.frameId] },
           files: ["frame_actuate.js"],
@@ -164,7 +164,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   return true;
 });
 
-let ASTRA_STOP = false;
+let OPFOR_STOP = false;
 /** When set, `fetch` calls from the adaptive UI run use this signal so Stop / popup-close aborts in-flight LLM requests. */
 let uiRunAbortController = null;
 
@@ -187,7 +187,7 @@ function endUiRunAbortController() {
 async function sleepInterruptible(ms) {
   const step = 250;
   let left = ms;
-  while (left > 0 && !ASTRA_STOP) {
+  while (left > 0 && !OPFOR_STOP) {
     const chunk = Math.min(step, left);
     await sleep(chunk);
     left -= chunk;
@@ -231,18 +231,18 @@ async function sleep(ms) {
  * Load per-task LLM configs from Options.
  *
  * Storage:
- * - New: `astraLlmProfiles` = { v: 1, attacker, judge, reader } (each has provider/baseUrl/model/apiKey/enabled)
- * - Legacy fallback: `astraAiFallback`
+ * - New: `opforLlmProfiles` = { v: 1, attacker, judge, reader } (each has provider/baseUrl/model/apiKey/enabled)
+ * - Legacy fallback: `opforAiFallback`
  */
 async function getLlmProfile(kind) {
-  const { astraLlmProfiles, astraAiFallback } = await chrome.storage.local.get([
-    "astraLlmProfiles",
-    "astraAiFallback",
+  const { opforLlmProfiles, opforAiFallback } = await chrome.storage.local.get([
+    "opforLlmProfiles",
+    "opforAiFallback",
   ]);
 
-  const legacy = astraAiFallback || {};
+  const legacy = opforAiFallback || {};
   const profiles =
-    astraLlmProfiles && typeof astraLlmProfiles === "object" ? astraLlmProfiles : null;
+    opforLlmProfiles && typeof opforLlmProfiles === "object" ? opforLlmProfiles : null;
   const selected = profiles?.[kind] && typeof profiles[kind] === "object" ? profiles[kind] : legacy;
 
   const cfg = {
@@ -418,7 +418,7 @@ async function actSendText(tabId, frameId, plan) {
   await chrome.scripting.executeScript({
     target: { tabId, frameIds: [frameId] },
     func: (p) => {
-      globalThis.__ASTRA_PLAN__ = p;
+      globalThis.__OPFOR_PLAN__ = p;
     },
     args: [plan],
   });
@@ -435,7 +435,7 @@ async function actVendorSendText(tabId, text) {
   await chrome.scripting.executeScript({
     target: { tabId, frameIds: [0] },
     func: (t) => {
-      globalThis.__astraVendorText = t;
+      globalThis.__opforVendorText = t;
     },
     args: [text],
     world: "MAIN",
@@ -460,7 +460,7 @@ async function actClickSelector(tabId, frameId, selector) {
   await chrome.scripting.executeScript({
     target: { tabId, frameIds: [frameId] },
     func: (s) => {
-      globalThis.__ASTRA_CLICK_SELECTOR__ = String(s || "");
+      globalThis.__OPFOR_CLICK_SELECTOR__ = String(s || "");
     },
     args: [selector],
   });
@@ -582,7 +582,7 @@ async function extractResponse(tabId, frameId, lastUserText = "") {
     await chrome.scripting.executeScript({
       target: { tabId, frameIds: [frameId] },
       func: (t) => {
-        globalThis.__ASTRA_LAST_USER__ = String(t || "");
+        globalThis.__OPFOR_LAST_USER__ = String(t || "");
       },
       args: [lastUserText],
     });
@@ -764,7 +764,7 @@ async function judgeConversationFinal(cfg, { evaluatorSnapshot, transcript }) {
 
 async function persistPausedAdaptiveRun(payload) {
   await chrome.storage.local.set({
-    astraPausedRun: {
+    opforPausedRun: {
       v: 1,
       savedAt: Date.now(),
       ...payload,
@@ -774,7 +774,7 @@ async function persistPausedAdaptiveRun(payload) {
 
 async function setRunStatus(status) {
   await chrome.storage.local.set({
-    astraRunStatus: {
+    opforRunStatus: {
       v: 1,
       updatedAt: Date.now(),
       ...status,
@@ -788,13 +788,13 @@ async function setRunStatus(status) {
  */
 function broadcastProgress(payload) {
   try {
-    chrome.runtime.sendMessage({ type: "ASTRA_UI_PROGRESS", ...payload }).catch(() => {});
+    chrome.runtime.sendMessage({ type: "OPFOR_UI_PROGRESS", ...payload }).catch(() => {});
   } catch {}
 
   // Persist to storage (fire-and-forget, don't block the run).
   try {
-    chrome.storage.local.get("astraRunStatus", (data) => {
-      const cur = data?.astraRunStatus || {};
+    chrome.storage.local.get("opforRunStatus", (data) => {
+      const cur = data?.opforRunStatus || {};
       if (!cur.running) return;
       const patch = { updatedAt: Date.now() };
       if (payload.kind === "phase") {
@@ -814,7 +814,7 @@ function broadcastProgress(payload) {
         patch.transcript = transcript.slice(-40);
       }
       chrome.storage.local.set({
-        astraRunStatus: { ...cur, ...patch },
+        opforRunStatus: { ...cur, ...patch },
       });
     });
   } catch {}
@@ -822,13 +822,13 @@ function broadcastProgress(payload) {
 
 async function clearRunStatus() {
   await chrome.storage.local.set({
-    astraRunStatus: { v: 1, running: false, updatedAt: Date.now() },
+    opforRunStatus: { v: 1, running: false, updatedAt: Date.now() },
   });
 }
 
 async function persistPartialResult(payload) {
   await chrome.storage.local.set({
-    astraLastResult: {
+    opforLastResult: {
       v: 1,
       savedAt: Date.now(),
       ...payload,
@@ -1035,7 +1035,7 @@ async function resetChatSession(tabId, readerCfg) {
 
 async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
   beginUiRunAbortController();
-  ASTRA_STOP = false;
+  OPFOR_STOP = false;
   broadcastProgress({
     kind: "phase",
     phase: "locating",
@@ -1078,7 +1078,7 @@ async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
     const catalog = await loadAttackCatalog();
 
     if (resume) {
-      const { astraPausedRun: paused } = await chrome.storage.local.get("astraPausedRun");
+      const { opforPausedRun: paused } = await chrome.storage.local.get("opforPausedRun");
       if (!paused?.plan?.inputSelector) throw new Error("No paused session to resume.");
       suiteId = paused.suiteId || "";
       evaluatorSnapshot = paused.evaluatorSnapshot;
@@ -1105,7 +1105,7 @@ async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
 
       if (transcript.length % 2 === 1) {
         await sleepInterruptible(waitMs);
-        if (ASTRA_STOP) {
+        if (OPFOR_STOP) {
           await persistPausedAdaptiveRun({
             tabId: tab.id,
             siteUrl: tab.url || "",
@@ -1395,7 +1395,7 @@ async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
     let knownMaxLength = undefined;
     let round = Math.floor(transcript.length / 2);
     for (; round < maxRounds; round++) {
-      if (ASTRA_STOP) {
+      if (OPFOR_STOP) {
         await persistPartialResult({
           ok: true,
           partial: true,
@@ -1442,7 +1442,7 @@ async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
         maxMessageLength: detectedMaxLength,
       });
 
-      if (ASTRA_STOP) {
+      if (OPFOR_STOP) {
         await persistPartialResult({
           ok: true,
           partial: true,
@@ -1543,7 +1543,7 @@ async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
       });
 
       await sleepInterruptible(waitMs);
-      if (ASTRA_STOP) {
+      if (OPFOR_STOP) {
         await persistPartialResult({
           ok: true,
           partial: true,
@@ -1700,7 +1700,7 @@ async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
         judgment = await judgeConversationFinal(judgeCfg, { evaluatorSnapshot, transcript });
       } catch (judgeErr) {
         const errMsg = judgeErr instanceof Error ? judgeErr.message : String(judgeErr);
-        if (errMsg === "Run stopped." || ASTRA_STOP) throw judgeErr;
+        if (errMsg === "Run stopped." || OPFOR_STOP) throw judgeErr;
         judgment = {
           verdict: "UNKNOWN",
           summary: `Judge LLM call failed: ${errMsg.slice(0, 200)}`,
@@ -1713,7 +1713,7 @@ async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
       judgment = { verdict: "UNKNOWN", summary: "No complete turns.", findings: [] };
     }
 
-    if (ASTRA_STOP) {
+    if (OPFOR_STOP) {
       // User stopped right before/during judgment — judge with what we have
       let stoppedJudgment = judgment;
       if (!stoppedJudgment && transcript.length >= 2 && judgeCfg?.enabled) {
@@ -1767,7 +1767,7 @@ async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
       return;
     }
 
-    await chrome.storage.local.remove("astraPausedRun");
+    await chrome.storage.local.remove("opforPausedRun");
     await clearRunStatus();
 
     const finalResult = {
@@ -1795,7 +1795,7 @@ async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
     }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    if (msg === "Run stopped." || ASTRA_STOP) {
+    if (msg === "Run stopped." || OPFOR_STOP) {
       // User stopped — try to judge whatever transcript we have
       let stoppedJudgment;
       if (transcript?.length >= 2 && evaluatorSnapshot && judgeCfg?.enabled) {
@@ -1918,8 +1918,8 @@ async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
 }
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message?.type === "ASTRA_UI_STOP") {
-    ASTRA_STOP = true;
+  if (message?.type === "OPFOR_UI_STOP") {
+    OPFOR_STOP = true;
     try {
       uiRunAbortController?.abort();
     } catch {}
@@ -1928,19 +1928,19 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
-  if (message?.type === "ASTRA_UI_DISCARD_PAUSED") {
-    chrome.storage.local.remove("astraPausedRun", () => sendResponse({ ok: true }));
+  if (message?.type === "OPFOR_UI_DISCARD_PAUSED") {
+    chrome.storage.local.remove("opforPausedRun", () => sendResponse({ ok: true }));
     return true;
   }
 
-  if (message?.type === "ASTRA_UI_RESUME") {
+  if (message?.type === "OPFOR_UI_RESUME") {
     (async () => {
       await executeAdaptiveRedTeamRun(sendResponse, message, true);
     })();
     return true;
   }
 
-  if (message?.type === "ASTRA_RESET_CHAT") {
+  if (message?.type === "OPFOR_RESET_CHAT") {
     (async () => {
       try {
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -1959,7 +1959,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
-  if (message?.type !== "ASTRA_UI_RUN") return;
+  if (message?.type !== "OPFOR_UI_RUN") return;
 
   (async () => {
     await executeAdaptiveRedTeamRun(sendResponse, message, false);
@@ -2000,7 +2000,7 @@ async function callOpenAiCompat({ baseUrl, apiKey, model, messages, signal: sign
       signal,
     });
   } catch (e) {
-    if (e?.name === "AbortError" || ASTRA_STOP) throw new Error("Run stopped.", { cause: e });
+    if (e?.name === "AbortError" || OPFOR_STOP) throw new Error("Run stopped.", { cause: e });
     throw e;
   }
 
@@ -2020,7 +2020,7 @@ async function callOpenAiCompat({ baseUrl, apiKey, model, messages, signal: sign
 }
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message?.type !== "ASTRA_AI_PICK_INPUT") return;
+  if (message?.type !== "OPFOR_AI_PICK_INPUT") return;
 
   (async () => {
     try {

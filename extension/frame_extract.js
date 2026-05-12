@@ -257,7 +257,7 @@ function classifyBubble(el) {
  * Uses normalized comparison to catch minor formatting differences.
  */
 function matchesUserMessage(text) {
-  const lastUser = (globalThis.__ASTRA_LAST_USER__ || "").trim();
+  const lastUser = (globalThis.__OPFOR_LAST_USER__ || "").trim();
   if (!lastUser || !text) return false;
   const normalize = (s) => s.toLowerCase().replace(/\s+/g, " ").trim();
   const normUser = normalize(lastUser);

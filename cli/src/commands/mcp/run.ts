@@ -41,8 +41,8 @@ function parseToolResponse(raw: string): ParsedToolResponse {
   }
 }
 
-const DEFAULT_ATTACKS_FILE = "astra-mcp-attacks.json";
-const DEFAULT_REPORT_DIR = ".astra/reports";
+const DEFAULT_ATTACKS_FILE = "opfor-mcp-attacks.json";
+const DEFAULT_REPORT_DIR = ".opfor/reports";
 
 export async function runMcpAttackPlan(opts: {
   input: string;
@@ -59,13 +59,13 @@ export async function runMcpAttackPlan(opts: {
   if (!plan.server) {
     throw new Error(
       "Attack plan is missing embedded server config. " +
-        "Re-run `astra generate --config <path>` to regenerate the plan with current config."
+        "Re-run `opfor generate --config <path>` to regenerate the plan with current config."
     );
   }
   if (!plan.generatorModel) {
     throw new Error(
       "Attack plan is missing embedded generator model config. " +
-        "Re-run `astra generate --config <path>` to regenerate the plan with current config."
+        "Re-run `opfor generate --config <path>` to regenerate the plan with current config."
     );
   }
 

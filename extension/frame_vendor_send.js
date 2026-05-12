@@ -1,7 +1,7 @@
 // Runs in MAIN world to send a message via the vendor input found by frame_vendor_api.js.
-// Receives the text to send via globalThis.__astraVendorText.
+// Receives the text to send via globalThis.__opforVendorText.
 (() => {
-  const text = globalThis.__astraVendorText || "";
+  const text = globalThis.__opforVendorText || "";
   if (!text) return { ok: false, error: "no_text" };
 
   function sleep(ms) {
@@ -67,7 +67,7 @@
   }
 
   async function run() {
-    const input = globalThis.__astraVendorInput;
+    const input = globalThis.__opforVendorInput;
     if (!input || !(input instanceof Element)) return { ok: false, error: "no_vendor_input_ref" };
 
     const rect = input.getBoundingClientRect?.();

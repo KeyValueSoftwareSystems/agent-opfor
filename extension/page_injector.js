@@ -713,7 +713,7 @@ function selectorFromEl(el) {
 
 async function aiPickInputAndSubmit({ sanitizedDom }) {
   const resp = await chrome.runtime.sendMessage({
-    type: "ASTRA_AI_PICK_INPUT",
+    type: "OPFOR_AI_PICK_INPUT",
     task: "Identify the chat prompt/input element and how to submit a message.",
     sanitizedDom,
   });

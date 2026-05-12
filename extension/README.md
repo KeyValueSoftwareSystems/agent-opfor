@@ -1,4 +1,4 @@
-# Astra UI extension (dev)
+# Opfor UI extension (dev)
 
 Chrome/Brave MV3 extension for **red-teaming embedded web chat agents**.
 

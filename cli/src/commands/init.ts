@@ -2,7 +2,7 @@ import type { Command } from "commander";
 import { writeFile, mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
-/** Legacy helper: writes only an `"agent"` block; unified CLI uses `astra setup --agent`. */
+/** Legacy helper: writes only an `"agent"` block; unified CLI uses `opfor setup --agent`. */
 const SAMPLE_CONFIG = `{
   "agent": {
     "attackLlm": {
@@ -31,7 +31,7 @@ const SAMPLE_CONFIG = `{
 `;
 
 const PYTHON_STUB = `#!/usr/bin/env python3
-"""Astra local target stub (stdin/stdout JSON).
+"""Opfor local target stub (stdin/stdout JSON).
 
 Stdin:  one JSON object { "prompt": "...", "context": {...}, "sessionId": "..." }
 Stdout: one JSON object { "response": "..." } or { "error": "..." }
@@ -72,7 +72,7 @@ def main() -> None:
     # Output:  reply string → printed as {"response": reply}
     # -------------------------------------------------------------------------
     reply = (
-        f"[astra-local-target demo] target={name}\\n"
+        f"[opfor-local-target demo] target={name}\\n"
         f"Prompt was:\\n{prompt}\\n\\n"
         "Stub response: wire your stack here (LLM, RAG, agent, etc.)."
     )
@@ -85,7 +85,7 @@ if __name__ == "__main__":
 
 const NODE_STUB = `#!/usr/bin/env node
 /**
- * Astra local target stub (stdin/stdout JSON).
+ * Opfor local target stub (stdin/stdout JSON).
  *
  * Stdin:  one JSON object { "prompt": "...", "context": {...}, "sessionId": "..." }
  * Stdout: one JSON object { "response": "..." } or { "error": "..." }
@@ -95,7 +95,7 @@ const NODE_STUB = `#!/usr/bin/env node
  *
  * Replace the stub body with your model, tools, or API calls.
  *
- * CommonJS (require) so this file runs as: node astra-local-target.js
+ * CommonJS (require) so this file runs as: node opfor-local-target.js
  * without needing "type": "module" in package.json.
  */
 const { readFileSync } = require("node:fs");
@@ -127,7 +127,7 @@ const name = context.targetName ?? "?";
 // Output:  reply becomes the "response" string in the JSON printed to stdout.
 // ---------------------------------------------------------------------------
 const reply =
-  "[astra-local-target demo] target=" +
+  "[opfor-local-target demo] target=" +
   name +
   "\\nPrompt was:\\n" +
   prompt +
@@ -151,12 +151,12 @@ export function registerInitCommand(program: Command): void {
   program
     .command("init")
     .description(
-      "Generate a sample astra.config.json, and/or sample local target scripts (--example)."
+      "Generate a sample opfor.config.json, and/or sample local target scripts (--example)."
     )
     .option(
       "-o, --output <path>",
-      "Config output path (default: astra.config.json)",
-      "astra.config.json"
+      "Config output path (default: opfor.config.json)",
+      "opfor.config.json"
     )
     .option(
       "--example <kind>",
@@ -173,12 +173,12 @@ export function registerInitCommand(program: Command): void {
 
           const written: string[] = [];
           if (example === "python" || example === "both") {
-            const pyPath = path.join(dir, "astra-local-target.py");
+            const pyPath = path.join(dir, "opfor-local-target.py");
             await writeFile(pyPath, PYTHON_STUB, "utf8");
             written.push(pyPath);
           }
           if (example === "node" || example === "both") {
-            const jsPath = path.join(dir, "astra-local-target.js");
+            const jsPath = path.join(dir, "opfor-local-target.js");
             await writeFile(jsPath, NODE_STUB, "utf8");
             written.push(jsPath);
           }
@@ -189,12 +189,12 @@ export function registerInitCommand(program: Command): void {
             "\nContract: stdin JSON { prompt, context?, sessionId? } → stdout JSON { response } or { error }."
           );
           console.log(
-            'Test: echo \'{"prompt":"hi","context":{}}\' | python3 astra-local-target.py'
+            'Test: echo \'{"prompt":"hi","context":{}}\' | python3 opfor-local-target.py'
           );
-          console.log('      echo \'{"prompt":"hi","context":{}}\' | node astra-local-target.js');
+          console.log('      echo \'{"prompt":"hi","context":{}}\' | node opfor-local-target.js');
           console.log(
-            "\nConfig: use `astra setup --agent` to create a timestamped config under .astra/configs/.\n" +
-              "Then: `astra generate --config .astra/configs/astra-config-....json` and `astra run --attacks .astra/attacks/astra-attacks-....json`.\n"
+            "\nConfig: use `opfor setup --agent` to create a timestamped config under .opfor/configs/.\n" +
+              "Then: `opfor generate --config .opfor/configs/opfor-config-....json` and `opfor run --attacks .opfor/attacks/opfor-attacks-....json`.\n"
           );
           return;
         }
@@ -212,9 +212,9 @@ export function registerInitCommand(program: Command): void {
         }
         await writeFile(outPath, JSON.stringify(doc, null, 2) + "\n", "utf8");
         console.log(`\nConfig template written to: ${opts.output}`);
-        console.log(`Edit it, then run: astra generate --config ${opts.output}`);
+        console.log(`Edit it, then run: opfor generate --config ${opts.output}`);
         console.log(
-          "Optional: `astra agent init --example python`, `node`, or `both` for .py / .js sample scripts.\n"
+          "Optional: `opfor agent init --example python`, `node`, or `both` for .py / .js sample scripts.\n"
         );
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);

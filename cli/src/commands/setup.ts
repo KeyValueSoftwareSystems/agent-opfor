@@ -5,7 +5,7 @@ import { select } from "@inquirer/prompts";
 import { buildEmptyMcpSection, collectMcpSectionInteractive } from "./mcp/init.js";
 import { buildEmptyAgentSetupConfig, collectAgentSetupConfigInteractive } from "./agent/wizard.js";
 import { loadEnvFromFlag } from "../lib/env.js";
-import { ensureAstraDirs, newConfigPath, newId } from "../lib/artifacts.js";
+import { ensureOpforDirs, newConfigPath, newId } from "../lib/artifacts.js";
 import type { UnifiedMode, UnifiedConfigFileV1 } from "../lib/unifiedConfig.js";
 
 export async function runUnifiedSetup(opts: {
@@ -16,7 +16,7 @@ export async function runUnifiedSetup(opts: {
   out?: string;
 }): Promise<string> {
   if (opts.env) loadEnvFromFlag(opts.env);
-  await ensureAstraDirs();
+  await ensureOpforDirs();
 
   const wantMcp = Boolean(opts.mcp);
   const wantAgent = Boolean(opts.agent);
@@ -69,7 +69,7 @@ export function registerSetupCommand(program: Command): void {
   program
     .command("setup")
     .description(
-      "Interactive wizard — writes a timestamped config under .astra/configs/.\n" +
+      "Interactive wizard — writes a timestamped config under .opfor/configs/.\n" +
         "Use --mcp/--agent to skip mode prompt, or --empty for minimal configs."
     )
     .option("--mcp", "Create an MCP config section")
@@ -88,7 +88,7 @@ export function registerSetupCommand(program: Command): void {
         const outPath = await runUnifiedSetup(opts);
         console.log(`\nConfig written:\n  ${outPath}\n`);
         const envArg = opts.env ? ` --env ${path.resolve(opts.env)}` : "";
-        console.log(`Next:\n  astra generate --config ${outPath}${envArg}\n`);
+        console.log(`Next:\n  opfor generate --config ${outPath}${envArg}\n`);
       }
     );
 }

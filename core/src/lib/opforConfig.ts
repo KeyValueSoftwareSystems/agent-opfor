@@ -1,0 +1,24 @@
+import path from "node:path";
+import { fileExists } from "./jsonFile.js";
+import { log } from "./logger.js";
+
+/** Unified config filename (contains optional `mcp` + `agent` sections). */
+export const DEFAULT_OPFOR_CONFIG = "opfor.config.json";
+
+export function resolveOpforConfigPath(explicit?: string): string {
+  return path.resolve(explicit ?? DEFAULT_OPFOR_CONFIG);
+}
+
+/**
+ * Ensures the unified config file exists. If missing, logs and exits.
+ * @returns absolute path to the config file
+ */
+export async function requireOpforMcpConfig(explicit?: string): Promise<string> {
+  const configPath = resolveOpforConfigPath(explicit);
+  if (!(await fileExists(configPath))) {
+    log.error(`No config found at ${configPath}.`);
+    log.info('Run `opfor setup --mcp` first to create a config with an "mcp" section.');
+    process.exit(1);
+  }
+  return configPath;
+}

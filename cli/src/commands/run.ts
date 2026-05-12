@@ -3,7 +3,7 @@ import path from "node:path";
 import { readFile } from "node:fs/promises";
 import { select } from "@inquirer/prompts";
 import { loadEnvFromFlag } from "../lib/env.js";
-import { ensureAstraDirs, ASTRA_REPORTS_DIR, newAttacksPath } from "../lib/artifacts.js";
+import { ensureOpforDirs, OPFOR_REPORTS_DIR, newAttacksPath } from "../lib/artifacts.js";
 import { loadUnifiedConfigFile, type UnifiedMode } from "../lib/unifiedConfig.js";
 import { runUnifiedSetup } from "./setup.js";
 import { runMcpAttackPlan } from "./mcp/run.js";
@@ -13,7 +13,7 @@ export function registerRunCommand(program: Command): void {
   program
     .command("run")
     .description(
-      "Run an Astra scan.\n" +
+      "Run an Opfor scan.\n" +
         "If --attacks is provided, runs it. If only --config is provided, generates then runs. If neither, starts from setup."
     )
     .option("--config <path>", "Path to a config file")
@@ -23,8 +23,8 @@ export function registerRunCommand(program: Command): void {
     .option("--agent", "Force agent mode (when ambiguous)")
     .option(
       "--out-dir <path>",
-      `Report output directory (default: ${ASTRA_REPORTS_DIR})`,
-      ASTRA_REPORTS_DIR
+      `Report output directory (default: ${OPFOR_REPORTS_DIR})`,
+      OPFOR_REPORTS_DIR
     )
     .action(
       async (opts: {
@@ -36,7 +36,7 @@ export function registerRunCommand(program: Command): void {
         outDir?: string;
       }) => {
         if (opts.env) loadEnvFromFlag(opts.env);
-        await ensureAstraDirs();
+        await ensureOpforDirs();
 
         const forcedMode: UnifiedMode | null = opts.mcp ? "mcp" : opts.agent ? "agent" : null;
 
@@ -111,7 +111,7 @@ export function registerRunCommand(program: Command): void {
           });
         }
 
-        const resolvedOutDir = path.resolve(opts.outDir || ASTRA_REPORTS_DIR);
+        const resolvedOutDir = path.resolve(opts.outDir || OPFOR_REPORTS_DIR);
 
         if (mode === "mcp") {
           await runMcpAttackPlan({ input: attacksPath, outDir: resolvedOutDir });

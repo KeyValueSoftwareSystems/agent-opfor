@@ -162,7 +162,7 @@ async function summarizeCuratedTracesToMarkdown(opts: {
   }
 
   const header = [
-    `<!-- Astra ${providerLabel} trace summary — ${new Date().toISOString()} — regenerate with astra setup -->`,
+    `<!-- Opfor ${providerLabel} trace summary — ${new Date().toISOString()} — regenerate with opfor setup -->`,
     ``,
   ].join("\n");
 
@@ -181,7 +181,7 @@ async function summarizeCuratedTracesToMarkdown(opts: {
 }
 
 /**
- * Provider-agnostic trace curation for `astra setup`.
+ * Provider-agnostic trace curation for `opfor setup`.
  *
  * Fetches trace list via the registered adapter, asks the curator LLM to select
  * relevant traces, hydrates them, and writes `tracedata.json` + `trace-summary.md`
@@ -269,7 +269,7 @@ export async function runSetupTraceCuration(opts: {
     const msg = e instanceof Error ? e.message : String(e);
     const errPayload = {
       generatedAt: new Date().toISOString(),
-      source: `astra-setup-${telemetry.provider}`,
+      source: `opfor-setup-${telemetry.provider}`,
       error: "llm_curation_failed",
       message: msg,
       traceCount: rows.length,
@@ -328,7 +328,7 @@ export async function runSetupTraceCuration(opts: {
 
   const out = {
     generatedAt: new Date().toISOString(),
-    source: `astra-setup-${telemetry.provider}`,
+    source: `opfor-setup-${telemetry.provider}`,
     target: { name: targetName, description: desc },
     curation: curationBlock,
     traces: selected,

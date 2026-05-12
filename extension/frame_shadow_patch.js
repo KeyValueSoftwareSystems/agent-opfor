@@ -2,8 +2,8 @@
 // Must run in MAIN world before the page's scripts create shadow roots.
 // Content scripts can then access them via element.__closedShadowRoot.
 (() => {
-  if (window.__astraShadowPatched) return;
-  window.__astraShadowPatched = true;
+  if (window.__opforShadowPatched) return;
+  window.__opforShadowPatched = true;
 
   const origAttachShadow = Element.prototype.attachShadow;
   Element.prototype.attachShadow = function (init) {

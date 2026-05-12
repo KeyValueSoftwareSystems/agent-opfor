@@ -1,4 +1,4 @@
-import type { AstraMcpConfig } from "../config/schema.js";
+import type { OpforMcpConfig } from "../config/schema.js";
 import type { AttackScenario, AttackScenarioWithReplay } from "./planSchema.js";
 
 function shellQuote(s: string): string {
@@ -41,7 +41,7 @@ export function buildToolsCallCurl(
 
 export function attachReplayHints(
   attack: AttackScenario,
-  server: AstraMcpConfig["server"]
+  server: OpforMcpConfig["server"]
 ): AttackScenarioWithReplay {
   const toolsListLine = jsonRpcLine("tools/list", {}, 1);
   const toolsCallLine =

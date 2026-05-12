@@ -3,5 +3,5 @@ node_modules/
 core/dist/
 cli/dist/
 mcp/dist/
-.astra/
+.opfor/
 *.json

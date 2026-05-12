@@ -112,7 +112,7 @@ export async function runSetup(opts: SetupOptions): Promise<SetupResult> {
 }
 
 // ---------------------------------------------------------------------------
-// runSetupInline — no config file; called directly by the MCP astra_setup tool
+// runSetupInline — no config file; called directly by the MCP opfor_setup tool
 // ---------------------------------------------------------------------------
 
 export async function runSetupInline(
@@ -285,7 +285,7 @@ async function runSetupCore({
     .replace(/[-:T.Z]/g, "")
     .slice(0, 14);
   const uuid = randomUUID().slice(0, 6);
-  const filename = `astra-prompts-${timestamp}-${uuid}.json`;
+  const filename = `opfor-prompts-${timestamp}-${uuid}.json`;
   const outputPath = path.join(resolvedOutputDir, filename);
 
   const promptsFile: PromptsFile = {

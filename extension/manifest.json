@@ -1,10 +1,10 @@
 {
   "manifest_version": 3,
-  "name": "Astra UI Injector (dev)",
+  "name": "Opfor UI Injector (dev)",
   "version": "0.0.1",
   "description": "Dev helper: find a chat input on the current page and send a 'hi' message.",
   "action": {
-    "default_title": "Astra Injector",
+    "default_title": "Opfor Injector",
     "default_popup": "popup.html"
   },
   "permissions": ["activeTab", "scripting", "storage", "webNavigation"],

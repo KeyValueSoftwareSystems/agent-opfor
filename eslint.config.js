@@ -15,7 +15,7 @@ export default tseslint.config(
       "mcp/dist/",
       "src/agent/**/dist/",
       "extension/catalog.json",
-      ".astra/",
+      ".opfor/",
     ],
   },
   {

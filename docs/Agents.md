@@ -1,36 +1,36 @@
 # AGENTS.md — Developer Guide
 
-This repo builds and publishes **astra** — an evaluator-centric, provider-agnostic AI red teaming toolkit. It can be used in three modes: **Skills** (any AI coding agent reads markdown skill files), **CLI** (standalone TypeScript tool), and **MCP Server** (exposes red-team tools to MCP-compatible agents). All three modes share the same evaluator definitions and the same core engine.
+This repo builds and publishes **opfor** — an evaluator-centric, provider-agnostic AI red teaming toolkit. It can be used in three modes: **Skills** (any AI coding agent reads markdown skill files), **CLI** (standalone TypeScript tool), and **MCP Server** (exposes red-team tools to MCP-compatible agents). All three modes share the same evaluator definitions and the same core engine.
 
 Read this file before making any changes to this repo.
 
-**Current packaging:** Workspace packages at the repo root: **`core/`** (shared engine), **`cli/`** (`astra` binary), **`mcp/`** (MCP server package). User-facing install and usage live in the root **`README.md`**.
+**Current packaging:** Workspace packages at the repo root: **`core/`** (shared engine), **`cli/`** (`opfor` binary), **`mcp/`** (MCP server package). User-facing install and usage live in the root **`README.md`**.
 
 ---
 
 ## Architecture Overview
 
 ```
-                    skills/astra-setup/evaluators/   ← single source of truth
+                    skills/opfor-setup/evaluators/   ← single source of truth
                            ↓                  ↓
-            Skills workflow             @astra/core (TypeScript engine)
+            Skills workflow             @opfor/core (TypeScript engine)
          (agent reads .md files)          ↓              ↓
                                         cli/          mcp/
-                                   (astra command)  (MCP server)
+                                   (opfor command)  (MCP server)
 ```
 
 **Three usage modes — one set of evaluators:**
 
 | Mode   | Entry point                                                | Who runs it                                                                             |
 | ------ | ---------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| Skills | `skills/astra-setup/SKILL.md`, `skills/astra-run/SKILL.md` | AI coding agent (Cursor, Claude Code, Windsurf) reads and follows markdown instructions |
-| CLI    | `cli/dist/index.js` via `astra` command                    | User runs `astra setup` / `astra run` in terminal                                       |
-| MCP    | `mcp/dist/index.js` (long-lived stdio process)             | MCP-compatible host calls `astra_setup` / `astra_run` tools                             |
+| Skills | `skills/opfor-setup/SKILL.md`, `skills/opfor-run/SKILL.md` | AI coding agent (Cursor, Claude Code, Windsurf) reads and follows markdown instructions |
+| CLI    | `cli/dist/index.js` via `opfor` command                    | User runs `opfor setup` / `opfor run` in terminal                                       |
+| MCP    | `mcp/dist/index.js` (long-lived stdio process)             | MCP-compatible host calls `opfor_setup` / `opfor_run` tools                             |
 
 **Key design principles:**
 
 - **Evaluator-centric**: Each evaluator tests one vulnerability class. Self-contained, composable into suites.
-- **Single source of truth for evaluators**: The `.md` files in `skills/astra-setup/evaluators/` are read by both the Skills workflow (agent reads them) and the TypeScript engine (`@astra/core` parses their YAML frontmatter). Never duplicate them.
+- **Single source of truth for evaluators**: The `.md` files in `skills/opfor-setup/evaluators/` are read by both the Skills workflow (agent reads them) and the TypeScript engine (`@opfor/core` parses their YAML frontmatter). Never duplicate them.
 - **Provider-agnostic**: Works with OpenAI, Anthropic, Groq, Google, or any OpenAI-compatible endpoint via `@ai-sdk/*`.
 - **No black box**: All logic is either markdown instructions (skills) or readable TypeScript (core/cli/mcp).
 
@@ -39,28 +39,28 @@ Read this file before making any changes to this repo.
 ## Repo Structure
 
 ```
-astra/
+opfor/
 ├── Agents.md                          ← YOU ARE HERE
 ├── README.md                          ← Public-facing: install, usage, examples
 ├── package.json                       ← Root npm workspace (workspaces: core, cli, mcp)
 ├── LICENSE                            ← Apache 2.0
-├── astra.config.md.example            ← Config template for skills workflow
+├── opfor.config.md.example            ← Config template for skills workflow
 │
 ├── skills/                            ← Skill files for the agent-based workflow
-│   ├── astra-setup/
-│   │   ├── SKILL.md                   ← /astra-setup slash command (interactive wizard)
+│   ├── opfor-setup/
+│   │   ├── SKILL.md                   ← /opfor-setup slash command (interactive wizard)
 │   │   ├── evaluators/                ← 20 evaluator .md files (YAML frontmatter + narrative)
 │   │   ├── suites/                    ← Suite definitions (YAML frontmatter + narrative)
 │   │   └── targets/                   ← Target adapter instructions (http-endpoint, custom-function)
-│   └── astra-run/
-│       ├── SKILL.md                   ← /astra-run slash command (orchestrator)
+│   └── opfor-run/
+│       ├── SKILL.md                   ← /opfor-run slash command (orchestrator)
 │       └── report-schema.md           ← Report HTML/JSON specification
 │
-├── core/                              ← @astra/core — shared TypeScript engine (npm workspace)
+├── core/                              ← @opfor/core — shared TypeScript engine (npm workspace)
 │   ├── src/
 │   │   ├── config/
 │   │   │   ├── types.ts               ← All shared TypeScript types
-│   │   │   ├── skillsLayout.ts        ← Resolves path to skills/astra-setup/ from any context
+│   │   │   ├── skillsLayout.ts        ← Resolves path to skills/opfor-setup/ from any context
 │   │   │   └── loadSkillCatalog.ts    ← Reads evaluator metadata and suite lists from .md frontmatter
 │   │   ├── evaluators/
 │   │   │   ├── parseEvaluator.ts      ← Parses a single evaluator .md (YAML frontmatter → EvaluatorSpec)
@@ -78,30 +78,30 @@ astra/
 │   ├── package.json
 │   └── tsconfig.json
 │
-├── cli/                               ← astra-cli — standalone CLI (npm workspace)
+├── cli/                               ← opfor-cli — standalone CLI (npm workspace)
 │   ├── src/
 │   │   ├── index.ts                   ← CLI entrypoint (commander program)
 │   │   └── commands/
-│   │       ├── init.ts                ← `astra init` — writes a sample astra.config.json
-│   │       ├── setup.ts               ← `astra setup` — interactive wizard + attack prompt generation
-│   │       └── run.ts                 ← `astra run` — fires attacks, judges, writes reports
+│   │       ├── init.ts                ← `opfor init` — writes a sample opfor.config.json
+│   │       ├── setup.ts               ← `opfor setup` — interactive wizard + attack prompt generation
+│   │       └── run.ts                 ← `opfor run` — fires attacks, judges, writes reports
 │   ├── dist/                          ← Compiled output (generated — do not edit)
 │   ├── package.json
 │   └── tsconfig.json
 │
-├── mcp/                               ← astra-mcp — MCP server (npm workspace)
+├── mcp/                               ← opfor-mcp — MCP server (npm workspace)
 │   ├── src/
 │   │   ├── index.ts                   ← MCP server entrypoint: registers tools, connects stdio transport
 │   │   └── core/
-│   │       ├── setup.ts               ← runSetup(): thin wrapper over @astra/core for astra_setup tool
-│   │       └── run.ts                 ← runScan(): thin wrapper over @astra/core for astra_run tool
+│   │       ├── setup.ts               ← runSetup(): thin wrapper over @opfor/core for opfor_setup tool
+│   │       └── run.ts                 ← runScan(): thin wrapper over @opfor/core for opfor_run tool
 │   ├── dist/                          ← Compiled output (generated — do not edit)
 │   ├── package.json
 │   └── tsconfig.json
 │
 ├── extension/                         ← VS Code/Cursor extension (planned, stub only)
 │
-└── .astra/                            ← Generated files (gitignored)
+└── .opfor/                            ← Generated files (gitignored)
     └── reports/                       ← HTML + JSON assessment reports
 ```
 
@@ -110,8 +110,8 @@ astra/
 ## Setting Up the Repo
 
 ```bash
-git clone https://github.com/yourusername/astra.git
-cd astra
+git clone https://github.com/yourusername/opfor.git
+cd opfor
 
 # Install all workspace packages (--ignore-scripts skips build during install,
 # which matters because cli and mcp depend on core being compiled first)
@@ -125,18 +125,18 @@ Available build scripts (all run from repo root):
 
 ```bash
 npm run build          # core → cli → mcp (always use this)
-npm run build:core     # build only @astra/core
-npm run build:cli      # build only astra-cli
-npm run build:mcp      # build only astra-mcp
+npm run build:core     # build only @opfor/core
+npm run build:cli      # build only opfor-cli
+npm run build:mcp      # build only opfor-mcp
 ```
 
-> **Important**: Always build `core` before `cli` or `mcp`. The TypeScript compiler needs `core/dist/` to exist before it can resolve `@astra/core` imports.
+> **Important**: Always build `core` before `cli` or `mcp`. The TypeScript compiler needs `core/dist/` to exist before it can resolve `@opfor/core` imports.
 
 ---
 
 ## File Schemas
 
-### Evaluator File (`skills/astra-setup/evaluators/<id>.md`)
+### Evaluator File (`skills/opfor-setup/evaluators/<id>.md`)
 
 Each evaluator is a markdown file with **YAML frontmatter** that the TypeScript engine parses, plus a **narrative body** that the Skills workflow agent reads.
 
@@ -203,7 +203,7 @@ _Templates are defined in YAML frontmatter (`patterns`) for tooling. Narrative s
 
 **How the TypeScript engine uses this**: `core/src/evaluators/parseEvaluator.ts` reads only the YAML frontmatter using `splitYamlFrontmatter()`. It extracts `id`, `name`, `severity`, `owasp`, `description`, `pass_criteria`/`passCriteria`, `fail_criteria`/`failCriteria`, and `patterns[]`. The markdown body is not parsed by the engine — it is only for agents reading the file directly.
 
-### Suite File (`skills/astra-setup/suites/<id>.md`)
+### Suite File (`skills/opfor-setup/suites/<id>.md`)
 
 ```markdown
 ---
@@ -237,7 +237,7 @@ Narrative description of the suite — for agents reading directly.
 
 **How the TypeScript engine uses this**: `core/src/config/loadSkillCatalog.ts` reads the YAML frontmatter only. It extracts `id`, `name`, `description`, and `evaluators[]` to populate the suite list in the CLI wizard.
 
-### Target Adapter File (`skills/astra-setup/targets/<id>.md`)
+### Target Adapter File (`skills/opfor-setup/targets/<id>.md`)
 
 Free-form markdown — no frontmatter required. Read by agents in the Skills workflow. Not parsed by the TypeScript engine. Sections:
 
@@ -247,9 +247,9 @@ Free-form markdown — no frontmatter required. Read by agents in the Skills wor
 - `## Error Handling` — timeout, auth, rate limit handling
 - `## Sending the Attack` — automated (curl) and manual fallback
 
-### CLI Config File (`astra.config.json` / `astra.config.yml`)
+### CLI Config File (`opfor.config.json` / `opfor.config.yml`)
 
-JSON or YAML file used by `astra setup --config` and the MCP `astra_setup` tool.
+JSON or YAML file used by `opfor setup --config` and the MCP `opfor_setup` tool.
 
 ```json
 {
@@ -301,35 +301,35 @@ JSON or YAML file used by `astra setup --config` and the MCP `astra_setup` tool.
 
 ### Skills Workflow
 
-1. User types `/astra-setup` in their agent (Cursor, Claude Code, Windsurf)
-2. Agent reads `skills/astra-setup/SKILL.md` — follows the interactive wizard
-3. Agent reads suite files from `skills/astra-setup/suites/` and evaluator files from `skills/astra-setup/evaluators/`
-4. Agent writes `astra.config.md` (markdown config for the skills workflow — different from the JSON/YAML CLI config)
-5. User types `/astra-run`
-6. Agent reads `skills/astra-run/SKILL.md`, loads the config and target adapter, runs evaluators, generates a report in chat
+1. User types `/opfor-setup` in their agent (Cursor, Claude Code, Windsurf)
+2. Agent reads `skills/opfor-setup/SKILL.md` — follows the interactive wizard
+3. Agent reads suite files from `skills/opfor-setup/suites/` and evaluator files from `skills/opfor-setup/evaluators/`
+4. Agent writes `opfor.config.md` (markdown config for the skills workflow — different from the JSON/YAML CLI config)
+5. User types `/opfor-run`
+6. Agent reads `skills/opfor-run/SKILL.md`, loads the config and target adapter, runs evaluators, generates a report in chat
 
 ### CLI
 
 ```
-astra init                                    # writes astra.config.json template
-astra setup [--agent] [--mcp] [--empty]       # writes .astra/configs/astra-config-*.json
-astra generate --config .astra/configs/astra-config-*.json
-astra run --attacks .astra/attacks/astra-attacks-*.json
+opfor init                                    # writes opfor.config.json template
+opfor setup [--agent] [--mcp] [--empty]       # writes .opfor/configs/opfor-config-*.json
+opfor generate --config .opfor/configs/opfor-config-*.json
+opfor run --attacks .opfor/attacks/opfor-attacks-*.json
 ```
 
 **setup internals** (`cli/src/commands/setup.ts`):
 
-1. Load `loadSkillCatalog()` → reads all evaluator metadata and suite lists from `skills/astra-setup/`
+1. Load `loadSkillCatalog()` → reads all evaluator metadata and suite lists from `skills/opfor-setup/`
 2. Interactive wizard (or load config file) → collect LLM config, target config, evaluator IDs
 3. For each evaluator ID: `loadBuiltinEvaluator(id)` → `generateAttackPrompts(evaluator, target, model)` (LLM fills in pattern templates)
-4. Write `.astra/attacks/astra-attacks-<timestamp>-<configId>.json` with all generated attacks
+4. Write `.opfor/attacks/opfor-attacks-<timestamp>-<configId>.json` with all generated attacks
 
 **run internals** (`cli/src/commands/run.ts`):
 
-1. Read `.astra/attacks/astra-attacks-*.json`
+1. Read `.opfor/attacks/opfor-attacks-*.json`
 2. For each attack: `runAttackAgent(cfg)` → POSTs to target endpoint, captures response
 3. For each response: `judgeResponse(evaluator, prompt, response, model)` → LLM judge returns PASS/FAIL + score
-4. `generateReport(reports, ...)` → writes `.astra/reports/astra-<uuid>.html` and `.json`
+4. `generateReport(reports, ...)` → writes `.opfor/reports/opfor-<uuid>.html` and `.json`
 
 ### MCP Server
 
@@ -338,17 +338,17 @@ The MCP server is a **long-lived process** spawned by the MCP host (Cursor, Clau
 **Lifecycle:**
 
 1. Host spawns `node mcp/dist/index.js`
-2. `mcp/src/index.ts` loads `.env`, registers tools (`astra_setup`, `astra_run`), calls `server.connect(stdio)` — blocks forever
+2. `mcp/src/index.ts` loads `.env`, registers tools (`opfor_setup`, `opfor_run`), calls `server.connect(stdio)` — blocks forever
 3. Host sends `tools/list` → SDK responds with tool schemas
 4. Host sends `tools/call` with arguments → SDK validates, calls handler → handler calls `runSetup()` or `runScan()` from `mcp/src/core/`
 5. Handler returns result → SDK writes JSON-RPC response to stdout → host gives text to agent
 6. Server returns to waiting state (does **not** exit)
 
-**mcp/src/core/ wrappers** are thin: they call `@astra/core` functions directly. No subprocess, no CLI invocation.
+**mcp/src/core/ wrappers** are thin: they call `@opfor/core` functions directly. No subprocess, no CLI invocation.
 
 ---
 
-## Core Package (`@astra/core`)
+## Core Package (`@opfor/core`)
 
 All scanning logic lives here. Both `cli/` and `mcp/` import from it. Never duplicate code between CLI and MCP — put shared logic in core.
 
@@ -356,24 +356,24 @@ All scanning logic lives here. Both `cli/` and `mcp/` import from it. Never dupl
 
 | Export path                              | What it provides                                                                                              |
 | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `@astra/core/config/types`               | All TypeScript interfaces: `LlmConfig`, `TargetConfig`, `AttackEntry`, `PromptsFile`, `SetupConfigFile`, etc. |
-| `@astra/core/config/skillsLayout`        | `getAstraSetupRoot()` — resolves `skills/astra-setup/` path from any compiled location                        |
-| `@astra/core/config/loadSkillCatalog`    | `loadSkillCatalog()`, `resolveSuiteEvaluatorIds()`, `getEvaluatorIdSet()`                                     |
-| `@astra/core/evaluators/parseEvaluator`  | `parseEvaluator(mdPath)`, `loadBuiltinEvaluator(id)`                                                          |
-| `@astra/core/evaluators/generatePrompts` | `generateAttackPrompts(evaluator, targetDescription, model)`                                                  |
-| `@astra/core/evaluators/judge`           | `judgeResponse(evaluator, prompt, response, model)` → `JudgeResult`                                           |
-| `@astra/core/providers/factory`          | `createModel(llm)`, `PROVIDER_DEFAULTS`, `PROVIDER_ENV_VARS`                                                  |
-| `@astra/core/lib/agent`                  | `runAttackAgent(cfg)` → fires HTTP attack + judges response                                                   |
-| `@astra/core/report/generateReport`      | `generateReport(reports, target, endpoint, outputDir)` → writes HTML + JSON                                   |
-| `@astra/core/util/yamlFrontmatter`       | `splitYamlFrontmatter(raw)` → `{ yaml, body }`                                                                |
+| `@opfor/core/config/types`               | All TypeScript interfaces: `LlmConfig`, `TargetConfig`, `AttackEntry`, `PromptsFile`, `SetupConfigFile`, etc. |
+| `@opfor/core/config/skillsLayout`        | `getOpforSetupRoot()` — resolves `skills/opfor-setup/` path from any compiled location                        |
+| `@opfor/core/config/loadSkillCatalog`    | `loadSkillCatalog()`, `resolveSuiteEvaluatorIds()`, `getEvaluatorIdSet()`                                     |
+| `@opfor/core/evaluators/parseEvaluator`  | `parseEvaluator(mdPath)`, `loadBuiltinEvaluator(id)`                                                          |
+| `@opfor/core/evaluators/generatePrompts` | `generateAttackPrompts(evaluator, targetDescription, model)`                                                  |
+| `@opfor/core/evaluators/judge`           | `judgeResponse(evaluator, prompt, response, model)` → `JudgeResult`                                           |
+| `@opfor/core/providers/factory`          | `createModel(llm)`, `PROVIDER_DEFAULTS`, `PROVIDER_ENV_VARS`                                                  |
+| `@opfor/core/lib/agent`                  | `runAttackAgent(cfg)` → fires HTTP attack + judges response                                                   |
+| `@opfor/core/report/generateReport`      | `generateReport(reports, target, endpoint, outputDir)` → writes HTML + JSON                                   |
+| `@opfor/core/util/yamlFrontmatter`       | `splitYamlFrontmatter(raw)` → `{ yaml, body }`                                                                |
 
-**`skillsLayout.ts` is critical**: it uses `import.meta.url` to find its own location at runtime and resolves `skills/astra-setup/` relative to that. This works whether code runs from `core/src/config/` (dev) or `core/dist/config/` (production). Any code in `cli/` or `mcp/` that needs the skills path must import `getAstraSetupRoot()` from here — never hardcode paths.
+**`skillsLayout.ts` is critical**: it uses `import.meta.url` to find its own location at runtime and resolves `skills/opfor-setup/` relative to that. This works whether code runs from `core/src/config/` (dev) or `core/dist/config/` (production). Any code in `cli/` or `mcp/` that needs the skills path must import `getOpforSetupRoot()` from here — never hardcode paths.
 
 ---
 
 ## LLM Providers
 
-Configured via `@astra/core/providers/factory.ts`. Supports:
+Configured via `@opfor/core/providers/factory.ts`. Supports:
 
 | Provider              | `llm.provider` value | Env var                        | Default model               |
 | --------------------- | -------------------- | ------------------------------ | --------------------------- |
@@ -381,7 +381,7 @@ Configured via `@astra/core/providers/factory.ts`. Supports:
 | Anthropic             | `anthropic`          | `ANTHROPIC_API_KEY`            | `claude-3-5-haiku-20241022` |
 | Groq                  | `groq`               | `GROQ_API_KEY`                 | `llama-3.3-70b-versatile`   |
 | Google                | `google`             | `GOOGLE_GENERATIVE_AI_API_KEY` | `gemini-2.0-flash`          |
-| Any OpenAI-compatible | `other`              | `ASTRA_API_KEY`                | requires `llm.baseURL`      |
+| Any OpenAI-compatible | `other`              | `OPFOR_API_KEY`                | requires `llm.baseURL`      |
 
 **API key resolution order** (both CLI and MCP):
 
@@ -397,7 +397,7 @@ Configured via `@astra/core/providers/factory.ts`. Supports:
 
 ### Adding a new evaluator
 
-1. Create `skills/astra-setup/evaluators/<evaluator-id>.md` with the full frontmatter schema (see above). The `id` must match the filename.
+1. Create `skills/opfor-setup/evaluators/<evaluator-id>.md` with the full frontmatter schema (see above). The `id` must match the filename.
 2. Add the evaluator ID to one or more suite files under `evaluators:` in the YAML frontmatter.
 3. Done — the CLI, MCP, and Skills workflow all auto-discover it. No TypeScript changes needed.
 
@@ -412,13 +412,13 @@ Configured via `@astra/core/providers/factory.ts`. Supports:
 
 ### Adding a new suite
 
-1. Create `skills/astra-setup/suites/<suite-id>.md` with the frontmatter schema (see above).
+1. Create `skills/opfor-setup/suites/<suite-id>.md` with the frontmatter schema (see above).
 2. List the evaluator IDs you want in the suite under `evaluators:`.
 3. Done — CLI wizard and MCP auto-discover it.
 
 ### Adding a new target type (Skills workflow)
 
-1. Create `skills/astra-setup/targets/<type>.md` — free-form markdown, no frontmatter needed.
+1. Create `skills/opfor-setup/targets/<type>.md` — free-form markdown, no frontmatter needed.
 2. Include sections: `## What This Is`, `## Request Construction`, `## Response Parsing`, `## Error Handling`.
 3. The Skills workflow agent discovers it by scanning the `targets/` directory.
 
@@ -468,7 +468,7 @@ Configured via `@astra/core/providers/factory.ts`. Supports:
 **Before starting:**
 
 1. Read this file entirely
-2. Read an existing evaluator (e.g. `skills/astra-setup/evaluators/prompt-injection.md`) to see the exact format
+2. Read an existing evaluator (e.g. `skills/opfor-setup/evaluators/prompt-injection.md`) to see the exact format
 3. Run `npm install --ignore-scripts && npm run build` and verify it compiles cleanly
 
 **When adding an evaluator:**
@@ -476,10 +476,10 @@ Configured via `@astra/core/providers/factory.ts`. Supports:
 1. Follow the schema — especially the frontmatter fields
 2. Use `{{placeholder}}` in templates, never hardcoded prompts
 3. Keep pass/fail criteria binary and unambiguous
-4. Test: run `astra setup --config astra.config.json` and confirm your evaluator appears in the list
+4. Test: run `opfor setup --config opfor.config.json` and confirm your evaluator appears in the list
 5. Add to at least one suite
 
-**When modifying `@astra/core`:**
+**When modifying `@opfor/core`:**
 
 1. Run `npm run build` after changes — cli and mcp both depend on the compiled output
 2. Check that both `cli/` and `mcp/` still compile: `npm run build:cli && npm run build:mcp`
@@ -493,7 +493,7 @@ Configured via `@astra/core/providers/factory.ts`. Supports:
 **When updating MCP tools:**
 
 1. Tool schemas are in `mcp/src/index.ts` — change parameters here
-2. Logic is in `mcp/src/core/setup.ts` and `run.ts` — these call `@astra/core` directly
+2. Logic is in `mcp/src/core/setup.ts` and `run.ts` — these call `@opfor/core` directly
 3. Never invoke the CLI as a subprocess from the MCP server
 
 **Code quality:**
@@ -511,8 +511,8 @@ Configured via `@astra/core/providers/factory.ts`. Supports:
 
 - Evaluator-centric architecture (from vulnerability-centric)
 - Monorepo: `core/`, `cli/`, `mcp/` as npm workspaces
-- `@astra/core` shared engine — single source of logic for CLI and MCP
-- MCP server (`astra_setup` + `astra_run` tools)
+- `@opfor/core` shared engine — single source of logic for CLI and MCP
+- MCP server (`opfor_setup` + `opfor_run` tools)
 - CLI rewritten in TypeScript with interactive wizard, suite selection, `@ai-sdk/*` provider support
 - Attack prompts generated by LLM from YAML frontmatter templates
 - LLM-as-judge for PASS/FAIL verdicts

@@ -18,7 +18,7 @@ export const PROVIDER_ENV_VARS: Record<ProviderName, string> = {
   anthropic: "ANTHROPIC_API_KEY",
   groq: "GROQ_API_KEY",
   google: "GOOGLE_GENERATIVE_AI_API_KEY",
-  other: "ASTRA_API_KEY",
+  other: "OPFOR_API_KEY",
 };
 
 export function createModel(llm: LlmConfig): LanguageModel {

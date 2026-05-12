@@ -13,10 +13,10 @@ function defaultApiKeyEnv(provider: ProviderName): string {
     case "google":
       return "GOOGLE_GENERATIVE_AI_API_KEY";
     case "other":
-      return "ASTRA_API_KEY";
+      return "OPFOR_API_KEY";
   }
   // Fallback for unexpected values (should be unreachable).
-  return "ASTRA_API_KEY";
+  return "OPFOR_API_KEY";
 }
 
 function parseArgsCsv(raw: string): string[] {
@@ -102,11 +102,11 @@ export function buildEmptyMcpSection() {
 }
 
 export async function collectMcpSectionInteractive() {
-  log.box("Astra MCP scanner config");
+  log.box("Opfor MCP scanner config");
   log.info("Tip: prefer env var references for API keys (avoid committing secrets).");
 
   const transport = await select({
-    message: "How will Astra connect to your MCP server?",
+    message: "How will Opfor connect to your MCP server?",
     choices: [
       { name: "Local process (stdio) — recommended", value: "stdio" as const },
       { name: "Remote URL (http/sse/websocket) — if your host supports it", value: "url" as const },

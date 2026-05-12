@@ -7,14 +7,14 @@
 **Option A: Clone the repo**
 
 ```bash
-git clone https://github.com/yourusername/astra.git
-cd astra
+git clone https://github.com/yourusername/opfor.git
+cd opfor
 ```
 
 **Option B: Install from GitHub (if supported)**
 
 ```bash
-npx skills add https://github.com/yourusername/astra
+npx skills add https://github.com/yourusername/opfor
 ```
 
 ### Step 2: Configure Your Target
@@ -25,7 +25,7 @@ Tell your agent:
 "Configure a new red team target"
 ```
 
-The agent will use `skills/astra-setup/SKILL.md` to guide you through:
+The agent will use `skills/opfor-setup/SKILL.md` to guide you through:
 
 - Target information (name, type, endpoint)
 - Application Context (purpose, users, data, actions, forbidden topics)
@@ -33,7 +33,7 @@ The agent will use `skills/astra-setup/SKILL.md` to guide you through:
 - Test configuration (suite or custom evaluators)
 - Notes and concerns
 
-Result: A `.astra/configs/my-target.md` file is created with all your answers.
+Result: A `.opfor/configs/my-target.md` file is created with all your answers.
 
 ### Step 3: Run the Assessment
 
@@ -46,10 +46,10 @@ Tell your agent:
 Or use the CLI:
 
 ```bash
-npx astra run --config .astra/configs/my-target.md
+npx opfor run --config .opfor/configs/my-target.md
 ```
 
-The agent uses `skills/astra-run/SKILL.md` to orchestrate the assessment and generate a report.
+The agent uses `skills/opfor-run/SKILL.md` to orchestrate the assessment and generate a report.
 
 ---
 
@@ -59,14 +59,14 @@ The agent uses `skills/astra-run/SKILL.md` to orchestrate the assessment and gen
 
 ```
 You:    "Configure a red team target"
-Agent:  (should load skills/astra-setup/SKILL.md and ask questions about target)
-Result: Should create .astra/configs/my-target.md
+Agent:  (should load skills/opfor-setup/SKILL.md and ask questions about target)
+Result: Should create .opfor/configs/my-target.md
 ```
 
 ### 2. Run a Basic Assessment
 
 ```bash
-npx astra run --config .astra/configs/chatbot-prod.md --depth basic
+npx opfor run --config .opfor/configs/chatbot-prod.md --depth basic
 ```
 
 Expected: Agent loads evaluators, tests basic attack patterns, generates report.
@@ -74,7 +74,7 @@ Expected: Agent loads evaluators, tests basic attack patterns, generates report.
 ### 3. Test a Specific Evaluator
 
 ```bash
-npx astra run --config .astra/configs/my-target.md --evaluators prompt-injection,jailbreaking
+npx opfor run --config .opfor/configs/my-target.md --evaluators prompt-injection,jailbreaking
 ```
 
 Expected: Only those two evaluators run.
@@ -83,27 +83,27 @@ Expected: Only those two evaluators run.
 
 ```bash
 # OWASP LLM Top 10
-npx astra run --config .astra/configs/my-target.md --suite owasp-llm-top10
+npx opfor run --config .opfor/configs/my-target.md --suite owasp-llm-top10
 
 # OWASP Agentic AI
-npx astra run --config .astra/configs/my-target.md --suite owasp-agentic-ai
+npx opfor run --config .opfor/configs/my-target.md --suite owasp-agentic-ai
 ```
 
 ---
 
 ## What to Test
 
-### Configuration Wizard (`skills/astra-setup/SKILL.md`)
+### Configuration Wizard (`skills/opfor-setup/SKILL.md`)
 
 - [ ] Asks for target information
 - [ ] Lists available target types
 - [ ] Lists available suites
 - [ ] Lists available evaluators
-- [ ] Saves config to `.astra/configs/` folder with all fields
+- [ ] Saves config to `.opfor/configs/` folder with all fields
 
-### Assessment Runner (`skills/astra-run/SKILL.md`)
+### Assessment Runner (`skills/opfor-run/SKILL.md`)
 
-- [ ] Loads config from `.astra/configs/` folder
+- [ ] Loads config from `.opfor/configs/` folder
 - [ ] Loads target adapter correctly
 - [ ] Runs selected evaluators
 - [ ] Generates report with findings
@@ -148,13 +148,13 @@ If something doesn't work, report:
 
 ## Common Issues
 
-### "Can't find skill at ./skills/astra-setup/SKILL.md"
+### "Can't find skill at ./skills/opfor-setup/SKILL.md"
 
 **Solution**: Make sure you're in the repo root directory and path is correct:
 
 ```bash
-cd astra
-ls skills/astra-setup/SKILL.md  # Should exist
+cd opfor
+ls skills/opfor-setup/SKILL.md  # Should exist
 ```
 
 ### "No config file found"
@@ -162,8 +162,8 @@ ls skills/astra-setup/SKILL.md  # Should exist
 **Solution**: Create one first:
 
 ```bash
-npx astra run --config .astra/configs/test.md
-# Or: Let /astra-setup skill create one
+npx opfor run --config .opfor/configs/test.md
+# Or: Let /opfor-setup skill create one
 ```
 
 ### "Evaluator not found"
@@ -171,25 +171,25 @@ npx astra run --config .astra/configs/test.md
 **Solution**: Make sure evaluators exist:
 
 ```bash
-ls skills/astra-setup/evaluators/  # Should show 20 evaluators
+ls skills/opfor-setup/evaluators/  # Should show 20 evaluators
 ```
 
 ### Config saved to wrong location
 
-**Expected**: `.astra/configs/my-target.md`
-**Check**: Make sure the setup skill is writing to `.astra/configs/` folder
+**Expected**: `.opfor/configs/my-target.md`
+**Check**: Make sure the setup skill is writing to `.opfor/configs/` folder
 
 ---
 
 ## Success Checklist
 
-- [ ] Can load astra-setup skill
+- [ ] Can load opfor-setup skill
 - [ ] Can create a config with Application Context
 - [ ] Can run a basic assessment
 - [ ] Can see evaluator results in report
 - [ ] Can run multiple evaluators together (suite)
 - [ ] Can run custom evaluator selection
-- [ ] CLI works: `npx astra run --config ...`
+- [ ] CLI works: `npx opfor run --config ...`
 - [ ] All 20 evaluators are discoverable
 
 ---
@@ -200,6 +200,6 @@ Check:
 
 1. `README.md` — quick start and feature overview
 2. `Agents.md` — architecture and schema documentation
-3. `.astra/configs/README.md` — configuration management
-4. `skills/astra-setup/SKILL.md` — full config wizard workflow
-5. `skills/astra-run/SKILL.md` — full assessment runner workflow
+3. `.opfor/configs/README.md` — configuration management
+4. `skills/opfor-setup/SKILL.md` — full config wizard workflow
+5. `skills/opfor-run/SKILL.md` — full assessment runner workflow

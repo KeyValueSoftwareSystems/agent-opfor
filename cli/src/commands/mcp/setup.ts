@@ -4,16 +4,16 @@ import { generateAttackPlan } from "../../../../core/dist/attacks/generatePlan.j
 import { loadCatalog, getEvaluatorIdSet } from "../../../../core/dist/catalog/loadCatalog.js";
 import { loadEvaluatorDoc } from "../../../../core/dist/catalog/loadEvaluatorPatterns.js";
 import {
-  DEFAULT_ASTRA_CONFIG,
-  requireAstraMcpConfig,
-} from "../../../../core/dist/lib/astraConfig.js";
-import { loadAstraMcpConfigFile } from "../../../../core/dist/lib/loadAstraMcpConfig.js";
+  DEFAULT_OPFOR_CONFIG,
+  requireOpforMcpConfig,
+} from "../../../../core/dist/lib/opforConfig.js";
+import { loadOpforMcpConfigFile } from "../../../../core/dist/lib/loadOpforMcpConfig.js";
 import { writeJsonFile } from "../../../../core/dist/lib/jsonFile.js";
 import { log } from "../../../../core/dist/lib/logger.js";
 import { connectMcpClient } from "../../../../core/dist/mcp-client/createClient.js";
 
 const DEFAULT_SUITE_ID = "owasp-mcp-top10";
-const DEFAULT_ATTACK_PLAN_OUT = "astra-mcp-attacks.json";
+const DEFAULT_ATTACK_PLAN_OUT = "opfor-mcp-attacks.json";
 
 export async function runMcpGenerateAttackPlan(opts: {
   config?: string;
@@ -26,10 +26,10 @@ export async function runMcpGenerateAttackPlan(opts: {
 }): Promise<string> {
   const { config, out, maxTools, configId, toolFilter } = opts;
 
-  const configPath = await requireAstraMcpConfig(config);
+  const configPath = await requireOpforMcpConfig(config);
   log.info(`Using config: ${configPath}`);
 
-  const cfg = await loadAstraMcpConfigFile(configPath);
+  const cfg = await loadOpforMcpConfigFile(configPath);
 
   const catalog = await loadCatalog();
   const evalIds = getEvaluatorIdSet(catalog);
@@ -49,7 +49,7 @@ export async function runMcpGenerateAttackPlan(opts: {
     const unknown = cliEvaluators.filter((id) => !evalIds.has(id));
     if (unknown.length > 0) {
       throw new Error(
-        `Unknown evaluator(s): ${unknown.join(", ")}. Run 'astra list-evaluators' to see available IDs.`
+        `Unknown evaluator(s): ${unknown.join(", ")}. Run 'opfor list-evaluators' to see available IDs.`
       );
     }
     resolvedEvaluatorIds = cliEvaluators;
@@ -75,10 +75,10 @@ export async function runMcpGenerateAttackPlan(opts: {
     );
   } else if (cfgEvaluators && cfgEvaluators.length > 0) {
     // Explicit evaluator list from config
-    const unknown = cfgEvaluators.filter((id) => !evalIds.has(id));
+    const unknown = cfgEvaluators.filter((id: string) => !evalIds.has(id));
     if (unknown.length > 0) {
       throw new Error(
-        `Config references unknown evaluator(s): ${unknown.join(", ")}. Run 'astra list-evaluators' to see available IDs.`
+        `Config references unknown evaluator(s): ${unknown.join(", ")}. Run 'opfor list-evaluators' to see available IDs.`
       );
     }
     resolvedEvaluatorIds = cfgEvaluators;
@@ -185,7 +185,7 @@ export function registerSetupCommand(program: Command) {
   program
     .command("setup")
     .description("Discover MCP tools, call the setup LLM, and write an attack plan JSON")
-    .option("-c, --config <path>", `Path to config file (default: ./${DEFAULT_ASTRA_CONFIG})`)
+    .option("-c, --config <path>", `Path to config file (default: ./${DEFAULT_OPFOR_CONFIG})`)
     .option(
       "-o, --out <path>",
       `Output path for attack plan JSON (default: ./${DEFAULT_ATTACK_PLAN_OUT})`,

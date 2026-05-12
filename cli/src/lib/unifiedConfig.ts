@@ -22,10 +22,10 @@ export async function loadUnifiedConfigFile(configPath: string): Promise<Unified
   }
   const o = parsed as Record<string, unknown>;
   if (typeof o.configId !== "string" || o.configId.trim() === "") {
-    throw new Error("Not a valid astra config file (missing configId). Run `astra setup`.");
+    throw new Error("Not a valid opfor config file (missing configId). Run `opfor setup`.");
   }
   if (typeof o.createdAt !== "string" || o.createdAt.trim() === "") {
-    throw new Error("Missing createdAt in config (expected astra setup output)");
+    throw new Error("Missing createdAt in config (expected opfor setup output)");
   }
 
   return o as unknown as UnifiedConfigFileV1;

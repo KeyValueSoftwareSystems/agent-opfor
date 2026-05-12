@@ -96,7 +96,7 @@ export async function executeAttack(
   }
 
   // Description scan: return embedded tool description without a live call
-  if (toolArguments._astra_scan === "tool_description") {
+  if (toolArguments._opfor_scan === "tool_description") {
     const description = String(toolArguments._tool_description ?? "(no description)");
     return {
       ...base,

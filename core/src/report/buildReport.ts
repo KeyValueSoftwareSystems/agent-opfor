@@ -53,7 +53,7 @@ export function buildReport(args: {
   const scoreDenominator = passed + failed;
 
   return {
-    reportId: `astra-mcp-${randomUUID().slice(0, 8)}`,
+    reportId: `opfor-mcp-${randomUUID().slice(0, 8)}`,
     generatedAt: new Date().toISOString(),
     suiteId: plan.suiteId,
     serverSummary: plan.serverSummary,

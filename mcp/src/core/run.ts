@@ -57,7 +57,7 @@ export interface RunSummary {
 }
 
 export async function runScan(opts: RunOptions): Promise<RunSummary> {
-  const { inputPath, outputDir = ".astra/reports", targetScript: targetScriptOpt } = opts;
+  const { inputPath, outputDir = ".opfor/reports", targetScript: targetScriptOpt } = opts;
 
   const raw = await readFile(path.resolve(inputPath), "utf8");
   const promptsFile = JSON.parse(raw) as PromptsFile;
@@ -65,7 +65,7 @@ export async function runScan(opts: RunOptions): Promise<RunSummary> {
   const { target, attacks } = promptsFile;
 
   if (!attacks || attacks.length === 0) {
-    throw new Error("No attack entries in the prompts file. Run astra_setup first.");
+    throw new Error("No attack entries in the prompts file. Run opfor_setup first.");
   }
 
   const targetScriptCli = targetScriptOpt?.trim() ?? "";

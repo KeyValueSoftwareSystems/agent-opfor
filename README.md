@@ -1,4 +1,4 @@
-# `astra`
+# `opfor`
 
 **Open-source red teaming for AI agents and MCP servers.**
 
@@ -20,13 +20,13 @@ One tool to generate OWASP-mapped attack prompts, fire them at your target, and 
 
 ---
 
-## Three ways to run astra
+## Three ways to run opfor
 
 | Mode           | How                                              | Best for                                            |
 | -------------- | ------------------------------------------------ | --------------------------------------------------- |
-| **CLI**        | `astra setup` → `astra generate` → `astra run`   | Terminal-first workflows, CI/CD                     |
+| **CLI**        | `opfor setup` → `opfor generate` → `opfor run`   | Terminal-first workflows, CI/CD                     |
 | **MCP Server** | Add to Cursor / Claude Desktop, then ask in chat | Agents that test agents                             |
-| **Skills**     | `/astra-setup` and `/astra-run` slash commands   | Any AI coding agent (Cursor, Claude Code, Windsurf) |
+| **Skills**     | `/opfor-setup` and `/opfor-run` slash commands   | Any AI coding agent (Cursor, Claude Code, Windsurf) |
 
 All three modes share the same evaluators, attack templates, and judge logic.
 
@@ -35,11 +35,11 @@ All three modes share the same evaluators, attack templates, and judge logic.
 ## Install
 
 ```bash
-git clone https://github.com/KeyValueSoftwareSystems/astra.git
-cd astra
+git clone https://github.com/KeyValueSoftwareSystems/opfor.git
+cd opfor
 npm install --ignore-scripts
 npm run build
-npm install -g ./cli      # makes the `astra` command available globally
+npm install -g ./cli      # makes the `opfor` command available globally
 ```
 
 Set an API key for your preferred LLM provider (used for attack generation and judging):
@@ -56,12 +56,12 @@ export GROQ_API_KEY=your-key-here
 ### Step 1 — Init (optional)
 
 ```bash
-astra init                        # writes a starter astra.config.json
-astra init --example python       # writes astra-local-target.py stub only
-astra init --example node         # writes astra-local-target.js stub only
+opfor init                        # writes a starter opfor.config.json
+opfor init --example python       # writes opfor-local-target.py stub only
+opfor init --example node         # writes opfor-local-target.js stub only
 ```
 
-Skip this step if you prefer the interactive wizard (`astra setup` with no flags).
+Skip this step if you prefer the interactive wizard (`opfor setup` with no flags).
 
 ---
 
@@ -69,15 +69,15 @@ Skip this step if you prefer the interactive wizard (`astra setup` with no flags
 
 ```bash
 # Interactive wizard — no config file needed
-astra setup
+opfor setup
 
 # Non-interactive — reads a config file, good for CI
-astra generate --config astra.config.json
+opfor generate --config opfor.config.json
 ```
 
-Both write a timestamped attacks file to `.astra/attacks/`. You can inspect this file before running — it contains every attack prompt, the target config, and the judge config.
+Both write a timestamped attacks file to `.opfor/attacks/`. You can inspect this file before running — it contains every attack prompt, the target config, and the judge config.
 
-**Minimal `astra.config.json`:**
+**Minimal `opfor.config.json`:**
 
 ```json
 {
@@ -92,31 +92,31 @@ Both write a timestamped attacks file to `.astra/attacks/`. You can inspect this
 }
 ```
 
-YAML is also supported (`astra.config.yml`).
+YAML is also supported (`opfor.config.yml`).
 
 ---
 
 ### Step 3 — Run the scan
 
 ```bash
-astra run --attacks .astra/attacks/astra-attacks-<timestamp>-<id>.json
+opfor run --attacks .opfor/attacks/opfor-attacks-<timestamp>-<id>.json
 
 # Override target at run time
-astra run --attacks .astra/attacks/astra-attacks-<timestamp>-<id>.json --target-script ./adapter.js
+opfor run --attacks .opfor/attacks/opfor-attacks-<timestamp>-<id>.json --target-script ./adapter.js
 
 # Custom report directory
-astra run --attacks .astra/attacks/astra-attacks-<timestamp>-<id>.json --out-dir ./reports
+opfor run --attacks .opfor/attacks/opfor-attacks-<timestamp>-<id>.json --out-dir ./reports
 ```
 
 Reports are written to:
 
 ```
-.astra/reports/report-<timestamp>/
+.opfor/reports/report-<timestamp>/
   ├── report.html   ← open in a browser
   └── report.json   ← use in CI/CD
 ```
 
-> **Shortcut:** `astra run` and `astra generate` work without arguments — they invoke the setup wizard automatically if no file is provided.
+> **Shortcut:** `opfor run` and `opfor generate` work without arguments — they invoke the setup wizard automatically if no file is provided.
 
 Full CLI reference: [`docs/cli.md`](docs/cli.md)
 
@@ -124,16 +124,16 @@ Full CLI reference: [`docs/cli.md`](docs/cli.md)
 
 ## Mode 2 — MCP Server (Cursor, Claude Desktop)
 
-Register astra as an MCP server and red-team directly from chat — no terminal required.
+Register opfor as an MCP server and red-team directly from chat — no terminal required.
 
 **Cursor** — add to `~/.cursor/mcp.json`:
 
 ```json
 {
   "mcpServers": {
-    "astra": {
+    "opfor": {
       "command": "node",
-      "args": ["/absolute/path/to/astra/mcp/dist/index.js"]
+      "args": ["/absolute/path/to/opfor/mcp/dist/index.js"]
     }
   }
 }
@@ -144,9 +144,9 @@ Register astra as an MCP server and red-team directly from chat — no terminal 
 ```json
 {
   "mcpServers": {
-    "astra": {
+    "opfor": {
       "command": "node",
-      "args": ["/absolute/path/to/astra/mcp/dist/index.js"]
+      "args": ["/absolute/path/to/opfor/mcp/dist/index.js"]
     }
   }
 }
@@ -162,9 +162,9 @@ The agent calls three tools in sequence:
 
 | Tool                    | What it does                                                            |
 | ----------------------- | ----------------------------------------------------------------------- |
-| `astra_list_evaluators` | Returns all evaluator IDs, severities, OWASP tags, and available suites |
-| `astra_setup`           | Generates targeted attack prompts (inline params or config file path)   |
-| `astra_run`             | Fires attacks, judges responses, writes HTML + JSON reports             |
+| `opfor_list_evaluators` | Returns all evaluator IDs, severities, OWASP tags, and available suites |
+| `opfor_setup`           | Generates targeted attack prompts (inline params or config file path)   |
+| `opfor_run`             | Fires attacks, judges responses, writes HTML + JSON reports             |
 
 Full MCP reference: [`docs/mcp.md`](docs/mcp.md)
 
@@ -175,8 +175,8 @@ Full MCP reference: [`docs/mcp.md`](docs/mcp.md)
 In any AI coding agent that supports slash commands (Cursor, Claude Code, Windsurf):
 
 ```
-/astra-setup    ← interactive wizard: picks target, suite, LLM provider
-/astra-run      ← fires attacks and generates a report in chat
+/opfor-setup    ← interactive wizard: picks target, suite, LLM provider
+/opfor-run      ← fires attacks and generates a report in chat
 ```
 
 No CLI install needed. The agent reads the skill files directly from the `skills/` directory.
@@ -207,7 +207,7 @@ For a local script adapter (when your target is not a single URL):
   "target": {
     "name": "My Bot",
     "type": "local-script",
-    "scriptPath": "./astra-local-target.js"
+    "scriptPath": "./opfor-local-target.js"
   }
 }
 ```
@@ -216,7 +216,7 @@ The script reads `{"prompt":"...","sessionId":"..."}` from stdin and writes `{"r
 
 ### MCP mode — live tool calls against MCP servers
 
-Astra connects to your MCP server, calls `tools/list`, generates tool-specific attacks, fires real `tools/call` requests, and judges the responses.
+Opfor connects to your MCP server, calls `tools/list`, generates tool-specific attacks, fires real `tools/call` requests, and judges the responses.
 
 **STDIO transport:**
 
@@ -297,7 +297,7 @@ Run a specific subset instead of a full suite:
 | `openai`       | `OPENAI_API_KEY`               | `gpt-4o-mini`               |
 | `anthropic`    | `ANTHROPIC_API_KEY`            | `claude-3-5-haiku-20241022` |
 | `google`       | `GOOGLE_GENERATIVE_AI_API_KEY` | `gemini-2.0-flash`          |
-| `other`        | `ASTRA_API_KEY`                | requires `llm.baseURL`      |
+| `other`        | `OPFOR_API_KEY`                | requires `llm.baseURL`      |
 
 Any OpenAI-compatible endpoint (LiteLLM, OpenRouter, Azure, Ollama) works via `provider: "other"` + `llm.baseURL`:
 
@@ -311,7 +311,7 @@ Any OpenAI-compatible endpoint (LiteLLM, OpenRouter, Azure, Ollama) works via `p
 
 ### Multi-turn attacks
 
-Astra can run adversarial multi-turn conversations — after each response, an attacker LLM generates a more escalating follow-up:
+Opfor can run adversarial multi-turn conversations — after each response, an attacker LLM generates a more escalating follow-up:
 
 ```json
 { "turnMode": "multi", "turns": 3, "target": { "sessionIdField": "session_id" } }
@@ -319,7 +319,7 @@ Astra can run adversarial multi-turn conversations — after each response, an a
 
 ### Telemetry enrichment (Langfuse / Netra)
 
-When configured, astra pulls real production traces to ground attack prompts in actual user language, and injects trace IDs so the LLM judge has visibility into internal tool calls — not just the final response.
+When configured, opfor pulls real production traces to ground attack prompts in actual user language, and injects trace IDs so the LLM judge has visibility into internal tool calls — not just the final response.
 
 ```json
 "telemetry": {
@@ -337,10 +337,10 @@ export LANGFUSE_SECRET_KEY=sk-lf-...
 
 ```yaml
 - name: Generate attacks
-  run: astra generate --config astra.config.json
+  run: opfor generate --config opfor.config.json
 
 - name: Run scan
-  run: astra run --attacks .astra/attacks/astra-attacks-*.json
+  run: opfor run --attacks .opfor/attacks/opfor-attacks-*.json
 ```
 
 ---
@@ -349,13 +349,13 @@ export LANGFUSE_SECRET_KEY=sk-lf-...
 
 Keys are loaded in this order: `--api-key` CLI flag → `llm.apiKey` in config → provider env var. The CLI loads `.env` from the current working directory automatically.
 
-Never commit API keys. Add `.astra/` to `.gitignore`.
+Never commit API keys. Add `.opfor/` to `.gitignore`.
 
 ---
 
 ## Developer testing
 
-`tests/e2e/agents/` contains pre-built target agents you can spin up locally to test Astra against a real endpoint — no external service required.
+`tests/e2e/agents/` contains pre-built target agents you can spin up locally to test Opfor against a real endpoint — no external service required.
 
 ### vanilla-chat
 
@@ -378,8 +378,8 @@ export GROQ_API_KEY=your-key-here   # or OPENAI_API_KEY / ANTHROPIC_API_KEY etc.
 **Step 3 — generate and run attacks from the repo root:**
 
 ```bash
-astra generate --config tests/e2e/agents/vanilla-chat/astra.config.json
-astra run --attacks .astra/attacks/astra-attacks-*-vanilla-chat.json
+opfor generate --config tests/e2e/agents/vanilla-chat/opfor.config.json
+opfor run --attacks .opfor/attacks/opfor-attacks-*-vanilla-chat.json
 ```
 
 **Supported providers:** `openai` · `anthropic` · `groq` · `google` · any OpenAI-compatible endpoint via `BASE_URL`
@@ -409,8 +409,8 @@ export GROQ_API_KEY=your-key-here
 **Step 3 — generate and run attacks from the repo root:**
 
 ```bash
-astra generate --config tests/e2e/agents/customer-support/astra.config.json
-astra run --attacks .astra/attacks/astra-attacks-*-customer-support.json
+opfor generate --config tests/e2e/agents/customer-support/opfor.config.json
+opfor run --attacks .opfor/attacks/opfor-attacks-*-customer-support.json
 ```
 
 **Other commands (from the agent directory):**
@@ -428,12 +428,12 @@ astra run --attacks .astra/attacks/astra-attacks-*-customer-support.json
 
 ## Contributing
 
-Astra is open source and contributions are welcome. Highest-impact ways to contribute:
+Opfor is open source and contributions are welcome. Highest-impact ways to contribute:
 
-1. **New evaluators** — add a `.md` file to `skills/agent-redteaming/astra-setup/evaluators/` or `skills/mcp-redteaming/evaluators/` with attack templates, pass/fail criteria, and a CVE or paper citation. No TypeScript needed — the engine auto-discovers it.
+1. **New evaluators** — add a `.md` file to `skills/agent-redteaming/opfor-setup/evaluators/` or `skills/mcp-redteaming/evaluators/` with attack templates, pass/fail criteria, and a CVE or paper citation. No TypeScript needed — the engine auto-discovers it.
 2. **New target adapters** — add support for new agent frameworks or transports in `core/src/mcp-client/`.
-3. **Findings** — run astra against a public agent or MCP server and open a PR to `findings/` with a writeup.
-4. **Bug reports** — open an [issue](https://github.com/KeyValueSoftwareSystems/astra/issues) with steps to reproduce.
+3. **Findings** — run opfor against a public agent or MCP server and open a PR to `findings/` with a writeup.
+4. **Bug reports** — open an [issue](https://github.com/KeyValueSoftwareSystems/opfor/issues) with steps to reproduce.
 
 Read the full [Contributing Guide](CONTRIBUTING.md) before opening a PR.
 
@@ -441,9 +441,9 @@ Read the full [Contributing Guide](CONTRIBUTING.md) before opening a PR.
 
 ## Security disclosure
 
-Use astra only on systems you own or are authorized to test.
+Use opfor only on systems you own or are authorized to test.
 
-To report a vulnerability in astra itself, see [SECURITY.md](SECURITY.md). Do not open a public issue — email [astra@keyvalue.systems](mailto:astra@keyvalue.systems) instead.
+To report a vulnerability in opfor itself, see [SECURITY.md](SECURITY.md). Do not open a public issue — email [opfor@keyvalue.systems](mailto:opfor@keyvalue.systems) instead.
 
 ---
 

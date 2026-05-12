@@ -3,12 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Astra — Open-Source Red Teaming for AI Agents & MCP Servers</title>
+    <title>Opfor — Open-Source Red Teaming for AI Agents & MCP Servers</title>
     <meta
       name="description"
       content="Generate OWASP-mapped attack prompts, fire them at your AI agents or MCP servers, and judge every response with an LLM. CLI, MCP server, or slash commands."
     />
-    <meta property="og:title" content="Astra — Red Team Your AI Agents" />
+    <meta property="og:title" content="Opfor — Red Team Your AI Agents" />
     <meta
       property="og:description"
       content="Open-source security testing for AI agents and MCP servers. OWASP-mapped. LLM-judged. CI/CD ready."
@@ -1196,7 +1196,7 @@
       <div class="container nav-inner">
         <a class="nav-logo" href="#">
           <div class="logo-mark">⚔</div>
-          astra
+          opfor
         </a>
 
         <ul class="nav-links">
@@ -1210,7 +1210,7 @@
         <div class="nav-actions">
           <a
             class="btn btn-ghost"
-            href="https://github.com/KeyValueSoftwareSystems/astra"
+            href="https://github.com/KeyValueSoftwareSystems/opfor"
             target="_blank"
             rel="noopener"
           >
@@ -1223,7 +1223,7 @@
           </a>
           <a
             class="btn btn-primary"
-            href="https://github.com/KeyValueSoftwareSystems/astra#install"
+            href="https://github.com/KeyValueSoftwareSystems/opfor#install"
             target="_blank"
             rel="noopener"
           >
@@ -1249,14 +1249,14 @@
         <div class="nav-mobile-actions">
           <a
             class="btn btn-ghost"
-            href="https://github.com/KeyValueSoftwareSystems/astra"
+            href="https://github.com/KeyValueSoftwareSystems/opfor"
             target="_blank"
             rel="noopener"
             >GitHub</a
           >
           <a
             class="btn btn-primary"
-            href="https://github.com/KeyValueSoftwareSystems/astra#install"
+            href="https://github.com/KeyValueSoftwareSystems/opfor#install"
             target="_blank"
             rel="noopener"
             >Get started</a
@@ -1292,7 +1292,7 @@
           <div class="hero-actions">
             <a
               class="btn btn-primary"
-              href="https://github.com/KeyValueSoftwareSystems/astra#install"
+              href="https://github.com/KeyValueSoftwareSystems/opfor#install"
               target="_blank"
               rel="noopener"
             >
@@ -1308,11 +1308,11 @@
                 <polyline points="7 11 12 16 17 11" />
                 <line x1="12" y1="4" x2="12" y2="16" />
               </svg>
-              Install astra
+              Install opfor
             </a>
             <a
               class="btn btn-ghost"
-              href="https://github.com/KeyValueSoftwareSystems/astra"
+              href="https://github.com/KeyValueSoftwareSystems/opfor"
               target="_blank"
               rel="noopener"
             >
@@ -1326,23 +1326,23 @@
               <span class="terminal-dot red"></span>
               <span class="terminal-dot yellow"></span>
               <span class="terminal-dot green"></span>
-              <span class="terminal-title">astra · red teaming</span>
+              <span class="terminal-title">opfor · red teaming</span>
             </div>
             <div class="terminal-body">
               <div>
-                <span class="prompt">$ </span><span class="cmd">npm install -g astra-cli</span>
+                <span class="prompt">$ </span><span class="cmd">npm install -g opfor-cli</span>
               </div>
-              <div><span class="prompt">$ </span><span class="cmd">astra setup</span></div>
+              <div><span class="prompt">$ </span><span class="cmd">opfor setup</span></div>
               <div class="out">✔ Target: http://localhost:4000/chat (http-endpoint)</div>
               <div class="out">
                 ✔ Suite: owasp-llm-top10 <span class="comment"># 53 attack prompts</span>
               </div>
               <div class="out">✔ Judge: claude-3-5-haiku-20241022</div>
-              <div class="out">✔ Attacks written → .astra/attacks/2025-06-01T12:00:00.json</div>
+              <div class="out">✔ Attacks written → .opfor/attacks/2025-06-01T12:00:00.json</div>
               <div>&nbsp;</div>
               <div>
                 <span class="prompt">$ </span
-                ><span class="cmd">astra run --attacks .astra/attacks/latest.json</span>
+                ><span class="cmd">opfor run --attacks .opfor/attacks/latest.json</span>
               </div>
               <div class="out">Running 53 attacks…</div>
               <div class="out">
@@ -1351,7 +1351,7 @@
                   >21/53</span
                 >]
               </div>
-              <div class="out">Report → .astra/reports/report.html</div>
+              <div class="out">Report → .opfor/reports/report.html</div>
             </div>
           </div>
 
@@ -1416,17 +1416,17 @@
               Describe your target — an HTTP endpoint, a local script, or a live MCP server. Pick
               your LLM provider and attack suite.
             </p>
-            <span class="step-cmd">astra setup</span>
+            <span class="step-cmd">opfor setup</span>
           </div>
 
           <div class="step">
             <div class="step-num">2</div>
             <h3>Generate</h3>
             <p>
-              Astra synthesises OWASP-mapped attack prompts tailored to your target description and
+              Opfor synthesises OWASP-mapped attack prompts tailored to your target description and
               saves them for inspection.
             </p>
-            <span class="step-cmd">astra generate</span>
+            <span class="step-cmd">opfor generate</span>
           </div>
 
           <div class="step">
@@ -1436,7 +1436,7 @@
               Attacks fire at your target. An LLM judge evaluates every response and produces an
               HTML + JSON report.
             </p>
-            <span class="step-cmd">astra run</span>
+            <span class="step-cmd">opfor run</span>
           </div>
         </div>
       </div>
@@ -1479,16 +1479,16 @@
             <p>
               Run
               <code style="font-family: var(--mono); font-size: 0.85em; color: var(--accent-2)"
-                >astra</code
+                >opfor</code
               >
               directly in your terminal or pipe it into CI/CD. Deterministic runs with reproducible
               attack plans and logged results.
             </p>
             <div class="mode-tools">
-              <span class="tool-pill">astra setup</span>
-              <span class="tool-pill">astra generate</span>
-              <span class="tool-pill">astra run</span>
-              <span class="tool-pill">astra init</span>
+              <span class="tool-pill">opfor setup</span>
+              <span class="tool-pill">opfor generate</span>
+              <span class="tool-pill">opfor run</span>
+              <span class="tool-pill">opfor init</span>
             </div>
             <div style="margin-top: 16px; font-size: 0.85rem; color: var(--txt-muted)">
               Best for terminal-first workflows and CI/CD pipelines.
@@ -1500,13 +1500,13 @@
             <div class="mode-tag tag-mcp">MCP Server</div>
             <h3>Agents that test agents</h3>
             <p>
-              Add astra as an MCP server in Cursor or Claude Desktop. Ask in chat — your AI
+              Add opfor as an MCP server in Cursor or Claude Desktop. Ask in chat — your AI
               assistant calls the security tools for you.
             </p>
             <div class="mode-tools">
-              <span class="tool-pill">astra_list_evaluators</span>
-              <span class="tool-pill">astra_setup</span>
-              <span class="tool-pill">astra_run</span>
+              <span class="tool-pill">opfor_list_evaluators</span>
+              <span class="tool-pill">opfor_setup</span>
+              <span class="tool-pill">opfor_run</span>
             </div>
             <div style="margin-top: 16px; font-size: 0.85rem; color: var(--txt-muted)">
               Best for Cursor / Claude Desktop workflows.
@@ -1520,17 +1520,17 @@
             <p>
               Use
               <code style="font-family: var(--mono); font-size: 0.85em; color: var(--green)"
-                >/astra-setup</code
+                >/opfor-setup</code
               >
               and
               <code style="font-family: var(--mono); font-size: 0.85em; color: var(--green)"
-                >/astra-run</code
+                >/opfor-run</code
               >
               in any AI coding agent — Cursor, Claude Code, Windsurf, and more.
             </p>
             <div class="mode-tools">
-              <span class="tool-pill">/astra-setup</span>
-              <span class="tool-pill">/astra-run</span>
+              <span class="tool-pill">/opfor-setup</span>
+              <span class="tool-pill">/opfor-run</span>
             </div>
             <div style="margin-top: 16px; font-size: 0.85rem; color: var(--txt-muted)">
               Best for any AI coding agent with skill/slash-command support.
@@ -1561,7 +1561,7 @@
           </div>
           <h2>Every major AI security standard</h2>
           <p>
-            Astra maps attacks to industry-recognised frameworks so you can report findings in
+            Opfor maps attacks to industry-recognised frameworks so you can report findings in
             language your security team understands.
           </p>
         </div>
@@ -1722,14 +1722,14 @@
             <div style="display: flex; gap: 10px; flex-wrap: wrap">
               <a
                 class="btn btn-primary"
-                href="https://github.com/KeyValueSoftwareSystems/astra#install"
+                href="https://github.com/KeyValueSoftwareSystems/opfor#install"
                 target="_blank"
                 rel="noopener"
                 >Full install guide →</a
               >
               <a
                 class="btn btn-ghost"
-                href="https://github.com/KeyValueSoftwareSystems/astra/blob/master/docs/cli.md"
+                href="https://github.com/KeyValueSoftwareSystems/opfor/blob/master/docs/cli.md"
                 target="_blank"
                 rel="noopener"
                 >CLI docs</a
@@ -1747,9 +1747,9 @@
                 <div><span style="color: #4a5270"># 1. Clone and install</span></div>
                 <div>
                   <span class="kw">git</span> clone
-                  https://github.com/KeyValueSoftwareSystems/astra.git
+                  https://github.com/KeyValueSoftwareSystems/opfor.git
                 </div>
-                <div><span class="kw">cd</span> astra</div>
+                <div><span class="kw">cd</span> opfor</div>
                 <div><span class="kw">npm</span> install --ignore-scripts</div>
                 <div><span class="kw">npm</span> run build</div>
                 <div><span class="kw">npm</span> install -g ./cli</div>
@@ -1764,17 +1764,17 @@
                 <div>&nbsp;</div>
                 <div><span style="color: #4a5270"># 3. Run</span></div>
                 <div>
-                  <span class="kw">astra</span> setup
+                  <span class="kw">opfor</span> setup
                   <span style="color: #4a5270"># interactive wizard</span>
                 </div>
-                <div><span class="kw">astra</span> run --attacks .astra/attacks/latest.json</div>
+                <div><span class="kw">opfor</span> run --attacks .opfor/attacks/latest.json</div>
               </div>
             </div>
 
             <!-- Config snippet -->
             <div class="code-block" style="margin-top: 16px">
               <div class="code-header">
-                <span class="code-title">astra.config.json</span>
+                <span class="code-title">opfor.config.json</span>
                 <button class="copy-btn" onclick="copyCode(this)">Copy</button>
               </div>
               <div class="code-content">
@@ -1899,9 +1899,9 @@
               </svg>
               Maintained by Netra
             </div>
-            <h2>Astra is a Netra open-source project</h2>
+            <h2>Opfor is a Netra open-source project</h2>
             <p>
-              Astra is built and actively maintained by the team at
+              Opfor is built and actively maintained by the team at
               <a
                 href="https://getnetra.ai"
                 target="_blank"
@@ -1914,7 +1914,7 @@
                 >Netra</a
               >
               — an AI observability platform that gives you full visibility into every LLM call,
-              tool invocation, and agent decision in production. We built Astra because we believe
+              tool invocation, and agent decision in production. We built Opfor because we believe
               that secure AI starts before deployment, and the best people to build red-teaming
               tooling are the ones who watch production AI systems every day.
             </p>
@@ -1948,7 +1948,7 @@
               </a>
               <a
                 class="btn btn-ghost"
-                href="https://github.com/KeyValueSoftwareSystems/astra"
+                href="https://github.com/KeyValueSoftwareSystems/opfor"
                 target="_blank"
                 rel="noopener"
               >
@@ -1969,7 +1969,7 @@
           <div class="label">Open source</div>
           <h2>Built in the open, for the community</h2>
           <p>
-            Astra is Apache 2.0 licensed. Contribute new evaluators, report findings, or help build
+            Opfor is Apache 2.0 licensed. Contribute new evaluators, report findings, or help build
             the tooling that keeps AI systems safe.
           </p>
         </div>
@@ -1984,7 +1984,7 @@
             </p>
             <a
               class="contrib-link"
-              href="https://github.com/KeyValueSoftwareSystems/astra/blob/master/CONTRIBUTING.md"
+              href="https://github.com/KeyValueSoftwareSystems/opfor/blob/master/CONTRIBUTING.md"
               target="_blank"
               rel="noopener"
             >
@@ -2005,7 +2005,7 @@
             </p>
             <a
               class="contrib-link"
-              href="https://github.com/KeyValueSoftwareSystems/astra/tree/master/findings"
+              href="https://github.com/KeyValueSoftwareSystems/opfor/tree/master/findings"
               target="_blank"
               rel="noopener"
             >
@@ -2022,7 +2022,7 @@
             </p>
             <a
               class="contrib-link"
-              href="https://github.com/KeyValueSoftwareSystems/astra/issues"
+              href="https://github.com/KeyValueSoftwareSystems/opfor/issues"
               target="_blank"
               rel="noopener"
             >
@@ -2074,29 +2074,29 @@
         <div class="footer-left">
           <div class="nav-logo" style="font-size: 15px">
             <div class="logo-mark" style="width: 24px; height: 24px; font-size: 12px">⚔</div>
-            astra
+            opfor
           </div>
           <span class="footer-txt">Open-source red teaming for AI agents &amp; MCP servers.</span>
         </div>
 
         <div class="footer-links">
-          <a href="https://github.com/KeyValueSoftwareSystems/astra" target="_blank" rel="noopener"
+          <a href="https://github.com/KeyValueSoftwareSystems/opfor" target="_blank" rel="noopener"
             >GitHub</a
           >
           <a
-            href="https://github.com/KeyValueSoftwareSystems/astra/blob/master/docs/cli.md"
+            href="https://github.com/KeyValueSoftwareSystems/opfor/blob/master/docs/cli.md"
             target="_blank"
             rel="noopener"
             >Docs</a
           >
           <a
-            href="https://github.com/KeyValueSoftwareSystems/astra/blob/master/CONTRIBUTING.md"
+            href="https://github.com/KeyValueSoftwareSystems/opfor/blob/master/CONTRIBUTING.md"
             target="_blank"
             rel="noopener"
             >Contributing</a
           >
           <a
-            href="https://github.com/KeyValueSoftwareSystems/astra/blob/master/LICENSE"
+            href="https://github.com/KeyValueSoftwareSystems/opfor/blob/master/LICENSE"
             target="_blank"
             rel="noopener"
             >License</a

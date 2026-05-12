@@ -95,7 +95,7 @@ export async function collectAgentSetupConfigInteractive(): Promise<SetupConfigF
   } else {
     const scriptPath = await input({
       message: "Path to local script (.js or .py):",
-      default: "./astra-local-target.js",
+      default: "./opfor-local-target.js",
       validate: (v) => (v.trim() ? true : "Required"),
     });
     target = { ...target, scriptPath: scriptPath.trim() };

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { EvaluatorDoc } from "../catalog/loadEvaluatorPatterns.js";
-import type { AstraMcpConfig } from "../config/schema.js";
+import type { OpforMcpConfig } from "../config/schema.js";
 import { chatCompletionJsonContent } from "../llm/openaiCompatible.js";
 import { log } from "../lib/logger.js";
 import { AttackScenarioSchema, type AttackPlanWritten } from "./planSchema.js";
@@ -160,7 +160,7 @@ function buildSystemPrompt(
 }
 
 async function generateAttacksForEvaluator(args: {
-  cfg: AstraMcpConfig;
+  cfg: OpforMcpConfig;
   suiteId: string;
   transport: string;
   serverSummary: string;
@@ -234,7 +234,7 @@ async function generateAttacksForEvaluator(args: {
  * to dramatically reduce token usage and attack count for large MCPs.
  */
 async function computeToolRelevanceMap(args: {
-  cfg: AstraMcpConfig;
+  cfg: OpforMcpConfig;
   tools: ToolInfo[];
   evaluatorDocs: EvaluatorDoc[];
 }): Promise<Record<string, string[]>> {
@@ -309,7 +309,7 @@ async function computeToolRelevanceMap(args: {
 }
 
 export async function generateAttackPlan(args: {
-  cfg: AstraMcpConfig;
+  cfg: OpforMcpConfig;
   suiteId: string;
   tools: ToolInfo[];
   evaluatorDocs: EvaluatorDoc[];
@@ -397,7 +397,7 @@ export async function generateAttackPlan(args: {
         summary: `Inspect the description of tool ${tool.name} for hidden LLM directives`,
         suggestedToolName: tool.name,
         suggestedToolArguments: {
-          _astra_scan: "tool_description",
+          _opfor_scan: "tool_description",
           _tool_description: tool.description ?? "(no description)",
           _tool_name: tool.name,
         } as Record<string, unknown>,

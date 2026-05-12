@@ -19,7 +19,7 @@ export interface JudgeFetchOpts {
  */
 export interface TelemetryAdapter {
   /**
-   * Fetch a flat list of trace rows for curation during `astra setup`.
+   * Fetch a flat list of trace rows for curation during `opfor setup`.
    * Returns null if credentials are missing or the provider is misconfigured.
    */
   fetchTraceList(telemetry: TelemetryConfig): Promise<TraceListResult | null>;

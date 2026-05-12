@@ -57,7 +57,7 @@
           result.inputFound = true;
           result.inputTag = input.tagName?.toLowerCase();
           // Store reference globally so frame_actuate can use it
-          globalThis.__astraVendorInput = input;
+          globalThis.__opforVendorInput = input;
           result.method = "shadow_traversal";
           result.ok = true;
           return result;
@@ -93,7 +93,7 @@
         result.vendor = "gorgias";
         result.inputFound = true;
         result.inputTag = input.tagName?.toLowerCase();
-        globalThis.__astraVendorInput = input;
+        globalThis.__opforVendorInput = input;
         result.method = "dom_query";
         result.ok = true;
         return result;
@@ -119,7 +119,7 @@
           result.inputFound = true;
           result.inputTag = input.tagName?.toLowerCase();
           result.hostTag = tag;
-          globalThis.__astraVendorInput = input;
+          globalThis.__opforVendorInput = input;
           result.method = "generic_shadow_scan";
           result.ok = true;
           return result;

@@ -2,7 +2,7 @@ import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { parse as parseYaml } from "yaml";
 import { splitYamlFrontmatter } from "../util/yamlFrontmatter.js";
-import { getAstraSetupRoot } from "./skillsLayout.js";
+import { getOpforSetupRoot } from "./skillsLayout.js";
 
 export interface EvaluatorMeta {
   id: string;
@@ -28,7 +28,7 @@ export async function loadSkillCatalog(): Promise<{
   evaluators: EvaluatorMeta[];
   suites: SuiteMeta[];
 }> {
-  const root = getAstraSetupRoot();
+  const root = getOpforSetupRoot();
   const evalDir = path.join(root, "evaluators");
   const suitesDir = path.join(root, "suites");
 

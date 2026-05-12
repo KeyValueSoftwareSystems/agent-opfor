@@ -1,7 +1,7 @@
 {
-  "name": "@astra/extension",
+  "name": "@opfor/extension",
   "version": "0.0.1",
-  "description": "Astra browser extension (MV3) — chat UI injector for live testing",
+  "description": "Opfor browser extension (MV3) — chat UI injector for live testing",
   "license": "Apache-2.0",
   "private": true,
   "type": "module",

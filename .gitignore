@@ -18,18 +18,18 @@ dist/
 temp/
 cli/node_modules/
 *.tsbuildinfo
-.astra
-astra.config.json
-astra-prompts-*.json
+.opfor
+opfor.config.json
+opfor-prompts-*.json
 tracedata.json
 
-# Astra artifacts
-.astra/configs/
-.astra/attacks/
-.astra/reports/
+# Opfor artifacts
+.opfor/configs/
+.opfor/attacks/
+.opfor/reports/
 
 # Back-compat / legacy artifacts (kept ignored)
-astra-mcp-attacks.json
+opfor-mcp-attacks.json
 
 # Pre-refactor local trees / accidental rebuilds (canonical code is cli/, core/, mcp/)
 /src/

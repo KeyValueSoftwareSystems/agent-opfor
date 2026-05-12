@@ -5,7 +5,7 @@ import {
   getDefaultEnvironment,
 } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import type { AstraMcpConfig } from "../config/schema.js";
+import type { OpforMcpConfig } from "../config/schema.js";
 
 export type McpConnectedClient = {
   client: Client;
@@ -26,7 +26,7 @@ async function connectUrlTransport(
 ): Promise<McpConnectedClient> {
   const u = new URL(url);
   const requestInit = { headers: headersFromRecord(headers) };
-  const client = new Client({ name: "astra-mcp", version: "0.0.1" });
+  const client = new Client({ name: "opfor-mcp", version: "0.0.1" });
 
   try {
     const transport = new StreamableHTTPClientTransport(u, { requestInit });
@@ -44,7 +44,7 @@ async function connectUrlTransport(
     };
   } catch {
     await client.close().catch(() => undefined);
-    const client2 = new Client({ name: "astra-mcp", version: "0.0.1" });
+    const client2 = new Client({ name: "opfor-mcp", version: "0.0.1" });
     const sse = new SSEClientTransport(u, { requestInit });
     await client2.connect(sse);
     return {
@@ -66,11 +66,11 @@ function expandEnv(env: Record<string, string>): Record<string, string> {
 }
 
 export async function connectMcpClient(
-  server: AstraMcpConfig["server"],
+  server: OpforMcpConfig["server"],
   opts: { suppressServerStderr?: boolean } = {}
 ): Promise<McpConnectedClient> {
   if (server.transport === "stdio") {
-    const client = new Client({ name: "astra-mcp", version: "0.0.1" });
+    const client = new Client({ name: "opfor-mcp", version: "0.0.1" });
     const env = { ...getDefaultEnvironment(), ...expandEnv(server.env) };
     const transport = new StdioClientTransport({
       command: server.command,

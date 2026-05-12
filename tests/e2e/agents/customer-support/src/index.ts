@@ -234,7 +234,7 @@ async function createModel(): Promise<BaseChatModel> {
 }
 
 // Session store: sessionId → message history + last-access timestamp
-// Astra sends a fresh UUID per attack; sessions older than SESSION_TTL_MS are pruned.
+// Opfor sends a fresh UUID per attack; sessions older than SESSION_TTL_MS are pruned.
 const SESSION_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 interface Session {

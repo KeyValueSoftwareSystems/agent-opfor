@@ -168,7 +168,7 @@ async function collectLlmConfig(label: string): Promise<LlmConfig> {
 async function runInteractiveWizard(
   catalog: Awaited<ReturnType<typeof loadSkillCatalog>>
 ): Promise<CollectedAnswers> {
-  console.log("\nAstra Setup Wizard\n");
+  console.log("\nOpfor Setup Wizard\n");
 
   const { evaluators: EVALUATORS, suites: SUITES } = catalog;
 
@@ -263,7 +263,7 @@ async function runInteractiveWizard(
   } else {
     const scriptPath = await input({
       message:
-        "Path to script (e.g. ./astra-local-target.js or .py — node vs python3 is chosen from the extension):",
+        "Path to script (e.g. ./opfor-local-target.js or .py — node vs python3 is chosen from the extension):",
       validate: (v) => v.trim() !== "" || "Required",
     });
     target = { ...target, scriptPath: scriptPath.trim() };
@@ -332,17 +332,17 @@ async function runInteractiveWizard(
   return { attackLlm, judgeLlm, target, selectedEvaluatorIds, turnMode, turns };
 }
 
-/** Resolve `"agent"` section from unified `astra.config.json` (schemaVersion 3). */
+/** Resolve `"agent"` section from unified `opfor.config.json` (schemaVersion 3). */
 function extractAgentSetupPayload(parsed: unknown): SetupConfigFile {
   if (parsed === null || typeof parsed !== "object") {
     throw new Error("Invalid config file");
   }
   const o = parsed as Record<string, unknown>;
   if (typeof o.configId !== "string" || o.configId.trim() === "") {
-    throw new Error("Not a valid astra config file (missing configId). Run `astra setup`.");
+    throw new Error("Not a valid opfor config file (missing configId). Run `opfor setup`.");
   }
   if (!o.agent || typeof o.agent !== "object") {
-    throw new Error('Missing "agent" section in astra.config.json.');
+    throw new Error('Missing "agent" section in opfor.config.json.');
   }
   return o.agent as SetupConfigFile;
 }
@@ -409,9 +409,9 @@ export function registerSetupCommand(program: Command) {
   program
     .command("setup")
     .description(
-      "Configure an Astra scan and generate attack prompts JSON.\n" +
-        "  Run interactively: astra setup --agent\n" +
-        "  From config file:  astra generate --config <config.json>"
+      "Configure an Opfor scan and generate attack prompts JSON.\n" +
+        "  Run interactively: opfor setup --agent\n" +
+        "  From config file:  opfor generate --config <config.json>"
     )
     .option(
       "--config <path>",
@@ -522,7 +522,7 @@ export function registerSetupCommand(program: Command) {
         .replace(/[-:T.Z]/g, "")
         .slice(0, 14);
       const uuid = randomUUID().slice(0, 6);
-      const filename = `astra-prompts-${timestamp}-${uuid}.json`;
+      const filename = `opfor-prompts-${timestamp}-${uuid}.json`;
       const outputPath = path.join(outputDir, filename);
 
       const promptsFile: PromptsFile = {
@@ -599,7 +599,7 @@ export function registerSetupCommand(program: Command) {
       }
       console.log(`\n  ⚠  The prompts file contains your API key — add it to .gitignore`);
       console.log(`\nNext step:`);
-      console.log(`  astra run --attacks ${outputPath}\n`);
+      console.log(`  opfor run --attacks ${outputPath}\n`);
     });
 }
 

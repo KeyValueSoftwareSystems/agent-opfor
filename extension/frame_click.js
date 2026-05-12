@@ -96,9 +96,9 @@ function robustClick(el) {
 
 (async () => {
   try {
-    const sel = globalThis.__ASTRA_CLICK_SELECTOR__;
+    const sel = globalThis.__OPFOR_CLICK_SELECTOR__;
     if (typeof sel !== "string" || !sel.trim())
-      return { ok: false, error: "Missing __ASTRA_CLICK_SELECTOR__" };
+      return { ok: false, error: "Missing __OPFOR_CLICK_SELECTOR__" };
     const el = resolveDeepSelector(sel) || safeQuerySelector(document, sel);
     if (!(el instanceof Element)) return { ok: false, error: "Selector did not match" };
     if (!isVisible(el)) return { ok: false, error: "Target not visible" };

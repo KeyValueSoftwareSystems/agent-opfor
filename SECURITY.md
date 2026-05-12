@@ -2,24 +2,24 @@
 
 ## Scope
 
-This policy applies to vulnerabilities in the **Astra tool itself** — its CLI, evaluation engine, report generation, and MCP client.
+This policy applies to vulnerabilities in the **Opfor tool itself** — its CLI, evaluation engine, report generation, and MCP client.
 
 It does not cover:
 
-- Findings from running Astra _against_ another system (report those to that system's maintainers)
+- Findings from running Opfor _against_ another system (report those to that system's maintainers)
 - Vulnerabilities in third-party dependencies (report those upstream; we will update dependencies promptly when notified)
 
 ## Reporting a vulnerability
 
 **Do not open a public GitHub issue for security vulnerabilities.**
 
-Email: [astra@keyvalue.systems](mailto:astra@keyvalue.systems)
+Email: [opfor@keyvalue.systems](mailto:opfor@keyvalue.systems)
 
 Include in your report:
 
 - A description of the vulnerability and its potential impact
 - Steps to reproduce (config, command, input)
-- The Astra version (`astra --version`)
+- The Opfor version (`opfor --version`)
 - Whether you believe it is exploitable in default configurations
 
 You will receive an acknowledgement within **3 business days** and a resolution timeline within **7 business days**.
@@ -36,4 +36,4 @@ We will credit reporters in the fix commit and changelog unless you prefer to re
 
 ## Responsible use
 
-Astra is designed for authorized security testing. You are responsible for ensuring you have permission to test any system you point Astra at. Unauthorized use of Astra against systems you do not own or have explicit written permission to test may violate computer fraud laws in your jurisdiction.
+Opfor is designed for authorized security testing. You are responsible for ensuring you have permission to test any system you point Opfor at. Unauthorized use of Opfor against systems you do not own or have explicit written permission to test may violate computer fraud laws in your jurisdiction.

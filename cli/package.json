@@ -1,11 +1,11 @@
 {
-  "name": "astra",
+  "name": "opfor",
   "version": "0.1.0",
-  "description": "Astra CLI — security testing for AI agents and MCP servers (astra setup|generate|run)",
+  "description": "Opfor CLI — security testing for AI agents and MCP servers (opfor setup|generate|run)",
   "license": "Apache-2.0",
   "type": "module",
   "bin": {
-    "astra": "./dist/index.js"
+    "opfor": "./dist/index.js"
   },
   "files": [
     "dist/"

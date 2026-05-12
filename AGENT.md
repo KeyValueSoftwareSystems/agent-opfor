@@ -1,4 +1,4 @@
-# AGENT.md — Astra
+# AGENT.md — Opfor
 
 This file is for AI coding agents (Claude Code, Copilot, Cursor, etc.) working in this repository. It describes the project structure, build system, key conventions, and how the core subsystems fit together.
 
@@ -8,22 +8,22 @@ For the full developer guide see [`docs/Agents.md`](docs/Agents.md).
 
 ## What this project is
 
-Astra is an open-source red-teaming toolkit for AI agents and MCP servers. It generates OWASP-mapped attack prompts, fires them at a target, and judges each response with an LLM. Output is an HTML + JSON report.
+Opfor is an open-source red-teaming toolkit for AI agents and MCP servers. It generates OWASP-mapped attack prompts, fires them at a target, and judges each response with an LLM. Output is an HTML + JSON report.
 
 **Three usage modes — one set of evaluators:**
 
 | Mode       | Entry point                                    | Who runs it                                  |
 | ---------- | ---------------------------------------------- | -------------------------------------------- |
-| Skills     | `/astra-setup`, `/astra-run` slash commands    | AI coding agent reads markdown skill files   |
-| CLI        | `astra setup` / `astra generate` / `astra run` | User in terminal or CI                       |
-| MCP Server | `astra_setup`, `astra_run` tools               | MCP-compatible host (Cursor, Claude Desktop) |
+| Skills     | `/opfor-setup`, `/opfor-run` slash commands    | AI coding agent reads markdown skill files   |
+| CLI        | `opfor setup` / `opfor generate` / `opfor run` | User in terminal or CI                       |
+| MCP Server | `opfor_setup`, `opfor_run` tools               | MCP-compatible host (Cursor, Claude Desktop) |
 
 ---
 
 ## Monorepo structure
 
 ```
-astra/
+opfor/
 ├── core/                        # Shared engine — npm workspace; compiled to core/dist/
 │   └── src/
 │       ├── config/              # types.ts (all TS types), schema.ts (Zod), loadSkillCatalog.ts, skillsLayout.ts
@@ -35,28 +35,28 @@ astra/
 │       ├── report/              # generateReport.ts, renderHtml.ts
 │       ├── run/                 # executeAttack.ts, judge.ts, generateNextMcpAttackTurn.ts
 │       └── telemetry/           # Langfuse and Netra adapters
-├── cli/                         # npm workspace — `astra` CLI binary
+├── cli/                         # npm workspace — `opfor` CLI binary
 │   └── src/
 │       ├── index.ts             # CLI entrypoint (commander)
 │       ├── commands/
-│       │   ├── init.ts          # `astra init`
-│       │   ├── setup.ts         # `astra setup` (interactive wizard)
-│       │   ├── generate.ts      # `astra generate --config` (non-interactive)
-│       │   ├── run.ts           # `astra run --attacks`
+│       │   ├── init.ts          # `opfor init`
+│       │   ├── setup.ts         # `opfor setup` (interactive wizard)
+│       │   ├── generate.ts      # `opfor generate --config` (non-interactive)
+│       │   ├── run.ts           # `opfor run --attacks`
 │       │   ├── agent/           # agent-mode subcommands
 │       │   └── mcp/             # mcp-mode subcommands
 │       └── lib/                 # artifacts.ts, env.ts, unifiedConfig.ts
-├── mcp/                         # npm workspace — MCP server (`astra_setup`, `astra_run` tools)
+├── mcp/                         # npm workspace — MCP server (`opfor_setup`, `opfor_run` tools)
 │   └── src/
 │       ├── index.ts             # MCP server entrypoint — registers tools, stdio transport
 │       └── core/
-│           ├── setup.ts         # runSetup() — thin wrapper over @astra/core
-│           └── run.ts           # runScan() — thin wrapper over @astra/core
+│           ├── setup.ts         # runSetup() — thin wrapper over @opfor/core
+│           └── run.ts           # runScan() — thin wrapper over @opfor/core
 ├── extension/                   # npm workspace — browser extension
 ├── skills/
 │   ├── agent-redteaming/
-│   │   └── astra-setup/
-│   │       ├── SKILL.md         # /astra-setup slash command
+│   │   └── opfor-setup/
+│   │       ├── SKILL.md         # /opfor-setup slash command
 │   │       ├── evaluators/      # 55+ evaluator .md files (agent-prompt style)
 │   │       ├── suites/          # Suite .md files grouping evaluator IDs
 │   │       └── targets/         # Target adapter docs (http-endpoint, custom-function)
@@ -72,7 +72,7 @@ astra/
 │           │   ├── scripts/              # start.sh, stop.sh
 │           │   ├── Dockerfile
 │           │   ├── docker-compose.yml    # `./scripts/start.sh` → agent on :4000
-│           │   ├── astra.config.json     # ready-to-use config pointing at localhost:4000
+│           │   ├── opfor.config.json     # ready-to-use config pointing at localhost:4000
 │           │   └── .env.example
 │           └── customer-support/  # Tool-calling agent + PostgreSQL — covers BOLA, BFLA, RBAC, PII, SQL injection
 │               ├── package.json
@@ -81,7 +81,7 @@ astra/
 │               ├── scripts/              # start.sh, stop.sh, reset.sh
 │               ├── Dockerfile
 │               ├── docker-compose.yml    # postgres:16 + agent on :4001
-│               ├── astra.config.json     # multi-turn config, 16 evaluators
+│               ├── opfor.config.json     # multi-turn config, 16 evaluators
 │               └── .env.example
 ├── docs/
 │   ├── Agents.md                # Full developer guide (read this before editing)
@@ -114,7 +114,7 @@ npm run format:check             # prettier --check
 | --------------------------------------- | --------------------------------------------------------------------------------------- |
 | `core/src/config/types.ts`              | All TypeScript types for configs, attacks, results                                      |
 | `core/src/config/schema.ts`             | Zod schemas — single source of truth for validation                                     |
-| `core/src/config/skillsLayout.ts`       | `getAstraSetupRoot()` — resolves `skills/astra-setup/` path at runtime from any context |
+| `core/src/config/skillsLayout.ts`       | `getOpforSetupRoot()` — resolves `skills/opfor-setup/` path at runtime from any context |
 | `core/src/config/loadSkillCatalog.ts`   | Reads evaluator metadata and suite lists from `.md` frontmatter                         |
 | `core/src/lib/agent.ts`                 | HTTP attack dispatch, `callTargetHttp()`                                                |
 | `core/src/lib/localScriptTarget.ts`     | Local script target (stdin/stdout) dispatch                                             |
@@ -125,9 +125,9 @@ npm run format:check             # prettier --check
 | `core/src/run/executeAttack.ts`         | Single attack execution — dispatch + judge                                              |
 | `core/src/report/generateReport.ts`     | Produces `report.html` and `report.json`                                                |
 | `cli/src/commands/setup.ts`             | Interactive setup wizard                                                                |
-| `cli/src/commands/generate.ts`          | Non-interactive attack generation (`astra generate`)                                    |
-| `cli/src/commands/run.ts`               | Run entrypoint (`astra run`)                                                            |
-| `mcp/src/index.ts`                      | MCP server: registers `astra_list_evaluators`, `astra_setup`, `astra_run` tools         |
+| `cli/src/commands/generate.ts`          | Non-interactive attack generation (`opfor generate`)                                    |
+| `cli/src/commands/run.ts`               | Run entrypoint (`opfor run`)                                                            |
+| `mcp/src/index.ts`                      | MCP server: registers `opfor_list_evaluators`, `opfor_setup`, `opfor_run` tools         |
 
 ---
 
@@ -155,7 +155,7 @@ patterns:
 ---
 ```
 
-**`skillsLayout.ts` is critical** — it uses `import.meta.url` to resolve `skills/astra-setup/` relative to the compiled file location. Any code that needs the skills path must call `getAstraSetupRoot()` from here, never hardcode paths.
+**`skillsLayout.ts` is critical** — it uses `import.meta.url` to resolve `skills/opfor-setup/` relative to the compiled file location. Any code that needs the skills path must call `getOpforSetupRoot()` from here, never hardcode paths.
 
 **Agent-redteaming evaluators** (`skills/agent-redteaming/`) send the rendered template as a plain prompt to the target.
 
@@ -195,8 +195,8 @@ cp .env.example .env          # set PROVIDER + the agent's API key
 export GROQ_API_KEY=your-key-here   # attack LLM key (separate from Docker .env)
 
 # from repo root:
-astra generate --config tests/e2e/agents/vanilla-chat/astra.config.json
-astra run --attacks .astra/attacks/astra-attacks-*-vanilla-chat.json
+opfor generate --config tests/e2e/agents/vanilla-chat/opfor.config.json
+opfor run --attacks .opfor/attacks/opfor-attacks-*-vanilla-chat.json
 ```
 
 **Covered evaluators:** OWASP LLM Top 10, Trust & Safety (bias, misinformation), system-prompt-leakage, jailbreaking.
@@ -213,8 +213,8 @@ cp .env.example .env          # set PROVIDER + the agent's API key
 export GROQ_API_KEY=your-key-here
 
 # from repo root:
-astra generate --config tests/e2e/agents/customer-support/astra.config.json
-astra run --attacks .astra/attacks/astra-attacks-*-customer-support.json
+opfor generate --config tests/e2e/agents/customer-support/opfor.config.json
+opfor run --attacks .opfor/attacks/opfor-attacks-*-customer-support.json
 
 # reset DB to clean seed state between runs:
 ./scripts/reset.sh
@@ -222,7 +222,7 @@ astra run --attacks .astra/attacks/astra-attacks-*-customer-support.json
 
 **Covered evaluators:** BOLA, BFLA, RBAC, PII (direct/session/API), SQL injection, prompt injection, jailbreaking, system-prompt-leakage, contracts, competitors, hallucination.
 
-The `astra.config.json` uses the **unified config format** (`configId` + `createdAt` + `agent` block). The `apiKeyEnv` field takes the env var **name** (e.g. `"GROQ_API_KEY"`), not the key value itself.
+The `opfor.config.json` uses the **unified config format** (`configId` + `createdAt` + `agent` block). The `apiKeyEnv` field takes the env var **name** (e.g. `"GROQ_API_KEY"`), not the key value itself.
 
 ### Adding a new test agent
 
@@ -232,10 +232,10 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) — "Adding a test agent" section.
 
 ## Adding an evaluator (no TypeScript needed)
 
-1. Create `skills/agent-redteaming/astra-setup/evaluators/<id>.md` (or `mcp-redteaming` equivalent)
+1. Create `skills/agent-redteaming/opfor-setup/evaluators/<id>.md` (or `mcp-redteaming` equivalent)
 2. Fill YAML frontmatter: `id`, `name`, `severity`, `owasp`, `description`, `pass_criteria`, `fail_criteria`, `patterns`
 3. Add the ID to at least one suite's `evaluators:` list in `skills/*/suites/`
-4. Test: `astra setup` → select your evaluator → `astra generate` → `astra run`
+4. Test: `opfor setup` → select your evaluator → `opfor generate` → `opfor run`
 5. PR to `master` — see [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ---
@@ -246,7 +246,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) — "Adding a test agent" section.
 2. Add a new `type` value to `TargetConfig` in `core/src/config/types.ts` and the Zod union in `core/src/config/schema.ts`
 3. Add a routing branch in `core/src/run/executeAttack.ts`
 4. Add CLI options in `cli/src/commands/run.ts` and `setup.ts`
-5. Add Zod schema fields in `mcp/src/index.ts` for the `astra_setup` tool
+5. Add Zod schema fields in `mcp/src/index.ts` for the `opfor_setup` tool
 
 ---
 
@@ -257,7 +257,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) — "Adding a test agent" section.
 - **No barrel re-exports** — import directly from the file that owns the symbol
 - **Error messages are actionable** — tell the user what to fix, not just what went wrong
 - **Evaluator files are data** — no business logic in `.md` files; logic lives in `core/src/evaluators/`
-- **Never invoke the CLI as a subprocess from the MCP server** — call `@astra/core` directly
+- **Never invoke the CLI as a subprocess from the MCP server** — call `@opfor/core` directly
 
 ---
 
@@ -269,7 +269,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) — "Adding a test agent" section.
 | `ANTHROPIC_API_KEY`                           | Anthropic provider                  |
 | `GOOGLE_GENERATIVE_AI_API_KEY`                | Google provider                     |
 | `GROQ_API_KEY`                                | Groq provider                       |
-| `ASTRA_API_KEY`                               | Generic key for `provider: "other"` |
+| `OPFOR_API_KEY`                               | Generic key for `provider: "other"` |
 | `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` | Langfuse telemetry                  |
 | `NETRA_API_KEY`                               | Netra telemetry                     |
 

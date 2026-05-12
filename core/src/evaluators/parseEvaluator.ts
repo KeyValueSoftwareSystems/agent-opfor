@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { parse as parseYaml } from "yaml";
 import { splitYamlFrontmatter } from "../util/yamlFrontmatter.js";
-import { getAstraSetupRoot } from "../config/skillsLayout.js";
+import { getOpforSetupRoot } from "../config/skillsLayout.js";
 
 export interface AttackPattern {
   name: string;
@@ -40,7 +40,7 @@ function parsePatterns(doc: Record<string, unknown>): AttackPattern[] {
   return out;
 }
 
-/** Parse evaluator from `skills/astra-setup/evaluators/<id>.md` (YAML frontmatter only). */
+/** Parse evaluator from `skills/opfor-setup/evaluators/<id>.md` (YAML frontmatter only). */
 export async function parseEvaluator(mdPath: string): Promise<EvaluatorSpec> {
   const raw = await readFile(mdPath, "utf8");
   const sp = splitYamlFrontmatter(raw);
@@ -82,7 +82,7 @@ export async function parseEvaluator(mdPath: string): Promise<EvaluatorSpec> {
   };
 }
 
-const evaluatorsDir = path.join(getAstraSetupRoot(), "evaluators");
+const evaluatorsDir = path.join(getOpforSetupRoot(), "evaluators");
 
 export async function loadBuiltinEvaluator(id: string): Promise<EvaluatorSpec> {
   const mdPath = path.join(evaluatorsDir, `${id}.md`);

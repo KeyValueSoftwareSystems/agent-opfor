@@ -15,19 +15,19 @@ import { runScan } from "./core/run.js";
 import type { ProviderName } from "../../core/dist/config/types.js";
 
 const server = new McpServer({
-  name: "astra",
+  name: "opfor",
   version: "0.1.0",
 });
 
 // ---------------------------------------------------------------------------
-// Tool: astra_list_evaluators
+// Tool: opfor_list_evaluators
 // Lists all available evaluators and suites so the agent can pick them by id.
 // ---------------------------------------------------------------------------
 
 server.tool(
-  "astra_list_evaluators",
-  "List all available Astra evaluators and suites. " +
-    "ALWAYS call this before astra_setup — never assume evaluator IDs. " +
+  "opfor_list_evaluators",
+  "List all available Opfor evaluators and suites. " +
+    "ALWAYS call this before opfor_setup — never assume evaluator IDs. " +
     "Present the results to the user and ask them to choose a suite or specific evaluators before proceeding. " +
     "Returns each evaluator's id, name, severity, and OWASP tag, plus predefined suites (owasp-llm-top10, owasp-agentic-ai).",
   {},
@@ -59,7 +59,7 @@ server.tool(
               `🔍 Available Evaluators (${evalIds.size}):`,
               ...evalLines,
               ``,
-              `Pass evaluator ids or a suite id to astra_setup.`,
+              `Pass evaluator ids or a suite id to opfor_setup.`,
             ].join("\n"),
           },
         ],
@@ -75,10 +75,10 @@ server.tool(
 );
 
 // ---------------------------------------------------------------------------
-// Tool: astra_setup
+// Tool: opfor_setup
 //
 // Accepts EITHER:
-//   A) config_path — path to an astra config file (backward-compatible)
+//   A) config_path — path to an opfor config file (backward-compatible)
 //   B) Inline parameters — target_*, selection_*, llm_* — no file needed
 //
 // When both are supplied, inline parameters take precedence.
@@ -86,7 +86,7 @@ server.tool(
 
 // Schemas are extracted to variables to avoid TypeScript type instantiation depth errors
 // that occur when large Zod schemas are defined inline inside server.tool() calls.
-const astraSetupSchemaShape: Record<string, z.ZodTypeAny> = {
+const opforSetupSchemaShape: Record<string, z.ZodTypeAny> = {
   // ── Inline target parameters ────────────────────────────────────────────
   target_name: z
     .string()
@@ -98,7 +98,7 @@ const astraSetupSchemaShape: Record<string, z.ZodTypeAny> = {
     .optional()
     .describe(
       "What the target does, who uses it, sensitive data it handles, dangerous operations. " +
-        "Optional when use_langfuse=true — astra infers this from traces."
+        "Optional when use_langfuse=true — opfor infers this from traces."
     ),
 
   target_endpoint: z
@@ -112,7 +112,7 @@ const astraSetupSchemaShape: Record<string, z.ZodTypeAny> = {
     .enum(["http-endpoint", "local-script"])
     .optional()
     .default("http-endpoint")
-    .describe("How astra sends attacks. 'http-endpoint' for HTTP, 'local-script' for subprocess."),
+    .describe("How opfor sends attacks. 'http-endpoint' for HTTP, 'local-script' for subprocess."),
 
   target_request_format: z
     .enum(["auto", "openai", "json"])
@@ -126,7 +126,7 @@ const astraSetupSchemaShape: Record<string, z.ZodTypeAny> = {
   target_api_key: z
     .string()
     .optional()
-    .describe("API key for the target endpoint itself (not for the LLM used by astra)."),
+    .describe("API key for the target endpoint itself (not for the LLM used by opfor)."),
 
   target_script_path: z
     .string()
@@ -139,7 +139,7 @@ const astraSetupSchemaShape: Record<string, z.ZodTypeAny> = {
     .optional()
     .describe(
       "Run a predefined suite (e.g. 'owasp-llm-top10', 'owasp-agentic-ai'). " +
-        "Mutually exclusive with evaluator_ids. Call astra_list_evaluators to see options."
+        "Mutually exclusive with evaluator_ids. Call opfor_list_evaluators to see options."
     ),
 
   evaluator_ids: z
@@ -147,7 +147,7 @@ const astraSetupSchemaShape: Record<string, z.ZodTypeAny> = {
     .optional()
     .describe(
       "Specific evaluator ids to run (e.g. ['prompt-injection','excessive-agency']). " +
-        "Mutually exclusive with suite. Call astra_list_evaluators to see all ids."
+        "Mutually exclusive with suite. Call opfor_list_evaluators to see all ids."
     ),
 
   // ── LLM for attack generation ───────────────────────────────────────────
@@ -155,7 +155,7 @@ const astraSetupSchemaShape: Record<string, z.ZodTypeAny> = {
     .enum(["groq", "openai", "anthropic", "google", "other"])
     .optional()
     .describe(
-      "LLM provider astra uses to generate attack prompts and judge responses. " +
+      "LLM provider opfor uses to generate attack prompts and judge responses. " +
         "Defaults to 'groq'. The corresponding API key env var must be set (or pass llm_api_key_env to specify the var name)."
     ),
 
@@ -180,7 +180,7 @@ const astraSetupSchemaShape: Record<string, z.ZodTypeAny> = {
     .optional()
     .default(false)
     .describe(
-      "When true, astra reads production traces from Langfuse to: " +
+      "When true, opfor reads production traces from Langfuse to: " +
         "(1) select realistic evaluators based on what the app actually does, " +
         "(2) ground attack prompts in real user language and behaviour, " +
         "(3) enrich the judge with the target's internal trace after each attack. " +
@@ -231,7 +231,7 @@ const astraSetupSchemaShape: Record<string, z.ZodTypeAny> = {
     .string()
     .optional()
     .describe(
-      "Path to an astra config file (JSON or YAML). " +
+      "Path to an opfor config file (JSON or YAML). " +
         "Used when inline parameters are not provided. " +
         "Inline parameters take precedence if both are supplied."
     ),
@@ -241,21 +241,21 @@ const astraSetupSchemaShape: Record<string, z.ZodTypeAny> = {
     .optional()
     .default(".")
     .describe(
-      "Directory where astra-prompts-*.json will be written. Defaults to current directory."
+      "Directory where opfor-prompts-*.json will be written. Defaults to current directory."
     ),
 };
 
 server.tool(
-  "astra_setup",
+  "opfor_setup",
   "Generate targeted red-team attack prompts for an AI application. " +
     "IMPORTANT: Before calling this tool, you MUST confirm the following with the user — do NOT infer or assume defaults: " +
-    "(1) Which evaluators or suite to run — call astra_list_evaluators first, show the options, and ask the user to choose. " +
+    "(1) Which evaluators or suite to run — call opfor_list_evaluators first, show the options, and ask the user to choose. " +
     "(2) Single-turn or multi-turn attacks — explain the difference and ask. " +
     "(3) Whether to use Langfuse traces — ask if they have Langfuse set up and want trace-grounded attacks. " +
     "(4) Target description — ask what the chatbot does, what sensitive data it handles, and what operations it can perform (skip only if use_langfuse=true and traces will provide this). " +
     "Only call this tool once you have explicit answers to all of the above.",
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  astraSetupSchemaShape as Record<string, any>,
+  opforSetupSchemaShape as Record<string, any>,
   (async (args: {
     target_name?: string;
     target_description?: string;
@@ -311,7 +311,7 @@ server.tool(
               type: "text",
               text:
                 "❌ Provide either inline parameters (target_name, evaluator_ids or suite, etc.) " +
-                "or a config_path pointing to an astra config file.",
+                "or a config_path pointing to an opfor config file.",
             },
           ],
           isError: true,
@@ -326,7 +326,7 @@ server.tool(
               type: "text",
               text:
                 "❌ Provide either suite (e.g. 'owasp-llm-top10') or evaluator_ids. " +
-                "Call astra_list_evaluators to see available options.",
+                "Call opfor_list_evaluators to see available options.",
             },
           ],
           isError: true,
@@ -430,7 +430,7 @@ server.tool(
               `Prompts file:   ${result.promptsFilePath}`,
               ...(traceLines.length > 0 ? [``, ...traceLines] : []),
               ``,
-              `Next step: call astra_run with input_path="${result.promptsFilePath}"`,
+              `Next step: call opfor_run with input_path="${result.promptsFilePath}"`,
             ].join("\n"),
           },
         ],
@@ -447,26 +447,26 @@ server.tool(
 );
 
 // ---------------------------------------------------------------------------
-// Tool: astra_run
+// Tool: opfor_run
 // ---------------------------------------------------------------------------
 
-// Extract schema for astra_run to avoid TypeScript complexity issues
-const astraRunSchemaShape: Record<string, z.ZodTypeAny> = {
-  input_path: z.string().describe("Path to the astra-prompts-*.json file produced by astra_setup."),
+// Extract schema for opfor_run to avoid TypeScript complexity issues
+const opforRunSchemaShape: Record<string, z.ZodTypeAny> = {
+  input_path: z.string().describe("Path to the opfor-prompts-*.json file produced by opfor_setup."),
   output_dir: z
     .string()
     .optional()
-    .default(".astra/reports")
-    .describe("Directory where HTML and JSON reports will be written. Defaults to .astra/reports."),
+    .default(".opfor/reports")
+    .describe("Directory where HTML and JSON reports will be written. Defaults to .opfor/reports."),
 };
 
 server.tool(
-  "astra_run",
-  "Execute a red team scan using a prompts file generated by astra_setup. " +
+  "opfor_run",
+  "Execute a red team scan using a prompts file generated by opfor_setup. " +
     "Fires each attack prompt at the target endpoint, judges every response with an LLM (PASS/FAIL), " +
     "and generates HTML + JSON reports. Returns a full summary of findings.",
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  astraRunSchemaShape as Record<string, any>,
+  opforRunSchemaShape as Record<string, any>,
   (async ({ input_path, output_dir }: { input_path: string; output_dir: string }) => {
     try {
       const result = await runScan({

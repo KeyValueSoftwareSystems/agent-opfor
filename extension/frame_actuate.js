@@ -393,7 +393,7 @@ async function submitWithRetries({ inputEl, desiredMethod, buttonEl, originalTex
 
 (() => {
   try {
-    const plan = globalThis.__ASTRA_PLAN__;
+    const plan = globalThis.__OPFOR_PLAN__;
     if (!plan?.inputSelector) return { ok: false, error: "Missing plan.inputSelector" };
     // Never pass deep-selector syntax into querySelector (it will throw). Use deep resolver first.
     const input =

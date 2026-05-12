@@ -155,7 +155,7 @@ async function summarizeCuratedTracesToMarkdown(opts: {
   }
 
   const header = [
-    `<!-- Astra Langfuse trace summary — ${new Date().toISOString()} — regenerate with astra setup -->`,
+    `<!-- Opfor Langfuse trace summary — ${new Date().toISOString()} — regenerate with opfor setup -->`,
     ``,
   ].join("\n");
 
@@ -206,7 +206,7 @@ export async function runLangfuseSetupTraceCuration(opts: {
   if (!fetched.ok) {
     const errPayload = {
       generatedAt: new Date().toISOString(),
-      source: "astra-setup-langfuse",
+      source: "opfor-setup-langfuse",
       error: "langfuse_list_failed",
       httpStatus: fetched.status,
       listBody: fetched.listBody,
@@ -269,7 +269,7 @@ export async function runLangfuseSetupTraceCuration(opts: {
     const msg = e instanceof Error ? e.message : String(e);
     const errPayload = {
       generatedAt: new Date().toISOString(),
-      source: "astra-setup-langfuse",
+      source: "opfor-setup-langfuse",
       error: "llm_curation_failed",
       message: msg,
       listMeta: {
@@ -329,7 +329,7 @@ export async function runLangfuseSetupTraceCuration(opts: {
 
   const out = {
     generatedAt: new Date().toISOString(),
-    source: "astra-setup-langfuse",
+    source: "opfor-setup-langfuse",
     target: { name: targetName, description: desc },
     curation: curationBlock,
     traces: selected,

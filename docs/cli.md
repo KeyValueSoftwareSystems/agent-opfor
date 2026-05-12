@@ -1,4 +1,4 @@
-# Astra — CLI
+# Opfor — CLI
 
 The CLI is a self-contained tool that handles everything: interactive setup, attack prompt generation, firing attacks, judging responses, and producing reports — all without an agent.
 
@@ -8,16 +8,16 @@ The CLI is a self-contained tool that handles everything: interactive setup, att
 
 | Command                                  | What it does                                                                                                                     |
 | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| **`astra init`**                         | Writes a starter `astra.config.json` in the current directory. Optional — skip if you prefer the wizard or hand-write YAML/JSON. |
-| **`astra init --example …`**             | Writes sample `astra-local-target.py` / `.js` stubs only (no config). For local-script targets.                                  |
-| **`astra setup`**                        | Interactive wizard — chooses mode (MCP vs agent) and writes `.astra/configs/astra-config-<timestamp>-<id>.json`.                 |
-| **`astra generate --config <file>`**     | Non-interactive — reads your config, then writes `.astra/attacks/astra-attacks-<timestamp>-<configId>.json`. Use this in CI.     |
-| **`astra run --attacks <attacks.json>`** | Runs attacks from the attacks file, judges responses, writes HTML + JSON reports.                                                |
+| **`opfor init`**                         | Writes a starter `opfor.config.json` in the current directory. Optional — skip if you prefer the wizard or hand-write YAML/JSON. |
+| **`opfor init --example …`**             | Writes sample `opfor-local-target.py` / `.js` stubs only (no config). For local-script targets.                                  |
+| **`opfor setup`**                        | Interactive wizard — chooses mode (MCP vs agent) and writes `.opfor/configs/opfor-config-<timestamp>-<id>.json`.                 |
+| **`opfor generate --config <file>`**     | Non-interactive — reads your config, then writes `.opfor/attacks/opfor-attacks-<timestamp>-<configId>.json`. Use this in CI.     |
+| **`opfor run --attacks <attacks.json>`** | Runs attacks from the attacks file, judges responses, writes HTML + JSON reports.                                                |
 
 **Typical paths:**
 
-1. **Config-first:** `astra setup --empty` → edit the generated `.astra/configs/...json` → `astra generate --config ...` → `astra run --attacks ...`
-2. **Wizard-only:** set API key in env → `astra setup` → follow the printed `Next:` commands
+1. **Config-first:** `opfor setup --empty` → edit the generated `.opfor/configs/...json` → `opfor generate --config ...` → `opfor run --attacks ...`
+2. **Wizard-only:** set API key in env → `opfor setup` → follow the printed `Next:` commands
 
 `setup` always produces the prompts file; `run` always consumes it.
 
@@ -33,30 +33,30 @@ The CLI is a self-contained tool that handles everything: interactive setup, att
 ## Install
 
 ```bash
-git clone https://github.com/yourusername/astra.git
-cd astra
+git clone https://github.com/yourusername/opfor.git
+cd opfor
 npm install --ignore-scripts
 npm run build
-npm install -g ./cli   # make the `astra` command available globally
+npm install -g ./cli   # make the `opfor` command available globally
 ```
 
 ---
 
 ## Step 1 — Config file (optional)
 
-Only needed for `astra setup --config`. Skip this step if using the interactive wizard.
+Only needed for `opfor setup --config`. Skip this step if using the interactive wizard.
 
 ```bash
-astra init   # writes astra.config.json
+opfor init   # writes opfor.config.json
 ```
 
 **Sample local-target stubs** (no config written):
 
 ```bash
-astra init --example python    # writes astra-local-target.py
-astra init --example node      # writes astra-local-target.js
-astra init --example both
-astra init --example python --script-dir ./scripts
+opfor init --example python    # writes opfor-local-target.py
+opfor init --example node      # writes opfor-local-target.js
+opfor init --example both
+opfor init --example python --script-dir ./scripts
 ```
 
 **Minimal JSON config:**
@@ -82,7 +82,7 @@ astra init --example python --script-dir ./scripts
 }
 ```
 
-**YAML equivalent (`astra.config.yml`):**
+**YAML equivalent (`opfor.config.yml`):**
 
 ```yaml
 llm:
@@ -95,7 +95,7 @@ target:
     A customer support chatbot with access to user booking data and PII.
     It can issue partial refunds and look up bookings by name.
   type: local-script
-  scriptPath: ./astra-local-target.py
+  scriptPath: ./opfor-local-target.py
 
 selection:
   mode: evaluators
@@ -110,7 +110,7 @@ selection:
 
 ## Step 2 — API key
 
-The LLM key is used during `astra setup` (prompt generation) and `astra run` (judging). Set it before running either command.
+The LLM key is used during `opfor setup` (prompt generation) and `opfor run` (judging). Set it before running either command.
 
 **A — Environment variable / `.env` file (recommended):**
 
@@ -132,11 +132,11 @@ The CLI loads `.env` from the current working directory automatically. Add `.env
 **C — CLI flag (overrides A and B):**
 
 ```bash
-astra setup --config astra.config.json --api-key gsk_your-key-here
-astra run --attacks .astra/attacks/astra-attacks-….json --api-key gsk_your-key-here
+opfor setup --config opfor.config.json --api-key gsk_your-key-here
+opfor run --attacks .opfor/attacks/opfor-attacks-….json --api-key gsk_your-key-here
 ```
 
-> Avoid committing secrets. Add `.astra/` (configs, attacks, reports) to `.gitignore` (already the default in this repo).
+> Avoid committing secrets. Add `.opfor/` (configs, attacks, reports) to `.gitignore` (already the default in this repo).
 
 ---
 
@@ -144,30 +144,30 @@ astra run --attacks .astra/attacks/astra-attacks-….json --api-key gsk_your-key
 
 ```bash
 # From a config file (non-interactive; good for CI)
-astra setup --config astra.config.json
-astra setup --config astra.config.json --api-key gsk_your-key-here
+opfor setup --config opfor.config.json
+opfor setup --config opfor.config.json --api-key gsk_your-key-here
 
 # Interactive wizard (no config file needed)
-astra setup
+opfor setup
 ```
 
-`astra generate` writes `.astra/attacks/astra-attacks-<timestamp>-<configId>.json` containing attacks and embedded run metadata.
+`opfor generate` writes `.opfor/attacks/opfor-attacks-<timestamp>-<configId>.json` containing attacks and embedded run metadata.
 
 ---
 
 ## Step 4 — Run the scan
 
 ```bash
-astra run --attacks .astra/attacks/astra-attacks-<timestamp>-<configId>.json
+opfor run --attacks .opfor/attacks/opfor-attacks-<timestamp>-<configId>.json
 
 # Override API key at run time
-astra run --attacks .astra/attacks/astra-attacks-<timestamp>-<configId>.json --api-key gsk_your-key-here
+opfor run --attacks .opfor/attacks/opfor-attacks-<timestamp>-<configId>.json --api-key gsk_your-key-here
 
 # Custom report directory
-astra run --attacks .astra/attacks/astra-attacks-<timestamp>-<configId>.json --out-dir ./reports
+opfor run --attacks .opfor/attacks/opfor-attacks-<timestamp>-<configId>.json --out-dir ./reports
 
 # Force attacks through a local script
-astra run --attacks .astra/attacks/astra-attacks-<timestamp>-<configId>.json --target-script ./astra-local-target.js
+opfor run --attacks .opfor/attacks/opfor-attacks-<timestamp>-<configId>.json --target-script ./opfor-local-target.js
 ```
 
 ---
@@ -193,32 +193,32 @@ When your target is not a single HTTP URL, use a local script as an adapter.
   "name": "My stack (via adapter)",
   "description": "What the system does, data it touches, and policies.",
   "type": "local-script",
-  "scriptPath": "./astra-local-target.js"
+  "scriptPath": "./opfor-local-target.js"
 }
 ```
 
 **Override at run time:**
 
 ```bash
-astra run --attacks .astra/attacks/astra-attacks-<timestamp>-<configId>.json --target-script ./astra-local-target.js
+opfor run --attacks .opfor/attacks/opfor-attacks-<timestamp>-<configId>.json --target-script ./opfor-local-target.js
 ```
 
 **Sanity-check without a full scan:**
 
 ```bash
-echo '{"prompt":"hello","context":{}}' | node ./astra-local-target.js
-echo '{"prompt":"hello","context":{}}' | python3 ./astra-local-target.py
+echo '{"prompt":"hello","context":{}}' | node ./opfor-local-target.js
+echo '{"prompt":"hello","context":{}}' | python3 ./opfor-local-target.py
 ```
 
 ---
 
 ## Single-turn vs multi-turn
 
-By default astra runs **single-turn** attacks: one prompt → one response → judged.
+By default opfor runs **single-turn** attacks: one prompt → one response → judged.
 
 **Multi-turn** fires a short adversarial conversation. After each response, if the target holds firm, an attacker LLM generates a more escalating follow-up (up to `turns`, default 3). Stops as soon as the judge returns FAIL.
 
-Multi-turn requires your target to maintain conversation history across requests using a `sessionId`. Astra injects it but does not replay history itself.
+Multi-turn requires your target to maintain conversation history across requests using a `sessionId`. Opfor injects it but does not replay history itself.
 
 ```json
 {
@@ -230,14 +230,14 @@ Multi-turn requires your target to maintain conversation history across requests
 }
 ```
 
-- **HTTP targets:** set `target.sessionIdField` so astra injects the ID into the request body.
+- **HTTP targets:** set `target.sessionIdField` so opfor injects the ID into the request body.
 - **Local-script targets:** `sessionId` is always included in the stdin JSON.
 
 ---
 
 ## Telemetry (optional)
 
-When a telemetry provider is configured, astra does two things:
+When a telemetry provider is configured, opfor does two things:
 
 1. **Setup** — fetches real production traces and uses them to ground attack prompts in actual user language and flows, producing more targeted attacks.
 2. **Run** — optionally injects a trace ID into each target request (`propagation.traceIdBodyField`) so the recorded trace can be fetched after the attack and passed to the LLM judge, giving it visibility into internal tool calls, retrieved data, and intermediate reasoning — not just the final response.
@@ -293,12 +293,12 @@ For a custom env var name use `netra.apiKeyEnv` in the config. `propagation.trac
 ## CI/CD integration
 
 ```yaml
-# .github/workflows/astra.yml
+# .github/workflows/opfor.yml
 - name: Generate attack prompts
-  run: astra setup --config astra.config.json
+  run: opfor setup --config opfor.config.json
 
-- name: Run Astra scan
-  run: astra run --attacks .astra/attacks/astra-attacks-*.json
+- name: Run Opfor scan
+  run: opfor run --attacks .opfor/attacks/opfor-attacks-*.json
 ```
 
 ---
@@ -307,14 +307,14 @@ For a custom env var name use `netra.apiKeyEnv` in the config. `propagation.trac
 
 | Command                                             | Description                                                   |
 | --------------------------------------------------- | ------------------------------------------------------------- |
-| `astra init`                                        | Generate a sample `astra.config.json`                         |
-| `astra init --example python` / `node` / `both`     | Write sample local-target stubs only; optional `--script-dir` |
-| `astra setup`                                       | Interactive wizard — generate attack prompts                  |
-| `astra setup --config <file>`                       | Non-interactive setup from a JSON or YAML config file         |
-| `astra setup --config <file> --api-key <key>`       | Setup with API key override                                   |
-| `astra run --attacks <file>`                        | Fire attacks and generate HTML + JSON report                  |
-| `astra run --attacks <file> --target-script <path>` | Run attacks via a local `.js`/`.py` adapter                   |
-| `astra run --attacks <file> --api-key <key>`        | Run with API key override                                     |
+| `opfor init`                                        | Generate a sample `opfor.config.json`                         |
+| `opfor init --example python` / `node` / `both`     | Write sample local-target stubs only; optional `--script-dir` |
+| `opfor setup`                                       | Interactive wizard — generate attack prompts                  |
+| `opfor setup --config <file>`                       | Non-interactive setup from a JSON or YAML config file         |
+| `opfor setup --config <file> --api-key <key>`       | Setup with API key override                                   |
+| `opfor run --attacks <file>`                        | Fire attacks and generate HTML + JSON report                  |
+| `opfor run --attacks <file> --target-script <path>` | Run attacks via a local `.js`/`.py` adapter                   |
+| `opfor run --attacks <file> --api-key <key>`        | Run with API key override                                     |
 
 ---
 
@@ -357,7 +357,7 @@ For a custom env var name use `netra.apiKeyEnv` in the config. `propagation.trac
 | `openai`    | `OPENAI_API_KEY`               | `gpt-4o-mini`               |
 | `anthropic` | `ANTHROPIC_API_KEY`            | `claude-3-5-haiku-20241022` |
 | `google`    | `GOOGLE_GENERATIVE_AI_API_KEY` | `gemini-2.0-flash`          |
-| `other`     | `ASTRA_API_KEY`                | (requires `llm.baseURL`)    |
+| `other`     | `OPFOR_API_KEY`                | (requires `llm.baseURL`)    |
 
 ---
 

@@ -1,6 +1,6 @@
-# Contributing to Astra
+# Contributing to Opfor
 
-Thanks for helping make AI red teaming better. This guide covers the three highest-impact contribution types: new evaluators, new target adapters, and findings from running Astra against real systems.
+Thanks for helping make AI red teaming better. This guide covers the three highest-impact contribution types: new evaluators, new target adapters, and findings from running Opfor against real systems.
 
 ## Table of contents
 
@@ -19,7 +19,7 @@ Thanks for helping make AI red teaming better. This guide covers the three highe
 
 ## Before you start
 
-1. Check [open issues](https://github.com/KeyValueSoftwareSystems/astra/issues) to avoid duplicating work.
+1. Check [open issues](https://github.com/KeyValueSoftwareSystems/opfor/issues) to avoid duplicating work.
 2. For significant changes (new transport, architectural refactor), open an issue first to align on approach before writing code.
 3. Fork the repo, create a branch off `master`, and open a PR when ready.
 
@@ -60,8 +60,8 @@ chore: update @modelcontextprotocol/sdk to 1.x
 ### Setup
 
 ```bash
-git clone https://github.com/KeyValueSoftwareSystems/astra.git
-cd astra
+git clone https://github.com/KeyValueSoftwareSystems/opfor.git
+cd opfor
 npm install
 npm run build
 ```
@@ -77,11 +77,11 @@ cp .env.example .env
 
 ## Adding an evaluator
 
-Evaluators live in `skills/astra-setup/evaluators/` as Markdown files with YAML frontmatter. No TypeScript changes are needed — the engine loads them automatically.
+Evaluators live in `skills/opfor-setup/evaluators/` as Markdown files with YAML frontmatter. No TypeScript changes are needed — the engine loads them automatically.
 
 ### File format
 
-Create `skills/astra-setup/evaluators/<your-id>.md`:
+Create `skills/opfor-setup/evaluators/<your-id>.md`:
 
 ```markdown
 ---
@@ -136,14 +136,14 @@ patterns:
 
 # 3. Inspect the generated attack plan — your evaluator should appear
 # 4. Run the attacks and check the report
-astra run --attacks .astra/attacks/astra-attacks-*.json
+opfor run --attacks .opfor/attacks/opfor-attacks-*.json
 ```
 
 ---
 
 ## Adding a suite
 
-Suites are also Markdown files with YAML frontmatter, in `skills/astra-setup/suites/`.
+Suites are also Markdown files with YAML frontmatter, in `skills/opfor-setup/suites/`.
 
 ```markdown
 ---
@@ -159,13 +159,13 @@ evaluators:
 ---
 ```
 
-Reference only evaluator IDs that exist in `skills/astra-setup/evaluators/`. The engine validates this at load time.
+Reference only evaluator IDs that exist in `skills/opfor-setup/evaluators/`. The engine validates this at load time.
 
 ---
 
 ## Adding a target adapter
 
-Target adapters connect Astra to new transport types or agent frameworks. They live in `core/src/mcp-client/` (MCP transports) and related `core/` modules.
+Target adapters connect Opfor to new transport types or agent frameworks. They live in `core/src/mcp-client/` (MCP transports) and related `core/` modules.
 
 When adding a new transport:
 
@@ -178,7 +178,7 @@ When adding a new transport:
 
 ## Adding a test agent
 
-Test agents live in `tests/e2e/agents/` and give developers a real target to run Astra against locally. They are never published to npm.
+Test agents live in `tests/e2e/agents/` and give developers a real target to run Opfor against locally. They are never published to npm.
 
 ### Structure
 
@@ -195,7 +195,7 @@ tests/e2e/agents/<agent-name>/
   Dockerfile
   docker-compose.yml  # agent + any dependencies (postgres, redis, etc.)
   .env.example        # documents required env vars
-  astra.config.json   # ready-to-use Astra config pointing at localhost
+  opfor.config.json   # ready-to-use Opfor config pointing at localhost
 ```
 
 ### Requirements
@@ -206,7 +206,7 @@ tests/e2e/agents/<agent-name>/
 - `./scripts/start.sh` (from the agent directory) must be the only command needed to start it. It should validate `.env`, run `docker compose up -d --build`, and poll `/health` until ready.
 - Add the package path to the `workspaces` array in the root `package.json`.
 - For agents with a database, add `scripts/reset.sh` that runs `docker compose down -v` then calls `start.sh` to restore clean seed data between test runs.
-- The `astra.config.json` must follow this structure:
+- The `opfor.config.json` must follow this structure:
 
 ```json
 {
@@ -234,21 +234,21 @@ tests/e2e/agents/<agent-name>/
 }
 ```
 
-- Include an `astra.config.json` that points at `http://localhost:<port>/chat` and selects a relevant evaluator suite. It must use the **unified config format** — not a flat config. The required top-level fields are `configId`, `createdAt`, `mode: "agent"`, and an `agent` block. The `apiKeyEnv` field inside `agent.attackLlm` takes the env var **name** (e.g. `"GROQ_API_KEY"`), never the key value itself.
-- For agents with session memory (multi-turn capable), add `"sessionIdField": "sessionId"` to the target block and `"turnMode": "multi"` + `"turns": 3` at the `agent` level. Astra will generate a UUID per attack, inject it into every request body, and escalate across turns.
+- Include an `opfor.config.json` that points at `http://localhost:<port>/chat` and selects a relevant evaluator suite. It must use the **unified config format** — not a flat config. The required top-level fields are `configId`, `createdAt`, `mode: "agent"`, and an `agent` block. The `apiKeyEnv` field inside `agent.attackLlm` takes the env var **name** (e.g. `"GROQ_API_KEY"`), never the key value itself.
+- For agents with session memory (multi-turn capable), add `"sessionIdField": "sessionId"` to the target block and `"turnMode": "multi"` + `"turns": 3` at the `agent` level. Opfor will generate a UUID per attack, inject it into every request body, and escalate across turns.
 
 ---
 
 ## Submitting findings
 
-If you run Astra against a public agent or MCP server and find a genuine vulnerability, consider a responsible disclosure writeup. The `findings/` directory (create it if it doesn't exist) is the right place:
+If you run Opfor against a public agent or MCP server and find a genuine vulnerability, consider a responsible disclosure writeup. The `findings/` directory (create it if it doesn't exist) is the right place:
 
 ```
 findings/
 └── <target-name>-<year>/
     ├── README.md       ← writeup: what you found, how, severity
     ├── config.json     ← sanitized config (no secrets)
-    └── report.json     ← the Astra report JSON
+    └── report.json     ← the Opfor report JSON
 ```
 
 Only submit findings for systems you are authorized to test, or where you have completed responsible disclosure with the vendor first.
@@ -270,11 +270,11 @@ src/
     run/          ← attack execution + LLM judge
     report/       ← HTML + JSON report generation
   agent/
-    core/         ← @astra/core shared engine (npm workspace)
-    cli/          ← astra-cli (npm workspace)
-    mcp/          ← @astra/agent-mcp-server (npm workspace)
+    core/         ← @opfor/core shared engine (npm workspace)
+    cli/          ← opfor-cli (npm workspace)
+    mcp/          ← @opfor/agent-mcp-server (npm workspace)
 skills/
-  astra-setup/
+  opfor-setup/
     evaluators/   ← evaluator markdown files (single source of truth)
     suites/       ← suite definitions
 ```
@@ -300,5 +300,5 @@ npx tsc --noEmit    # type-check without emitting
 - [ ] `npm run build` passes with no errors
 - [ ] `npx tsc --noEmit` passes
 - [ ] For new evaluators: tested against the echo fixture server
-- [ ] No secrets, `.env` files, or `.astra/` artifacts committed
+- [ ] No secrets, `.env` files, or `.opfor/` artifacts committed
 - [ ] PR description explains _what_ changed and _why_

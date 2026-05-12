@@ -18,8 +18,8 @@ function readVersion(): string {
 const program = new Command();
 
 program
-  .name("astra")
-  .description("Astra — security testing for MCP servers and AI agents")
+  .name("opfor")
+  .description("Opfor — security testing for MCP servers and AI agents")
   .version(readVersion(), "-v, --version", "Print version");
 
 registerSetupCommand(program);

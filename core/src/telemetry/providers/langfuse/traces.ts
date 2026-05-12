@@ -300,9 +300,9 @@ export async function fetchLangfuseTracesListPage(telemetry: TelemetryConfig): P
       ...(typeof firstMeta === "object" && firstMeta !== null && !Array.isArray(firstMeta)
         ? (firstMeta as Record<string, unknown>)
         : {}),
-      astraListPagesFetched: listPagesFetched,
-      astraListRowCount: merged.length,
-      astraListMaxPagesRequested: maxPages,
+      opforListPagesFetched: listPagesFetched,
+      opforListRowCount: merged.length,
+      opforListMaxPagesRequested: maxPages,
     },
   };
 

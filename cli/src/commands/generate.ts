@@ -3,7 +3,7 @@ import path from "node:path";
 import { readFile } from "node:fs/promises";
 import { select } from "@inquirer/prompts";
 import { loadEnvFromFlag } from "../lib/env.js";
-import { ensureAstraDirs, newAttacksPath } from "../lib/artifacts.js";
+import { ensureOpforDirs, newAttacksPath } from "../lib/artifacts.js";
 import { loadUnifiedConfigFile, type UnifiedMode } from "../lib/unifiedConfig.js";
 import { runUnifiedSetup } from "./setup.js";
 import { runMcpGenerateAttackPlan } from "./mcp/setup.js";
@@ -13,8 +13,8 @@ export function registerGenerateCommand(program: Command): void {
   program
     .command("generate")
     .description(
-      "Generate adversarial attacks from a config (writes .astra/attacks/...).\n" +
-        "If no --config is provided, starts from `astra setup`."
+      "Generate adversarial attacks from a config (writes .opfor/attacks/...).\n" +
+        "If no --config is provided, starts from `opfor setup`."
     )
     .option("--config <path>", "Path to a config file (if omitted, runs setup first)")
     .option("--env <path>", "Load env vars from a dotenv file before running")
@@ -39,7 +39,7 @@ export function registerGenerateCommand(program: Command): void {
         toolFilter: boolean;
       }) => {
         if (opts.env) loadEnvFromFlag(opts.env);
-        await ensureAstraDirs();
+        await ensureOpforDirs();
 
         let configPath = opts.config ? path.resolve(opts.config) : "";
         if (!configPath) {
@@ -94,7 +94,7 @@ export function registerGenerateCommand(program: Command): void {
 
         console.log(`\nAttacks written:\n  ${outPath}\n`);
         const envArg = opts.env ? ` --env ${path.resolve(opts.env)}` : "";
-        console.log(`Next:\n  astra run --attacks ${outPath}${envArg}\n`);
+        console.log(`Next:\n  opfor run --attacks ${outPath}${envArg}\n`);
       }
     );
 }

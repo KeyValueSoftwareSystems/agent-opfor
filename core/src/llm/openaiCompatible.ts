@@ -58,7 +58,7 @@ export async function chatCompletionJsonContent(args: {
     throw new Error(
       args.model.apiKeyEnv
         ? `Missing API key env var: ${args.model.apiKeyEnv}`
-        : "Missing API key: set apiKeyEnv in astra.config.json (mcp.models)"
+        : "Missing API key: set apiKeyEnv in opfor.config.json (mcp.models)"
     );
   }
 

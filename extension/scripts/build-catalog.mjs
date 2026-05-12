@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Bundles evaluator + suite metadata from `skills/agent-redteaming/astra-setup`
+ * Bundles evaluator + suite metadata from `skills/agent-redteaming/opfor-setup`
  * into `extension/catalog.json` for the MV3 extension (no filesystem access at
  * runtime).
  *
@@ -13,7 +13,7 @@ import { parse as parseYaml } from "yaml";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "../..");
-const SETUP_ROOT = path.join(REPO_ROOT, "skills/agent-redteaming/astra-setup");
+const SETUP_ROOT = path.join(REPO_ROOT, "skills/agent-redteaming/opfor-setup");
 const OUT = path.join(REPO_ROOT, "extension/catalog.json");
 
 function splitYamlFrontmatter(raw) {
@@ -135,7 +135,7 @@ async function main() {
   const payload = {
     version: 1,
     generatedAt: new Date().toISOString(),
-    source: "skills/agent-redteaming/astra-setup",
+    source: "skills/agent-redteaming/opfor-setup",
     suites,
     evaluators,
   };

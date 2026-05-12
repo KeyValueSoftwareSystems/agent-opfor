@@ -1,7 +1,7 @@
 {
-  "name": "astra-monorepo",
+  "name": "opfor-monorepo",
   "version": "0.1.0",
-  "description": "Astra — security testing for AI agents and MCP servers (workspace root)",
+  "description": "Opfor — security testing for AI agents and MCP servers (workspace root)",
   "license": "Apache-2.0",
   "private": true,
   "type": "module",
@@ -23,7 +23,7 @@
   "scripts": {
     "build": "tsc -b core cli mcp && npm run extension:catalog",
     "typecheck": "tsc -b core cli mcp",
-    "extension:catalog": "npm run build:catalog --workspace=@astra/extension",
+    "extension:catalog": "npm run build:catalog --workspace=@opfor/extension",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",

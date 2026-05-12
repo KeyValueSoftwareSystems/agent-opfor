@@ -1,8 +1,8 @@
 // ─────────────────────────────────────────────────────────────────
-// Astra red-team popup — vanilla JS implementation of the design.
+// Opfor red-team popup — vanilla JS implementation of the design.
 // Drives idle / running / paused / done screens and the slide-in
 // advanced panel. Talks to service_worker.js via the existing
-// ASTRA_UI_RUN / RESUME / STOP / DISCARD_PAUSED message contracts.
+// OPFOR_UI_RUN / RESUME / STOP / DISCARD_PAUSED message contracts.
 // ─────────────────────────────────────────────────────────────────
 
 const MODELS = [
@@ -268,10 +268,10 @@ document.addEventListener("click", (e) => {
 });
 
 // ── Settings persistence ───────────────────────────────────────
-const POPUP_SETTINGS_KEY = "astraPopupSettings";
+const POPUP_SETTINGS_KEY = "opforPopupSettings";
 
 async function loadSettings() {
-  const stored = await chrome.storage.local.get([POPUP_SETTINGS_KEY, "astraLlmProfiles"]);
+  const stored = await chrome.storage.local.get([POPUP_SETTINGS_KEY, "opforLlmProfiles"]);
   const s = stored[POPUP_SETTINGS_KEY] || {};
   Object.assign(state, {
     scrapeFromSite: s.scrapeFromSite ?? true,
@@ -283,7 +283,7 @@ async function loadSettings() {
     saveTranscript: s.saveTranscript ?? true,
     verbose: s.verbose ?? false,
   });
-  const profiles = stored.astraLlmProfiles;
+  const profiles = stored.opforLlmProfiles;
   if (profiles?.attacker) {
     state.baseUrl = profiles.attacker.baseUrl || state.baseUrl;
     state.model = profiles.attacker.model || state.model;
@@ -318,7 +318,7 @@ async function saveModelAndKey() {
       enabled: true,
     };
   }
-  await chrome.storage.local.set({ astraLlmProfiles: next });
+  await chrome.storage.local.set({ opforLlmProfiles: next });
 }
 
 // ── Catalog ────────────────────────────────────────────────────
@@ -353,17 +353,17 @@ async function loadCatalog() {
 
 // ── Paused-run banner sync ─────────────────────────────────────
 async function checkPausedRun() {
-  const { astraPausedRun } = await chrome.storage.local.get("astraPausedRun");
-  if (!astraPausedRun?.plan?.inputSelector) return false;
+  const { opforPausedRun } = await chrome.storage.local.get("opforPausedRun");
+  if (!opforPausedRun?.plan?.inputSelector) return false;
 
-  const evId = astraPausedRun.evaluatorId || astraPausedRun.evaluatorSnapshot?.id;
-  const evName = astraPausedRun.evaluatorSnapshot?.name || evId || "—";
-  const sev = normalizeSev(astraPausedRun.evaluatorSnapshot?.severity);
+  const evId = opforPausedRun.evaluatorId || opforPausedRun.evaluatorSnapshot?.id;
+  const evName = opforPausedRun.evaluatorSnapshot?.name || evId || "—";
+  const sev = normalizeSev(opforPausedRun.evaluatorSnapshot?.severity);
 
   // If popup was reopened on a paused run, reconstruct a minimal queue so
   // Resume can continue the paused evaluator.
   if (state.queue.length === 0) {
-    state.suiteId = astraPausedRun.suiteId || state.suiteId;
+    state.suiteId = opforPausedRun.suiteId || state.suiteId;
     state.queue = [{ id: evId || "paused", name: evName, sev }];
     state.evIdx = 0;
     state.results = [];
@@ -622,7 +622,7 @@ function renderDone() {
   }
 }
 
-// ── Report generation (per skills/astra-run/report-schema.md) ──
+// ── Report generation (per skills/opfor-run/report-schema.md) ──
 function severityFull(s) {
   const v = String(s || "").toLowerCase();
   if (v === "med" || v === "medium") return "medium";
@@ -709,7 +709,7 @@ function buildReport() {
 
   const now = new Date();
   const stamp = now.toISOString().replace(/[-:]/g, "").replace(/\..+/, "").replace("T", "-");
-  const reportId = `astra-${state.suiteId || "run"}-${stamp}`;
+  const reportId = `opfor-${state.suiteId || "run"}-${stamp}`;
 
   const targetUrl =
     state.results[0]?.raw?.siteUrl ||
@@ -720,7 +720,7 @@ function buildReport() {
     metadata: {
       reportId,
       configId: state.suiteId || "run",
-      framework: "astra v0.2",
+      framework: "opfor v0.2",
       generated: now.toISOString(),
       duration: "—",
       llmJudge: state.model,
@@ -924,7 +924,7 @@ function generateHtmlReport(report) {
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Astra Report — ${escapeHtml(target.name)}</title>
+<title>Opfor Report — ${escapeHtml(target.name)}</title>
 <style>
   :root { --bg:#0F172A; --panel:#FFFFFF; --text:#0F172A; --muted:#64748B; --line:#E2E8F0; }
   *{box-sizing:border-box}
@@ -994,7 +994,7 @@ function generateHtmlReport(report) {
   <div class="container">
     <header class="report-head">
       <span class="pill">${escapeHtml(metadata.framework)}</span>
-      <h1>Astra Red-team Report</h1>
+      <h1>Opfor Red-team Report</h1>
       <div class="meta">
         <div><b>Run ID</b><br>${escapeHtml(metadata.reportId)}</div>
         <div><b>Suite</b><br>${escapeHtml(metadata.configId)}</div>
@@ -1043,36 +1043,36 @@ async function downloadReport() {
   // If state.results is empty (popup was reopened after run), recover from storage.
   if (!state.results.length) {
     try {
-      const { astraLastResult } = await chrome.storage.local.get("astraLastResult");
-      if (astraLastResult?.judgment) {
+      const { opforLastResult } = await chrome.storage.local.get("opforLastResult");
+      if (opforLastResult?.judgment) {
         const verdict =
-          String(astraLastResult.judgment.verdict || "FAIL").toUpperCase() === "PASS"
+          String(opforLastResult.judgment.verdict || "FAIL").toUpperCase() === "PASS"
             ? "PASS"
             : "FAIL";
-        const partialNote = astraLastResult.partial ? " (partial run)" : "";
+        const partialNote = opforLastResult.partial ? " (partial run)" : "";
         state.results = [
           {
-            id: astraLastResult.evaluatorId || "unknown",
-            name: astraLastResult.evaluatorName || "Evaluator",
-            sev: normalizeSev(astraLastResult.severity),
+            id: opforLastResult.evaluatorId || "unknown",
+            name: opforLastResult.evaluatorName || "Evaluator",
+            sev: normalizeSev(opforLastResult.severity),
             verdict,
-            summary: (astraLastResult.judgment.summary || "") + partialNote,
-            raw: astraLastResult,
+            summary: (opforLastResult.judgment.summary || "") + partialNote,
+            raw: opforLastResult,
           },
         ];
-      } else if (astraLastResult) {
+      } else if (opforLastResult) {
         // No judgment available — show transcript info if we have it
-        const turnCount = astraLastResult.transcript?.length || 0;
+        const turnCount = opforLastResult.transcript?.length || 0;
         state.results = [
           {
-            id: astraLastResult.evaluatorId || "unknown",
-            name: astraLastResult.evaluatorName || "Evaluator",
-            sev: normalizeSev(astraLastResult.severity),
+            id: opforLastResult.evaluatorId || "unknown",
+            name: opforLastResult.evaluatorName || "Evaluator",
+            sev: normalizeSev(opforLastResult.severity),
             verdict: "FAIL",
-            summary: astraLastResult.errorMessage
-              ? `Run failed after ${Math.floor(turnCount / 2)} turns: ${astraLastResult.errorMessage}`
+            summary: opforLastResult.errorMessage
+              ? `Run failed after ${Math.floor(turnCount / 2)} turns: ${opforLastResult.errorMessage}`
               : `Run ended with ${Math.floor(turnCount / 2)} turns but no judgment was produced.`,
-            raw: astraLastResult,
+            raw: opforLastResult,
           },
         ];
       }
@@ -1097,9 +1097,9 @@ async function runOneEvaluator(ev, { resume = false } = {}) {
   progressActive = false;
   startCosmeticTicker();
   const payload = resume
-    ? { type: "ASTRA_UI_RESUME" }
+    ? { type: "OPFOR_UI_RESUME" }
     : {
-        type: "ASTRA_UI_RUN",
+        type: "OPFOR_UI_RUN",
         suiteId: state.suiteId,
         evaluatorId: ev.id,
         maxRounds: state.maxTurns,
@@ -1117,9 +1117,9 @@ async function runOneEvaluator(ev, { resume = false } = {}) {
   // If sendMessage returned nothing (channel closed, timeout), try storage fallback.
   if (!result || (typeof result === "object" && Object.keys(result).length === 0)) {
     try {
-      const { astraLastResult } = await chrome.storage.local.get("astraLastResult");
-      if (astraLastResult?.ok && !astraLastResult.partial) {
-        result = astraLastResult;
+      const { opforLastResult } = await chrome.storage.local.get("opforLastResult");
+      if (opforLastResult?.ok && !opforLastResult.partial) {
+        result = opforLastResult;
       }
     } catch {}
   }
@@ -1128,10 +1128,10 @@ async function runOneEvaluator(ev, { resume = false } = {}) {
     // Even on failure, check if the service worker saved a (partial) judged result to storage.
     if (!result?.paused) {
       try {
-        const { astraLastResult } = await chrome.storage.local.get("astraLastResult");
-        if (astraLastResult?.judgment) {
+        const { opforLastResult } = await chrome.storage.local.get("opforLastResult");
+        if (opforLastResult?.judgment) {
           // We have a judged result (possibly partial) — use it instead of showing error
-          result = astraLastResult;
+          result = opforLastResult;
         }
       } catch {}
     }
@@ -1139,9 +1139,9 @@ async function runOneEvaluator(ev, { resume = false } = {}) {
       // One more attempt: check if a partial result with judgment was saved
       if (result?.paused) {
         try {
-          const { astraLastResult } = await chrome.storage.local.get("astraLastResult");
-          if (astraLastResult?.judgment && astraLastResult?.transcript?.length >= 2) {
-            result = astraLastResult;
+          const { opforLastResult } = await chrome.storage.local.get("opforLastResult");
+          if (opforLastResult?.judgment && opforLastResult?.transcript?.length >= 2) {
+            result = opforLastResult;
           }
         } catch {}
         if (!result?.ok) return { paused: true, error: result.error };
@@ -1226,14 +1226,14 @@ async function startRun({ resume = false } = {}) {
       // Try to recover a judged partial result from storage instead of just showing the error
       let recovered = null;
       try {
-        const { astraLastResult } = await chrome.storage.local.get("astraLastResult");
+        const { opforLastResult } = await chrome.storage.local.get("opforLastResult");
         if (
-          astraLastResult?.judgment &&
-          astraLastResult?.evaluatorId === ev.id &&
-          astraLastResult?.transcript?.length >= 2
+          opforLastResult?.judgment &&
+          opforLastResult?.evaluatorId === ev.id &&
+          opforLastResult?.transcript?.length >= 2
         ) {
           const v =
-            String(astraLastResult.judgment.verdict || "FAIL").toUpperCase() === "PASS"
+            String(opforLastResult.judgment.verdict || "FAIL").toUpperCase() === "PASS"
               ? "PASS"
               : "FAIL";
           recovered = {
@@ -1241,8 +1241,8 @@ async function startRun({ resume = false } = {}) {
             name: ev.name,
             sev: ev.sev,
             verdict: v,
-            summary: astraLastResult.judgment.summary || "",
-            raw: astraLastResult,
+            summary: opforLastResult.judgment.summary || "",
+            raw: opforLastResult,
           };
         }
       } catch {}
@@ -1272,7 +1272,7 @@ async function startRun({ resume = false } = {}) {
       $("runEvalName").textContent = "Resetting chat session";
       $("runPhaseText").textContent = "Starting fresh conversation for next evaluator";
       try {
-        await chrome.runtime.sendMessage({ type: "ASTRA_RESET_CHAT" });
+        await chrome.runtime.sendMessage({ type: "OPFOR_RESET_CHAT" });
       } catch {}
       await new Promise((r) => setTimeout(r, 1000));
     }
@@ -1301,7 +1301,7 @@ async function requestPause() {
   stopRunStatusPoller();
   await clearPopupRunQueue();
   try {
-    await chrome.runtime.sendMessage({ type: "ASTRA_UI_STOP" });
+    await chrome.runtime.sendMessage({ type: "OPFOR_UI_STOP" });
   } catch {}
 }
 
@@ -1311,13 +1311,13 @@ async function requestStop() {
   stopRunStatusPoller();
   await clearPopupRunQueue();
   try {
-    await chrome.runtime.sendMessage({ type: "ASTRA_UI_STOP" });
+    await chrome.runtime.sendMessage({ type: "OPFOR_UI_STOP" });
   } catch {}
 
   // If the service worker saved a partial result, surface it on the Done screen.
   try {
-    const { astraLastResult } = await chrome.storage.local.get("astraLastResult");
-    if (astraLastResult?.partial) {
+    const { opforLastResult } = await chrome.storage.local.get("opforLastResult");
+    if (opforLastResult?.partial) {
       const cur = state.queue[state.evIdx];
       state.results.push({
         id: cur?.id || "partial",
@@ -1325,7 +1325,7 @@ async function requestStop() {
         sev: cur?.sev || "low",
         verdict: "FAIL",
         summary: "Stopped by user (partial result saved).",
-        raw: astraLastResult,
+        raw: opforLastResult,
       });
       state.evIdx = Math.min(state.evIdx + 1, state.queue.length);
       renderDone();
@@ -1337,7 +1337,7 @@ async function requestStop() {
   } catch {}
 
   try {
-    await chrome.runtime.sendMessage({ type: "ASTRA_UI_DISCARD_PAUSED" });
+    await chrome.runtime.sendMessage({ type: "OPFOR_UI_DISCARD_PAUSED" });
   } catch {}
   stopCosmeticTicker();
   state.running = false;
@@ -1349,7 +1349,7 @@ async function requestStop() {
 
 async function discardPaused() {
   try {
-    await chrome.runtime.sendMessage({ type: "ASTRA_UI_DISCARD_PAUSED" });
+    await chrome.runtime.sendMessage({ type: "OPFOR_UI_DISCARD_PAUSED" });
   } catch {}
   state.queue = [];
   state.results = [];
@@ -1490,18 +1490,18 @@ function wire() {
   // turns). Shows "Detecting chat widget" during locate and renders the
   // attacker/agent bubbles for the current exchange while running.
   chrome.runtime.onMessage.addListener((m) => {
-    if (m?.type === "ASTRA_UI_PROGRESS") handleProgress(m);
+    if (m?.type === "OPFOR_UI_PROGRESS") handleProgress(m);
   });
 }
 
 // ── Popup multi-evaluator queue persistence ─────────────────────
 // The popup drives the multi-evaluator loop but the service worker
-// clears astraRunStatus between evaluators. We persist the popup's
+// clears opforRunStatus between evaluators. We persist the popup's
 // own queue state so reopening the popup mid-run shows progress.
 async function persistPopupRunQueue() {
   try {
     await chrome.storage.local.set({
-      astraPopupRun: {
+      opforPopupRun: {
         running: true,
         suiteId: state.suiteId,
         queue: state.queue,
@@ -1516,7 +1516,7 @@ async function persistPopupRunQueue() {
 
 async function clearPopupRunQueue() {
   try {
-    await chrome.storage.local.remove("astraPopupRun");
+    await chrome.storage.local.remove("opforPopupRun");
   } catch {}
 }
 
@@ -1526,32 +1526,32 @@ async function clearPopupRunQueue() {
 // happening without losing context.
 async function checkActiveRun() {
   // First check if the service worker reports an active evaluator.
-  const { astraRunStatus } = await chrome.storage.local.get("astraRunStatus");
+  const { opforRunStatus } = await chrome.storage.local.get("opforRunStatus");
 
   // Also check the popup's own multi-evaluator queue (survives between evaluators
-  // when the service worker has already cleared astraRunStatus).
-  const { astraPopupRun } = await chrome.storage.local.get("astraPopupRun");
+  // when the service worker has already cleared opforRunStatus).
+  const { opforPopupRun } = await chrome.storage.local.get("opforPopupRun");
   const popupQueueActive =
-    astraPopupRun?.running && Date.now() - (astraPopupRun.updatedAt || 0) < 5 * 60 * 1000;
+    opforPopupRun?.running && Date.now() - (opforPopupRun.updatedAt || 0) < 5 * 60 * 1000;
 
-  if (!astraRunStatus?.running && !popupQueueActive) return false;
+  if (!opforRunStatus?.running && !popupQueueActive) return false;
 
   if (popupQueueActive) {
-    state.suiteId = astraPopupRun.suiteId || state.suiteId;
-    state.maxTurns = astraPopupRun.maxTurns || state.maxTurns;
-    state.queue = Array.isArray(astraPopupRun.queue) ? astraPopupRun.queue : [];
-    state.evIdx = astraPopupRun.evIdx || 0;
-    state.results = Array.isArray(astraPopupRun.results) ? astraPopupRun.results : [];
+    state.suiteId = opforPopupRun.suiteId || state.suiteId;
+    state.maxTurns = opforPopupRun.maxTurns || state.maxTurns;
+    state.queue = Array.isArray(opforPopupRun.queue) ? opforPopupRun.queue : [];
+    state.evIdx = opforPopupRun.evIdx || 0;
+    state.results = Array.isArray(opforPopupRun.results) ? opforPopupRun.results : [];
   }
 
-  if (astraRunStatus?.running) {
-    const evId = astraRunStatus.evaluatorId || "";
-    const evName = astraRunStatus.evaluatorName || evId || "evaluator";
-    const sev = normalizeSev(astraRunStatus.severity);
+  if (opforRunStatus?.running) {
+    const evId = opforRunStatus.evaluatorId || "";
+    const evName = opforRunStatus.evaluatorName || evId || "evaluator";
+    const sev = normalizeSev(opforRunStatus.severity);
 
     if (!popupQueueActive) {
-      state.suiteId = astraRunStatus.suiteId || state.suiteId;
-      state.maxTurns = astraRunStatus.maxRounds || state.maxTurns;
+      state.suiteId = opforRunStatus.suiteId || state.suiteId;
+      state.maxTurns = opforRunStatus.maxRounds || state.maxTurns;
       state.queue = [{ id: evId, name: evName, sev }];
       state.evIdx = 0;
       state.results = [];
@@ -1567,11 +1567,11 @@ async function checkActiveRun() {
   renderRunStrip();
 
   // Restore current phase.
-  const phase = astraRunStatus?.phase || "running";
+  const phase = opforRunStatus?.phase || "running";
   setPhase(phase);
 
   // Replay persisted transcript into bubbles.
-  const transcript = Array.isArray(astraRunStatus?.transcript) ? astraRunStatus.transcript : [];
+  const transcript = Array.isArray(opforRunStatus?.transcript) ? opforRunStatus.transcript : [];
   if (transcript.length) {
     let lastUser = "";
     let lastAssistant = "";
@@ -1604,32 +1604,32 @@ function startRunStatusPoller() {
       return;
     }
     try {
-      const { astraRunStatus } = await chrome.storage.local.get("astraRunStatus");
-      if (!astraRunStatus) return;
+      const { opforRunStatus } = await chrome.storage.local.get("opforRunStatus");
+      if (!opforRunStatus) return;
 
       // The service worker clears running=false after each evaluator finishes.
       // If the popup's own startRun loop is still active (state.running === true),
       // it means more evaluators are queued — don't jump to idle/done.
-      if (!astraRunStatus.running) {
+      if (!opforRunStatus.running) {
         if (state.running) return;
         stopRunStatusPoller();
         stopCosmeticTicker();
         const hasPaused = await checkPausedRun();
         if (!hasPaused) {
-          const { astraLastResult } = await chrome.storage.local.get("astraLastResult");
-          if (astraLastResult && !astraLastResult.partial) {
+          const { opforLastResult } = await chrome.storage.local.get("opforLastResult");
+          if (opforLastResult && !opforLastResult.partial) {
             const verdict =
-              String(astraLastResult.judgment?.verdict || "FAIL").toUpperCase() === "PASS"
+              String(opforLastResult.judgment?.verdict || "FAIL").toUpperCase() === "PASS"
                 ? "PASS"
                 : "FAIL";
             state.results = [
               {
-                id: astraLastResult.evaluatorId || state.queue[0]?.id || "",
-                name: astraLastResult.evaluatorName || state.queue[0]?.name || "",
+                id: opforLastResult.evaluatorId || state.queue[0]?.id || "",
+                name: opforLastResult.evaluatorName || state.queue[0]?.name || "",
                 sev: state.queue[0]?.sev || "low",
                 verdict,
-                summary: astraLastResult.judgment?.summary || "",
-                raw: astraLastResult,
+                summary: opforLastResult.judgment?.summary || "",
+                raw: opforLastResult,
               },
             ];
             state.evIdx = 1;
@@ -1643,10 +1643,10 @@ function startRunStatusPoller() {
       }
 
       // Update phase.
-      if (astraRunStatus.phase) setPhase(astraRunStatus.phase);
+      if (opforRunStatus.phase) setPhase(opforRunStatus.phase);
 
       // Update transcript bubbles from storage.
-      const transcript = Array.isArray(astraRunStatus.transcript) ? astraRunStatus.transcript : [];
+      const transcript = Array.isArray(opforRunStatus.transcript) ? opforRunStatus.transcript : [];
       if (transcript.length) {
         let lastUser = "";
         let lastAssistant = "";

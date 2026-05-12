@@ -13,7 +13,7 @@ export interface TelemetryPropagationConfig {
   /**
    * HTTP headers to set on each target request. Values may include placeholders.
    * Example:
-   * `{ "X-Langfuse-Trace-Id": "{{traceId}}", "X-Astra-Run": "{{runId}}" }`
+   * `{ "X-Langfuse-Trace-Id": "{{traceId}}", "X-Opfor-Run": "{{runId}}" }`
    * — `X-Langfuse-Trace-Id` is expanded to a 32-char lowercase hex trace id (OTEL/Langfuse).
    * Other headers may use `traceIdPrefix` before the hex segment.
    */
@@ -112,7 +112,7 @@ export interface LangfuseTraceSelectionConfig {
   // ── Observation-based pre-filter (two-step, client-side) ────────────────────
   /**
    * Filter traces by observation (span/generation) **name**.
-   * Astra first queries `GET /api/public/v2/observations?name=<value>` to collect
+   * Opfor first queries `GET /api/public/v2/observations?name=<value>` to collect
    * trace IDs, then fetches only those traces. Useful for targeting specific LLM
    * calls (e.g. `"groq.chat.completions"`) or route spans (e.g. `"POST /chat"`).
    * Combines with all other filters above (applied as an AND intersection).
@@ -234,7 +234,7 @@ export interface LangfuseTelemetryConfig {
   observationV2MaxPages?: number;
   /**
    * Max characters of merged Langfuse **list** JSON sent to the curator LLM (default 28000).
-   * Configure in `astra.config.json` under `telemetry.langfuse`.
+   * Configure in `opfor.config.json` under `telemetry.langfuse`.
    */
   traceCurationListJsonMaxChars?: number;
   /**
@@ -353,7 +353,7 @@ export interface PromptsFile {
   judgeLlm?: LlmConfig;
   target: TargetConfig;
   attacks: AttackEntry[];
-  /** Copied from setup config when present; drives telemetry adapters during `astra run`. */
+  /** Copied from setup config when present; drives telemetry adapters during `opfor run`. */
   telemetry?: TelemetryConfig;
   /**
    * When Langfuse curation ran during setup, the same output directory contains this markdown file
@@ -363,7 +363,7 @@ export interface PromptsFile {
 }
 
 /**
- * Inline setup parameters accepted directly by the MCP `astra_setup` tool.
+ * Inline setup parameters accepted directly by the MCP `opfor_setup` tool.
  * No config file is required — the agent passes these from conversation context.
  */
 export interface InlineSetupConfig {
@@ -387,7 +387,7 @@ export interface InlineSetupConfig {
   judgeLlm?: LlmConfigInput;
   /**
    * When true and Langfuse credentials are present in the environment
-   * (`LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY`), astra will fetch
+   * (`LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY`), opfor will fetch
    * production traces and use them to enrich attack prompts and the judge.
    */
   useLangfuse?: boolean;
@@ -404,7 +404,7 @@ export interface InlineSetupConfig {
   sessionIdField?: string;
 }
 
-// Shape of the optional config file passed to `astra setup --config`
+// Shape of the optional config file passed to `opfor setup --config`
 export interface SetupConfigFile {
   /** Model config for the attack generation phase. */
   attackLlm?: LlmConfigInput;
