@@ -1221,6 +1221,16 @@
         background: rgba(255, 90, 110, 0.09);
       }
 
+      /* ── Run bar ────────────────────────────────────────────── */
+      .run-bar {
+        padding: 10px 14px;
+        border-top: 1px solid var(--line);
+        background: var(--bg);
+        display: flex;
+        gap: 8px;
+        flex-shrink: 0;
+      }
+
       /* ── Footer ─────────────────────────────────────────────── */
       .footer {
         padding: 8px 14px;
@@ -1613,16 +1623,6 @@
               </button>
             </div>
           </div>
-
-          <!-- Run button -->
-          <div style="display: flex; gap: 8px; margin-top: 4px">
-            <button id="runBtn" class="btn-primary" disabled>
-              <svg width="15" height="15" viewBox="0 0 24 24">
-                <path d="M8 5v14l11-7z" fill="currentColor" />
-              </svg>
-              Run red-team
-            </button>
-          </div>
         </div>
 
         <!-- RUNNING ──────────────────────────────────────── -->
@@ -1810,6 +1810,16 @@
             </button>
           </div>
         </div>
+      </div>
+
+      <!-- ── Run bar ───────────────────────────────────── -->
+      <div id="runBtnWrap" class="run-bar" hidden>
+        <button id="runBtn" class="btn-primary" disabled>
+          <svg width="15" height="15" viewBox="0 0 24 24">
+            <path d="M8 5v14l11-7z" fill="currentColor" />
+          </svg>
+          Execute
+        </button>
       </div>
 
       <!-- ── Footer ─────────────────────────────────────── -->

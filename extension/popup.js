@@ -62,6 +62,8 @@ function setScreen(name) {
   $("footer").dataset.screen = name;
   // Gear icon only useful on idle
   $("advancedBtn").style.display = name === "idle" ? "" : "none";
+  const runBar = $("runBtnWrap");
+  if (runBar) runBar.hidden = name !== "idle";
 }
 
 // ── Toggle (button with role=switch) ───────────────────────────
@@ -203,7 +205,11 @@ function shortSev(s) {
 
 // ── Run button enable/disable ──────────────────────────────────
 function updateRunButton() {
-  $("runBtn").disabled = state.selectedEvaluators.size === 0 || !state.suiteId || !state.catalog;
+  const missingKey = !state.apiKey.trim();
+  const missingEvals = state.selectedEvaluators.size === 0;
+  const missingSuite = !state.suiteId || !state.catalog;
+  const missingDesc = !state.scrapeFromSite && !state.agentDescription.trim();
+  $("runBtn").disabled = missingKey || missingEvals || missingSuite || missingDesc;
 }
 
 // ── Suite description + dropdown wiring ────────────────────────
@@ -1685,12 +1691,14 @@ function wire() {
       state.scrapeFromSite = v;
       saveSettings();
       refreshScrapeMeta();
+      updateRunButton();
     }
   );
   $("agentDescription").addEventListener("input", (e) => {
     state.agentDescription = e.target.value;
     autoSizeTextarea(e.target);
     saveSettings();
+    updateRunButton();
   });
 
   // Base URL
@@ -1703,6 +1711,7 @@ function wire() {
   $("apiKey").addEventListener("input", (e) => {
     state.apiKey = e.target.value;
     saveModelAndKey();
+    updateRunButton();
   });
   $("apiKeyEye").addEventListener("click", () => {
     const input = $("apiKey");
