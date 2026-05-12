@@ -1232,7 +1232,10 @@ async function startRun({ resume = false } = {}) {
           astraLastResult?.evaluatorId === ev.id &&
           astraLastResult?.transcript?.length >= 2
         ) {
-          const v = String(astraLastResult.judgment.verdict || "FAIL").toUpperCase() === "PASS" ? "PASS" : "FAIL";
+          const v =
+            String(astraLastResult.judgment.verdict || "FAIL").toUpperCase() === "PASS"
+              ? "PASS"
+              : "FAIL";
           recovered = {
             id: ev.id,
             name: ev.name,

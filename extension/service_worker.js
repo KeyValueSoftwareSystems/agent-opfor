@@ -312,8 +312,13 @@ function embeddedChatBoost(frame) {
   // Dedicated chat page — the main frame IS the chat UI (MakeMyTrip /myra/chat/, etc.)
   try {
     const path = new URL(url).pathname.toLowerCase();
-    if (/\/chat(\/|$|\?|#)/.test(path) || /\/myra\//.test(path) || /\/messages?\//.test(path) ||
-        /\/support\/chat/.test(path) || /\/livechat/.test(path)) {
+    if (
+      /\/chat(\/|$|\?|#)/.test(path) ||
+      /\/myra\//.test(path) ||
+      /\/messages?\//.test(path) ||
+      /\/support\/chat/.test(path) ||
+      /\/livechat/.test(path)
+    ) {
       return 500;
     }
   } catch {}
@@ -429,7 +434,9 @@ async function actVendorSendText(tabId, text) {
   // Set the text globally for the vendor send script
   await chrome.scripting.executeScript({
     target: { tabId, frameIds: [0] },
-    func: (t) => { globalThis.__astraVendorText = t; },
+    func: (t) => {
+      globalThis.__astraVendorText = t;
+    },
     args: [text],
     world: "MAIN",
   });
@@ -1711,7 +1718,10 @@ async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
       let stoppedJudgment = judgment;
       if (!stoppedJudgment && transcript.length >= 2 && judgeCfg?.enabled) {
         try {
-          stoppedJudgment = await judgeConversationFinal(judgeCfg, { evaluatorSnapshot, transcript });
+          stoppedJudgment = await judgeConversationFinal(judgeCfg, {
+            evaluatorSnapshot,
+            transcript,
+          });
         } catch {
           stoppedJudgment = {
             verdict: "UNKNOWN",
@@ -1790,7 +1800,10 @@ async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
       let stoppedJudgment;
       if (transcript?.length >= 2 && evaluatorSnapshot && judgeCfg?.enabled) {
         try {
-          stoppedJudgment = await judgeConversationFinal(judgeCfg, { evaluatorSnapshot, transcript });
+          stoppedJudgment = await judgeConversationFinal(judgeCfg, {
+            evaluatorSnapshot,
+            transcript,
+          });
         } catch {
           stoppedJudgment = {
             verdict: "UNKNOWN",
