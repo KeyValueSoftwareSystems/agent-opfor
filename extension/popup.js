@@ -48,7 +48,7 @@ const state = {
 };
 
 // ── Screen / status ────────────────────────────────────────────
-const PILL_LABELS = { idle: "ready", running: "running", paused: "paused", done: "complete" };
+const PILL_LABELS = { idle: "Ready", running: "Running", paused: "Paused", done: "Done" };
 
 function setScreen(name) {
   state.screen = name;
@@ -58,9 +58,8 @@ function setScreen(name) {
   }
   const pill = $("statusPill");
   pill.dataset.screen = name;
-  $("statusPillText").textContent = PILL_LABELS[name] || "ready";
+  $("statusPillText").textContent = PILL_LABELS[name] || "Ready";
   $("footer").dataset.screen = name;
-  $("footerStatus").textContent = PILL_LABELS[name] || "ready";
   // Gear icon only useful on idle
   $("advancedBtn").style.display = name === "idle" ? "" : "none";
 }
@@ -170,10 +169,26 @@ function renderEvaluatorList() {
   }
 
   const allOn = items.every((e) => state.selectedEvaluators.has(e.id));
+  const noneOn = state.selectedEvaluators.size === 0;
   const countEl = $("evalsCount");
   countEl.textContent = `${state.selectedEvaluators.size}/${items.length}`;
-  countEl.dataset.zero = String(state.selectedEvaluators.size === 0);
-  $("evalsToggleAll").textContent = allOn ? "none" : "all";
+  countEl.dataset.zero = String(noneOn);
+  updateEvalsSelectAll(allOn, noneOn);
+}
+
+function updateEvalsSelectAll(allOn, noneOn) {
+  const el = $("evalsSelectAll");
+  if (!el) return;
+  if (allOn) {
+    el.dataset.state = "all";
+    el.innerHTML = `<svg width="9" height="9" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" fill="none" stroke="#0A0D14" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  } else if (noneOn) {
+    el.dataset.state = "none";
+    el.innerHTML = "";
+  } else {
+    el.dataset.state = "some";
+    el.innerHTML = `<svg width="9" height="9" viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12" stroke="#0A0D14" stroke-width="3.5" stroke-linecap="round"/></svg>`;
+  }
 }
 
 function normalizeSev(s) {
@@ -205,9 +220,10 @@ function setSuite(id) {
 // ── Scrape toggle / agent description ──────────────────────────
 async function refreshScrapeMeta() {
   const meta = $("scrapeMeta");
+  const wrap = $("agentDescWrap");
   const ta = $("agentDescription");
   if (state.scrapeFromSite) {
-    ta.hidden = true;
+    wrap.hidden = true;
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       const host = tab?.url ? new URL(tab.url).host : "current tab";
@@ -216,7 +232,7 @@ async function refreshScrapeMeta() {
       meta.textContent = "current tab";
     }
   } else {
-    ta.hidden = false;
+    wrap.hidden = false;
     meta.textContent = "manual description";
     autoSizeTextarea(ta);
   }
@@ -420,23 +436,27 @@ function renderRunStrip() {
 
 const LOCATE_HINTS = [
   "Loading page DOM",
-  "Scanning iframes and shadow roots",
+  "Scanning iframes & shadow roots",
   "Matching widget signatures",
+  "Detected: chat widget",
   "Probing message input",
+  "Confirming send handler",
+  "Ready to attack",
 ];
 let locateHintInterval = null;
 function startLocateHintLoop() {
   stopLocateHintLoop();
   let i = 0;
-  $("runPhaseText").textContent = LOCATE_HINTS[i];
+  const locateText = $("runLocateText");
+  if (locateText) locateText.textContent = LOCATE_HINTS[i];
   locateHintInterval = setInterval(() => {
     if (state.currentPhase !== "locating") {
       stopLocateHintLoop();
       return;
     }
     i = (i + 1) % LOCATE_HINTS.length;
-    $("runPhaseText").textContent = LOCATE_HINTS[i];
-  }, 1300);
+    if (locateText) locateText.textContent = LOCATE_HINTS[i];
+  }, 900);
 }
 function stopLocateHintLoop() {
   if (locateHintInterval) clearInterval(locateHintInterval);
@@ -446,25 +466,32 @@ function stopLocateHintLoop() {
 function setPhase(phase) {
   state.currentPhase = phase;
   $("runJudgeRow").hidden = phase !== "judging";
-  $("runTurnTrack").dataset.scanning = String(phase === "locating");
+  $("runLocateRow").hidden = phase !== "locating";
+  $("runTurnTrack").hidden = phase === "locating";
   $("runBubbles").hidden = phase !== "running";
+  const phaseEl = $("runPhaseText");
   if (phase === "locating") {
     $("runEvalName").textContent = "Detecting chat widget";
-    $("runTurnLabel").textContent = "";
+    $("runTurnLabel").textContent = "init";
+    phaseEl.textContent = "Scanning DOM";
+    phaseEl.classList.remove("shimmer");
     startLocateHintLoop();
   } else {
     stopLocateHintLoop();
     if (phase === "judging") {
-      $("runPhaseText").textContent = "Evaluating transcript";
+      phaseEl.textContent = "Evaluating Transcript";
+      phaseEl.classList.remove("shimmer");
       $("runTurnLabel").textContent = "judge";
       const cur = state.queue[state.evIdx];
       if (cur) $("runEvalName").textContent = cur.name;
     } else if (phase === "running") {
-      $("runPhaseText").textContent = "Adversarial turn in progress";
+      phaseEl.textContent = "Adversarial Turn";
+      phaseEl.classList.add("shimmer");
       const cur = state.queue[state.evIdx];
       if (cur) $("runEvalName").textContent = cur.name;
     } else {
-      $("runPhaseText").textContent = "";
+      phaseEl.textContent = "";
+      phaseEl.classList.remove("shimmer");
     }
   }
 }
@@ -605,7 +632,7 @@ function renderDone() {
   $("statFailed").textContent = String(failed.length);
   $("statTotal").textContent = String(state.results.length);
 
-  $("resultsCountLabel").textContent = `EVALUATORS · ${state.results.length}`;
+  $("resultsCountLabel").textContent = `Evaluators · ${state.results.length}`;
   const list = $("resultsList");
   list.innerHTML = "";
   for (const r of state.results) {
@@ -1378,7 +1405,7 @@ function wire() {
     const evs = $("evals");
     evs.dataset.open = evs.dataset.open === "true" ? "false" : "true";
   });
-  $("evalsToggleAll").addEventListener("click", (e) => {
+  $("evalsSelectAll").addEventListener("click", (e) => {
     e.stopPropagation();
     const suite = state.catalog?.suites.find((s) => s.id === state.suiteId);
     if (!suite) return;
