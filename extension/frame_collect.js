@@ -25,6 +25,13 @@ function selectorFromEl(el) {
   return el.tagName.toLowerCase();
 }
 
+function getShadowRoot(el) {
+  if (el.shadowRoot) return el.shadowRoot;
+  // Closed shadow root captured by frame_shadow_patch.js (MAIN world)
+  if (el.__closedShadowRoot) return el.__closedShadowRoot;
+  return null;
+}
+
 function* walkNodes(root) {
   const stack = [root];
   while (stack.length) {
@@ -33,7 +40,8 @@ function* walkNodes(root) {
     yield node;
 
     if (node instanceof Element) {
-      if (node.shadowRoot) stack.push(node.shadowRoot);
+      const shadow = getShadowRoot(node);
+      if (shadow) stack.push(shadow);
       const children = node.children;
       for (let i = children.length - 1; i >= 0; i--) stack.push(children[i]);
       continue;
@@ -83,15 +91,39 @@ function deepPathSelector(el) {
 function isEmbeddedChatComposer(el) {
   if (!(el instanceof Element)) return false;
   const cls = (el.className || "").toString().toLowerCase();
-  if (cls.includes("composer") || cls.includes("chat-input") || cls.includes("message-input"))
+  if (
+    cls.includes("composer") || cls.includes("chat-input") || cls.includes("message-input") ||
+    cls.includes("chatinput") || cls.includes("msginput") || cls.includes("msg-input") ||
+    cls.includes("reply-box") || cls.includes("replybox") || cls.includes("chat-box")
+  )
     return true;
   if (
     el.closest?.(
       "[class*='chat-window' i], [class*='chat__window' i], [class*='conversation' i], " +
-        "[class*='chat-widget' i], [id*='chatbot' i], [id*='chat-widget' i]"
+        "[class*='chat-widget' i], [class*='chat-panel' i], [class*='chatpanel' i], " +
+        "[class*='chat-sidebar' i], [class*='chatsidebar' i], [class*='chat-drawer' i], " +
+        "[class*='chat-container' i], [class*='chatContainer' i], [class*='myra' i], " +
+        "[id*='chatbot' i], [id*='chat-widget' i], [id*='chat-panel' i], " +
+        "[id*='chat-container' i], [id*='chatContainer' i], " +
+        "[id*='gorgias' i], [class*='gorgias' i], [id*='gladly' i], [class*='gladly' i]"
     )
   )
     return true;
+  // Input inside a visible overlay / modal / dialog that contains chat-related content
+  const overlay = el.closest?.(
+    "[role='dialog'], [role='alertdialog'], dialog[open], " +
+      "[class*='modal' i], [class*='overlay' i], [class*='popup' i], " +
+      "[class*='dialog' i], [class*='lightbox' i], [class*='sheet' i]"
+  );
+  if (overlay && overlay instanceof Element) {
+    const overlayText = (overlay.textContent || "").toLowerCase();
+    if (overlayText.includes("chat") || overlayText.includes("message") ||
+        overlayText.includes("type") || overlayText.includes("send") ||
+        overlayText.includes("support") || overlayText.includes("help"))
+      return true;
+  }
+  // Dedicated chat page — URL contains /chat
+  if (/\/chat(\/|$|\?|#)/i.test(location.pathname)) return true;
   return false;
 }
 
@@ -114,6 +146,11 @@ function looksLikeSiteSearch(el) {
   if (!(el instanceof Element)) return false;
   // Never treat embedded chat composers as site search.
   if (isEmbeddedChatComposer(el)) return false;
+  // Dedicated chat page — inputs here are chat-related, not site search.
+  if (/\/chat(\/|$|\?|#)/i.test(location.pathname) || /\/myra\//i.test(location.pathname) ||
+      /\/messages?\//i.test(location.pathname)) {
+    return false;
+  }
 
   const type = (el.getAttribute("type") || "").toLowerCase();
   const role = (el.getAttribute("role") || "").toLowerCase();
@@ -171,15 +208,47 @@ function scoreInput(el) {
   // Help-center site search — never prefer over a chat composer
   if (looksLikeSiteSearch(el)) score -= 40;
 
+  // Dedicated chat page: URL contains /chat — big boost for any text input
+  const isChatPage = /\/chat(\/|$|\?|#)/i.test(location.pathname) ||
+    /\/myra\//i.test(location.pathname) ||
+    /\/messages?\//i.test(location.pathname) ||
+    /\/support\/chat/i.test(location.pathname);
+  if (isChatPage && !looksLikeSiteSearch(el)) score += 18;
+
   // Generic chat-composer context signals
-  if (cls.includes("composer") || cls.includes("chat-input") || cls.includes("message-input"))
+  if (
+    cls.includes("composer") || cls.includes("chat-input") || cls.includes("message-input") ||
+    cls.includes("chatinput") || cls.includes("msginput") || cls.includes("msg-input") ||
+    cls.includes("reply-box") || cls.includes("replybox") || cls.includes("chat-box")
+  )
     score += 20;
   if (isInFloatingContainer(el)) score += 12;
+
+  // Sidebar / panel / drawer / vendor chat containers
   const chatAncestor = el.closest?.(
     "[class*='chat' i], [class*='conversation' i], [class*='messenger' i], [class*='widget' i], " +
-      "[id*='chat' i], [id*='bot' i], [id*='assistant' i], [id*='widget' i]"
+      "[class*='sidebar' i][class*='chat' i], [class*='panel' i][class*='chat' i], " +
+      "[class*='drawer' i], [class*='myra' i], " +
+      "[id*='chat' i], [id*='bot' i], [id*='assistant' i], [id*='widget' i], " +
+      "[id*='myra' i], [id*='sidebar' i][id*='chat' i], " +
+      "[id*='gorgias' i], [class*='gorgias' i], [id*='gladly' i], [class*='gladly' i]"
   );
   if (chatAncestor && !looksLikeSiteSearch(el)) score += 10;
+
+  // Overlay / modal / dialog containing chat — strong signal
+  const overlayAncestor = el.closest?.(
+    "[role='dialog'], [role='alertdialog'], dialog[open], " +
+      "[class*='modal' i], [class*='overlay' i], [class*='popup' i], " +
+      "[class*='dialog' i], [class*='lightbox' i], [class*='sheet' i]"
+  );
+  if (overlayAncestor && overlayAncestor instanceof Element && !looksLikeSiteSearch(el)) {
+    const overlayText = (overlayAncestor.textContent || "").toLowerCase();
+    if (overlayText.includes("chat") || overlayText.includes("message") ||
+        overlayText.includes("support") || overlayText.includes("help") ||
+        overlayText.includes("type")) {
+      score += 18;
+    }
+  }
 
   if (tag === "textarea") score += 5;
   if (tag === "input" && (type === "text" || type === "")) score += 3;
@@ -187,14 +256,19 @@ function scoreInput(el) {
   if (role === "textbox") score += 2;
   if (blob.includes("message")) score += 4;
   if (blob.includes("chat")) score += 3;
+  if (blob.includes("type here") || blob.includes("type a message") || blob.includes("type your")) score += 6;
+  if (blob.includes("ask") && (blob.includes("question") || blob.includes("anything"))) score += 4;
   if (blob.includes("prompt")) score += 2;
   if (blob.includes("compose")) score += 2;
+  if (blob.includes("reply")) score += 3;
   if (blob.includes("comment")) score += 1;
+  if (blob.includes("send a message") || blob.includes("write a message")) score += 5;
+
   // Strongly de-rank search bars
   if (type === "search") score -= 8;
   if (role === "searchbox") score -= 10;
   if (formRole === "search") score -= 8;
-  if (blob.includes("search")) score -= 6;
+  if (blob.includes("search") && !blob.includes("chat") && !blob.includes("message")) score -= 6;
   if (blob.includes("password")) score -= 10;
 
   // Header/nav search regions (unless clearly chat-labeled)
@@ -208,6 +282,8 @@ function scoreInput(el) {
     if (yRatio > 0.55) score += 2;
     // Site search often lives in top band
     if (yRatio < 0.22 && looksLikeSiteSearch(el)) score -= 10;
+    // Bottom-anchored inputs are typical of chat UIs
+    if (yRatio > 0.75 && (tag === "textarea" || el.isContentEditable || role === "textbox")) score += 5;
   }
   return score;
 }
@@ -229,6 +305,16 @@ function describeEl(el) {
 function scoreChatSignals() {
   let score = 0;
 
+  // Dedicated chat page URL — strongest signal
+  const url = location.href.toLowerCase();
+  const path = location.pathname.toLowerCase();
+  if (/\/chat(\/|$|\?|#)/.test(path) || /\/myra\//.test(path) || /\/messages?\//.test(path) ||
+      /\/support\/chat/.test(path) || /\/livechat/.test(path)) {
+    score += 25;
+  }
+  // URL params or fragments suggesting chat
+  if (/[?&](chat|conversation|thread)=/i.test(location.search)) score += 10;
+
   const logs = queryAllDeep("[role='log']").filter((el) => el instanceof Element && isVisible(el));
   for (const el of logs) {
     const ariaLabel = (el.getAttribute("aria-label") || "").toLowerCase();
@@ -240,26 +326,46 @@ function scoreChatSignals() {
     score += 1;
   }
 
-  // Generic chat container patterns — visible elements only (prevents false positives from hidden widgets)
+  // Generic chat container patterns — visible elements only
   const visibleChatContainers = queryAllDeep(
     "[class*='chat-window' i], [class*='conversation' i], [class*='message-list' i], " +
-      "[class*='transcript' i], [class*='chatlog' i], [id*='chatbot' i], [id*='chat-widget' i]"
+      "[class*='transcript' i], [class*='chatlog' i], [class*='chat-panel' i], " +
+      "[class*='chatpanel' i], [class*='chat-sidebar' i], [class*='chat-drawer' i], " +
+      "[class*='chat-container' i], [class*='chatContainer' i], " +
+      "[id*='chatbot' i], [id*='chat-widget' i], [id*='chat-panel' i], [id*='chat-container' i]"
   ).filter((el) => el instanceof Element && isVisible(el));
   score += Math.min(20, visibleChatContainers.length * 4);
 
   // Visible chat input signals (composers, not site search)
   const visibleChatInputs = queryAllDeep(
-    "textarea[placeholder*='message' i], textarea[aria-label*='message' i], " +
-      "[class*='chat-input' i], [class*='composer' i], [class*='message-input' i]"
+    "textarea[placeholder*='message' i], textarea[placeholder*='type' i], " +
+      "textarea[aria-label*='message' i], textarea[aria-label*='chat' i], " +
+      "[class*='chat-input' i], [class*='composer' i], [class*='message-input' i], " +
+      "[class*='chatinput' i], [class*='msginput' i], [class*='reply-box' i], [class*='chat-box' i], " +
+      "[contenteditable='true'][aria-label*='message' i], [contenteditable='true'][aria-label*='chat' i], " +
+      "[role='textbox'][aria-label*='message' i], [role='textbox'][aria-label*='chat' i]"
   ).filter((el) => el instanceof Element && isVisible(el));
   score += Math.min(20, visibleChatInputs.length * 8);
 
-  // Bot / assistant message bubbles
+  // Bot / assistant message bubbles (broader patterns)
   const visibleBotBubbles = queryAllDeep(
     "[class*='bot-message' i], [class*='assistant-message' i], [class*='from-bot' i], " +
-      "[data-message-author-role='assistant'], [data-from='agent'], [data-from='bot']"
+      "[class*='agent-message' i], [class*='incoming' i], [class*='received' i], " +
+      "[data-message-author-role='assistant'], [data-from='agent'], [data-from='bot'], " +
+      "[data-sender='agent'], [data-author='assistant']"
   ).filter((el) => el instanceof Element && isVisible(el));
   score += Math.min(15, visibleBotBubbles.length * 5);
+
+  // Sidebar/panel visible with chat-related text content
+  const sidePanels = queryAllDeep(
+    "[class*='sidebar' i], [class*='panel' i], [class*='drawer' i], [class*='aside' i], aside"
+  ).filter((el) => {
+    if (!(el instanceof Element) || !isVisible(el)) return false;
+    const text = (el.textContent || "").toLowerCase();
+    return text.includes("type") && (text.includes("message") || text.includes("here")) ||
+      text.includes("send") && text.includes("message");
+  });
+  if (sidePanels.length) score += 10;
 
   // Common chat semantics
   const ariaChatBoxes = Array.from(queryAllDeep("[aria-label]"))
@@ -278,6 +384,41 @@ function scoreChatSignals() {
   const ols = queryAllDeep("ol li").length;
   if (ols > 5) score += 2;
 
+  // Visible overlay / modal / dialog containing chat inputs
+  const chatOverlays = queryAllDeep(
+    "[role='dialog'], [role='alertdialog'], dialog[open], " +
+      "[class*='modal' i], [class*='overlay' i], [class*='popup' i], [class*='sheet' i]"
+  ).filter((el) => {
+    if (!(el instanceof Element) || !isVisible(el)) return false;
+    const text = (el.textContent || "").toLowerCase();
+    return (text.includes("chat") || text.includes("message") || text.includes("support") ||
+            text.includes("help")) &&
+      (text.includes("type") || text.includes("send") || text.includes("write"));
+  });
+  if (chatOverlays.length) score += 15;
+
+  // Known vendor containers (Gorgias, Gladly, etc.)
+  const vendorContainers = queryAllDeep(
+    "[id*='gorgias' i], [class*='gorgias' i], [id*='gladly' i], [class*='gladly' i], " +
+      "[id*='richpanel' i], [class*='richpanel' i], [id*='reamaze' i], [class*='reamaze' i], " +
+      "[id*='helpscout' i], [class*='helpscout' i], [id*='olark' i], [class*='olark' i]"
+  ).filter((el) => el instanceof Element && isVisible(el));
+  if (vendorContainers.length) score += 20;
+
+  // Salesforce Embedded Service / Agentforce / MIAW custom elements
+  const sfWidgets = document.querySelectorAll(
+    "embeddedservice-app, embeddedservice-chat-widget, embeddedservice-bootstrap, " +
+      "messaging-web-app, messaging-conversation, " +
+      "[class*='embeddedServiceHelpButton' i], [class*='embeddedServiceSidebar' i], " +
+      "[class*='embeddedServiceLiveAgent' i], [id*='embeddedMessaging' i]"
+  );
+  const visibleSfWidgets = Array.from(sfWidgets).filter((el) => {
+    if (!(el instanceof Element)) return false;
+    const rect = el.getBoundingClientRect?.();
+    return rect && rect.width > 10 && rect.height > 10;
+  });
+  if (visibleSfWidgets.length) score += 25;
+
   return score;
 }
 
@@ -290,8 +431,20 @@ function collectSanitizedDomSnapshot() {
     (el) => el instanceof Element && isVisible(el)
   );
   const embeddedChatNotes = [];
+
+  // Dedicated chat page detection
+  const path = location.pathname.toLowerCase();
+  if (/\/chat(\/|$|\?|#)/.test(path) || /\/myra\//.test(path) || /\/messages?\//.test(path) ||
+      /\/support\/chat/.test(path) || /\/livechat/.test(path)) {
+    embeddedChatNotes.push(
+      "- pattern=dedicated_chat_page — URL indicates this IS a chat page; the main text input is the chat composer, NOT site search"
+    );
+  }
+
   const visibleTranscripts = queryAllDeep(
-    "[class*='conversation' i], [class*='message-list' i], [class*='transcript' i], [class*='chatlog' i]"
+    "[class*='conversation' i], [class*='message-list' i], [class*='transcript' i], " +
+      "[class*='chatlog' i], [class*='chat-panel' i], [class*='chat-container' i], " +
+      "[class*='chat-sidebar' i], [class*='chat-drawer' i]"
   ).filter((el) => el instanceof Element && isVisible(el));
   if (visibleTranscripts.length) {
     embeddedChatNotes.push(
@@ -299,16 +452,70 @@ function collectSanitizedDomSnapshot() {
     );
   }
   const visibleComposers = queryAllDeep(
-    "textarea[placeholder*='message' i], [class*='chat-input' i], [class*='composer' i], [class*='message-input' i]"
+    "textarea[placeholder*='message' i], textarea[placeholder*='type' i], " +
+      "[class*='chat-input' i], [class*='composer' i], [class*='message-input' i], " +
+      "[class*='chatinput' i], [class*='msginput' i], [class*='reply-box' i], [class*='chat-box' i], " +
+      "[contenteditable='true'][aria-label*='message' i], [role='textbox'][aria-label*='message' i]"
   ).filter((el) => el instanceof Element && isVisible(el));
   if (visibleComposers.length) {
     embeddedChatNotes.push(
       "- chat composer input is visible; look for an adjacent send/submit button to pair with it"
     );
   }
-  if (chatLogs.length || embeddedChatNotes.length) {
+
+  // Overlay / modal / dialog containing chat
+  const chatOverlays = queryAllDeep(
+    "[role='dialog'], [role='alertdialog'], dialog[open], " +
+      "[class*='modal' i], [class*='overlay' i], [class*='popup' i], [class*='sheet' i]"
+  ).filter((el) => {
+    if (!(el instanceof Element) || !isVisible(el)) return false;
+    const text = (el.textContent || "").toLowerCase();
+    return (text.includes("chat") || text.includes("message") || text.includes("support")) &&
+      (text.includes("type") || text.includes("send") || text.includes("write") || text.includes("help"));
+  });
+  if (chatOverlays.length) {
+    embeddedChatNotes.push(
+      "- pattern=chat_overlay_modal — a visible overlay/modal/dialog contains chat UI; the text input INSIDE this overlay is the chat composer"
+    );
+  }
+
+  // Known vendor containers
+  const vendorContainers = queryAllDeep(
+    "[id*='gorgias' i], [class*='gorgias' i], [id*='gladly' i], [class*='gladly' i], " +
+      "[id*='richpanel' i], [class*='richpanel' i], [id*='helpscout' i], [class*='helpscout' i]"
+  ).filter((el) => el instanceof Element && isVisible(el));
+  if (vendorContainers.length) {
+    embeddedChatNotes.push(
+      "- pattern=vendor_chat_widget — known chat vendor container is visible; pick the input inside it"
+    );
+  }
+
+  // Salesforce Embedded Service / Agentforce custom elements
+  const sfWidgets = document.querySelectorAll(
+    "embeddedservice-app, embeddedservice-chat-widget, embeddedservice-bootstrap, " +
+      "messaging-web-app, messaging-conversation, " +
+      "[class*='embeddedServiceHelpButton' i], [class*='embeddedServiceSidebar' i], " +
+      "[class*='embeddedServiceLiveAgent' i], [id*='embeddedMessaging' i]"
+  );
+  const visibleSfWidgets = Array.from(sfWidgets).filter((el) => {
+    if (!(el instanceof Element)) return false;
+    const rect = el.getBoundingClientRect?.();
+    return rect && rect.width > 10 && rect.height > 10;
+  });
+  if (visibleSfWidgets.length) {
+    const sfTags = visibleSfWidgets.map((el) => el.tagName.toLowerCase()).join(", ");
+    embeddedChatNotes.push(
+      `- pattern=salesforce_widget — Salesforce chat widget detected (${sfTags}); input may be inside closed shadow DOM — use vendor API fallback if standard selectors fail`
+    );
+  }
+
+  // Always emit CHAT_SIGNALS if chatScore is meaningful or we detected a chat page
+  if (chatLogs.length || embeddedChatNotes.length || chatScore >= 8) {
     lines.push("");
     lines.push("CHAT_SIGNALS:");
+    if (chatScore >= 8) {
+      lines.push(`- chatScore=${chatScore} — strong chat presence detected`);
+    }
     for (const el of chatLogs.slice(0, 6)) {
       const ariaLabel = el.getAttribute("aria-label");
       lines.push(

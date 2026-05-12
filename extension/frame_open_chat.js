@@ -82,8 +82,14 @@ function findLikelyChatLauncherButtons() {
       const title = (el.getAttribute?.("title") || "").toLowerCase();
       const blob = `${text} ${aria} ${title}`.trim();
       let s = 0;
-      // Prefer real controls over marketing links (same keywords often appear on "Try Live Support Plus" CTAs)
-      if (el instanceof HTMLAnchorElement) s -= 6;
+
+      const isLink = el instanceof HTMLAnchorElement;
+      const href = isLink ? (el.getAttribute("href") || "") : "";
+      const isNavigatingLink = isLink && href && !href.startsWith("#") &&
+        !href.startsWith("javascript:") && /^(https?:|\/)/i.test(href);
+
+      // Prefer real controls over marketing links
+      if (isNavigatingLink) s -= 6;
       if (
         blob.includes("try it free") ||
         blob.includes("try free") ||
@@ -95,17 +101,30 @@ function findLikelyChatLauncherButtons() {
       if (blob.includes("live chat")) s += 10;
       if (blob.includes("chat now") || blob.includes("message us")) s += 9;
       if (blob.includes("need help")) s += 7;
-      // "Contact us" is frequently a navigation CTA, not a chat launcher.
-      if (blob.includes("contact us") || blob.includes("contact")) s -= 6;
+
+      // "Contact Us" — penalize if it's a navigating link (goes to form page),
+      // but allow if it's a button or non-navigating element (likely opens overlay/modal)
+      if (blob.includes("contact us") || blob.includes("contact")) {
+        if (isNavigatingLink) {
+          s -= 6;
+        } else {
+          // Non-navigating "Contact" — could open a chat modal/overlay
+          s += 4;
+        }
+      }
+
       if (blob.includes("virtual assistant") || blob.includes("ask us")) s += 8;
+      if (blob.includes("chat with") || blob.includes("chat to")) s += 8;
       if (blob.includes("chat")) s += 5;
       if (blob.includes("help")) s += 2;
       if (blob.includes("support")) s += 3;
+      if (blob.includes("get in touch")) s += 4;
       if (blob.includes("search")) s -= 8;
       if (blob.includes("sign in") || blob.includes("log in")) s -= 2;
+      if (blob.includes("email") && !blob.includes("chat")) s -= 4;
       return { el, s };
     })
-    .filter((x) => x.s >= 5)
+    .filter((x) => x.s >= 3)
     .sort((a, b) => b.s - a.s);
 
   return scored.map((x) => x.el).slice(0, 5);
@@ -217,24 +236,63 @@ function findFloatingWidgetCandidates() {
 }
 
 (() => {
+  // Dedicated chat page — no launcher needed, the page IS the chat.
+  try {
+    const path = location.pathname.toLowerCase();
+    if (/\/chat(\/|$|\?|#)/.test(path) || /\/myra\//.test(path) || /\/messages?\//.test(path) ||
+        /\/support\/chat/.test(path) || /\/livechat/.test(path)) {
+      return { ok: true, clicked: false, reason: "dedicated_chat_page" };
+    }
+  } catch {}
+
   // If a visible chat composer or dedicated chat iframe already exists, widget is open — skip.
   try {
     const existingComposer = document.querySelector(
-      "textarea[class*='chat' i], [class*='chat-input' i], [class*='composer' i], [class*='message-input' i]"
+      "textarea[class*='chat' i], [class*='chat-input' i], [class*='composer' i], " +
+        "[class*='message-input' i], [class*='chatinput' i], [class*='msginput' i], " +
+        "[class*='reply-box' i], [class*='chat-box' i], " +
+        "textarea[placeholder*='message' i], textarea[placeholder*='type' i], " +
+        "[contenteditable='true'][aria-label*='message' i], [role='textbox'][aria-label*='message' i]"
     );
     if (existingComposer && isVisible(existingComposer)) {
       return { ok: true, clicked: false, reason: "chat_already_open" };
     }
     const chatIframes = Array.from(document.querySelectorAll("iframe")).filter((fr) => {
       const src = (fr.getAttribute("src") || "").toLowerCase();
-      return (
-        isVisible(fr) && /chat|livechat|helpchat|chatbot|helpdesk|messenger|support-chat/.test(src)
-      );
+      return isVisible(fr) && /chat|livechat|helpchat|chatbot|helpdesk|messenger|support-chat|gorgias|gladly|richpanel/.test(src);
     });
     if (chatIframes.length) {
       return { ok: true, clicked: false, reason: "chat_iframe_already_present" };
     }
   } catch {}
+
+  // Salesforce Embedded Service / Agentforce widget — look for their specific launcher button
+  try {
+    const sfLauncherBtn = document.querySelector(
+      ".embeddedServiceHelpButton .helpButtonEnabled, " +
+        ".embeddedServiceHelpButton button, " +
+        "[class*='embeddedServiceHelpButton'] button, " +
+        "embeddedservice-app button, " +
+        "[class*='embeddedMessaging'] button, " +
+        "button[class*='helpButton' i]"
+    );
+    if (sfLauncherBtn && isVisible(sfLauncherBtn)) {
+      robustClick(sfLauncherBtn);
+      return { ok: true, clicked: true, kind: "salesforce_launcher", selector: selectorFromEl(sfLauncherBtn) };
+    }
+    // Also check for the sidebar already being open
+    const sfSidebar = document.querySelector(
+      ".embeddedServiceSidebar, [class*='embeddedServiceSidebar'], " +
+        "embeddedservice-chat-widget, messaging-web-app"
+    );
+    if (sfSidebar && isVisible(sfSidebar)) {
+      return { ok: true, clicked: false, reason: "salesforce_widget_already_open" };
+    }
+  } catch {}
+
+  // NOTE: Vendor-specific JS API calls (GorgiasChat.open(), zE(), Intercom(), etc.)
+  // are handled separately via frame_vendor_open.js in MAIN world.
+  // This script (ISOLATED world) can only do DOM-based detection.
 
   const launchers = findLikelyChatLauncherButtons();
   const floaters = findFloatingWidgetCandidates();

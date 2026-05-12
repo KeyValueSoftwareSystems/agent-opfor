@@ -1039,7 +1039,45 @@ function generateHtmlReport(report) {
 </html>`;
 }
 
-function downloadReport() {
+async function downloadReport() {
+  // If state.results is empty (popup was reopened after run), recover from storage.
+  if (!state.results.length) {
+    try {
+      const { astraLastResult } = await chrome.storage.local.get("astraLastResult");
+      if (astraLastResult?.judgment) {
+        const verdict =
+          String(astraLastResult.judgment.verdict || "FAIL").toUpperCase() === "PASS"
+            ? "PASS"
+            : "FAIL";
+        const partialNote = astraLastResult.partial ? " (partial run)" : "";
+        state.results = [
+          {
+            id: astraLastResult.evaluatorId || "unknown",
+            name: astraLastResult.evaluatorName || "Evaluator",
+            sev: normalizeSev(astraLastResult.severity),
+            verdict,
+            summary: (astraLastResult.judgment.summary || "") + partialNote,
+            raw: astraLastResult,
+          },
+        ];
+      } else if (astraLastResult) {
+        // No judgment available — show transcript info if we have it
+        const turnCount = astraLastResult.transcript?.length || 0;
+        state.results = [
+          {
+            id: astraLastResult.evaluatorId || "unknown",
+            name: astraLastResult.evaluatorName || "Evaluator",
+            sev: normalizeSev(astraLastResult.severity),
+            verdict: "FAIL",
+            summary: astraLastResult.errorMessage
+              ? `Run failed after ${Math.floor(turnCount / 2)} turns: ${astraLastResult.errorMessage}`
+              : `Run ended with ${Math.floor(turnCount / 2)} turns but no judgment was produced.`,
+            raw: astraLastResult,
+          },
+        ];
+      }
+    } catch {}
+  }
   const report = buildReport();
   const html = generateHtmlReport(report);
   const blob = new Blob([html], { type: "text/html" });
@@ -1076,9 +1114,40 @@ async function runOneEvaluator(ev, { resume = false } = {}) {
   }
   stopCosmeticTicker();
 
+  // If sendMessage returned nothing (channel closed, timeout), try storage fallback.
+  if (!result || (typeof result === "object" && Object.keys(result).length === 0)) {
+    try {
+      const { astraLastResult } = await chrome.storage.local.get("astraLastResult");
+      if (astraLastResult?.ok && !astraLastResult.partial) {
+        result = astraLastResult;
+      }
+    } catch {}
+  }
+
   if (!result?.ok) {
-    if (result?.paused) return { paused: true, error: result.error };
-    return { error: result?.error || "Unknown error" };
+    // Even on failure, check if the service worker saved a (partial) judged result to storage.
+    if (!result?.paused) {
+      try {
+        const { astraLastResult } = await chrome.storage.local.get("astraLastResult");
+        if (astraLastResult?.judgment) {
+          // We have a judged result (possibly partial) — use it instead of showing error
+          result = astraLastResult;
+        }
+      } catch {}
+    }
+    if (!result?.ok) {
+      // One more attempt: check if a partial result with judgment was saved
+      if (result?.paused) {
+        try {
+          const { astraLastResult } = await chrome.storage.local.get("astraLastResult");
+          if (astraLastResult?.judgment && astraLastResult?.transcript?.length >= 2) {
+            result = astraLastResult;
+          }
+        } catch {}
+        if (!result?.ok) return { paused: true, error: result.error };
+      }
+      if (!result?.ok) return { error: result?.error || "Unknown error" };
+    }
   }
 
   setPhase("judging");
@@ -1154,14 +1223,38 @@ async function startRun({ resume = false } = {}) {
     }
     if (state.cancelRequested) break;
     if (out.error) {
-      state.results.push({
-        id: ev.id,
-        name: ev.name,
-        sev: ev.sev,
-        verdict: "FAIL",
-        summary: `Error: ${out.error}`,
-        raw: null,
-      });
+      // Try to recover a judged partial result from storage instead of just showing the error
+      let recovered = null;
+      try {
+        const { astraLastResult } = await chrome.storage.local.get("astraLastResult");
+        if (
+          astraLastResult?.judgment &&
+          astraLastResult?.evaluatorId === ev.id &&
+          astraLastResult?.transcript?.length >= 2
+        ) {
+          const v = String(astraLastResult.judgment.verdict || "FAIL").toUpperCase() === "PASS" ? "PASS" : "FAIL";
+          recovered = {
+            id: ev.id,
+            name: ev.name,
+            sev: ev.sev,
+            verdict: v,
+            summary: astraLastResult.judgment.summary || "",
+            raw: astraLastResult,
+          };
+        }
+      } catch {}
+      if (recovered) {
+        state.results.push(recovered);
+      } else {
+        state.results.push({
+          id: ev.id,
+          name: ev.name,
+          sev: ev.sev,
+          verdict: "FAIL",
+          summary: `Error: ${out.error}`,
+          raw: null,
+        });
+      }
     } else if (out.record) {
       state.results.push(out.record);
     }

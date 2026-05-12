@@ -9,6 +9,17 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       await preparePageForChat(tab.id);
 
       // 1) Try to open the chat widget in the TOP frame (after scroll reveals lazy widgets).
+      // First try vendor JS APIs (MAIN world), then DOM-based heuristics (ISOLATED world).
+      let vendorOpenResult = null;
+      try {
+        const vendorRes = await chrome.scripting.executeScript({
+          target: { tabId: tab.id, frameIds: [0] },
+          files: ["frame_vendor_open.js"],
+          world: "MAIN",
+        });
+        vendorOpenResult = vendorRes?.[0]?.result;
+      } catch {}
+
       const openResults = await chrome.scripting.executeScript({
         target: { tabId: tab.id, frameIds: [0] },
         files: ["frame_open_chat.js"],
@@ -252,8 +263,21 @@ function assertLlmCfg(cfg, { kind }) {
   if (!cfg.apiKey) throw new Error(`${kind} LLM missing apiKey in Options.`);
 }
 
+/** Inject shadow DOM patch in MAIN world so closed shadow roots become accessible. */
+async function injectShadowPatch(tabId) {
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId, allFrames: true },
+      files: ["frame_shadow_patch.js"],
+      world: "MAIN",
+    });
+  } catch {}
+}
+
 /** Scroll main document so lazy-loaded chat widgets appear before scanning for launchers. */
 async function preparePageForChat(tabId) {
+  // Patch shadow DOM early so any widgets created after this point expose closed roots.
+  await injectShadowPatch(tabId);
   try {
     await chrome.scripting.executeScript({
       target: { tabId, frameIds: [0] },
@@ -285,10 +309,19 @@ function embeddedChatBoost(frame) {
   const url = String(frame?.frameUrl || "").toLowerCase();
   const s = String(frame?.snapshot || "");
 
+  // Dedicated chat page — the main frame IS the chat UI (MakeMyTrip /myra/chat/, etc.)
+  try {
+    const path = new URL(url).pathname.toLowerCase();
+    if (/\/chat(\/|$|\?|#)/.test(path) || /\/myra\//.test(path) || /\/messages?\//.test(path) ||
+        /\/support\/chat/.test(path) || /\/livechat/.test(path)) {
+      return 500;
+    }
+  } catch {}
+
   // Dedicated chat-service iframes — URL keywords cover the major vendors generically
   if (/chat|livechat|helpchat|chatbot|helpchatbot|support-chat|chat-widget/.test(url)) return 400;
   if (
-    /intercom|zendesk|drift|crisp|freshchat|genesys|hubspot|tawk|tidio|ada\.cx|forethought|kore\.ai|salesforce/.test(
+    /intercom|zendesk|drift|crisp|freshchat|genesys|hubspot|tawk|tidio|ada\.cx|forethought|kore\.ai|salesforce|gorgias|gladly|dixa|richpanel|reamaze|re:amaze|helpscout|front\.com|olark|liveperson|kayako/.test(
       url
     )
   )
@@ -346,6 +379,8 @@ async function aiPickInputInFrame(cfg, frame) {
     "Selectors must be CSS selectors.",
     'IMPORTANT: Prefer selectors that appear verbatim in selector="..." entries in the snapshot (these may include shadow(...) >> ... syntax).',
     "If CHAT_SIGNALS are present, this frame IS the chat UI. Pick the chat composer (textarea / contenteditable / [role=textbox]) closest to the bottom of the transcript — NOT the page header search.",
+    "IMPORTANT: Chat UIs can take many forms: floating widget bubbles, sidebar panels, drawer overlays, embedded chat windows, OR full/dedicated chat pages (URL contains /chat/). On dedicated chat pages and sidebar chat panels, the primary text input IS the chat composer — do not confuse it with site search.",
+    "If the snapshot mentions 'dedicated_chat_page', the page IS a chat interface — pick the main visible text input as the chat composer with high confidence.",
     "Reject any input marked site_search_hint=1, type=search, role=searchbox, or whose placeholder/aria mentions searching help articles.",
     "Prefer the highest-scoring entry in CANDIDATE_INPUTS that is not a site search.",
     "For submit, prefer method='click' with a visible send/submit button from CANDIDATE_BUTTONS; fall back to 'enter' if no send button is present.",
@@ -388,6 +423,30 @@ async function actSendText(tabId, frameId, plan) {
     files: ["frame_actuate.js"],
   });
   return act2?.[0]?.result;
+}
+
+async function actVendorSendText(tabId, text) {
+  // Set the text globally for the vendor send script
+  await chrome.scripting.executeScript({
+    target: { tabId, frameIds: [0] },
+    func: (t) => { globalThis.__astraVendorText = t; },
+    args: [text],
+    world: "MAIN",
+  });
+  // Re-discover vendor input (in case page re-rendered)
+  await chrome.scripting.executeScript({
+    target: { tabId, frameIds: [0] },
+    files: ["frame_vendor_api.js"],
+    world: "MAIN",
+  });
+  await sleep(200);
+  // Send via vendor path
+  const res = await chrome.scripting.executeScript({
+    target: { tabId, frameIds: [0] },
+    files: ["frame_vendor_send.js"],
+    world: "MAIN",
+  });
+  return res?.[0]?.result;
 }
 
 async function actClickSelector(tabId, frameId, selector) {
@@ -468,9 +527,11 @@ async function aiUiNextAction(
     "",
     "1. LOOK FOR A CHAT INPUT FIRST. Scan CANDIDATE_INPUTS for any entry that is NOT marked site_search_hint=1 and has score > 0. If found → action=set_input with its selector.",
     "   - Even if score is low, if there are CHAT_SIGNALS present AND a non-search textarea/input exists, pick it.",
+    "   - Chat inputs can appear inside overlay windows, modals, dialogs, sidebars, or floating panels — not just the main page. If CHAT_SIGNALS mentions 'chat_overlay_modal' or 'vendor_chat_widget', look for the input INSIDE that overlay.",
     "   - For submit: look in CANDIDATE_BUTTONS for one marked sendish=1. If found → submit.method='click' + its selector. Otherwise → submit.method='enter'.",
     "",
     "2. NO USABLE INPUT? Look for something to click open. Check FLOATING_WIDGET_CANDIDATES first (these are positioned bottom-right and are almost always chat launchers), then LIKELY_CHAT_LAUNCHERS. Pick the highest-scored one → action=click_launcher.",
+    "   - 'Contact Us' or 'Contact' buttons/links that DON'T navigate away (no href, or href='#') often open chat overlays — these ARE valid launchers.",
     "   - NEVER re-click a launcher that was already clicked (see 'Launchers already clicked' list below).",
     "   - NEVER click anchors whose href contains /products/, /pricing/, /checkout/, /shop/, /subscribe/, /order/.",
     "",
@@ -1093,9 +1154,16 @@ async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
       await preparePageForChat(tab.id);
 
       // ────────────────────────────────────────────────────────────────
-      // PHASE 2: Heuristic open — run frame_open_chat.js in the top
-      // frame to click the most obvious launcher/floating widget.
+      // PHASE 2: Heuristic open — try vendor JS APIs (MAIN world) first,
+      // then DOM-based heuristics (ISOLATED world).
       // ────────────────────────────────────────────────────────────────
+      try {
+        await chrome.scripting.executeScript({
+          target: { tabId: tab.id, frameIds: [0] },
+          files: ["frame_vendor_open.js"],
+          world: "MAIN",
+        });
+      } catch {}
       try {
         await chrome.scripting.executeScript({
           target: { tabId: tab.id, frameIds: [0] },
@@ -1260,6 +1328,33 @@ async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
           }
         } catch {}
       }
+      // ────────────────────────────────────────────────────────────────
+      // PHASE 5: Vendor API fallback — for widgets with closed shadow DOM
+      // (Salesforce, Gorgias, etc.) where standard DOM scanning fails.
+      // ────────────────────────────────────────────────────────────────
+      if (!plan?.inputSelector) {
+        try {
+          // Re-inject shadow patch in case widgets loaded late
+          await injectShadowPatch(tab.id);
+          await sleep(500);
+
+          const vendorResults = await chrome.scripting.executeScript({
+            target: { tabId: tab.id, frameIds: [0] },
+            files: ["frame_vendor_api.js"],
+            world: "MAIN",
+          });
+          const vendorResult = vendorResults?.[0]?.result;
+          if (vendorResult?.ok && vendorResult?.inputFound) {
+            plan = {
+              inputSelector: "__VENDOR_INPUT__",
+              submit: { method: "vendor" },
+              confidence: 0.8,
+              vendorMode: true,
+              vendor: vendorResult.vendor,
+            };
+          }
+        } catch {}
+      }
       if (!plan?.inputSelector) throw new Error("AI could not find (or open) the chat input.");
     }
 
@@ -1375,11 +1470,16 @@ async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
         return;
       }
 
-      let actResult = await actSendText(tab.id, best.frameId, {
-        inputSelector: plan.inputSelector,
-        submit: plan.submit,
-        text: userMessage,
-      });
+      let actResult;
+      if (plan.vendorMode) {
+        actResult = await actVendorSendText(tab.id, userMessage);
+      } else {
+        actResult = await actSendText(tab.id, best.frameId, {
+          inputSelector: plan.inputSelector,
+          submit: plan.submit,
+          text: userMessage,
+        });
+      }
 
       // Handle message-too-long: shorten and retry (up to 3 times).
       if (actResult?.error === "message_too_long") {
@@ -1607,7 +1707,20 @@ async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
     }
 
     if (ASTRA_STOP) {
-      await persistPartialResult({
+      // User stopped right before/during judgment — judge with what we have
+      let stoppedJudgment = judgment;
+      if (!stoppedJudgment && transcript.length >= 2 && judgeCfg?.enabled) {
+        try {
+          stoppedJudgment = await judgeConversationFinal(judgeCfg, { evaluatorSnapshot, transcript });
+        } catch {
+          stoppedJudgment = {
+            verdict: "UNKNOWN",
+            summary: "Run stopped before judgment could complete.",
+            findings: ["Run stopped by user; partial transcript was collected."],
+          };
+        }
+      }
+      const stoppedResult = {
         ok: true,
         partial: true,
         stopped: true,
@@ -1617,11 +1730,14 @@ async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
         suiteId,
         evaluatorId: evaluatorSnapshot?.id,
         evaluatorName: evaluatorSnapshot?.name,
+        severity: evaluatorSnapshot?.severity,
         maxRounds,
         frame: { frameId: best.frameId, frameUrl: best.frameUrl },
         transcript,
         turns: turnLog,
-      });
+        judgment: stoppedJudgment || undefined,
+      };
+      await persistPartialResult(stoppedResult);
       await persistPausedAdaptiveRun({
         tabId: tab.id,
         siteUrl: tab.url || "",
@@ -1643,7 +1759,8 @@ async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
 
     await chrome.storage.local.remove("astraPausedRun");
     await clearRunStatus();
-    await persistPartialResult({
+
+    const finalResult = {
       ok: true,
       partial: false,
       stopped: false,
@@ -1652,47 +1769,55 @@ async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
       suiteId,
       evaluatorId: evaluatorSnapshot?.id,
       evaluatorName: evaluatorSnapshot?.name,
+      severity: evaluatorSnapshot?.severity,
       maxRounds,
       frame: { frameId: best.frameId, frameUrl: best.frameUrl },
       transcript,
       turns: turnLog,
       judgment,
-    });
+    };
+    await persistPartialResult(finalResult);
 
-    sendResponse({
-      ok: true,
-      siteUrl: tab.url || "",
-      architecture: "evaluator_adaptive_multi_turn",
-      suiteId,
-      evaluatorId: evaluatorSnapshot?.id,
-      evaluatorName: evaluatorSnapshot?.name,
-      maxRounds,
-      frame: { frameId: best.frameId, frameUrl: best.frameUrl },
-      transcript,
-      turns: turnLog,
-      judgment,
-    });
+    try {
+      sendResponse(finalResult);
+    } catch {
+      // Message channel may have closed if popup was closed; data is safe in storage.
+    }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     if (msg === "Run stopped." || ASTRA_STOP) {
-      try {
-        if (tab?.id && best?.frameId != null) {
-          await persistPartialResult({
-            ok: true,
-            partial: true,
-            stopped: true,
-            stopReason: "user_stop",
-            siteUrl: tab?.url || "",
-            architecture: "evaluator_adaptive_multi_turn",
-            suiteId,
-            evaluatorId: evaluatorSnapshot?.id,
-            evaluatorName: evaluatorSnapshot?.name,
-            maxRounds,
-            frame: best ? { frameId: best.frameId, frameUrl: best.frameUrl } : undefined,
-            transcript,
-            turns: turnLog,
-          });
+      // User stopped — try to judge whatever transcript we have
+      let stoppedJudgment;
+      if (transcript?.length >= 2 && evaluatorSnapshot && judgeCfg?.enabled) {
+        try {
+          stoppedJudgment = await judgeConversationFinal(judgeCfg, { evaluatorSnapshot, transcript });
+        } catch {
+          stoppedJudgment = {
+            verdict: "UNKNOWN",
+            summary: "Run was stopped; judgment could not be completed.",
+            findings: ["Run stopped by user before all turns completed."],
+          };
         }
+      }
+      try {
+        const partialResult = {
+          ok: true,
+          partial: true,
+          stopped: true,
+          stopReason: "user_stop",
+          siteUrl: tab?.url || "",
+          architecture: "evaluator_adaptive_multi_turn",
+          suiteId,
+          evaluatorId: evaluatorSnapshot?.id,
+          evaluatorName: evaluatorSnapshot?.name,
+          severity: evaluatorSnapshot?.severity,
+          maxRounds,
+          frame: best ? { frameId: best.frameId, frameUrl: best.frameUrl } : undefined,
+          transcript,
+          turns: turnLog,
+          judgment: stoppedJudgment || undefined,
+        };
+        await persistPartialResult(partialResult);
       } catch {}
       if (plan?.inputSelector && tab?.id && best?.frameId != null) {
         try {
@@ -1715,11 +1840,63 @@ async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
       sendResponse({ ok: false, error: "Run stopped.", paused: true });
       await clearRunStatus();
     } else {
-      sendResponse({
-        ok: false,
-        error: msg,
-        debug: { note: "Enable AI in Options; open the site chat if needed." },
-      });
+      // Unexpected error mid-run — judge whatever transcript we have
+      let errorJudgment;
+      if (transcript?.length >= 2 && evaluatorSnapshot && judgeCfg?.enabled) {
+        try {
+          errorJudgment = await judgeConversationFinal(judgeCfg, { evaluatorSnapshot, transcript });
+        } catch {}
+      }
+      if (errorJudgment && transcript?.length >= 2) {
+        // We have enough data to produce a proper result despite the error
+        const partialResult = {
+          ok: true,
+          partial: true,
+          stopped: false,
+          stopReason: "error",
+          errorMessage: msg,
+          siteUrl: tab?.url || "",
+          architecture: "evaluator_adaptive_multi_turn",
+          suiteId,
+          evaluatorId: evaluatorSnapshot?.id,
+          evaluatorName: evaluatorSnapshot?.name,
+          severity: evaluatorSnapshot?.severity,
+          maxRounds,
+          frame: best ? { frameId: best.frameId, frameUrl: best.frameUrl } : undefined,
+          transcript,
+          turns: turnLog,
+          judgment: errorJudgment,
+        };
+        await persistPartialResult(partialResult);
+        try {
+          sendResponse(partialResult);
+        } catch {
+          // Channel may be closed; data is safe in storage
+        }
+      } else {
+        // No usable transcript — save whatever we have and report the error
+        try {
+          await persistPartialResult({
+            ok: false,
+            partial: true,
+            stopped: false,
+            stopReason: "error",
+            errorMessage: msg,
+            siteUrl: tab?.url || "",
+            suiteId,
+            evaluatorId: evaluatorSnapshot?.id,
+            evaluatorName: evaluatorSnapshot?.name,
+            severity: evaluatorSnapshot?.severity,
+            transcript: transcript || [],
+            turns: turnLog || [],
+          });
+        } catch {}
+        sendResponse({
+          ok: false,
+          error: msg,
+          debug: { note: "Enable AI in Options; open the site chat if needed." },
+        });
+      }
       await clearRunStatus();
     }
   } finally {

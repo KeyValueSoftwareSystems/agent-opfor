@@ -28,6 +28,12 @@ function selectorFromEl(el) {
   return el.tagName.toLowerCase();
 }
 
+function getShadowRoot(el) {
+  if (el.shadowRoot) return el.shadowRoot;
+  if (el.__closedShadowRoot) return el.__closedShadowRoot;
+  return null;
+}
+
 function resolveDeepSelector(sel) {
   // Supports custom syntax produced by frame_collect:
   // shadow(<hostSel>) >> shadow(<hostSel2>) >> <innerSel>
@@ -62,10 +68,9 @@ function resolveDeepSelector(sel) {
       const hostSel = shadowMatch[1]?.trim();
       if (!hostSel) return null;
 
-      // IMPORTANT: hostSel can be generic (e.g. "div"). Try all matches and backtrack.
-      const hosts = queryAll(root, hostSel).filter((h) => h instanceof Element && h.shadowRoot);
+      const hosts = queryAll(root, hostSel).filter((h) => h instanceof Element && getShadowRoot(h));
       for (const host of hosts) {
-        const out = resolveFrom(host.shadowRoot, idx + 1);
+        const out = resolveFrom(getShadowRoot(host), idx + 1);
         if (out) return out;
       }
       return null;
