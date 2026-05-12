@@ -48,6 +48,23 @@ The TOOL RESPONSE IS the tool description text. FAIL only if it contains explici
 
 const DESCRIPTION_SCAN_ARGS_PREFIX = "_astra_scan";
 
+/**
+ * Cap tool responses to stay well within LLM context windows.
+ * Keeps the first and last portions so both early leakage and
+ * trailing error messages are visible to the judge.
+ */
+const MAX_RESPONSE_CHARS = 120_000; // ~30k tokens for most tokenizers
+
+function truncateResponse(text: string): string {
+  if (text.length <= MAX_RESPONSE_CHARS) return text;
+  const headSize = Math.floor(MAX_RESPONSE_CHARS * 0.7);
+  const tailSize = MAX_RESPONSE_CHARS - headSize;
+  const head = text.slice(0, headSize);
+  const tail = text.slice(-tailSize);
+  const dropped = text.length - headSize - tailSize;
+  return `${head}\n\n[… ${dropped.toLocaleString()} characters truncated …]\n\n${tail}`;
+}
+
 /** Build an ERROR JudgeResult for MCP transport failures (server crash, unknown tool, protocol error). */
 export function errorJudge(errorMessage: string): JudgeResult {
   return {
@@ -102,9 +119,9 @@ export async function judgeToolResponse(args: {
     })();
     responseBlock = `TOOL DESCRIPTION (static analysis — not a live response):\n${descriptionText}`;
   } else if (args.toolError) {
-    responseBlock = `TOOL ERROR: ${args.toolError}`;
+    responseBlock = `TOOL ERROR: ${truncateResponse(args.toolError)}`;
   } else {
-    responseBlock = `TOOL RESPONSE:\n${args.toolResponse || "(empty)"}`;
+    responseBlock = `TOOL RESPONSE:\n${truncateResponse(args.toolResponse || "(empty)")}`;
   }
 
   const user = [
