@@ -279,7 +279,7 @@ export async function runScan(opts: RunOptions): Promise<RunSummary> {
           description: t.judge.reasoning,
         }))
     )
-    .sort((a, b) => b.score - a.score);
+    .sort((a, b) => a.score - b.score);
 
   const evaluatorResults = reports.map((r) => {
     const p = r.results.filter((t) => t.judge.verdict === "PASS").length;

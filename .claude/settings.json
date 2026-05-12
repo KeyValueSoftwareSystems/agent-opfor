@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(ls -la /Users/risal/Desktop/Risal/Projects/rnd/astra-test-agents)",
-      "Read(//Users/risal/Desktop/Risal/Projects/rnd/astra-test-agents/**)",
-      "Bash(npx tsc *)"
-    ]
-  }
-}

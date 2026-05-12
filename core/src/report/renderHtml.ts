@@ -334,8 +334,8 @@ export async function writeHtmlReport(
       }
     }
   }
-  criticalFindings.sort((a, b) => b.score - a.score);
-  highFindings.sort((a, b) => b.score - a.score);
+  criticalFindings.sort((a, b) => a.score - b.score);
+  highFindings.sort((a, b) => a.score - b.score);
   criticalFindings.forEach((f, i) => {
     f.rank = i + 1;
   });

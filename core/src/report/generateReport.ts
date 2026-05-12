@@ -187,8 +187,8 @@ export async function generateReport(
       }
     }
   }
-  criticalFindings.sort((a, b) => b.score - a.score);
-  highFindings.sort((a, b) => b.score - a.score);
+  criticalFindings.sort((a, b) => a.score - b.score);
+  highFindings.sort((a, b) => a.score - b.score);
 
   // --- JSON report ---
   const jsonData = {
