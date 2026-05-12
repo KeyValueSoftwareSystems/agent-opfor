@@ -68,34 +68,41 @@ export async function chatCompletionJsonContent(args: {
   // Some providers (e.g. OpenRouter free models) silently ignore it or return an error,
   // so we fall back to plain text + manual JSON extraction.
   let useJsonMode = true;
+  let useTemperature = true;
 
-  const makeBody = (jsonMode: boolean) =>
+  const makeBody = (opts: { jsonMode: boolean; temperature: boolean }) =>
     JSON.stringify({
       model: args.model.model,
-      temperature: 0.2,
-      ...(jsonMode ? { response_format: { type: "json_object" } } : {}),
+      ...(opts.temperature ? { temperature: 1 } : {}),
+      ...(opts.jsonMode ? { response_format: { type: "json_object" } } : {}),
       messages: [
         { role: "system", content: args.system },
         { role: "user", content: args.user },
       ],
     });
 
-  const doFetch = (jsonMode: boolean) =>
+  const doFetch = () =>
     fetch(url, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
-      body: makeBody(jsonMode),
+      body: makeBody({ jsonMode: useJsonMode, temperature: useTemperature }),
     });
 
-  let res = await doFetch(useJsonMode);
+  let res = await doFetch();
 
-  // 400 from OpenRouter/some hosts means json_object mode is unsupported — retry without it.
-  if (!res.ok && res.status === 400 && useJsonMode) {
-    useJsonMode = false;
-    res = await doFetch(false);
+  // 400 often means unsupported params — strip json_object and/or temperature and retry.
+  if (!res.ok && res.status === 400) {
+    if (useJsonMode) {
+      useJsonMode = false;
+      res = await doFetch();
+    }
+    if (!res.ok && res.status === 400 && useTemperature) {
+      useTemperature = false;
+      res = await doFetch();
+    }
   }
 
   // 429 rate limit — retry with exponential backoff (up to 3 attempts).
@@ -105,7 +112,7 @@ export async function chatCompletionJsonContent(args: {
       const retryAfterHeader = res.headers.get("retry-after");
       const waitMs = retryAfterHeader ? parseInt(retryAfterHeader) * 1000 : delay;
       await new Promise((r) => setTimeout(r, waitMs));
-      res = await doFetch(useJsonMode);
+      res = await doFetch();
       if (res.status !== 429) break;
     }
   }
