@@ -84,9 +84,13 @@ function findLikelyChatLauncherButtons() {
       let s = 0;
 
       const isLink = el instanceof HTMLAnchorElement;
-      const href = isLink ? (el.getAttribute("href") || "") : "";
-      const isNavigatingLink = isLink && href && !href.startsWith("#") &&
-        !href.startsWith("javascript:") && /^(https?:|\/)/i.test(href);
+      const href = isLink ? el.getAttribute("href") || "" : "";
+      const isNavigatingLink =
+        isLink &&
+        href &&
+        !href.startsWith("#") &&
+        !href.startsWith("javascript:") &&
+        /^(https?:|\/)/i.test(href);
 
       // Prefer real controls over marketing links
       if (isNavigatingLink) s -= 6;
@@ -239,8 +243,13 @@ function findFloatingWidgetCandidates() {
   // Dedicated chat page — no launcher needed, the page IS the chat.
   try {
     const path = location.pathname.toLowerCase();
-    if (/\/chat(\/|$|\?|#)/.test(path) || /\/myra\//.test(path) || /\/messages?\//.test(path) ||
-        /\/support\/chat/.test(path) || /\/livechat/.test(path)) {
+    if (
+      /\/chat(\/|$|\?|#)/.test(path) ||
+      /\/myra\//.test(path) ||
+      /\/messages?\//.test(path) ||
+      /\/support\/chat/.test(path) ||
+      /\/livechat/.test(path)
+    ) {
       return { ok: true, clicked: false, reason: "dedicated_chat_page" };
     }
   } catch {}
@@ -259,7 +268,12 @@ function findFloatingWidgetCandidates() {
     }
     const chatIframes = Array.from(document.querySelectorAll("iframe")).filter((fr) => {
       const src = (fr.getAttribute("src") || "").toLowerCase();
-      return isVisible(fr) && /chat|livechat|helpchat|chatbot|helpdesk|messenger|support-chat|gorgias|gladly|richpanel/.test(src);
+      return (
+        isVisible(fr) &&
+        /chat|livechat|helpchat|chatbot|helpdesk|messenger|support-chat|gorgias|gladly|richpanel/.test(
+          src
+        )
+      );
     });
     if (chatIframes.length) {
       return { ok: true, clicked: false, reason: "chat_iframe_already_present" };
@@ -278,7 +292,12 @@ function findFloatingWidgetCandidates() {
     );
     if (sfLauncherBtn && isVisible(sfLauncherBtn)) {
       robustClick(sfLauncherBtn);
-      return { ok: true, clicked: true, kind: "salesforce_launcher", selector: selectorFromEl(sfLauncherBtn) };
+      return {
+        ok: true,
+        clicked: true,
+        kind: "salesforce_launcher",
+        selector: selectorFromEl(sfLauncherBtn),
+      };
     }
     // Also check for the sidebar already being open
     const sfSidebar = document.querySelector(

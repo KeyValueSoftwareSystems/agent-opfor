@@ -18,7 +18,10 @@
 
   // Gorgias
   try {
-    if (typeof window.GorgiasChat !== "undefined" && typeof window.GorgiasChat.open === "function") {
+    if (
+      typeof window.GorgiasChat !== "undefined" &&
+      typeof window.GorgiasChat.open === "function"
+    ) {
       window.GorgiasChat.open();
       return { ok: true, vendor: "gorgias", method: "GorgiasChat.open" };
     }
@@ -31,7 +34,13 @@
   // Zendesk
   try {
     if (typeof window.zE === "function") {
-      try { window.zE("messenger", "open"); } catch { try { window.zE("webWidget", "open"); } catch {} }
+      try {
+        window.zE("messenger", "open");
+      } catch {
+        try {
+          window.zE("webWidget", "open");
+        } catch {}
+      }
       return { ok: true, vendor: "zendesk", method: "zE" };
     }
   } catch {}
@@ -62,7 +71,10 @@
 
   // Tidio
   try {
-    if (typeof window.tidioChatApi !== "undefined" && typeof window.tidioChatApi.open === "function") {
+    if (
+      typeof window.tidioChatApi !== "undefined" &&
+      typeof window.tidioChatApi.open === "function"
+    ) {
       window.tidioChatApi.open();
       return { ok: true, vendor: "tidio", method: "tidioChatApi.open" };
     }

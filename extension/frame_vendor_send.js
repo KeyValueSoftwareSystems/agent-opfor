@@ -4,7 +4,9 @@
   const text = globalThis.__astraVendorText || "";
   if (!text) return { ok: false, error: "no_text" };
 
-  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+  function sleep(ms) {
+    return new Promise((r) => setTimeout(r, ms));
+  }
 
   function fireEvents(el) {
     for (const type of ["input", "change", "keyup"]) {
@@ -13,11 +15,19 @@
   }
 
   function setNativeValue(el, value) {
-    const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype :
-                  el instanceof HTMLInputElement ? HTMLInputElement.prototype : null;
+    const proto =
+      el instanceof HTMLTextAreaElement
+        ? HTMLTextAreaElement.prototype
+        : el instanceof HTMLInputElement
+          ? HTMLInputElement.prototype
+          : null;
     if (proto) {
       const desc = Object.getOwnPropertyDescriptor(proto, "value");
-      if (desc?.set) { desc.set.call(el, value); fireEvents(el); return true; }
+      if (desc?.set) {
+        desc.set.call(el, value);
+        fireEvents(el);
+        return true;
+      }
     }
     el.value = value;
     fireEvents(el);
@@ -45,8 +55,10 @@
       const title = (el.getAttribute?.("title") || "").toLowerCase();
       const text = (el.textContent || "").trim().toLowerCase();
       const blob = `${aria} ${title} ${text}`;
-      if ((tag === "button" || el.getAttribute?.("role") === "button") &&
-          (blob.includes("send") || blob.includes("submit"))) {
+      if (
+        (tag === "button" || el.getAttribute?.("role") === "button") &&
+        (blob.includes("send") || blob.includes("submit"))
+      ) {
         const rect = el.getBoundingClientRect?.();
         if (rect && rect.width > 10 && rect.height > 10) return el;
       }
@@ -83,14 +95,32 @@
     const sendBtn = findSendButton(rootShadow || root) || findSendButton(document);
     if (sendBtn) {
       sendBtn.click();
-      sendBtn.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, composed: true }));
+      sendBtn.dispatchEvent(
+        new MouseEvent("click", { bubbles: true, cancelable: true, composed: true })
+      );
       await sleep(300);
       return { ok: true, method: "vendor_click" };
     }
 
     // Fallback: press Enter
-    input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", code: "Enter", keyCode: 13, bubbles: true, composed: true }));
-    input.dispatchEvent(new KeyboardEvent("keyup", { key: "Enter", code: "Enter", keyCode: 13, bubbles: true, composed: true }));
+    input.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: "Enter",
+        code: "Enter",
+        keyCode: 13,
+        bubbles: true,
+        composed: true,
+      })
+    );
+    input.dispatchEvent(
+      new KeyboardEvent("keyup", {
+        key: "Enter",
+        code: "Enter",
+        keyCode: 13,
+        bubbles: true,
+        composed: true,
+      })
+    );
     await sleep(300);
     return { ok: true, method: "vendor_enter" };
   }

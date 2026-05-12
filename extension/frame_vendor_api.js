@@ -28,9 +28,12 @@
     const allEls = walkShadowRoots(shadow);
     for (const el of allEls) {
       const tag = el.tagName?.toLowerCase() || "";
-      if (tag === "textarea" || tag === "input" ||
-          el.isContentEditable ||
-          el.getAttribute?.("role") === "textbox") {
+      if (
+        tag === "textarea" ||
+        tag === "input" ||
+        el.isContentEditable ||
+        el.getAttribute?.("role") === "textbox"
+      ) {
         const rect = el.getBoundingClientRect?.();
         if (rect && rect.width > 20 && rect.height > 10) return el;
       }
@@ -83,7 +86,8 @@
     }
     const gorgiasEl = document.querySelector("[id*='gorgias' i], [class*='gorgias' i]");
     if (gorgiasEl) {
-      const input = findInputInShadowTree(gorgiasEl) ||
+      const input =
+        findInputInShadowTree(gorgiasEl) ||
         gorgiasEl.querySelector?.("textarea, input[type='text'], [contenteditable='true']");
       if (input) {
         result.vendor = "gorgias";
@@ -105,7 +109,8 @@
       if (!shadow) continue;
       const tag = el.tagName?.toLowerCase() || "";
       // Skip known non-chat custom elements
-      if (tag.startsWith("iron-") || tag.startsWith("paper-") || tag.startsWith("vaadin-")) continue;
+      if (tag.startsWith("iron-") || tag.startsWith("paper-") || tag.startsWith("vaadin-"))
+        continue;
       const input = findInputInShadowTree(el);
       if (input) {
         const rect = input.getBoundingClientRect?.();

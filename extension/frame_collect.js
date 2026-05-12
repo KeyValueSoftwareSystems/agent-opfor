@@ -92,9 +92,15 @@ function isEmbeddedChatComposer(el) {
   if (!(el instanceof Element)) return false;
   const cls = (el.className || "").toString().toLowerCase();
   if (
-    cls.includes("composer") || cls.includes("chat-input") || cls.includes("message-input") ||
-    cls.includes("chatinput") || cls.includes("msginput") || cls.includes("msg-input") ||
-    cls.includes("reply-box") || cls.includes("replybox") || cls.includes("chat-box")
+    cls.includes("composer") ||
+    cls.includes("chat-input") ||
+    cls.includes("message-input") ||
+    cls.includes("chatinput") ||
+    cls.includes("msginput") ||
+    cls.includes("msg-input") ||
+    cls.includes("reply-box") ||
+    cls.includes("replybox") ||
+    cls.includes("chat-box")
   )
     return true;
   if (
@@ -117,9 +123,14 @@ function isEmbeddedChatComposer(el) {
   );
   if (overlay && overlay instanceof Element) {
     const overlayText = (overlay.textContent || "").toLowerCase();
-    if (overlayText.includes("chat") || overlayText.includes("message") ||
-        overlayText.includes("type") || overlayText.includes("send") ||
-        overlayText.includes("support") || overlayText.includes("help"))
+    if (
+      overlayText.includes("chat") ||
+      overlayText.includes("message") ||
+      overlayText.includes("type") ||
+      overlayText.includes("send") ||
+      overlayText.includes("support") ||
+      overlayText.includes("help")
+    )
       return true;
   }
   // Dedicated chat page — URL contains /chat
@@ -147,8 +158,11 @@ function looksLikeSiteSearch(el) {
   // Never treat embedded chat composers as site search.
   if (isEmbeddedChatComposer(el)) return false;
   // Dedicated chat page — inputs here are chat-related, not site search.
-  if (/\/chat(\/|$|\?|#)/i.test(location.pathname) || /\/myra\//i.test(location.pathname) ||
-      /\/messages?\//i.test(location.pathname)) {
+  if (
+    /\/chat(\/|$|\?|#)/i.test(location.pathname) ||
+    /\/myra\//i.test(location.pathname) ||
+    /\/messages?\//i.test(location.pathname)
+  ) {
     return false;
   }
 
@@ -209,7 +223,8 @@ function scoreInput(el) {
   if (looksLikeSiteSearch(el)) score -= 40;
 
   // Dedicated chat page: URL contains /chat — big boost for any text input
-  const isChatPage = /\/chat(\/|$|\?|#)/i.test(location.pathname) ||
+  const isChatPage =
+    /\/chat(\/|$|\?|#)/i.test(location.pathname) ||
     /\/myra\//i.test(location.pathname) ||
     /\/messages?\//i.test(location.pathname) ||
     /\/support\/chat/i.test(location.pathname);
@@ -217,9 +232,15 @@ function scoreInput(el) {
 
   // Generic chat-composer context signals
   if (
-    cls.includes("composer") || cls.includes("chat-input") || cls.includes("message-input") ||
-    cls.includes("chatinput") || cls.includes("msginput") || cls.includes("msg-input") ||
-    cls.includes("reply-box") || cls.includes("replybox") || cls.includes("chat-box")
+    cls.includes("composer") ||
+    cls.includes("chat-input") ||
+    cls.includes("message-input") ||
+    cls.includes("chatinput") ||
+    cls.includes("msginput") ||
+    cls.includes("msg-input") ||
+    cls.includes("reply-box") ||
+    cls.includes("replybox") ||
+    cls.includes("chat-box")
   )
     score += 20;
   if (isInFloatingContainer(el)) score += 12;
@@ -243,9 +264,13 @@ function scoreInput(el) {
   );
   if (overlayAncestor && overlayAncestor instanceof Element && !looksLikeSiteSearch(el)) {
     const overlayText = (overlayAncestor.textContent || "").toLowerCase();
-    if (overlayText.includes("chat") || overlayText.includes("message") ||
-        overlayText.includes("support") || overlayText.includes("help") ||
-        overlayText.includes("type")) {
+    if (
+      overlayText.includes("chat") ||
+      overlayText.includes("message") ||
+      overlayText.includes("support") ||
+      overlayText.includes("help") ||
+      overlayText.includes("type")
+    ) {
       score += 18;
     }
   }
@@ -256,7 +281,8 @@ function scoreInput(el) {
   if (role === "textbox") score += 2;
   if (blob.includes("message")) score += 4;
   if (blob.includes("chat")) score += 3;
-  if (blob.includes("type here") || blob.includes("type a message") || blob.includes("type your")) score += 6;
+  if (blob.includes("type here") || blob.includes("type a message") || blob.includes("type your"))
+    score += 6;
   if (blob.includes("ask") && (blob.includes("question") || blob.includes("anything"))) score += 4;
   if (blob.includes("prompt")) score += 2;
   if (blob.includes("compose")) score += 2;
@@ -283,7 +309,8 @@ function scoreInput(el) {
     // Site search often lives in top band
     if (yRatio < 0.22 && looksLikeSiteSearch(el)) score -= 10;
     // Bottom-anchored inputs are typical of chat UIs
-    if (yRatio > 0.75 && (tag === "textarea" || el.isContentEditable || role === "textbox")) score += 5;
+    if (yRatio > 0.75 && (tag === "textarea" || el.isContentEditable || role === "textbox"))
+      score += 5;
   }
   return score;
 }
@@ -308,8 +335,13 @@ function scoreChatSignals() {
   // Dedicated chat page URL — strongest signal
   const url = location.href.toLowerCase();
   const path = location.pathname.toLowerCase();
-  if (/\/chat(\/|$|\?|#)/.test(path) || /\/myra\//.test(path) || /\/messages?\//.test(path) ||
-      /\/support\/chat/.test(path) || /\/livechat/.test(path)) {
+  if (
+    /\/chat(\/|$|\?|#)/.test(path) ||
+    /\/myra\//.test(path) ||
+    /\/messages?\//.test(path) ||
+    /\/support\/chat/.test(path) ||
+    /\/livechat/.test(path)
+  ) {
     score += 25;
   }
   // URL params or fragments suggesting chat
@@ -362,8 +394,10 @@ function scoreChatSignals() {
   ).filter((el) => {
     if (!(el instanceof Element) || !isVisible(el)) return false;
     const text = (el.textContent || "").toLowerCase();
-    return text.includes("type") && (text.includes("message") || text.includes("here")) ||
-      text.includes("send") && text.includes("message");
+    return (
+      (text.includes("type") && (text.includes("message") || text.includes("here"))) ||
+      (text.includes("send") && text.includes("message"))
+    );
   });
   if (sidePanels.length) score += 10;
 
@@ -391,9 +425,13 @@ function scoreChatSignals() {
   ).filter((el) => {
     if (!(el instanceof Element) || !isVisible(el)) return false;
     const text = (el.textContent || "").toLowerCase();
-    return (text.includes("chat") || text.includes("message") || text.includes("support") ||
-            text.includes("help")) &&
-      (text.includes("type") || text.includes("send") || text.includes("write"));
+    return (
+      (text.includes("chat") ||
+        text.includes("message") ||
+        text.includes("support") ||
+        text.includes("help")) &&
+      (text.includes("type") || text.includes("send") || text.includes("write"))
+    );
   });
   if (chatOverlays.length) score += 15;
 
@@ -434,8 +472,13 @@ function collectSanitizedDomSnapshot() {
 
   // Dedicated chat page detection
   const path = location.pathname.toLowerCase();
-  if (/\/chat(\/|$|\?|#)/.test(path) || /\/myra\//.test(path) || /\/messages?\//.test(path) ||
-      /\/support\/chat/.test(path) || /\/livechat/.test(path)) {
+  if (
+    /\/chat(\/|$|\?|#)/.test(path) ||
+    /\/myra\//.test(path) ||
+    /\/messages?\//.test(path) ||
+    /\/support\/chat/.test(path) ||
+    /\/livechat/.test(path)
+  ) {
     embeddedChatNotes.push(
       "- pattern=dedicated_chat_page — URL indicates this IS a chat page; the main text input is the chat composer, NOT site search"
     );
@@ -470,8 +513,13 @@ function collectSanitizedDomSnapshot() {
   ).filter((el) => {
     if (!(el instanceof Element) || !isVisible(el)) return false;
     const text = (el.textContent || "").toLowerCase();
-    return (text.includes("chat") || text.includes("message") || text.includes("support")) &&
-      (text.includes("type") || text.includes("send") || text.includes("write") || text.includes("help"));
+    return (
+      (text.includes("chat") || text.includes("message") || text.includes("support")) &&
+      (text.includes("type") ||
+        text.includes("send") ||
+        text.includes("write") ||
+        text.includes("help"))
+    );
   });
   if (chatOverlays.length) {
     embeddedChatNotes.push(
