@@ -214,6 +214,11 @@ function evaluatorFromCatalog(catalog, evaluatorId) {
 }
 
 function assertEvaluatorInSuite(catalog, suiteId, evaluatorId) {
+  if (suiteId === "all-evaluators") {
+    const exists = catalog?.evaluators?.some((e) => e.id === evaluatorId);
+    if (!exists) throw new Error(`Unknown evaluator: ${evaluatorId}`);
+    return;
+  }
   const suite = catalog?.suites?.find((s) => s.id === suiteId);
   if (!suite) throw new Error(`Unknown suite: ${suiteId}`);
   if (!suite.evaluatorIds?.includes(evaluatorId)) {
