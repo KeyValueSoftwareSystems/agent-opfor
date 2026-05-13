@@ -12,11 +12,11 @@ Opfor is an open-source red-teaming toolkit for AI agents and MCP servers. It ge
 
 **Three usage modes — one set of evaluators:**
 
-| Mode       | Entry point                                    | Who runs it                                  |
-| ---------- | ---------------------------------------------- | -------------------------------------------- |
-| Skills     | `/opfor-setup`, `/opfor-run` slash commands    | AI coding agent reads markdown skill files   |
-| CLI        | `opfor setup` / `opfor generate` / `opfor run` | User in terminal or CI                       |
-| MCP Server | `opfor_setup`, `opfor_run` tools               | MCP-compatible host (Cursor, Claude Desktop) |
+| Mode       | Entry point                                        | Who runs it                                  |
+| ---------- | -------------------------------------------------- | -------------------------------------------- |
+| Skills     | `/opfor-setup`, `/opfor-run` slash commands        | AI coding agent reads markdown skill files   |
+| CLI        | `opfor setup` / `opfor generate` / `opfor execute` | User in terminal or CI                       |
+| MCP Server | `opfor_setup`, `opfor_run` tools                   | MCP-compatible host (Cursor, Claude Desktop) |
 
 ---
 
@@ -42,7 +42,7 @@ opfor/
 │       │   ├── init.ts          # `opfor init`
 │       │   ├── setup.ts         # `opfor setup` (interactive wizard)
 │       │   ├── generate.ts      # `opfor generate --config` (non-interactive)
-│       │   ├── run.ts           # `opfor run --attacks`
+│       │   ├── execute.ts       # `opfor execute --attacks`
 │       │   ├── agent/           # agent-mode subcommands
 │       │   └── mcp/             # mcp-mode subcommands
 │       └── lib/                 # artifacts.ts, env.ts, unifiedConfig.ts
@@ -126,7 +126,7 @@ npm run format:check             # prettier --check
 | `core/src/report/generateReport.ts`     | Produces `report.html` and `report.json`                                                |
 | `cli/src/commands/setup.ts`             | Interactive setup wizard                                                                |
 | `cli/src/commands/generate.ts`          | Non-interactive attack generation (`opfor generate`)                                    |
-| `cli/src/commands/run.ts`               | Run entrypoint (`opfor run`)                                                            |
+| `cli/src/commands/execute.ts`           | Execute entrypoint (`opfor execute`)                                                    |
 | `mcp/src/index.ts`                      | MCP server: registers `opfor_list_evaluators`, `opfor_setup`, `opfor_run` tools         |
 
 ---
@@ -196,7 +196,7 @@ export GROQ_API_KEY=your-key-here   # attack LLM key (separate from Docker .env)
 
 # from repo root:
 opfor generate --config tests/e2e/agents/vanilla-chat/opfor.config.json
-opfor run --attacks .opfor/attacks/opfor-attacks-*-vanilla-chat.json
+opfor execute --attacks .opfor/attacks/opfor-attacks-*-vanilla-chat.json
 ```
 
 **Covered evaluators:** OWASP LLM Top 10, Trust & Safety (bias, misinformation), system-prompt-leakage, jailbreaking.
@@ -214,7 +214,7 @@ export GROQ_API_KEY=your-key-here
 
 # from repo root:
 opfor generate --config tests/e2e/agents/customer-support/opfor.config.json
-opfor run --attacks .opfor/attacks/opfor-attacks-*-customer-support.json
+opfor execute --attacks .opfor/attacks/opfor-attacks-*-customer-support.json
 
 # reset DB to clean seed state between runs:
 ./scripts/reset.sh
@@ -235,7 +235,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) — "Adding a test agent" section.
 1. Create `skills/agent-redteaming/opfor-setup/evaluators/<id>.md` (or `mcp-redteaming` equivalent)
 2. Fill YAML frontmatter: `id`, `name`, `severity`, `owasp`, `description`, `pass_criteria`, `fail_criteria`, `patterns`
 3. Add the ID to at least one suite's `evaluators:` list in `skills/*/suites/`
-4. Test: `opfor setup` → select your evaluator → `opfor generate` → `opfor run`
+4. Test: `opfor setup` → select your evaluator → `opfor generate` → `opfor execute`
 5. PR to `master` — see [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ---
@@ -245,7 +245,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) — "Adding a test agent" section.
 1. Implement a function in `core/src/lib/` or `core/src/mcp-client/` — takes a prompt string, returns a response string
 2. Add a new `type` value to `TargetConfig` in `core/src/config/types.ts` and the Zod union in `core/src/config/schema.ts`
 3. Add a routing branch in `core/src/run/executeAttack.ts`
-4. Add CLI options in `cli/src/commands/run.ts` and `setup.ts`
+4. Add CLI options in `cli/src/commands/execute.ts` and `setup.ts`
 5. Add Zod schema fields in `mcp/src/index.ts` for the `opfor_setup` tool
 
 ---

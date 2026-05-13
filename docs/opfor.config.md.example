@@ -262,7 +262,7 @@ All fields are optional. They map directly to `GET /api/public/traces` query par
 
 #### `telemetry.propagation` — inject a trace id into every attack request
 
-During `opfor run`, Opfor mints a fresh trace ID per attack (or one per run, see `traceIdStrategy`) and injects it into the outgoing HTTP request so it appears in Langfuse alongside the attack.
+During `opfor execute`, Opfor mints a fresh trace ID per attack (or one per run, see `traceIdStrategy`) and injects it into the outgoing HTTP request so it appears in Langfuse alongside the attack.
 
 | Field | Default | Description |
 |-------|---------|-------------|
@@ -355,7 +355,7 @@ export LANGFUSE_SECRET_KEY=sk-lf-...
 opfor setup --config opfor.config.json
 
 # 4. Run the scan
-opfor run --input opfor-prompts-<timestamp>.json
+opfor execute --input opfor-prompts-<timestamp>.json
 ```
 
 ### Artifacts produced by `opfor setup` (with Langfuse)

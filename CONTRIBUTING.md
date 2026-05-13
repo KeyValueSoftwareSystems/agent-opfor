@@ -136,7 +136,7 @@ patterns:
 
 # 3. Inspect the generated attack plan — your evaluator should appear
 # 4. Run the attacks and check the report
-opfor run --attacks .opfor/attacks/opfor-attacks-*.json
+opfor execute --attacks .opfor/attacks/opfor-attacks-*.json
 ```
 
 ---

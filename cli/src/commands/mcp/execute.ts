@@ -326,7 +326,7 @@ export async function runMcpAttackPlan(opts: {
 
 export function registerRunCommand(program: Command) {
   program
-    .command("run")
+    .command("execute")
     .description("Execute attacks from a plan file, judge each result, and write an HTML report")
     .option(
       "-i, --input <path>",

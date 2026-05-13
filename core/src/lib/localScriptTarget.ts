@@ -50,7 +50,7 @@ export async function invokeLocalTargetScript(
   });
   child.stderr?.on("data", (c: string) => {
     stderr += c;
-    // So you can `console.error(...)` in the target script and see it during `opfor run`.
+    // So you can `console.error(...)` in the target script and see it during `opfor execute`.
     process.stderr.write(c);
   });
 

@@ -31,7 +31,7 @@ for i in $(seq 1 30); do
     echo ""
     echo "Next steps (from repo root):"
     echo "  opfor generate --config tests/e2e/agents/vanilla-chat/opfor.config.json"
-    echo "  opfor run --attacks .opfor/attacks/opfor-attacks-*-vanilla-chat.json"
+    echo "  opfor execute --attacks .opfor/attacks/opfor-attacks-*-vanilla-chat.json"
     echo ""
     echo "Logs:  docker compose logs -f vanilla-chat"
     echo "Stop:  ./scripts/stop.sh"

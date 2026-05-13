@@ -22,11 +22,11 @@ One tool to generate OWASP-mapped attack prompts, fire them at your target, and 
 
 ## Three ways to run opfor
 
-| Mode           | How                                              | Best for                                            |
-| -------------- | ------------------------------------------------ | --------------------------------------------------- |
-| **CLI**        | `opfor setup` → `opfor generate` → `opfor run`   | Terminal-first workflows, CI/CD                     |
-| **MCP Server** | Add to Cursor / Claude Desktop, then ask in chat | Agents that test agents                             |
-| **Skills**     | `/opfor-setup` and `/opfor-run` slash commands   | Any AI coding agent (Cursor, Claude Code, Windsurf) |
+| Mode           | How                                                | Best for                                            |
+| -------------- | -------------------------------------------------- | --------------------------------------------------- |
+| **CLI**        | `opfor setup` → `opfor generate` → `opfor execute` | Terminal-first workflows, CI/CD                     |
+| **MCP Server** | Add to Cursor / Claude Desktop, then ask in chat   | Agents that test agents                             |
+| **Skills**     | `/opfor-setup` and `/opfor-run` slash commands     | Any AI coding agent (Cursor, Claude Code, Windsurf) |
 
 All three modes share the same evaluators, attack templates, and judge logic.
 
@@ -99,13 +99,13 @@ YAML is also supported (`opfor.config.yml`).
 ### Step 3 — Run the scan
 
 ```bash
-opfor run --attacks .opfor/attacks/opfor-attacks-<timestamp>-<id>.json
+opfor execute --attacks .opfor/attacks/opfor-attacks-<timestamp>-<id>.json
 
 # Override target at run time
-opfor run --attacks .opfor/attacks/opfor-attacks-<timestamp>-<id>.json --target-script ./adapter.js
+opfor execute --attacks .opfor/attacks/opfor-attacks-<timestamp>-<id>.json --target-script ./adapter.js
 
 # Custom report directory
-opfor run --attacks .opfor/attacks/opfor-attacks-<timestamp>-<id>.json --out-dir ./reports
+opfor execute --attacks .opfor/attacks/opfor-attacks-<timestamp>-<id>.json --out-dir ./reports
 ```
 
 Reports are written to:
@@ -116,7 +116,7 @@ Reports are written to:
   └── report.json   ← use in CI/CD
 ```
 
-> **Shortcut:** `opfor run` and `opfor generate` work without arguments — they invoke the setup wizard automatically if no file is provided.
+> **Shortcut:** `opfor execute` and `opfor generate` work without arguments — they invoke the setup wizard automatically if no file is provided.
 
 Full CLI reference: [`docs/cli.md`](docs/cli.md)
 
@@ -340,7 +340,7 @@ export LANGFUSE_SECRET_KEY=sk-lf-...
   run: opfor generate --config opfor.config.json
 
 - name: Run scan
-  run: opfor run --attacks .opfor/attacks/opfor-attacks-*.json
+  run: opfor execute --attacks .opfor/attacks/opfor-attacks-*.json
 ```
 
 ---
@@ -379,7 +379,7 @@ export GROQ_API_KEY=your-key-here   # or OPENAI_API_KEY / ANTHROPIC_API_KEY etc.
 
 ```bash
 opfor generate --config tests/e2e/agents/vanilla-chat/opfor.config.json
-opfor run --attacks .opfor/attacks/opfor-attacks-*-vanilla-chat.json
+opfor execute --attacks .opfor/attacks/opfor-attacks-*-vanilla-chat.json
 ```
 
 **Supported providers:** `openai` · `anthropic` · `groq` · `google` · any OpenAI-compatible endpoint via `BASE_URL`
@@ -410,7 +410,7 @@ export GROQ_API_KEY=your-key-here
 
 ```bash
 opfor generate --config tests/e2e/agents/customer-support/opfor.config.json
-opfor run --attacks .opfor/attacks/opfor-attacks-*-customer-support.json
+opfor execute --attacks .opfor/attacks/opfor-attacks-*-customer-support.json
 ```
 
 **Other commands (from the agent directory):**

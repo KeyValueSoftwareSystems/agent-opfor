@@ -46,7 +46,7 @@ Tell your agent:
 Or use the CLI:
 
 ```bash
-npx opfor run --config .opfor/configs/my-target.md
+npx opfor execute --config .opfor/configs/my-target.md
 ```
 
 The agent uses `skills/opfor-run/SKILL.md` to orchestrate the assessment and generate a report.
@@ -66,7 +66,7 @@ Result: Should create .opfor/configs/my-target.md
 ### 2. Run a Basic Assessment
 
 ```bash
-npx opfor run --config .opfor/configs/chatbot-prod.md --depth basic
+npx opfor execute --config .opfor/configs/chatbot-prod.md --depth basic
 ```
 
 Expected: Agent loads evaluators, tests basic attack patterns, generates report.
@@ -74,7 +74,7 @@ Expected: Agent loads evaluators, tests basic attack patterns, generates report.
 ### 3. Test a Specific Evaluator
 
 ```bash
-npx opfor run --config .opfor/configs/my-target.md --evaluators prompt-injection,jailbreaking
+npx opfor execute --config .opfor/configs/my-target.md --evaluators prompt-injection,jailbreaking
 ```
 
 Expected: Only those two evaluators run.
@@ -83,10 +83,10 @@ Expected: Only those two evaluators run.
 
 ```bash
 # OWASP LLM Top 10
-npx opfor run --config .opfor/configs/my-target.md --suite owasp-llm-top10
+npx opfor execute --config .opfor/configs/my-target.md --suite owasp-llm-top10
 
 # OWASP Agentic AI
-npx opfor run --config .opfor/configs/my-target.md --suite owasp-agentic-ai
+npx opfor execute --config .opfor/configs/my-target.md --suite owasp-agentic-ai
 ```
 
 ---
@@ -162,7 +162,7 @@ ls skills/opfor-setup/SKILL.md  # Should exist
 **Solution**: Create one first:
 
 ```bash
-npx opfor run --config .opfor/configs/test.md
+npx opfor execute --config .opfor/configs/test.md
 # Or: Let /opfor-setup skill create one
 ```
 
@@ -189,7 +189,7 @@ ls skills/opfor-setup/evaluators/  # Should show 20 evaluators
 - [ ] Can see evaluator results in report
 - [ ] Can run multiple evaluators together (suite)
 - [ ] Can run custom evaluator selection
-- [ ] CLI works: `npx opfor run --config ...`
+- [ ] CLI works: `npx opfor execute --config ...`
 - [ ] All 20 evaluators are discoverable
 
 ---
