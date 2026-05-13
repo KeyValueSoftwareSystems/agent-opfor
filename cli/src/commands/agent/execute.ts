@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto";
 import { log } from "../../../../core/dist/lib/logger.js";
 import { createModel } from "../../../../core/dist/providers/factory.js";
 import { judgeResponse, errorJudge } from "../../../../core/dist/evaluators/judge.js";
-import type { ConversationTurn, JudgeResult } from "../../../../core/dist/evaluators/judge.js";
+import type { AttackContext, ConversationTurn, JudgeResult } from "../../../../core/dist/evaluators/judge.js";
 import { generateReport } from "../../../../core/dist/report/generateReport.js";
 import type {
   EvaluatorReport,
@@ -139,7 +139,7 @@ export async function runAgentAttacksFromFile(opts: {
       name: first.evaluatorName,
       severity: first.severity,
       owasp: first.owasp,
-      description: "",
+      description: first.description ?? "",
       passCriteria: first.passCriteria,
       failCriteria: first.failCriteria,
       patterns: [],
@@ -208,13 +208,15 @@ export async function runAgentAttacksFromFile(opts: {
         if (isTargetError(response)) {
           judge = errorJudge(extractErrorMessage(response));
         } else {
+          const attackContext: AttackContext = { patternName: attack.patternName };
           judge = await judgeResponse(
             evaluatorSpec,
             userMessage,
             response,
             judgeModel,
             undefined,
-            isMultiTurn ? conversationHistory : undefined
+            isMultiTurn ? conversationHistory : undefined,
+            attackContext
           );
         }
 

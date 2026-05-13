@@ -269,6 +269,7 @@ async function runSetupCore({
       allAttacks.push({
         evaluatorId: evaluator.id,
         evaluatorName: evaluator.name,
+        description: evaluator.description,
         severity: evaluator.severity,
         owasp: evaluator.owasp,
         patternName: attack.patternName,

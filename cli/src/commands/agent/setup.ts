@@ -506,6 +506,7 @@ export function registerSetupCommand(program: Command) {
           allAttacks.push({
             evaluatorId: evaluator.id,
             evaluatorName: evaluator.name,
+            description: evaluator.description,
             severity: evaluator.severity,
             owasp: evaluator.owasp,
             patternName: attack.patternName,
@@ -673,6 +674,7 @@ export async function generateAgentAttacksFromConfig(opts: {
       allAttacks.push({
         evaluatorId: evaluator.id,
         evaluatorName: evaluator.name,
+        description: evaluator.description,
         severity: evaluator.severity,
         owasp: evaluator.owasp,
         patternName: attack.patternName,

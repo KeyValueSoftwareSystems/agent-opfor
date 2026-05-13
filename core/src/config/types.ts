@@ -333,6 +333,8 @@ export interface TargetConfig {
 export interface AttackEntry {
   evaluatorId: string;
   evaluatorName: string;
+  /** One-line description of what this evaluator tests. Passed to the judge for scope context. */
+  description?: string;
   severity: string;
   owasp: string;
   patternName: string;

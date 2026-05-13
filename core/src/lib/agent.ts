@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { LanguageModel } from "ai";
 import { judgeResponse } from "../evaluators/judge.js";
 import type {
+  AttackContext,
   JudgeObservabilityContext,
   JudgeResult,
   ConversationTurn,
@@ -418,13 +419,14 @@ export async function runAttackAgent(cfg: RunAgentConfig): Promise<AgentAttackRe
         maxChars: tel.enrichJudgeTraceJsonMaxChars ?? 14_000,
       })) ?? undefined;
   }
+  const attackContext: AttackContext = { patternName: attack.patternName };
   const judge: JudgeResult = await judgeResponse(
     {
       id: attack.evaluatorId,
       name: attack.evaluatorName,
       severity: attack.severity,
       owasp: attack.owasp,
-      description: "",
+      description: attack.description ?? "",
       passCriteria: attack.passCriteria,
       failCriteria: attack.failCriteria,
       patterns: [],
@@ -432,7 +434,9 @@ export async function runAttackAgent(cfg: RunAgentConfig): Promise<AgentAttackRe
     attack.prompt,
     capturedResponse,
     cfg.model,
-    Object.keys(obs).length > 0 ? obs : undefined
+    Object.keys(obs).length > 0 ? obs : undefined,
+    undefined,
+    attackContext
   );
 
   return { prompt: attack.prompt, response: capturedResponse, judge, traceId: propagationTraceId };
