@@ -506,6 +506,7 @@ export function registerSetupCommand(program: Command) {
           allAttacks.push({
             evaluatorId: evaluator.id,
             evaluatorName: evaluator.name,
+            description: evaluator.description,
             severity: evaluator.severity,
             owasp: evaluator.owasp,
             patternName: attack.patternName,
@@ -599,7 +600,7 @@ export function registerSetupCommand(program: Command) {
       }
       console.log(`\n  ⚠  The prompts file contains your API key — add it to .gitignore`);
       console.log(`\nNext step:`);
-      console.log(`  opfor run --attacks ${outputPath}\n`);
+      console.log(`  opfor execute --attacks ${outputPath}\n`);
     });
 }
 
@@ -673,6 +674,7 @@ export async function generateAgentAttacksFromConfig(opts: {
       allAttacks.push({
         evaluatorId: evaluator.id,
         evaluatorName: evaluator.name,
+        description: evaluator.description,
         severity: evaluator.severity,
         owasp: evaluator.owasp,
         patternName: attack.patternName,

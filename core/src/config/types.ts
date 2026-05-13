@@ -333,6 +333,8 @@ export interface TargetConfig {
 export interface AttackEntry {
   evaluatorId: string;
   evaluatorName: string;
+  /** One-line description of what this evaluator tests. Passed to the judge for scope context. */
+  description?: string;
   severity: string;
   owasp: string;
   patternName: string;
@@ -353,7 +355,7 @@ export interface PromptsFile {
   judgeLlm?: LlmConfig;
   target: TargetConfig;
   attacks: AttackEntry[];
-  /** Copied from setup config when present; drives telemetry adapters during `opfor run`. */
+  /** Copied from setup config when present; drives telemetry adapters during `opfor execute`. */
   telemetry?: TelemetryConfig;
   /**
    * When Langfuse curation ran during setup, the same output directory contains this markdown file

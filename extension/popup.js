@@ -32,6 +32,7 @@ const state = {
   agentDescription: "",
   maxTurns: 10,
   waitSec: 10,
+  attackObjective: "",
   businessUseCase: "",
   judgeHint: "",
   saveTranscript: true,
@@ -218,7 +219,7 @@ function setSuite(id) {
   state.suiteId = id;
   const suite = state.catalog?.suites.find((s) => s.id === id);
   $("suiteDescription").textContent = suite?.description || "";
-  state.selectedEvaluators = new Set(suite ? suite.evaluatorIds : []);
+  state.selectedEvaluators = new Set(suite && id !== "all-evaluators" ? suite.evaluatorIds : []);
   renderEvaluatorList();
   updateRunButton();
 }
@@ -300,6 +301,7 @@ async function loadSettings() {
     agentDescription: s.agentDescription ?? "",
     maxTurns: clamp(Number(s.maxTurns) || 10, 1, 20),
     waitSec: clamp(Number(s.waitSec) || 10, 3, 30),
+    attackObjective: s.attackObjective ?? "",
     businessUseCase: s.businessUseCase ?? "",
     judgeHint: s.judgeHint ?? "",
     saveTranscript: s.saveTranscript ?? true,
@@ -320,6 +322,7 @@ async function saveSettings() {
       agentDescription: state.agentDescription,
       maxTurns: state.maxTurns,
       waitSec: state.waitSec,
+      attackObjective: state.attackObjective,
       businessUseCase: state.businessUseCase,
       judgeHint: state.judgeHint,
       saveTranscript: state.saveTranscript,
@@ -352,10 +355,21 @@ async function loadCatalog() {
       `catalog.json (${r.status}). Run: node src/extension/scripts/build-catalog.mjs`
     );
   state.catalog = await r.json();
+
+  state.catalog.suites.push({
+    id: "all-evaluators",
+    name: "All Evaluators",
+    description: "Every evaluator across every suite — pick any subset to run.",
+    evaluatorIds: state.catalog.evaluators.map((e) => e.id),
+  });
+
   const opts = state.catalog.suites.map((s) => ({
     value: s.id,
     label: s.name,
-    meta: `${s.evaluatorIds.length} evals`,
+    meta:
+      s.id === "all-evaluators"
+        ? `${s.evaluatorIds.length} evals · all suites`
+        : `${s.evaluatorIds.length} evals`,
   }));
   suiteDD.setOptions(opts);
   const defaultSuite =
@@ -1337,7 +1351,10 @@ async function downloadReport() {
   // If state.results is empty (popup was reopened after run), recover from storage.
   if (!state.results.length) {
     try {
-      const { opforLastResult } = await chrome.storage.local.get("opforLastResult");
+      const data = await chrome.storage.local.get(["opforLastResult", "opforLiveTranscript"]);
+      const opforLastResult = data.opforLastResult;
+      const liveTranscript = data.opforLiveTranscript;
+
       if (opforLastResult?.judgment) {
         const verdict =
           String(opforLastResult.judgment.verdict || "FAIL").toUpperCase() === "PASS"
@@ -1354,9 +1371,8 @@ async function downloadReport() {
             raw: opforLastResult,
           },
         ];
-      } else if (opforLastResult) {
-        // No judgment available — show transcript info if we have it
-        const turnCount = opforLastResult.transcript?.length || 0;
+      } else if (opforLastResult?.transcript?.length >= 2) {
+        const turnCount = opforLastResult.transcript.length;
         state.results = [
           {
             id: opforLastResult.evaluatorId || "unknown",
@@ -1369,6 +1385,57 @@ async function downloadReport() {
             raw: opforLastResult,
           },
         ];
+      } else if (liveTranscript?.transcript?.length >= 2) {
+        let judgedResult = null;
+        try {
+          const judged = await chrome.runtime.sendMessage({
+            type: "OPFOR_JUDGE_PARTIAL",
+            transcript: liveTranscript.transcript,
+            evaluatorId: liveTranscript.evaluatorId,
+            attackObjective: state.attackObjective || "",
+            judgeHint: state.judgeHint || "",
+          });
+          if (judged?.ok && judged?.judgment) judgedResult = judged;
+        } catch {}
+
+        if (judgedResult) {
+          const v =
+            String(judgedResult.judgment.verdict || "FAIL").toUpperCase() === "PASS"
+              ? "PASS"
+              : "FAIL";
+          state.results = [
+            {
+              id: judgedResult.evaluatorId || liveTranscript.evaluatorId || "unknown",
+              name: judgedResult.evaluatorName || liveTranscript.evaluatorName || "Evaluator",
+              sev: normalizeSev(judgedResult.severity || liveTranscript.severity),
+              verdict: v,
+              summary: (judgedResult.judgment.summary || "") + " (recovered from interrupted run)",
+              raw: judgedResult,
+            },
+          ];
+        } else {
+          const turnCount = liveTranscript.transcript.length;
+          state.results = [
+            {
+              id: liveTranscript.evaluatorId || "unknown",
+              name: liveTranscript.evaluatorName || "Evaluator",
+              sev: normalizeSev(liveTranscript.severity),
+              verdict: "FAIL",
+              summary: `Run was interrupted after ${Math.floor(turnCount / 2)} turns. Transcript recovered but judgment could not be produced.`,
+              raw: {
+                ok: true,
+                partial: true,
+                stopped: true,
+                stopReason: "interrupted",
+                transcript: liveTranscript.transcript,
+                turns: liveTranscript.turns || [],
+                evaluatorId: liveTranscript.evaluatorId,
+                evaluatorName: liveTranscript.evaluatorName,
+                severity: liveTranscript.severity,
+              },
+            },
+          ];
+        }
       }
     } catch {}
   }
@@ -1398,50 +1465,57 @@ async function runOneEvaluator(ev, { resume = false } = {}) {
         evaluatorId: ev.id,
         maxRounds: state.maxTurns,
         waitMs: state.waitSec * 1000,
+        attackObjective: state.attackObjective || "",
+        businessUseCase: state.businessUseCase || "",
+        judgeHint: state.judgeHint || "",
       };
   setPhase("locating");
-  let result;
+
+  // Fire-and-forget: kick off the run in the service worker but don't rely
+  // on the message channel for the result.  Chrome MV3 message ports are
+  // unreliable for long-running operations (channel timeouts, service-worker
+  // restarts, multiple-listener races).  Instead we always poll storage.
+  let directResult;
   try {
-    result = await chrome.runtime.sendMessage(payload);
-  } catch (err) {
-    result = { ok: false, error: err instanceof Error ? err.message : String(err) };
+    directResult = await Promise.race([
+      chrome.runtime.sendMessage(payload),
+      new Promise((r) => setTimeout(() => r(undefined), 5000)),
+    ]);
+  } catch {
+    directResult = undefined;
   }
+
+  // If the service worker replied quickly with a definitive result, use it.
+  if (directResult?.ok && directResult?.judgment) {
+    stopCosmeticTicker();
+    setPhase("judging");
+    await new Promise((r) => setTimeout(r, 250));
+    const verdict =
+      String(directResult.judgment?.verdict || "FAIL").toUpperCase() === "PASS" ? "PASS" : "FAIL";
+    return {
+      record: {
+        id: ev.id,
+        name: ev.name,
+        sev: ev.sev,
+        verdict,
+        summary: directResult.judgment?.summary || "",
+        raw: directResult,
+      },
+    };
+  }
+  if (directResult?.paused) {
+    stopCosmeticTicker();
+    return { paused: true, error: directResult.error };
+  }
+
+  // Otherwise poll storage — the service worker persists results there.
+  const result = await pollStorageForResult(ev.id);
   stopCosmeticTicker();
 
-  // If sendMessage returned nothing (channel closed, timeout), try storage fallback.
-  if (!result || (typeof result === "object" && Object.keys(result).length === 0)) {
-    try {
-      const { opforLastResult } = await chrome.storage.local.get("opforLastResult");
-      if (opforLastResult?.ok && !opforLastResult.partial) {
-        result = opforLastResult;
-      }
-    } catch {}
-  }
-
+  if (result?.paused) return { paused: true, error: result.error };
   if (!result?.ok) {
-    // Even on failure, check if the service worker saved a (partial) judged result to storage.
-    if (!result?.paused) {
-      try {
-        const { opforLastResult } = await chrome.storage.local.get("opforLastResult");
-        if (opforLastResult?.judgment) {
-          // We have a judged result (possibly partial) — use it instead of showing error
-          result = opforLastResult;
-        }
-      } catch {}
-    }
-    if (!result?.ok) {
-      // One more attempt: check if a partial result with judgment was saved
-      if (result?.paused) {
-        try {
-          const { opforLastResult } = await chrome.storage.local.get("opforLastResult");
-          if (opforLastResult?.judgment && opforLastResult?.transcript?.length >= 2) {
-            result = opforLastResult;
-          }
-        } catch {}
-        if (!result?.ok) return { paused: true, error: result.error };
-      }
-      if (!result?.ok) return { error: result?.error || "Unknown error" };
-    }
+    const errMsg = result?.error || directResult?.error || "Unknown error";
+    return { error: errMsg };
   }
 
   setPhase("judging");
@@ -1458,6 +1532,135 @@ async function runOneEvaluator(ev, { resume = false } = {}) {
       summary: result.judgment?.summary || "",
       raw: result,
     },
+  };
+}
+
+/**
+ * Poll chrome.storage.local for a completed or judged result.
+ * The service worker persists results to `opforLastResult` and live transcripts
+ * to `opforLiveTranscript`. This function keeps polling as long as the run is
+ * active, with an absolute cap of 10 minutes.
+ */
+async function pollStorageForResult(evaluatorId) {
+  const POLL_MS = 2000;
+  const ABS_MAX_MS = 600_000;
+  const pollStart = Date.now();
+  let seenRunning = false;
+
+  while (Date.now() - pollStart < ABS_MAX_MS) {
+    await new Promise((r) => setTimeout(r, POLL_MS));
+
+    let data;
+    try {
+      data = await chrome.storage.local.get([
+        "opforLastResult",
+        "opforLiveTranscript",
+        "opforRunStatus",
+      ]);
+    } catch {
+      continue;
+    }
+
+    // 1. Best case: completed result with judgment
+    const last = data.opforLastResult;
+    if (last?.judgment) {
+      if (last.evaluatorId === evaluatorId || last.completed) return last;
+    }
+
+    const status = data.opforRunStatus;
+
+    // 2. Run still active — keep polling
+    if (status?.running) {
+      seenRunning = true;
+      continue;
+    }
+
+    // 3. Run ended — give it one extra beat for storage writes to settle
+    if (seenRunning && !last?.judgment) {
+      seenRunning = false;
+      await new Promise((r) => setTimeout(r, 1500));
+      try {
+        const fresh = await chrome.storage.local.get(["opforLastResult"]);
+        if (fresh.opforLastResult?.judgment) return fresh.opforLastResult;
+      } catch {}
+    }
+
+    // 4. Completed result with judgment (re-check after settle)
+    if (last?.judgment) return last;
+
+    // 5. Service worker returned an explicit error (ok: false, no judgment)
+    if (last && last.ok === false && last.errorMessage) {
+      return { ok: false, error: last.errorMessage };
+    }
+
+    // 6. Live transcript available — ask service worker to judge it
+    const live = data.opforLiveTranscript;
+    if (live?.transcript?.length >= 2) {
+      try {
+        const judged = await chrome.runtime.sendMessage({
+          type: "OPFOR_JUDGE_PARTIAL",
+          transcript: live.transcript,
+          evaluatorId: live.evaluatorId || evaluatorId,
+          attackObjective: state.attackObjective || "",
+          judgeHint: state.judgeHint || "",
+        });
+        if (judged?.ok && judged?.judgment) return judged;
+      } catch {}
+
+      return {
+        ok: true,
+        partial: true,
+        stopped: true,
+        stopReason: "channel_closed",
+        evaluatorId: live.evaluatorId,
+        evaluatorName: live.evaluatorName,
+        severity: live.severity,
+        transcript: live.transcript,
+        turns: live.turns || [],
+        judgment: {
+          verdict: "FAIL",
+          summary: `Run completed ${Math.floor(live.transcript.length / 2)} turns but judgment could not be produced.`,
+          findings: live.transcript
+            .filter((m) => m.role === "assistant")
+            .map((m) => String(m.content || "").slice(0, 500)),
+          score: 5,
+        },
+      };
+    }
+
+    // 7. Nothing in storage yet and run was never seen — wait a bit longer
+    //    for the service worker to wake up and start (cold-start grace period)
+    if (!seenRunning && Date.now() - pollStart < 15_000) continue;
+
+    // 8. Run ended with nothing usable
+    break;
+  }
+
+  // Final attempt
+  try {
+    const data = await chrome.storage.local.get(["opforLastResult", "opforLiveTranscript"]);
+    if (data.opforLastResult?.judgment) return data.opforLastResult;
+    if (data.opforLastResult?.errorMessage)
+      return { ok: false, error: data.opforLastResult.errorMessage };
+
+    const live = data.opforLiveTranscript;
+    if (live?.transcript?.length >= 2) {
+      try {
+        const judged = await chrome.runtime.sendMessage({
+          type: "OPFOR_JUDGE_PARTIAL",
+          transcript: live.transcript,
+          evaluatorId: live.evaluatorId || evaluatorId,
+          attackObjective: state.attackObjective || "",
+          judgeHint: state.judgeHint || "",
+        });
+        if (judged?.ok && judged?.judgment) return judged;
+      } catch {}
+    }
+  } catch {}
+
+  return {
+    ok: false,
+    error: "Run did not produce a result. The service worker may have been interrupted.",
   };
 }
 
@@ -1483,6 +1686,10 @@ async function startRun({ resume = false } = {}) {
       .map((ev) => ({ id: ev.id, name: ev.name, sev: normalizeSev(ev.severity) }));
     state.evIdx = 0;
     state.results = [];
+
+    try {
+      await chrome.storage.local.remove(["opforLastResult", "opforLiveTranscript"]);
+    } catch {}
   }
 
   setScreen("running");
@@ -1517,10 +1724,12 @@ async function startRun({ resume = false } = {}) {
     }
     if (state.cancelRequested) break;
     if (out.error) {
-      // Try to recover a judged partial result from storage instead of just showing the error
       let recovered = null;
       try {
-        const { opforLastResult } = await chrome.storage.local.get("opforLastResult");
+        const data = await chrome.storage.local.get(["opforLastResult", "opforLiveTranscript"]);
+        const opforLastResult = data.opforLastResult;
+        const live = data.opforLiveTranscript;
+
         if (
           opforLastResult?.judgment &&
           opforLastResult?.evaluatorId === ev.id &&
@@ -1538,6 +1747,30 @@ async function startRun({ resume = false } = {}) {
             summary: opforLastResult.judgment.summary || "",
             raw: opforLastResult,
           };
+        } else if (live?.transcript?.length >= 2) {
+          try {
+            const judged = await chrome.runtime.sendMessage({
+              type: "OPFOR_JUDGE_PARTIAL",
+              transcript: live.transcript,
+              evaluatorId: live.evaluatorId || ev.id,
+              attackObjective: state.attackObjective || "",
+              judgeHint: state.judgeHint || "",
+            });
+            if (judged?.ok && judged?.judgment) {
+              const v =
+                String(judged.judgment.verdict || "FAIL").toUpperCase() === "PASS"
+                  ? "PASS"
+                  : "FAIL";
+              recovered = {
+                id: ev.id,
+                name: ev.name,
+                sev: ev.sev,
+                verdict: v,
+                summary: (judged.judgment.summary || "") + " (recovered from interrupted run)",
+                raw: judged,
+              };
+            }
+          } catch {}
         }
       } catch {}
       if (recovered) {
@@ -1672,7 +1905,7 @@ function wire() {
     const evs = $("evals");
     evs.dataset.open = evs.dataset.open === "true" ? "false" : "true";
   });
-  $("evalsSelectAll").addEventListener("click", (e) => {
+  $("evalsToggleAll").addEventListener("click", (e) => {
     e.stopPropagation();
     const suite = state.catalog?.suites.find((s) => s.id === state.suiteId);
     if (!suite) return;
@@ -1753,6 +1986,10 @@ function wire() {
   bindStepper("waitSec", "waitSecValue", "waitSec", 3, 30);
 
   // Advanced text fields
+  $("attackObjective").addEventListener("input", (e) => {
+    state.attackObjective = e.target.value;
+    saveSettings();
+  });
   $("businessUseCase").addEventListener("input", (e) => {
     state.businessUseCase = e.target.value;
     saveSettings();
@@ -1987,6 +2224,7 @@ async function init() {
   $("apiKey").value = state.apiKey;
   modelDD.setValue(state.model);
   $("agentDescription").value = state.agentDescription;
+  $("attackObjective").value = state.attackObjective;
   $("businessUseCase").value = state.businessUseCase;
   $("judgeHint").value = state.judgeHint;
   $("scrapeToggle").setAttribute("aria-checked", String(state.scrapeFromSite));

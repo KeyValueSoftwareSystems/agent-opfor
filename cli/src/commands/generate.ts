@@ -94,7 +94,7 @@ export function registerGenerateCommand(program: Command): void {
 
         console.log(`\nAttacks written:\n  ${outPath}\n`);
         const envArg = opts.env ? ` --env ${path.resolve(opts.env)}` : "";
-        console.log(`Next:\n  opfor run --attacks ${outPath}${envArg}\n`);
+        console.log(`Next:\n  opfor execute --attacks ${outPath}${envArg}\n`);
       }
     );
 }

@@ -2,72 +2,31 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { RunReport, AttackRunResult } from "../run/types.js";
 
-// ─── helpers ──────────────────────────────────────────────────────────────────
-
 function esc(s: string): string {
   return s
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
-function severityColor(s: string): string {
-  switch (s.toLowerCase()) {
-    case "critical":
-      return "#DC2626";
-    case "high":
-      return "#EA580C";
-    case "medium":
-      return "#D97706";
-    case "low":
-      return "#16A34A";
-    default:
-      return "#6B7280";
-  }
+function truncate(s: string, n: number): string {
+  return s.length > n ? s.slice(0, n) + "…" : s;
 }
 
-function severityEmoji(s: string): string {
-  switch (s.toLowerCase()) {
-    case "critical":
-      return "🔴";
-    case "high":
-      return "🟠";
-    case "medium":
-      return "🟡";
-    case "low":
-      return "🟢";
-    default:
-      return "⚪";
-  }
+function safetyColor(score: number): string {
+  if (score >= 70) return "#059669";
+  if (score >= 50) return "#D97706";
+  return "#DC2626";
 }
 
-function severityBadgeClass(s: string): string {
-  switch (s.toLowerCase()) {
-    case "critical":
-      return "sev-critical";
-    case "high":
-      return "sev-high";
-    case "medium":
-      return "sev-medium";
-    case "low":
-      return "sev-low";
-    default:
-      return "sev-low";
-  }
-}
-
-function donutSvg(passRate: number, color: string): string {
-  const r = 15.9;
-  const circumference = 2 * Math.PI * r;
-  const filled = (passRate / 100) * circumference;
-  const gap = circumference - filled;
-  return `<svg viewBox="0 0 36 36" width="80" height="80" style="transform:rotate(-90deg)">
-    <circle cx="18" cy="18" r="${r}" fill="none" stroke="#E5E7EB" stroke-width="3.2"/>
-    <circle cx="18" cy="18" r="${r}" fill="none" stroke="${color}" stroke-width="3.2"
-      stroke-dasharray="${filled.toFixed(1)} ${gap.toFixed(1)}" stroke-linecap="round"/>
-  </svg>`;
-}
+const SEV_HEX: Record<string, string> = {
+  critical: "#DC2626",
+  high: "#EA580C",
+  medium: "#D97706",
+  low: "#16A34A",
+};
 
 function runTimestamp(date: Date): string {
   const pad = (n: number, len = 2) => String(n).padStart(len, "0");
@@ -82,106 +41,6 @@ function runTimestamp(date: Date): string {
   );
 }
 
-// ─── attack result card ───────────────────────────────────────────────────────
-
-function attackCard(result: AttackRunResult, index: number): string {
-  const verdict = result.judge.verdict;
-  const tcClass = verdict === "PASS" ? "pass" : verdict === "ERROR" ? "error" : "fail";
-  const argsFormatted = esc(JSON.stringify(result.toolArguments, null, 2));
-
-  // Tool response body
-  const responseBody = result.toolError
-    ? `<span style="color:#EF4444">Tool error: ${esc(result.toolError)}</span>`
-    : `<div class="tc-turn-text">${esc(result.rawToolResponse.slice(0, 2000))}${result.rawToolResponse.length > 2000 ? "\n…(truncated)" : ""}</div>`;
-
-  // Multi-turn breakdown
-  let turnsHtml = "";
-  if (result.turns && result.turns.length > 1) {
-    const turnItems = result.turns
-      .map((turn) => {
-        const turnArgs = esc(JSON.stringify(turn.toolArguments, null, 2));
-        const turnResp = turn.toolError
-          ? `<span style="color:#EF4444">Error: ${esc(turn.toolError)}</span>`
-          : `<div class="tc-turn-text">${esc(turn.rawToolResponse.slice(0, 800))}${turn.rawToolResponse.length > 800 ? "\n…" : ""}</div>`;
-        const turnVerdict = turn.judge.verdict;
-        const turnVerdictColor =
-          turnVerdict === "PASS" ? "#16A34A" : turnVerdict === "ERROR" ? "#D97706" : "#DC2626";
-        return `
-          <div style="margin-bottom:10px;padding:8px 10px;background:#F8FAFC;border-radius:6px;border-left:2px solid #CBD5E1">
-            <div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:4px">Turn ${turn.turnIndex} — <code>${esc(turn.toolName)}</code> <span style="color:${turnVerdictColor}">${turnVerdict}</span>${turnVerdict !== "ERROR" ? ` · score ${turn.judge.score}/10` : ""}</div>
-            <div class="tc-turn-label">Arguments</div>
-            <pre class="tc-turn-text">${turnArgs}</pre>
-            <div class="tc-turn-label" style="margin-top:6px">Response</div>
-            ${turnResp}
-            ${turn.judge.reasoning ? `<div style="font-size:11px;color:#6B7280;margin-top:4px;font-style:italic">${esc(turn.judge.reasoning)}</div>` : ""}
-          </div>`;
-      })
-      .join("");
-    turnsHtml = `
-        <details style="margin-bottom:10px">
-          <summary style="font-size:13px">Multi-turn breakdown (${result.turns.length} turns)</summary>
-          <div style="margin-top:10px">${turnItems}</div>
-        </details>`;
-  }
-
-  // Body for ERROR verdict
-  let bodyHtml: string;
-  if (verdict === "ERROR") {
-    bodyHtml = `
-        <details style="margin-bottom:8px">
-          <summary style="font-size:13px;color:#374151;cursor:pointer">Arguments</summary>
-          <pre class="tc-turn-text" style="margin-top:6px">${argsFormatted}</pre>
-        </details>
-        <div style="margin-top:8px;padding:10px 12px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:6px;font-size:13px;color:#92400E">
-          <strong>Tool Error:</strong> ${esc(result.judge.errorMessage ?? result.toolError ?? result.rawToolResponse)}
-        </div>
-        ${turnsHtml}`;
-  } else {
-    bodyHtml = `
-        <details style="margin-bottom:8px">
-          <summary style="font-size:13px;color:#374151;cursor:pointer">Arguments</summary>
-          <pre class="tc-turn-text" style="margin-top:6px">${argsFormatted}</pre>
-        </details>
-        <details style="margin-bottom:8px">
-          <summary style="font-size:13px;color:#374151;cursor:pointer">Tool Response</summary>
-          <div style="margin-top:6px">${responseBody}</div>
-        </details>
-        ${turnsHtml}`;
-  }
-
-  // Judge block (skip for ERROR)
-  const judgeBlock =
-    verdict === "ERROR"
-      ? ""
-      : (() => {
-          const judgeBg = verdict === "PASS" ? "#F0FDF4" : "#FEF2F2";
-          const judgeBorder = verdict === "PASS" ? "#BBF7D0" : "#FECACA";
-          const judgeStrong = verdict === "PASS" ? "#065F46" : "#991B1B";
-          return `
-        <div class="tc-judge ${verdict === "FAIL" ? "fail" : ""}" style="background:${judgeBg};border-color:${judgeBorder}">
-          <strong style="color:${judgeStrong}">${verdict}</strong>
-          &nbsp;·&nbsp;Score ${result.judge.score}/10
-          &nbsp;·&nbsp;Confidence ${result.judge.confidence}%
-          ${result.judge.evidence && result.judge.evidence !== "N/A" ? `&nbsp;·&nbsp;Evidence: <em>${esc(result.judge.evidence)}</em>` : ""}
-          <br><span style="color:#374151">${esc(result.judge.reasoning)}</span>
-        </div>`;
-        })();
-
-  return `
-      <div class="tc-item ${tcClass}">
-        <div class="tc-title">
-          #${index + 1} — ${esc(result.attackId)}
-        </div>
-        <div class="tc-meta">
-          Evaluator: <code>${esc(result.evaluatorId)}</code> &nbsp;·&nbsp; Tool: <code>${esc(result.toolName)}</code>
-        </div>
-        ${bodyHtml}
-        ${judgeBlock}
-      </div>`;
-}
-
-// ─── main export ──────────────────────────────────────────────────────────────
-
 export async function writeHtmlReport(
   report: RunReport,
   outputDir: string
@@ -194,107 +53,27 @@ export async function writeHtmlReport(
   const noScoreableTests = scoreDenominator === 0;
   const errors = summary.errors ?? 0;
 
-  // Score colors
-  const scoreColor = noScoreableTests
-    ? "#6B7280"
-    : summary.safetyScore >= 70
-      ? "#16A34A"
-      : summary.safetyScore >= 50
-        ? "#EAB308"
-        : "#DC2626";
-  const scoreClass = noScoreableTests
-    ? "color-gray"
-    : summary.safetyScore >= 70
-      ? "color-green"
-      : summary.safetyScore >= 50
-        ? "color-yellow"
-        : "color-red";
-  const scoreFillClass = noScoreableTests
-    ? "fill-gray"
-    : summary.safetyScore >= 70
-      ? "fill-green"
-      : summary.safetyScore >= 50
-        ? "fill-yellow"
-        : "fill-red";
-  const attackClass = summary.attackSuccessRate > 30 ? "color-red" : "color-green";
-  const evalsFailed = evaluators.filter((e) => e.failed > 0).length;
-  const evalsClass = evalsFailed > 0 ? "color-red" : errors > 0 ? "color-amber" : "color-green";
-  const errorsClass = errors > 0 ? "color-amber" : "color-green";
+  const overallVerdict = summary.failed === 0 && summary.total > 0 ? "PASS" : "FAIL";
+  const riskLevel =
+    summary.safetyScore >= 80
+      ? { label: "Low Risk", color: "#059669" }
+      : summary.safetyScore >= 60
+        ? { label: "Medium Risk", color: "#D97706" }
+        : summary.safetyScore >= 40
+          ? { label: "High Risk", color: "#DC2626" }
+          : { label: "Critical Risk", color: "#991B1B" };
 
-  // ── Assessment Scope ───────────────────────────────────────────────────────
-  const scopeDesc = evaluators
-    .map(
-      (e) => `${(e.evaluatorName || e.evaluatorId).toLowerCase()}${e.owasp ? ` (${e.owasp})` : ""}`
-    )
-    .join(" · ");
+  const dateStr = now.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+  const timeStr = now.toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 
-  const scopeSection = `
-  <section>
-    <h2>Assessment Scope</h2>
-    <div class="suite-box">
-      <div class="pie-wrap">
-        ${donutSvg(noScoreableTests ? 0 : summary.safetyScore, scoreColor)}
-        <div class="pie-label" style="color:${scoreColor}">${noScoreableTests ? "N/A" : `${summary.safetyScore}%`}</div>
-      </div>
-      <div style="flex:1;min-width:160px">
-        <div class="suite-name">${esc(report.suiteId)}</div>
-        <div class="suite-desc">${esc(scopeDesc)}</div>
-      </div>
-      <div class="suite-stats">
-        <div class="suite-stat">
-          <div class="suite-stat-num">${evaluators.length}</div>
-          <div class="suite-stat-label">Evaluators</div>
-        </div>
-        <div class="suite-stat">
-          <div class="suite-stat-num color-green">${summary.passed}</div>
-          <div class="suite-stat-label">Passed</div>
-        </div>
-        <div class="suite-stat">
-          <div class="suite-stat-num color-red">${summary.failed}</div>
-          <div class="suite-stat-label">Failed</div>
-        </div>
-        ${
-          errors > 0
-            ? `
-        <div class="suite-stat">
-          <div class="suite-stat-num color-amber">${errors}</div>
-          <div class="suite-stat-label">Errors</div>
-        </div>`
-            : ""
-        }
-      </div>
-    </div>
-  </section>`;
-
-  // ── Evaluator Results Table ────────────────────────────────────────────────
-  const anyErrors = evaluators.some((e) => (e.errors ?? 0) > 0);
-  const evaluatorRows = evaluators
-    .map((e) => {
-      const evalErrors = e.errors ?? 0;
-      const passDenom = e.passed + e.failed;
-      const passRate = passDenom > 0 ? Math.round((e.passed / passDenom) * 100) : 0;
-      const scoreable = e.results.filter((r) => r.judge.verdict !== "ERROR");
-      const avgScore =
-        scoreable.length > 0
-          ? (scoreable.reduce((s, r) => s + r.judge.score, 0) / scoreable.length).toFixed(1)
-          : "—";
-      const emoji = severityEmoji(e.severity);
-      const badgeClass = severityBadgeClass(e.severity);
-      return `
-        <tr>
-          <td><strong>${emoji} ${esc(e.evaluatorName || e.evaluatorId)}</strong>${e.owasp ? `<br><span style="font-size:11px;color:#6B7280">${esc(e.owasp)}</span>` : ""}</td>
-          <td>${e.severity ? `<span class="sev-badge ${badgeClass}">${esc(e.severity)}</span>` : "—"}</td>
-          <td>${e.total}</td>
-          <td style="color:#16A34A;font-weight:700">${e.passed}</td>
-          <td style="color:#DC2626;font-weight:700">${e.failed}</td>
-          ${anyErrors ? `<td style="color:#D97706;font-weight:700">${evalErrors > 0 ? evalErrors : "—"}</td>` : ""}
-          <td>${passDenom > 0 ? `${passRate}%` : "—"}</td>
-          <td>${avgScore !== "—" ? `${avgScore} / 10` : "—"}</td>
-        </tr>`;
-    })
-    .join("\n");
-
-  // ── Findings ──────────────────────────────────────────────────────────────
+  // ── Findings ──────────────────────────────────────────────────
   type Finding = {
     rank: number;
     evaluator: string;
@@ -305,37 +84,21 @@ export async function writeHtmlReport(
   const criticalFindings: Finding[] = [];
   const highFindings: Finding[] = [];
   for (const e of evaluators) {
-    if (e.severity === "critical") {
-      for (const r of e.results) {
-        if (r.judge.verdict === "FAIL") {
-          criticalFindings.push({
-            rank: 0,
-            evaluator: e.evaluatorName || e.evaluatorId,
-            attackId: r.attackId,
-            score: r.judge.score,
-            description: r.judge.reasoning,
-          });
-        }
-      }
+    for (const r of e.results) {
+      if (r.judge.verdict !== "FAIL") continue;
+      const f: Finding = {
+        rank: 0,
+        evaluator: e.evaluatorName || e.evaluatorId,
+        attackId: r.attackId,
+        score: r.judge.score,
+        description: r.judge.reasoning,
+      };
+      if (e.severity === "critical") criticalFindings.push(f);
+      else if (e.severity === "high") highFindings.push(f);
     }
   }
-  for (const e of evaluators) {
-    if (e.severity === "high") {
-      for (const r of e.results) {
-        if (r.judge.verdict === "FAIL") {
-          highFindings.push({
-            rank: 0,
-            evaluator: e.evaluatorName || e.evaluatorId,
-            attackId: r.attackId,
-            score: r.judge.score,
-            description: r.judge.reasoning,
-          });
-        }
-      }
-    }
-  }
-  criticalFindings.sort((a, b) => a.score - b.score);
-  highFindings.sort((a, b) => a.score - b.score);
+  criticalFindings.sort((a, b) => b.score - a.score);
+  highFindings.sort((a, b) => b.score - a.score);
   criticalFindings.forEach((f, i) => {
     f.rank = i + 1;
   });
@@ -343,60 +106,94 @@ export async function writeHtmlReport(
     f.rank = i + 1;
   });
 
-  const findingCard = (f: Finding, color: string) => `
-      <div class="finding-card" style="border-left-color:${color}">
-        <div class="finding-header">
-          <span class="finding-rank">#${f.rank}</span>
-          <strong>${esc(f.evaluator)}</strong>
-          <span style="color:#6B7280;font-size:12px">${esc(f.attackId)}</span>
-          <span style="margin-left:auto;font-size:12px;font-weight:600;color:${color}">Score ${f.score}/10</span>
-        </div>
-        <div class="finding-desc">${esc(f.description)}</div>
-      </div>`;
+  // ── Findings HTML ─────────────────────────────────────────────
+  const findingBlock = (label: string, list: Finding[], color: string) =>
+    list.length === 0
+      ? ""
+      : `<div class="finding-block" style="border-color:${color}">
+          <div class="finding-block-head">
+            <span class="finding-label" style="color:${color}">${esc(label)}</span>
+            <span class="finding-count" style="background:${color}18;color:${color};border-color:${color}44">${list.length}</span>
+          </div>
+          <ol class="finding-list">
+            ${list
+              .map(
+                (f) => `<li>
+                <strong>${esc(f.evaluator)}</strong>
+                <span class="finding-score">Score ${f.score}/10</span>
+                <span style="color:#64748B;font-size:12px;margin-left:4px">${esc(f.attackId)}</span>
+                <div class="finding-desc">${esc(truncate(f.description, 240))}</div>
+              </li>`
+              )
+              .join("")}
+          </ol>
+        </div>`;
 
-  const findingsHtml = (() => {
-    if (criticalFindings.length === 0 && highFindings.length === 0) {
-      return `<div class="findings-empty">No vulnerabilities found — all tests passed.</div>`;
-    }
-    let out = "";
-    if (criticalFindings.length > 0) {
-      out += `<h3 style="color:#DC2626;margin-bottom:12px">Critical (${criticalFindings.length})</h3>`;
-      out += criticalFindings.map((f) => findingCard(f, "#DC2626")).join("");
-    }
-    if (highFindings.length > 0) {
-      out += `<h3 style="color:#EA580C;margin:${criticalFindings.length > 0 ? "24px" : "0"} 0 12px">High (${highFindings.length})</h3>`;
-      out += highFindings.map((f) => findingCard(f, "#EA580C")).join("");
-    }
-    return out;
-  })();
-
-  // ── Appendix ──────────────────────────────────────────────────────────────
-  const appendix = evaluators
-    .map((e) => {
-      const color = severityColor(e.severity);
+  // ── Results table rows ────────────────────────────────────────
+  const tableRows = evaluators
+    .map((e, idx) => {
+      const sevColor = SEV_HEX[e.severity] || "#64748B";
       const evalErrors = e.errors ?? 0;
-      const cards = e.results.map((r, i) => attackCard(r, i)).join("\n");
-      const summaryLabel =
-        `<span style="color:${color}">${esc(e.evaluatorName || e.evaluatorId)}</span>` +
-        (e.owasp
-          ? ` <span style="font-weight:400;font-size:12px;color:#6B7280"> · ${esc(e.owasp)}</span>`
-          : "") +
-        ` <span style="font-weight:400;font-size:12px;color:#6B7280"> · ${e.severity} · ${e.passed}/${e.total - evalErrors} passed${evalErrors > 0 ? ` · ${evalErrors} error${evalErrors !== 1 ? "s" : ""}` : ""}</span>`;
+      const passDenom = e.passed + e.failed;
+      const passRate = passDenom > 0 ? Math.round((e.passed / passDenom) * 100) : 0;
+      const scoreable = e.results.filter((r) => r.judge.verdict !== "ERROR");
+      const avgScore =
+        scoreable.length > 0
+          ? (scoreable.reduce((s, r) => s + r.judge.score, 0) / scoreable.length).toFixed(1)
+          : "—";
+      const verdictPass = e.failed === 0 && e.passed > 0;
       return `
-      <details>
-        <summary>${summaryLabel}</summary>
-        <div class="tc-block">${cards}</div>
-      </details>`;
+        <tr>
+          <td class="td-num">${String(idx + 1).padStart(2, "0")}</td>
+          <td><a href="#eval-${idx}" class="eval-link">${esc(e.evaluatorName || e.evaluatorId)}</a>${e.owasp ? `<br><span style="font-size:11px;color:var(--muted)">${esc(e.owasp)}</span>` : ""}</td>
+          <td><span class="sev-tag" style="background:${sevColor}18;color:${sevColor};border-color:${sevColor}44">${esc(e.severity)}</span></td>
+          <td><span class="verdict-tag ${verdictPass ? "verdict-pass" : "verdict-fail"}">${verdictPass ? "PASS" : "FAIL"}</span></td>
+          <td>${e.total}</td>
+          <td style="color:#059669;font-weight:600">${e.passed}</td>
+          <td style="color:#DC2626;font-weight:600">${e.failed}</td>
+          ${evalErrors > 0 ? `<td style="color:#D97706;font-weight:600">${evalErrors}</td>` : ""}
+          <td>${passRate}%</td>
+          <td class="td-score">${avgScore !== "—" ? `${avgScore}<span style="color:#94A3B8">/10</span>` : "—"}</td>
+        </tr>`;
     })
-    .join("\n");
+    .join("");
 
-  // ── JSON report ───────────────────────────────────────────────────────────
+  const anyErrors = evaluators.some((e) => (e.errors ?? 0) > 0);
+
+  // ── Evaluator detail appendix ─────────────────────────────────
+  const appendix = evaluators
+    .map((e, idx) => {
+      const sevColor = SEV_HEX[e.severity] || "#64748B";
+      const verdictPass = e.failed === 0 && e.passed > 0;
+      const cards = e.results.map((r, i) => attackCard(r, i)).join("");
+      return `
+        <details class="eval-detail" id="eval-${idx}">
+          <summary>
+            <div class="eval-summary-left">
+              <span class="eval-num">${String(idx + 1).padStart(2, "0")}</span>
+              <div class="eval-summary-info">
+                <span class="eval-summary-name">${esc(e.evaluatorName || e.evaluatorId)}</span>
+                <span class="sev-tag" style="background:${sevColor}18;color:${sevColor};border-color:${sevColor}44">${esc(e.severity)}</span>
+                ${e.owasp ? `<span style="font-size:11px;color:var(--muted)">${esc(e.owasp)}</span>` : ""}
+              </div>
+            </div>
+            <div class="eval-summary-right">
+              <span style="font-size:12px;color:var(--muted)">${e.passed}/${e.total - (e.errors ?? 0)} passed</span>
+              <span class="verdict-tag ${verdictPass ? "verdict-pass" : "verdict-fail"}">${verdictPass ? "PASS" : "FAIL"}</span>
+              <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+            </div>
+          </summary>
+          <div class="eval-body">
+            ${cards}
+          </div>
+        </details>`;
+    })
+    .join("");
+
+  // ── JSON report ───────────────────────────────────────────────
   const jsonReport = {
     ...report,
-    summary: {
-      ...report.summary,
-      errors,
-    },
+    summary: { ...report.summary, errors },
     evaluators: evaluators.map((e) => ({
       ...e,
       errors: e.errors ?? 0,
@@ -412,191 +209,351 @@ export async function writeHtmlReport(
     highFindings,
   };
 
-  // ── HTML ──────────────────────────────────────────────────────────────────
-  const html = `<!DOCTYPE html>
+  // ── Full HTML ─────────────────────────────────────────────────
+  const html = `<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Opfor MCP Report — ${esc(report.suiteId)}</title>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: Arial, Helvetica, system-ui, sans-serif; background: #F9FAFB; color: #111827; font-size: 14px; line-height: 1.5; }
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Opfor MCP Report — ${esc(report.suiteId)}</title>
+<style>
+  :root{
+    --bg:#F8FAFC;--surface:#FFFFFF;--surface-2:#F1F5F9;
+    --text:#0F172A;--text-2:#334155;--muted:#64748B;--muted-2:#94A3B8;
+    --line:#E2E8F0;--line-2:#CBD5E1;
+    --pass:#059669;--pass-bg:#D1FAE5;--pass-border:#6EE7B7;
+    --fail:#DC2626;--fail-bg:#FEE2E2;--fail-border:#FCA5A5;
+    --accent:#f5ad5c;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{background:var(--bg)}
+  body{color:var(--text);font:14px/1.6 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);padding:0 0 60px}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
 
-    /* ── Header ── */
-    .header { background: #1E293B; color: #F1F5F9; padding: 24px 32px; }
-    .header h1 { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
-    .header-meta { display: flex; flex-wrap: wrap; gap: 20px; font-size: 13px; color: #94A3B8; margin-top: 6px; }
-    .header-meta span strong { color: #CBD5E1; }
-    .badge-completed { background: #16A34A; color: #fff; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .page{max-width:960px;margin:0 auto;padding:0 24px}
 
-    /* ── Layout ── */
-    .container { max-width: 1100px; margin: 0 auto; padding: 32px 24px; }
-    section { margin-bottom: 40px; }
-    h2 { font-size: 16px; font-weight: 700; color: #1E293B; margin-bottom: 16px; border-bottom: 2px solid #E2E8F0; padding-bottom: 8px; }
-    h3 { font-size: 14px; font-weight: 600; color: #374151; margin-bottom: 10px; }
+  /* ── Cover band ── */
+  .cover{background:#0F172A;color:#fff;padding:0;margin-bottom:32px}
+  .cover-inner{max-width:960px;margin:0 auto;padding:36px 24px 32px}
+  .cover-top{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin-bottom:28px}
+  .cover-brand{display:flex;align-items:center;gap:10px}
+  .cover-brand-icon{width:36px;height:36px;background:linear-gradient(135deg,#f5ad5c,#c47a2a);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .cover-brand-name{font-size:15px;font-weight:700;letter-spacing:0.04em;color:#fff}
+  .cover-brand-sub{font-size:11px;color:#94A3B8;letter-spacing:0.08em;text-transform:uppercase;margin-top:1px}
+  .cover-classification{padding:4px 12px;border:1px solid rgba(255,255,255,0.15);border-radius:4px;font-size:11px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:#CBD5E1}
+  .cover-title{font-size:26px;font-weight:700;color:#fff;letter-spacing:-0.01em;margin-bottom:6px}
+  .cover-subtitle{font-size:14px;color:#94A3B8;margin-bottom:24px}
+  .cover-meta{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border:1px solid rgba(255,255,255,0.08);border-radius:10px;overflow:hidden}
+  .cover-meta-item{padding:14px 18px;border-right:1px solid rgba(255,255,255,0.08)}
+  .cover-meta-item:last-child{border-right:none}
+  .cover-meta-k{font-size:11px;color:#64748B;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px}
+  .cover-meta-v{font-size:13px;color:#E2E8F0;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
-    /* ── Summary Cards ── */
-    .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
-    @media (max-width: 768px) { .cards { grid-template-columns: repeat(2, 1fr); } }
-    @media (max-width: 400px) { .cards { grid-template-columns: 1fr; } }
-    .card { background: #fff; border: 1px solid #E2E8F0; border-radius: 10px; padding: 20px; text-align: center; }
-    .card-label { font-size: 12px; color: #6B7280; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; }
-    .card-value { font-size: 36px; font-weight: 800; line-height: 1; }
-    .card-sub { font-size: 12px; color: #6B7280; margin-top: 6px; }
-    .bar { height: 6px; border-radius: 3px; background: #E5E7EB; margin-top: 10px; overflow: hidden; }
-    .bar-fill { height: 100%; border-radius: 3px; }
-    .color-green  { color: #16A34A; } .fill-green  { background: #16A34A; }
-    .color-yellow { color: #EAB308; } .fill-yellow { background: #EAB308; }
-    .color-red    { color: #DC2626; } .fill-red    { background: #DC2626; }
-    .color-amber  { color: #D97706; } .fill-amber  { background: #D97706; }
-    .color-gray   { color: #6B7280; } .fill-gray   { background: #6B7280; }
+  /* ── Section header ── */
+  .section{margin-bottom:32px}
+  .section-header{display:flex;align-items:center;gap:10px;margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+  .section-num{width:22px;height:22px;border-radius:6px;background:var(--accent);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .section-title{font-size:15px;font-weight:600;color:var(--text);letter-spacing:-0.01em}
+  .section-subtitle{font-size:12px;color:var(--muted);margin-left:auto}
 
-    /* ── Suite Box ── */
-    .suite-box { background: #fff; border: 1px solid #E2E8F0; border-radius: 10px; padding: 20px 24px; display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
-    .suite-name { font-size: 15px; font-weight: 700; color: #1E293B; }
-    .suite-desc { font-size: 13px; color: #6B7280; margin-top: 2px; }
-    .pie-wrap { position: relative; width: 80px; height: 80px; flex-shrink: 0; }
-    .pie-wrap svg { display: block; }
-    .pie-label { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; }
-    .suite-stats { display: flex; gap: 24px; flex-wrap: wrap; margin-left: auto; }
-    .suite-stat { text-align: center; }
-    .suite-stat-num { font-size: 24px; font-weight: 800; color: #1E293B; }
-    .suite-stat-label { font-size: 11px; color: #6B7280; text-transform: uppercase; letter-spacing: .05em; }
+  /* ── Executive summary ── */
+  .exec-banner{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 20px;border-radius:12px;border:1px solid var(--line-2);background:var(--surface);margin-bottom:12px}
+  .exec-banner.pass{border-color:var(--pass-border);background:var(--pass-bg)}
+  .exec-banner.fail{border-color:var(--fail-border);background:var(--fail-bg)}
+  .exec-banner-left{display:flex;align-items:center;gap:14px}
+  .exec-verdict-icon{width:44px;height:44px;border-radius:10px;border:1px solid;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .exec-banner.pass .exec-verdict-icon{border-color:var(--pass-border);color:var(--pass);background:var(--pass-bg)}
+  .exec-banner.fail .exec-verdict-icon{border-color:var(--fail-border);color:var(--fail);background:var(--fail-bg)}
+  .exec-verdict-label{font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin-bottom:3px}
+  .exec-verdict-text{font-size:26px;font-weight:800;letter-spacing:0.04em;line-height:1}
+  .exec-banner.pass .exec-verdict-text{color:var(--pass)}
+  .exec-banner.fail .exec-verdict-text{color:var(--fail)}
+  .exec-risk{font-size:12px;font-weight:600;padding:4px 12px;border-radius:999px;border:1px solid;white-space:nowrap}
+  .exec-banner.pass .exec-risk{background:var(--pass-bg);color:var(--pass);border-color:var(--pass-border)}
+  .exec-banner.fail .exec-risk{background:var(--fail-bg);color:var(--fail);border-color:var(--fail-border)}
+  .summary-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+  .stat-card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+  .stat-card .sc-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px}
+  .stat-card .sc-value{font-size:22px;font-weight:700;line-height:1;color:var(--text)}
+  .stat-card .sc-bar{height:4px;background:var(--line);border-radius:2px;margin-top:8px;overflow:hidden}
+  .stat-card .sc-bar-fill{height:100%;border-radius:2px}
+  .stat-card .sc-sub{font-size:11px;color:var(--muted);margin-top:4px}
+  .summary-narrative{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;margin-top:12px;font-size:13px;color:var(--text-2);line-height:1.7}
+  .summary-narrative strong{color:var(--text)}
 
-    /* ── Results Table ── */
-    table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 10px; overflow: hidden; border: 1px solid #E2E8F0; }
-    th { background: #F8FAFC; text-align: left; padding: 10px 14px; font-size: 12px; font-weight: 600; color: #6B7280; text-transform: uppercase; letter-spacing: .05em; border-bottom: 1px solid #E2E8F0; }
-    td { padding: 12px 14px; border-bottom: 1px solid #F1F5F9; vertical-align: middle; }
-    tr:last-child td { border-bottom: none; }
-    tr:nth-child(even) td { background: #F9FAFB; }
-    .sev-badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
-    .sev-critical { background: #FEE2E2; color: #DC2626; }
-    .sev-high     { background: #FFEDD5; color: #EA580C; }
-    .sev-medium   { background: #FEF9C3; color: #A16207; }
-    .sev-low      { background: #DCFCE7; color: #16A34A; }
+  /* ── Assessment scope ── */
+  .scope-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .scope-card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px}
+  .scope-card-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--muted);margin-bottom:12px}
+  .scope-row{display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:5px 0;border-bottom:1px solid var(--line)}
+  .scope-row:last-child{border-bottom:none}
+  .scope-k{font-size:12px;color:var(--muted);flex-shrink:0}
+  .scope-v{font-size:12px;color:var(--text);font-weight:500;text-align:right;word-break:break-word;max-width:60%}
+  .scope-v.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px}
 
-    /* ── Findings ── */
-    .findings-empty { background: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 10px; padding: 20px 24px; color: #15803D; font-weight: 600; text-align: center; font-size: 15px; }
-    .finding-card { background: #fff; border: 1px solid #E2E8F0; border-left: 4px solid #DC2626; border-radius: 0 8px 8px 0; padding: 14px 16px; margin-bottom: 12px; }
-    .finding-header { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; font-size: 14px; }
-    .finding-rank { background: #F3F4F6; color: #374151; font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 999px; }
-    .finding-desc { font-size: 13px; color: #4B5563; }
+  /* ── Findings ── */
+  .findings-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .finding-block{background:var(--surface);border:1px solid;border-left-width:3px;border-radius:10px;padding:16px;overflow:hidden}
+  .finding-block-head{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+  .finding-label{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em}
+  .finding-count{font-size:11px;font-weight:700;padding:2px 8px;border:1px solid;border-radius:999px}
+  .finding-list{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:10px}
+  .finding-list li{font-size:13px;color:var(--text-2);line-height:1.5}
+  .finding-list strong{color:var(--text)}
+  .finding-score{margin-left:6px;font-size:11px;color:var(--muted);font-weight:600;background:var(--surface-2);padding:1px 6px;border-radius:4px;border:1px solid var(--line)}
+  .finding-desc{margin-top:3px;font-size:12px;color:var(--muted)}
+  .no-findings{background:var(--pass-bg);border:1px solid var(--pass-border);border-radius:10px;padding:16px;text-align:center;color:var(--pass);font-weight:600;font-size:13px}
 
-    /* ── Appendix ── */
-    details { background: #fff; border: 1px solid #E2E8F0; border-radius: 10px; margin-bottom: 12px; }
-    summary { padding: 14px 18px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 10px; user-select: none; list-style: none; }
-    summary::-webkit-details-marker { display: none; }
-    summary::before { content: "▶"; font-size: 10px; color: #6B7280; transition: transform 0.15s; flex-shrink: 0; }
-    details[open] > summary::before { transform: rotate(90deg); }
-    .tc-block { padding: 0 18px 18px; }
-    .tc-item { border-left: 3px solid #E2E8F0; padding: 10px 14px; margin-bottom: 14px; border-radius: 0 6px 6px 0; }
-    .tc-item.pass  { border-color: #10B981; }
-    .tc-item.fail  { border-color: #EF4444; }
-    .tc-item.error { border-color: #F59E0B; background: #FFFBEB; }
-    .tc-title { font-size: 13px; font-weight: 600; margin-bottom: 6px; color: #1E293B; }
-    .tc-meta  { font-size: 12px; color: #6B7280; margin-bottom: 8px; }
-    .tc-turn-label { font-size: 11px; font-weight: 700; color: #9CA3AF; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 3px; }
-    .tc-turn-text { font-size: 12px; background: #F8FAFC; border: 1px solid #E2E8F0; padding: 8px 10px; border-radius: 6px; white-space: pre-wrap; word-break: break-word; font-family: ui-monospace, monospace; max-height: 200px; overflow: auto; }
-    .tc-judge { margin-top: 10px; font-size: 12px; padding: 8px 12px; border-radius: 6px; border: 1px solid #BBF7D0; background: #F0FDF4; line-height: 1.6; }
-    .tc-judge.fail { background: #FEF2F2; border-color: #FECACA; }
+  /* ── Results table ── */
+  .results-table-wrap{background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  table.results{width:100%;border-collapse:collapse}
+  table.results th{background:var(--surface-2);padding:10px 14px;text-align:left;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;border-bottom:1px solid var(--line)}
+  table.results td{padding:11px 14px;font-size:13px;border-bottom:1px solid var(--line);vertical-align:middle}
+  table.results tr:last-child td{border-bottom:none}
+  table.results tr:hover td{background:var(--surface-2)}
+  .td-num{color:var(--muted-2);font-size:11px;font-family:ui-monospace,monospace;width:36px}
+  .td-score{font-size:13px;font-weight:600;color:var(--text)}
+  .eval-link{color:var(--text);font-weight:500}
+  .eval-link:hover{color:var(--accent)}
 
-    /* ── Print ── */
-    @media print {
-      .header { background: #fff !important; color: #000 !important; border-bottom: 2px solid #000; }
-      body { background: #fff; }
-      details { page-break-inside: avoid; }
-    }
-  </style>
+  /* ── Badges ── */
+  .sev-tag{display:inline-block;padding:2px 8px;border:1px solid;border-radius:4px;font-size:11px;font-weight:600;letter-spacing:0.03em;white-space:nowrap}
+  .verdict-tag{display:inline-block;padding:2px 9px;border-radius:4px;font-size:11px;font-weight:700;letter-spacing:0.04em}
+  .verdict-pass{background:var(--pass-bg);color:var(--pass);border:1px solid var(--pass-border)}
+  .verdict-fail{background:var(--fail-bg);color:var(--fail);border:1px solid var(--fail-border)}
+
+  /* ── Evaluator detail blocks ── */
+  .eval-detail{background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-bottom:8px}
+  .eval-detail > summary{display:flex;align-items:center;justify-content:space-between;padding:13px 16px;cursor:pointer;list-style:none;gap:12px}
+  .eval-detail > summary::-webkit-details-marker{display:none}
+  .eval-detail > summary:hover{background:var(--surface-2)}
+  .eval-detail[open] > summary{background:var(--surface-2);border-bottom:1px solid var(--line)}
+  .eval-summary-left{display:flex;align-items:center;gap:10px;flex:1;min-width:0}
+  .eval-num{font-size:11px;font-family:ui-monospace,monospace;color:var(--muted-2);flex-shrink:0;width:22px}
+  .eval-summary-info{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .eval-summary-name{font-size:13px;font-weight:600;color:var(--text)}
+  .eval-summary-right{display:flex;align-items:center;gap:10px;flex-shrink:0}
+  .chevron{color:var(--muted-2);transition:transform 0.2s;flex-shrink:0}
+  .eval-detail[open] .chevron{transform:rotate(180deg)}
+  .eval-body{padding:16px}
+
+  /* ── Attack cards ── */
+  .attack-card{border:1px solid var(--line);border-left:3px solid var(--line-2);border-radius:0 8px 8px 0;padding:12px 14px;margin-bottom:10px}
+  .attack-card.pass{border-left-color:var(--pass)}
+  .attack-card.fail{border-left-color:var(--fail)}
+  .attack-card.error{border-left-color:#F59E0B;background:#FFFDF5}
+  .attack-header{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .attack-id{font-size:12px;font-weight:600;color:var(--text)}
+  .attack-tool{font-size:11px;color:var(--muted);font-family:ui-monospace,monospace}
+  .attack-section{margin-bottom:8px}
+  .attack-section-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:4px}
+  .attack-code{font-size:12px;background:var(--surface-2);border:1px solid var(--line);padding:8px 10px;border-radius:6px;white-space:pre-wrap;word-break:break-word;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;max-height:200px;overflow:auto}
+  .attack-judge{margin-top:8px;font-size:12px;padding:8px 12px;border-radius:6px;border:1px solid var(--pass-border);background:var(--pass-bg);line-height:1.6}
+  .attack-judge.fail{background:var(--fail-bg);border-color:var(--fail-border)}
+  .attack-judge strong{font-weight:700}
+
+  /* ── Footer ── */
+  .report-footer{max-width:960px;margin:40px auto 0;padding:16px 24px;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
+  .footer-left{font-size:12px;color:var(--muted)}
+  .footer-right{font-size:12px;color:var(--muted-2);font-family:ui-monospace,monospace}
+
+  @media print{
+    body{background:#fff;padding:0}
+    .cover{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .eval-detail{border:1px solid var(--line)}
+    .stat-card,.scope-card,.finding-block,.results-table-wrap,.eval-detail{break-inside:avoid;box-shadow:none}
+  }
+  @media(max-width:640px){
+    .cover-meta{grid-template-columns:1fr 1fr}
+    .exec-banner{flex-direction:column;align-items:flex-start}
+    .summary-stats{grid-template-columns:1fr 1fr}
+    .scope-grid,.findings-grid{grid-template-columns:1fr}
+  }
+</style>
 </head>
 <body>
 
-<!-- Header -->
-<div class="header">
-  <h1>Opfor MCP Security Report — ${esc(report.suiteId)}</h1>
-  <div class="header-meta">
-    <span><strong>Report ID:</strong> ${esc(report.reportId)}</span>
-    <span><strong>Date:</strong> ${now.toLocaleString()}</span>
-    <span><strong>Server:</strong> ${esc(report.serverSummary)}</span>
-    <span><strong>Generator:</strong> ${esc(report.generatorModel)}</span>
-    <span><strong>Judge:</strong> ${esc(report.judgeModel)}</span>
-    <span><strong>Results:</strong> ${summary.passed}/${summary.total} passed</span>
-    <span><span class="badge-completed">Completed</span></span>
+<div class="cover">
+  <div class="cover-inner">
+    <div class="cover-top">
+      <div class="cover-brand">
+        <div class="cover-brand-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 4v6c0 5-3.5 9-8 10-4.5-1-8-5-8-10V6l8-4z"/></svg>
+        </div>
+        <div>
+          <div class="cover-brand-name">Opfor</div>
+          <div class="cover-brand-sub">MCP Red-team</div>
+        </div>
+      </div>
+      <div class="cover-classification">Confidential</div>
+    </div>
+    <div class="cover-title">MCP Server Security Assessment</div>
+    <div class="cover-subtitle">Automated adversarial evaluation · opfor v0.2 · ${esc(dateStr)}</div>
+    <div class="cover-meta">
+      <div class="cover-meta-item">
+        <div class="cover-meta-k">Target Server</div>
+        <div class="cover-meta-v" title="${esc(report.serverSummary)}">${esc(truncate(report.serverSummary, 60))}</div>
+      </div>
+      <div class="cover-meta-item">
+        <div class="cover-meta-k">Evaluation Suite</div>
+        <div class="cover-meta-v">${esc(report.suiteId)}</div>
+      </div>
+      <div class="cover-meta-item">
+        <div class="cover-meta-k">Assessment Date</div>
+        <div class="cover-meta-v">${esc(dateStr)}, ${esc(timeStr)}</div>
+      </div>
+      <div class="cover-meta-item">
+        <div class="cover-meta-k">Generator Model</div>
+        <div class="cover-meta-v mono" style="font-family:ui-monospace,monospace;font-size:11px">${esc(report.generatorModel)}</div>
+      </div>
+      <div class="cover-meta-item">
+        <div class="cover-meta-k">Judge Model</div>
+        <div class="cover-meta-v mono" style="font-family:ui-monospace,monospace;font-size:11px">${esc(report.judgeModel)}</div>
+      </div>
+      <div class="cover-meta-item">
+        <div class="cover-meta-k">Report ID</div>
+        <div class="cover-meta-v mono" style="font-family:ui-monospace,monospace;font-size:11px;color:#94A3B8">${esc(report.reportId)}</div>
+      </div>
+    </div>
   </div>
 </div>
 
-<div class="container">
+<div class="page">
 
-  <!-- Summary Cards -->
-  <section>
-    <h2>Summary</h2>
-    <div class="cards">
-      <div class="card">
-        <div class="card-label">Safety Score</div>
-        <div class="card-value ${scoreClass}">${noScoreableTests ? "N/A" : `${summary.safetyScore}%`}</div>
-        ${noScoreableTests ? "" : `<div class="bar"><div class="bar-fill ${scoreFillClass}" style="width:${summary.safetyScore}%"></div></div>`}
-        <div class="card-sub">${noScoreableTests ? "No scoreable tests" : `${summary.passed} of ${scoreDenominator} tests passed`}${errors > 0 ? ` · ${errors} error${errors !== 1 ? "s" : ""} excluded` : ""}</div>
+  <!-- 1. Executive Summary -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-num">1</div>
+      <div class="section-title">Executive Summary</div>
+    </div>
+    <div class="exec-banner ${overallVerdict === "PASS" ? "pass" : "fail"}">
+      <div class="exec-banner-left">
+        <div class="exec-verdict-icon">
+          ${
+            overallVerdict === "PASS"
+              ? `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>`
+              : `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 2l8 4v6c0 5-3.5 9-8 10-4.5-1-8-5-8-10V6l8-4z"/></svg>`
+          }
+        </div>
+        <div>
+          <div class="exec-verdict-label">Overall Verdict</div>
+          <div class="exec-verdict-text">${overallVerdict}</div>
+        </div>
       </div>
-      <div class="card">
-        <div class="card-label">Evaluations Failed</div>
-        <div class="card-value ${evalsClass}">${evalsFailed}</div>
-        <div class="card-sub">of ${evaluators.length} evaluator${evaluators.length !== 1 ? "s" : ""} run</div>
+      <div class="exec-risk">${riskLevel.label}</div>
+    </div>
+    <div class="summary-stats">
+      <div class="stat-card">
+        <div class="sc-label">Safety Score</div>
+        <div class="sc-value" style="color:${safetyColor(noScoreableTests ? 0 : summary.safetyScore)}">${noScoreableTests ? "N/A" : `${summary.safetyScore}%`}</div>
+        ${noScoreableTests ? "" : `<div class="sc-bar"><div class="sc-bar-fill" style="width:${summary.safetyScore}%;background:${safetyColor(summary.safetyScore)}"></div></div>`}
+        <div class="sc-sub">${noScoreableTests ? "No scoreable tests" : `${summary.passed} of ${scoreDenominator} attacks defended`}</div>
       </div>
-      <div class="card">
-        <div class="card-label">Attack Success Rate</div>
-        <div class="card-value ${attackClass}">${noScoreableTests ? "N/A" : `${summary.attackSuccessRate}%`}</div>
-        ${noScoreableTests ? "" : `<div class="bar"><div class="bar-fill ${summary.attackSuccessRate > 30 ? "fill-red" : "fill-green"}" style="width:${summary.attackSuccessRate}%"></div></div>`}
-        <div class="card-sub">${summary.failed} attack${summary.failed !== 1 ? "s" : ""} succeeded</div>
+      <div class="stat-card">
+        <div class="sc-label">Attack Success Rate</div>
+        <div class="sc-value" style="color:${summary.attackSuccessRate > 0 ? "#DC2626" : "#059669"}">${noScoreableTests ? "N/A" : `${summary.attackSuccessRate}%`}</div>
+        ${noScoreableTests ? "" : `<div class="sc-bar"><div class="sc-bar-fill" style="width:${summary.attackSuccessRate}%;background:${summary.attackSuccessRate > 0 ? "#DC2626" : "#059669"}"></div></div>`}
+        <div class="sc-sub">${summary.failed} attack${summary.failed !== 1 ? "s" : ""} breached defenses</div>
       </div>
-      <div class="card">
-        <div class="card-label">Errors</div>
-        <div class="card-value ${errorsClass}">${errors}</div>
-        <div class="card-sub">${errors > 0 ? "tool errors (excluded from score)" : "no tool errors"}</div>
+      <div class="stat-card">
+        <div class="sc-label">Attacks Passed</div>
+        <div class="sc-value" style="color:#059669">${summary.passed}</div>
+        <div class="sc-sub">Server defended correctly</div>
+      </div>
+      <div class="stat-card">
+        <div class="sc-label">Evaluators Failed</div>
+        <div class="sc-value" style="color:${summary.failed > 0 ? "#DC2626" : "#059669"}">${evaluators.filter((e) => e.failed > 0).length}</div>
+        <div class="sc-sub">${criticalFindings.length} critical · ${highFindings.length} high</div>
       </div>
     </div>
-  </section>
+    <div class="summary-narrative">
+      ${
+        overallVerdict === "PASS"
+          ? `The MCP server <strong>${esc(truncate(report.serverSummary, 80))}</strong> <strong>passed all ${summary.total} attack${summary.total === 1 ? "" : "s"}</strong> in the <em>${esc(report.suiteId)}</em> suite. No exploitable vulnerabilities were surfaced during automated red-team evaluation. The server demonstrates adequate resistance to the evaluated attack patterns.`
+          : `The MCP server <strong>${esc(truncate(report.serverSummary, 80))}</strong> <strong>failed ${summary.failed} of ${summary.total} attack${summary.total === 1 ? "" : "s"}</strong> (${summary.attackSuccessRate}% attack success rate) in the <em>${esc(report.suiteId)}</em> suite.${criticalFindings.length > 0 ? ` <strong style="color:#DC2626">${criticalFindings.length} critical finding${criticalFindings.length === 1 ? "" : "s"}</strong> require immediate remediation.` : ""} Refer to the Findings section for prioritised details.`
+      }
+    </div>
+  </div>
 
-  ${scopeSection}
+  <!-- 2. Assessment Scope -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-num">2</div>
+      <div class="section-title">Assessment Scope</div>
+    </div>
+    <div class="scope-grid">
+      <div class="scope-card">
+        <div class="scope-card-title">Target</div>
+        <div class="scope-row"><span class="scope-k">Server</span><span class="scope-v mono">${esc(truncate(report.serverSummary, 80))}</span></div>
+        <div class="scope-row"><span class="scope-k">Transport</span><span class="scope-v">${esc(report.transport)}</span></div>
+        <div class="scope-row"><span class="scope-k">Total Attacks</span><span class="scope-v">${summary.total}</span></div>
+      </div>
+      <div class="scope-card">
+        <div class="scope-card-title">Evaluation Parameters</div>
+        <div class="scope-row"><span class="scope-k">Suite</span><span class="scope-v">${esc(report.suiteId)}</span></div>
+        <div class="scope-row"><span class="scope-k">Generator</span><span class="scope-v mono">${esc(report.generatorModel)}</span></div>
+        <div class="scope-row"><span class="scope-k">Judge</span><span class="scope-v mono">${esc(report.judgeModel)}</span></div>
+        <div class="scope-row"><span class="scope-k">Evaluators</span><span class="scope-v">${evaluators.length}</span></div>
+      </div>
+    </div>
+  </div>
 
-  <!-- Evaluator Results Table -->
-  <section>
-    <h2>Evaluator Results</h2>
-    <table>
-      <thead>
-        <tr>
-          <th>Evaluator</th>
-          <th>Severity</th>
-          <th>Tests</th>
-          <th>Passed</th>
-          <th>Failed</th>
-          ${anyErrors ? "<th>Errors</th>" : ""}
-          <th>Pass Rate</th>
-          <th>Avg Score</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${evaluatorRows}
-      </tbody>
-    </table>
-  </section>
+  <!-- 3. Findings -->
+  ${
+    criticalFindings.length + highFindings.length > 0
+      ? `<div class="section">
+          <div class="section-header">
+            <div class="section-num">3</div>
+            <div class="section-title">Key Findings</div>
+            <div class="section-subtitle">${criticalFindings.length + highFindings.length} finding${criticalFindings.length + highFindings.length === 1 ? "" : "s"} requiring attention</div>
+          </div>
+          <div class="findings-grid">
+            ${findingBlock("Critical", criticalFindings, "#DC2626")}
+            ${findingBlock("High", highFindings, "#D97706")}
+          </div>
+        </div>`
+      : `<div class="section">
+          <div class="section-header">
+            <div class="section-num">3</div>
+            <div class="section-title">Key Findings</div>
+          </div>
+          <div class="no-findings">No critical or high severity findings — server passed all evaluated attack patterns.</div>
+        </div>`
+  }
 
-  <!-- Findings -->
-  <section>
-    <h2>Findings</h2>
-    ${findingsHtml}
-  </section>
+  <!-- 4. Evaluation Results -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-num">4</div>
+      <div class="section-title">Evaluation Results</div>
+      <div class="section-subtitle">${evaluators.length} evaluator${evaluators.length === 1 ? "" : "s"} · ${summary.total} attacks</div>
+    </div>
+    <div class="results-table-wrap" style="margin-bottom:16px">
+      <table class="results">
+        <thead><tr>
+          <th>#</th><th>Evaluator</th><th>Severity</th><th>Verdict</th><th>Tests</th><th>Passed</th><th>Failed</th>${anyErrors ? "<th>Errors</th>" : ""}<th>Pass Rate</th><th>Avg Score</th>
+        </tr></thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+    </div>
+  </div>
 
-  <!-- Appendix -->
-  <section>
-    <h2>Appendix — Full Attack Results</h2>
+  <!-- 5. Detailed Results -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-num">5</div>
+      <div class="section-title">Detailed Attack Results</div>
+    </div>
     ${appendix}
-  </section>
+  </div>
 
 </div>
 
-<footer style="text-align:center;color:#9CA3AF;font-size:12px;padding:24px 0;border-top:1px solid #E2E8F0;margin-top:8px">
-  Generated by Opfor MCP &nbsp;·&nbsp; ${esc(report.reportId)} &nbsp;·&nbsp; ${now.toISOString()} &nbsp;·&nbsp; Generator: ${esc(report.generatorModel)} &nbsp;·&nbsp; Judge: ${esc(report.judgeModel)}
-</footer>
+<div class="report-footer">
+  <div class="footer-left">Generated by Opfor MCP · ${esc(dateStr)}</div>
+  <div class="footer-right">${esc(report.reportId)}</div>
+</div>
 
 </body>
 </html>`;
@@ -608,4 +565,77 @@ export async function writeHtmlReport(
   await writeFile(jsonPath, JSON.stringify(jsonReport, null, 2), "utf8");
 
   return { html: htmlPath, json: jsonPath };
+}
+
+// ── Attack card helper ───────────────────────────────────────────
+
+function attackCard(result: AttackRunResult, index: number): string {
+  const verdict = result.judge.verdict;
+  const cardClass = verdict === "PASS" ? "pass" : verdict === "ERROR" ? "error" : "fail";
+  const argsFormatted = esc(JSON.stringify(result.toolArguments, null, 2));
+
+  const responseText = result.toolError
+    ? `Error: ${esc(truncate(result.toolError, 1500))}`
+    : esc(truncate(result.rawToolResponse, 2000));
+
+  // Multi-turn breakdown
+  let turnsHtml = "";
+  if (result.turns && result.turns.length > 1) {
+    turnsHtml = result.turns
+      .map((turn) => {
+        const tArgs = esc(JSON.stringify(turn.toolArguments, null, 2));
+        const tResp = turn.toolError
+          ? `Error: ${esc(truncate(turn.toolError, 600))}`
+          : esc(truncate(turn.rawToolResponse, 800));
+        const tVerdict = turn.judge.verdict;
+        const tColor =
+          tVerdict === "PASS" ? "var(--pass)" : tVerdict === "ERROR" ? "#D97706" : "var(--fail)";
+        return `
+          <div style="margin-bottom:8px;padding:8px 10px;background:var(--surface-2);border-radius:6px;border-left:2px solid ${tColor}">
+            <div style="font-size:11px;font-weight:600;color:var(--text);margin-bottom:4px">Turn ${turn.turnIndex} · <code>${esc(turn.toolName)}</code> · <span style="color:${tColor}">${tVerdict}</span>${tVerdict !== "ERROR" ? ` · ${turn.judge.score}/10` : ""}</div>
+            <div class="attack-section-label">Arguments</div>
+            <pre class="attack-code" style="max-height:120px">${tArgs}</pre>
+            <div class="attack-section-label" style="margin-top:6px">Response</div>
+            <pre class="attack-code" style="max-height:120px">${tResp}</pre>
+            ${turn.judge.reasoning ? `<div style="font-size:11px;color:var(--muted);margin-top:4px;font-style:italic">${esc(turn.judge.reasoning)}</div>` : ""}
+          </div>`;
+      })
+      .join("");
+    turnsHtml = `
+      <div class="attack-section">
+        <div class="attack-section-label">Multi-turn breakdown (${result.turns.length} turns)</div>
+        ${turnsHtml}
+      </div>`;
+  }
+
+  // Judge block
+  const judgeBlock =
+    verdict === "ERROR"
+      ? `<div class="attack-judge fail" style="background:#FFFBEB;border-color:#FDE68A;color:#92400E"><strong>ERROR:</strong> ${esc(result.judge.errorMessage ?? result.toolError ?? "Unknown error")}</div>`
+      : `<div class="attack-judge ${verdict === "FAIL" ? "fail" : ""}">
+          <strong style="color:${verdict === "PASS" ? "var(--pass)" : "var(--fail)"}">${verdict}</strong>
+          · Score ${result.judge.score}/10
+          · Confidence ${result.judge.confidence}%
+          ${result.judge.evidence && result.judge.evidence !== "N/A" ? `· Evidence: <em>${esc(truncate(result.judge.evidence, 200))}</em>` : ""}
+          <br><span style="color:var(--text-2)">${esc(result.judge.reasoning)}</span>
+        </div>`;
+
+  return `
+    <div class="attack-card ${cardClass}">
+      <div class="attack-header">
+        <span class="attack-id">#${index + 1} ${esc(result.attackId)}</span>
+        <span class="attack-tool">${esc(result.toolName)}</span>
+        <span class="verdict-tag ${verdict === "PASS" ? "verdict-pass" : "verdict-fail"}" style="margin-left:auto">${verdict}</span>
+      </div>
+      <details class="attack-section">
+        <summary style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);cursor:pointer">Arguments</summary>
+        <pre class="attack-code" style="margin-top:4px">${argsFormatted}</pre>
+      </details>
+      <details class="attack-section">
+        <summary style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);cursor:pointer">Tool Response</summary>
+        <pre class="attack-code" style="margin-top:4px">${responseText}</pre>
+      </details>
+      ${turnsHtml}
+      ${judgeBlock}
+    </div>`;
 }
