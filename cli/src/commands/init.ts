@@ -194,7 +194,7 @@ export function registerInitCommand(program: Command): void {
           console.log('      echo \'{"prompt":"hi","context":{}}\' | node opfor-local-target.js');
           console.log(
             "\nConfig: use `opfor setup --agent` to create a timestamped config under .opfor/configs/.\n" +
-              "Then: `opfor generate --config .opfor/configs/opfor-config-....json` and `opfor run --attacks .opfor/attacks/opfor-attacks-....json`.\n"
+              "Then: `opfor generate --config .opfor/configs/opfor-config-....json` and `opfor execute --attacks .opfor/attacks/opfor-attacks-....json`.\n"
           );
           return;
         }

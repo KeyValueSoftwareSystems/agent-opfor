@@ -6,17 +6,17 @@ The CLI is a self-contained tool that handles everything: interactive setup, att
 
 ## How the pieces fit together
 
-| Command                                  | What it does                                                                                                                     |
-| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| **`opfor init`**                         | Writes a starter `opfor.config.json` in the current directory. Optional — skip if you prefer the wizard or hand-write YAML/JSON. |
-| **`opfor init --example …`**             | Writes sample `opfor-local-target.py` / `.js` stubs only (no config). For local-script targets.                                  |
-| **`opfor setup`**                        | Interactive wizard — chooses mode (MCP vs agent) and writes `.opfor/configs/opfor-config-<timestamp>-<id>.json`.                 |
-| **`opfor generate --config <file>`**     | Non-interactive — reads your config, then writes `.opfor/attacks/opfor-attacks-<timestamp>-<configId>.json`. Use this in CI.     |
-| **`opfor run --attacks <attacks.json>`** | Runs attacks from the attacks file, judges responses, writes HTML + JSON reports.                                                |
+| Command                                      | What it does                                                                                                                     |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| **`opfor init`**                             | Writes a starter `opfor.config.json` in the current directory. Optional — skip if you prefer the wizard or hand-write YAML/JSON. |
+| **`opfor init --example …`**                 | Writes sample `opfor-local-target.py` / `.js` stubs only (no config). For local-script targets.                                  |
+| **`opfor setup`**                            | Interactive wizard — chooses mode (MCP vs agent) and writes `.opfor/configs/opfor-config-<timestamp>-<id>.json`.                 |
+| **`opfor generate --config <file>`**         | Non-interactive — reads your config, then writes `.opfor/attacks/opfor-attacks-<timestamp>-<configId>.json`. Use this in CI.     |
+| **`opfor execute --attacks <attacks.json>`** | Runs attacks from the attacks file, judges responses, writes HTML + JSON reports.                                                |
 
 **Typical paths:**
 
-1. **Config-first:** `opfor setup --empty` → edit the generated `.opfor/configs/...json` → `opfor generate --config ...` → `opfor run --attacks ...`
+1. **Config-first:** `opfor setup --empty` → edit the generated `.opfor/configs/...json` → `opfor generate --config ...` → `opfor execute --attacks ...`
 2. **Wizard-only:** set API key in env → `opfor setup` → follow the printed `Next:` commands
 
 `setup` always produces the prompts file; `run` always consumes it.
@@ -110,7 +110,7 @@ selection:
 
 ## Step 2 — API key
 
-The LLM key is used during `opfor setup` (prompt generation) and `opfor run` (judging). Set it before running either command.
+The LLM key is used during `opfor setup` (prompt generation) and `opfor execute` (judging). Set it before running either command.
 
 **A — Environment variable / `.env` file (recommended):**
 
@@ -133,7 +133,7 @@ The CLI loads `.env` from the current working directory automatically. Add `.env
 
 ```bash
 opfor setup --config opfor.config.json --api-key gsk_your-key-here
-opfor run --attacks .opfor/attacks/opfor-attacks-….json --api-key gsk_your-key-here
+opfor execute --attacks .opfor/attacks/opfor-attacks-….json --api-key gsk_your-key-here
 ```
 
 > Avoid committing secrets. Add `.opfor/` (configs, attacks, reports) to `.gitignore` (already the default in this repo).
@@ -158,16 +158,16 @@ opfor setup
 ## Step 4 — Run the scan
 
 ```bash
-opfor run --attacks .opfor/attacks/opfor-attacks-<timestamp>-<configId>.json
+opfor execute --attacks .opfor/attacks/opfor-attacks-<timestamp>-<configId>.json
 
 # Override API key at run time
-opfor run --attacks .opfor/attacks/opfor-attacks-<timestamp>-<configId>.json --api-key gsk_your-key-here
+opfor execute --attacks .opfor/attacks/opfor-attacks-<timestamp>-<configId>.json --api-key gsk_your-key-here
 
 # Custom report directory
-opfor run --attacks .opfor/attacks/opfor-attacks-<timestamp>-<configId>.json --out-dir ./reports
+opfor execute --attacks .opfor/attacks/opfor-attacks-<timestamp>-<configId>.json --out-dir ./reports
 
 # Force attacks through a local script
-opfor run --attacks .opfor/attacks/opfor-attacks-<timestamp>-<configId>.json --target-script ./opfor-local-target.js
+opfor execute --attacks .opfor/attacks/opfor-attacks-<timestamp>-<configId>.json --target-script ./opfor-local-target.js
 ```
 
 ---
@@ -200,7 +200,7 @@ When your target is not a single HTTP URL, use a local script as an adapter.
 **Override at run time:**
 
 ```bash
-opfor run --attacks .opfor/attacks/opfor-attacks-<timestamp>-<configId>.json --target-script ./opfor-local-target.js
+opfor execute --attacks .opfor/attacks/opfor-attacks-<timestamp>-<configId>.json --target-script ./opfor-local-target.js
 ```
 
 **Sanity-check without a full scan:**
@@ -214,7 +214,7 @@ echo '{"prompt":"hello","context":{}}' | python3 ./opfor-local-target.py
 
 ## Single-turn vs multi-turn
 
-By default opfor runs **single-turn** attacks: one prompt → one response → judged.
+By default opfor executes **single-turn** attacks: one prompt → one response → judged.
 
 **Multi-turn** fires a short adversarial conversation. After each response, if the target holds firm, an attacker LLM generates a more escalating follow-up (up to `turns`, default 3). Stops as soon as the judge returns FAIL.
 
@@ -298,23 +298,23 @@ For a custom env var name use `netra.apiKeyEnv` in the config. `propagation.trac
   run: opfor setup --config opfor.config.json
 
 - name: Run Opfor scan
-  run: opfor run --attacks .opfor/attacks/opfor-attacks-*.json
+  run: opfor execute --attacks .opfor/attacks/opfor-attacks-*.json
 ```
 
 ---
 
 ## Commands reference
 
-| Command                                             | Description                                                   |
-| --------------------------------------------------- | ------------------------------------------------------------- |
-| `opfor init`                                        | Generate a sample `opfor.config.json`                         |
-| `opfor init --example python` / `node` / `both`     | Write sample local-target stubs only; optional `--script-dir` |
-| `opfor setup`                                       | Interactive wizard — generate attack prompts                  |
-| `opfor setup --config <file>`                       | Non-interactive setup from a JSON or YAML config file         |
-| `opfor setup --config <file> --api-key <key>`       | Setup with API key override                                   |
-| `opfor run --attacks <file>`                        | Fire attacks and generate HTML + JSON report                  |
-| `opfor run --attacks <file> --target-script <path>` | Run attacks via a local `.js`/`.py` adapter                   |
-| `opfor run --attacks <file> --api-key <key>`        | Run with API key override                                     |
+| Command                                                 | Description                                                   |
+| ------------------------------------------------------- | ------------------------------------------------------------- |
+| `opfor init`                                            | Generate a sample `opfor.config.json`                         |
+| `opfor init --example python` / `node` / `both`         | Write sample local-target stubs only; optional `--script-dir` |
+| `opfor setup`                                           | Interactive wizard — generate attack prompts                  |
+| `opfor setup --config <file>`                           | Non-interactive setup from a JSON or YAML config file         |
+| `opfor setup --config <file> --api-key <key>`           | Setup with API key override                                   |
+| `opfor execute --attacks <file>`                        | Fire attacks and generate HTML + JSON report                  |
+| `opfor execute --attacks <file> --target-script <path>` | Run attacks via a local `.js`/`.py` adapter                   |
+| `opfor execute --attacks <file> --api-key <key>`        | Run with API key override                                     |
 
 ---
 

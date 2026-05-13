@@ -6,15 +6,15 @@ import { loadEnvFromFlag } from "../lib/env.js";
 import { ensureOpforDirs, OPFOR_REPORTS_DIR, newAttacksPath } from "../lib/artifacts.js";
 import { loadUnifiedConfigFile, type UnifiedMode } from "../lib/unifiedConfig.js";
 import { runUnifiedSetup } from "./setup.js";
-import { runMcpAttackPlan } from "./mcp/run.js";
-import { runAgentAttacksFromFile } from "./agent/run.js";
+import { runMcpAttackPlan } from "./mcp/execute.js";
+import { runAgentAttacksFromFile } from "./agent/execute.js";
 
-export function registerRunCommand(program: Command): void {
+export function registerExecuteCommand(program: Command): void {
   program
-    .command("run")
+    .command("execute")
     .description(
-      "Run an Opfor scan.\n" +
-        "If --attacks is provided, runs it. If only --config is provided, generates then runs. If neither, starts from setup."
+      "Execute an Opfor scan.\n" +
+        "If --attacks is provided, executes it. If only --config is provided, generates then executes. If neither, starts from setup."
     )
     .option("--config <path>", "Path to a config file")
     .option("--attacks <path>", "Path to an attacks/prompts JSON file")

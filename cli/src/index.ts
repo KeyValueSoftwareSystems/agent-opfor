@@ -5,7 +5,7 @@ import { config as loadDotenv } from "dotenv";
 import { Command } from "commander";
 import { registerSetupCommand } from "./commands/setup.js";
 import { registerGenerateCommand } from "./commands/generate.js";
-import { registerRunCommand } from "./commands/run.js";
+import { registerExecuteCommand } from "./commands/execute.js";
 
 loadDotenv();
 
@@ -24,7 +24,7 @@ program
 
 registerSetupCommand(program);
 registerGenerateCommand(program);
-registerRunCommand(program);
+registerExecuteCommand(program);
 
 main().catch((err: unknown) => {
   if (err instanceof Error && err.name === "ExitPromptError") {

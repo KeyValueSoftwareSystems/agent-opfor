@@ -24,7 +24,7 @@ Read this file before making any changes to this repo.
 | Mode   | Entry point                                                | Who runs it                                                                             |
 | ------ | ---------------------------------------------------------- | --------------------------------------------------------------------------------------- |
 | Skills | `skills/opfor-setup/SKILL.md`, `skills/opfor-run/SKILL.md` | AI coding agent (Cursor, Claude Code, Windsurf) reads and follows markdown instructions |
-| CLI    | `cli/dist/index.js` via `opfor` command                    | User runs `opfor setup` / `opfor run` in terminal                                       |
+| CLI    | `cli/dist/index.js` via `opfor` command                    | User runs `opfor setup` / `opfor execute` in terminal                                   |
 | MCP    | `mcp/dist/index.js` (long-lived stdio process)             | MCP-compatible host calls `opfor_setup` / `opfor_run` tools                             |
 
 **Key design principles:**
@@ -84,7 +84,7 @@ opfor/
 │   │   └── commands/
 │   │       ├── init.ts                ← `opfor init` — writes a sample opfor.config.json
 │   │       ├── setup.ts               ← `opfor setup` — interactive wizard + attack prompt generation
-│   │       └── run.ts                 ← `opfor run` — fires attacks, judges, writes reports
+│   │       └── execute.ts             ← `opfor execute` — fires attacks, judges, writes reports
 │   ├── dist/                          ← Compiled output (generated — do not edit)
 │   ├── package.json
 │   └── tsconfig.json
@@ -314,7 +314,7 @@ JSON or YAML file used by `opfor setup --config` and the MCP `opfor_setup` tool.
 opfor init                                    # writes opfor.config.json template
 opfor setup [--agent] [--mcp] [--empty]       # writes .opfor/configs/opfor-config-*.json
 opfor generate --config .opfor/configs/opfor-config-*.json
-opfor run --attacks .opfor/attacks/opfor-attacks-*.json
+opfor execute --attacks .opfor/attacks/opfor-attacks-*.json
 ```
 
 **setup internals** (`cli/src/commands/setup.ts`):
@@ -324,7 +324,7 @@ opfor run --attacks .opfor/attacks/opfor-attacks-*.json
 3. For each evaluator ID: `loadBuiltinEvaluator(id)` → `generateAttackPrompts(evaluator, target, model)` (LLM fills in pattern templates)
 4. Write `.opfor/attacks/opfor-attacks-<timestamp>-<configId>.json` with all generated attacks
 
-**run internals** (`cli/src/commands/run.ts`):
+**execute internals** (`cli/src/commands/execute.ts`):
 
 1. Read `.opfor/attacks/opfor-attacks-*.json`
 2. For each attack: `runAttackAgent(cfg)` → POSTs to target endpoint, captures response
@@ -487,7 +487,7 @@ Configured via `@opfor/core/providers/factory.ts`. Supports:
 
 **When updating CLI commands:**
 
-1. Changes to `cli/src/commands/setup.ts` or `run.ts` affect only the CLI — MCP uses `mcp/src/core/setup.ts` and `run.ts`
+1. Changes to `cli/src/commands/setup.ts` or `execute.ts` affect only the CLI — MCP uses `mcp/src/core/setup.ts` and `run.ts`
 2. If the change is to shared logic (providers, report generation, judging), put it in `core/` not in `cli/`
 
 **When updating MCP tools:**

@@ -599,7 +599,7 @@ export function registerSetupCommand(program: Command) {
       }
       console.log(`\n  ⚠  The prompts file contains your API key — add it to .gitignore`);
       console.log(`\nNext step:`);
-      console.log(`  opfor run --attacks ${outputPath}\n`);
+      console.log(`  opfor execute --attacks ${outputPath}\n`);
     });
 }
 
