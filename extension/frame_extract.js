@@ -139,6 +139,128 @@ function isLikelyButtonRow(el) {
   return false;
 }
 
+/**
+ * Detect if the chat is still loading / bot is typing.
+ * Returns true if we see a typing indicator, "thinking...", spinner, or similar.
+ */
+function isBotStillTyping() {
+  // Common typing indicator patterns
+  const typingSelectors = [
+    "[class*='typing' i]",
+    "[class*='thinking' i]",
+    "[class*='loading' i]",
+    "[class*='spinner' i]",
+    "[class*='generating' i]",
+    "[class*='composing' i]",
+    "[class*='dots-animation' i]",
+    "[class*='dot-flashing' i]",
+    "[class*='bounce' i][class*='dot' i]",
+    "[class*='pulse' i][class*='dot' i]",
+    "[class*='streaming-cursor' i]",
+    "[class*='streaming' i][class*='cursor' i]",
+    ".thinking-indicator",
+    ".thinking-dots",
+    "[aria-label*='typing' i]",
+    "[aria-label*='thinking' i]",
+    "[aria-label*='loading' i]",
+    "[aria-busy='true']",
+    "[data-status='typing']",
+    "[data-status='thinking']",
+    "[data-typing='true']",
+  ];
+  for (const sel of typingSelectors) {
+    const els = queryAllDeep(sel).filter((el) => el instanceof Element && isVisible(el));
+    if (els.length) return true;
+  }
+
+  // Text content patterns — look at the last visible message-like element
+  const allMsgs = queryAllDeep(
+    "[class*='message' i], [class*='bubble' i], [role='listitem'], li"
+  ).filter((el) => el instanceof Element && isVisible(el));
+  if (allMsgs.length) {
+    const lastMsg = allMsgs[allMsgs.length - 1];
+    const t = textOf(lastMsg).toLowerCase();
+    if (
+      /^(thinking|typing|loading|generating|please wait|one moment)\.{0,3}$/i.test(t.trim()) ||
+      /^\.{2,4}$/.test(t.trim()) ||
+      t.trim() === "..." ||
+      t.trim() === "…"
+    ) return true;
+  }
+
+  // CSS animation on the last element (dots bouncing)
+  try {
+    const lastBotEls = queryAllDeep(
+      "[class*='bot' i], [class*='agent' i], [class*='assistant' i], [class*='incoming' i]"
+    ).filter((el) => el instanceof Element && isVisible(el));
+    if (lastBotEls.length) {
+      const last = lastBotEls[lastBotEls.length - 1];
+      const t = textOf(last);
+      if (t.length < 5 || /^[.…·•]+$/.test(t.trim())) {
+        const style = window.getComputedStyle(last);
+        if (style.animationName && style.animationName !== "none") return true;
+      }
+    }
+  } catch {}
+
+  return false;
+}
+
+/**
+ * Check if extracted text looks like a typing/thinking placeholder.
+ */
+function looksLikeTypingPlaceholder(text) {
+  if (!text) return false;
+  const t = text.trim();
+  const tl = t.toLowerCase();
+  if (tl.length > 50) return false;
+  return (
+    /^(thinking|typing|loading|generating|please wait|one moment|hold on|let me|working)\.{0,3}$/i.test(tl) ||
+    /^\.{2,4}$/.test(tl) ||
+    tl === "..." ||
+    tl === "…" ||
+    tl === "●●●" ||
+    tl === "•••" ||
+    /^▋?$/i.test(t) ||
+    /^agent is (typing|thinking|composing)/i.test(tl) ||
+    /^(bot|assistant|agent) is (responding|writing)/i.test(tl) ||
+    /^(thinking|typing|loading|generating)\.{0,3}\s*▋?$/i.test(t)
+  );
+}
+
+/**
+ * Detect intermediate status / tool-execution messages that look like
+ * the bot is still working (not the final response).
+ * These are longer than typing placeholders but still not a real reply.
+ */
+function looksLikeIntermediateStatus(text) {
+  if (!text) return false;
+  const t = text.trim();
+  const tl = t.toLowerCase();
+  if (tl.length > 200) return false;
+  if (tl.length < 3) return true;
+
+  // Action verbs followed by "..." or "…" — tool/command execution
+  if (/^(running|executing|calling|fetching|searching|querying|processing|analyzing|checking|looking up|retrieving|connecting|scanning|resolving|compiling|building|installing|starting|stopping|restarting|reading|writing|deleting|uploading|downloading|deploying|updating|sending|configuring|validating|verifying|evaluating|computing|calculating|loading|indexing|importing|exporting)\b.{0,120}[.…]{1,3}$/i.test(tl)) return true;
+
+  // Tool call patterns: "Using tool_name..." or "Calling function_name..."
+  if (/^(using|calling|invoking|running)\s+[\w_]+/i.test(tl) && /[.…]{1,3}$/.test(t)) return true;
+
+  // "Step N:" or "Phase N:" progress indicators (without substantial content after)
+  if (/^(step|phase|stage)\s+\d/i.test(tl) && tl.length < 60) return true;
+
+  // Status with percentage or progress bar
+  if (/\d+%/.test(t) && tl.length < 80) return true;
+
+  // Single-line status ending in ellipsis
+  if (!/\n/.test(t) && tl.length < 100 && /[.…]{2,3}$/.test(t)) return true;
+
+  // "Thinking" variants with more context
+  if (/^(let me|i('ll| will)|allow me|one moment|just a (moment|second|sec)|hang on|hold on|working on|looking into)/i.test(tl) && tl.length < 80) return true;
+
+  return false;
+}
+
 // Heuristic: prefer text that reads like a sentence (or a multi-line bot
 // reply) over short, choppy chip labels.
 function looksSentencey(text) {
@@ -172,7 +294,7 @@ function classifyBubble(el) {
   // --- Class name patterns (walk up a few parents) ---
   for (let n = el, hops = 0; n instanceof Element && hops < 4; n = n.parentElement, hops++) {
     const cls = ((n.className || "") + "").toLowerCase();
-    // User patterns
+    // User patterns (compound class names)
     if (
       cls.includes("user-message") ||
       cls.includes("usermessage") ||
@@ -191,7 +313,7 @@ function classifyBubble(el) {
       cls.includes("mine")
     )
       return "user";
-    // Bot patterns
+    // Bot patterns (compound class names)
     if (
       cls.includes("bot-message") ||
       cls.includes("botmessage") ||
@@ -213,6 +335,21 @@ function classifyBubble(el) {
       cls.includes("system-message")
     )
       return "bot";
+
+    // Token-based: standalone class tokens like "user", "assistant" on
+    // elements that also have a chat-context token (msg, bubble, chat, etc.).
+    // Handles patterns like class="msg-bubble user" or class="chat-msg assistant".
+    const tokens = cls.split(/[\s]+/);
+    const hasChatCtx = tokens.some((t) =>
+      /^(msg|message|bubble|chat|reply|response|conversation)[-_]?/.test(t) ||
+      /[-_](msg|message|bubble|chat)$/.test(t)
+    );
+    if (hasChatCtx) {
+      if (tokens.some((t) => /^(user|customer|visitor|human|self|me|sender|outgoing|sent)$/.test(t)))
+        return "user";
+      if (tokens.some((t) => /^(assistant|bot|agent|ai|system|incoming|received|operator|support)$/.test(t)))
+        return "bot";
+    }
   }
 
   // --- ARIA label ---
@@ -220,7 +357,7 @@ function classifyBubble(el) {
   if (/\b(you|your message|sent)\b/.test(ariaLabel)) return "user";
   if (/\b(bot|agent|assistant|support|received)\b/.test(ariaLabel)) return "bot";
 
-  // --- Alignment heuristic (user bubbles right-aligned, bot left-aligned) ---
+  // --- Alignment / layout heuristic ---
   try {
     const style = window.getComputedStyle(el);
     const parentStyle = el.parentElement ? window.getComputedStyle(el.parentElement) : null;
@@ -228,6 +365,12 @@ function classifyBubble(el) {
     const parentJustify = parentStyle?.justifyContent || "";
     const marginLeft = style.marginLeft || "";
     const marginRight = style.marginRight || "";
+    const flexDir = style.flexDirection || "";
+    const parentFlexDir = parentStyle?.flexDirection || "";
+
+    // flex-direction: row-reverse is a strong user-bubble signal (avatar on right)
+    if (flexDir === "row-reverse" || parentFlexDir === "row-reverse")
+      return "user";
 
     if (
       selfAlign === "right" ||
@@ -262,21 +405,25 @@ function matchesUserMessage(text) {
   const normalize = (s) => s.toLowerCase().replace(/\s+/g, " ").trim();
   const normUser = normalize(lastUser);
   const normText = normalize(text);
+  if (!normUser || !normText) return false;
   if (normText === normUser) return true;
   // User message is contained within the extracted text (echo with timestamp/prefix)
-  if (
-    normText.includes(normUser) &&
-    normUser.length > 20 &&
-    normUser.length / normText.length > 0.5
-  )
-    return true;
+  if (normText.includes(normUser) && normUser.length > 10) return true;
+  // Extracted text is contained within the user message (truncated display)
+  if (normUser.includes(normText) && normText.length > 10) return true;
   // Extracted text is a prefix of the user message (truncated echo)
-  if (
-    normUser.startsWith(normText) &&
-    normText.length > 20 &&
-    normText.length / normUser.length > 0.7
-  )
-    return true;
+  if (normUser.startsWith(normText) && normText.length > 10) return true;
+  // Extracted text is a suffix of the user message (e.g. only last line shown)
+  if (normUser.endsWith(normText) && normText.length > 10) return true;
+  // Fuzzy: high word overlap between extracted text and user message
+  if (normUser.length > 15 && normText.length > 15) {
+    const userWords = new Set(normUser.split(/\s+/));
+    const textWords = normText.split(/\s+/);
+    if (textWords.length >= 3) {
+      const overlap = textWords.filter((w) => userWords.has(w)).length;
+      if (overlap / textWords.length > 0.7) return true;
+    }
+  }
   return false;
 }
 
@@ -291,10 +438,11 @@ function pickLastBotMessage(messageEls) {
     const el = messageEls[i];
     const inner =
       el.querySelector?.(
-        "[class*='message-content' i], [class*='markdown' i], [class*='text' i], p"
+        "[class*='message-content' i], [class*='msg-content' i], [class*='msgcontent' i], [class*='chat-content' i], [class*='reply-content' i], [class*='markdown' i], [class*='text' i], p"
       ) || el;
     const t = textOf(inner);
     if (!t || t.length < 5 || looksLikeFooter(t)) continue;
+    if (looksLikeTypingPlaceholder(t) || looksLikeIntermediateStatus(t)) continue;
 
     const cls = classifyBubble(el);
     if (cls === "user") continue;
@@ -327,7 +475,7 @@ function extractFromRoleLog() {
   if (bot) return bot;
 
   const fallback = textOf(best);
-  return fallback && !looksLikeFooter(fallback) ? fallback : null;
+  return fallback && !looksLikeFooter(fallback) && !looksLikeTypingPlaceholder(fallback) ? fallback : null;
 }
 
 function extractByCommonLabels() {
@@ -341,7 +489,7 @@ function extractByCommonLabels() {
   if (!candidates.length) return null;
   const best = candidates[0].el;
   const t = textOf(best);
-  return t && !matchesUserMessage(t) ? t : null;
+  return t && !matchesUserMessage(t) && !looksLikeTypingPlaceholder(t) ? t : null;
 }
 
 /**
@@ -358,6 +506,11 @@ function extractFromEmbeddedDialogue() {
     '[class*="message-list" i]',
     '[class*="chat-history" i]',
     '[class*="chatlog" i]',
+    '[class*="chat-messages" i]',
+    '[class*="chatMessages" i]',
+    '[class*="msg-list" i]',
+    '[class*="messages-container" i]',
+    '#chat-messages',
   ];
 
   let dialogue = null;
@@ -378,7 +531,7 @@ function extractFromEmbeddedDialogue() {
   ).filter((el) => {
     if (!(el instanceof Element) || !isVisible(el)) return false;
     const t = textOf(el);
-    return t.length >= 10 && t.length < 5000 && !looksLikeFooter(t) && !isInteractive(el);
+    return t.length >= 10 && t.length < 50_000 && !looksLikeFooter(t) && !isInteractive(el);
   });
 
   // De-dup: remove ancestors that contain a more specific child
@@ -406,7 +559,7 @@ function extractFromEmbeddedDialogue() {
       const lastEl = msgs[msgs.length - 1];
       const textNode = lastEl.querySelector('[class*="text" i], [class*="content" i], p') || lastEl;
       const t = textOf(textNode);
-      if (t.length && !matchesUserMessage(t)) return t;
+      if (t.length && !matchesUserMessage(t) && !looksLikeTypingPlaceholder(t)) return t;
     }
   }
   return null;
@@ -445,20 +598,21 @@ function extractFromAssistantBubbles() {
   for (const candidate of sorted.slice(0, 6)) {
     const inner =
       candidate.querySelector(
-        "[class*='message-content'], [class*='markdown'], [class*='text'], p"
+        "[class*='message-content'], [class*='msg-content'], [class*='chat-content'], [class*='reply-content'], [class*='markdown'], [class*='text'], p"
       ) || candidate;
     const t = textOf(inner);
     if (!t.length || looksLikeFooter(t) || isLikelyButtonRow(candidate)) continue;
     if (matchesUserMessage(t)) continue;
+    if (looksLikeTypingPlaceholder(t)) continue;
     if (looksSentencey(t)) return t;
   }
   for (const candidate of sorted) {
     const inner =
       candidate.querySelector(
-        "[class*='message-content'], [class*='markdown'], [class*='text'], p"
+        "[class*='message-content'], [class*='msg-content'], [class*='chat-content'], [class*='reply-content'], [class*='markdown'], [class*='text'], p"
       ) || candidate;
     const t = textOf(inner);
-    if (t.length && !looksLikeFooter(t) && !matchesUserMessage(t)) return t;
+    if (t.length && !looksLikeFooter(t) && !matchesUserMessage(t) && !looksLikeTypingPlaceholder(t)) return t;
   }
   return null;
 }
@@ -523,7 +677,7 @@ function extractFromMessageLikeRows() {
       if (r.bottom > composerTop - 6) continue;
       if (r.height > 900 || r.width < 24) continue;
       const t = textOf(el);
-      if (t.length < 12 || t.length > 12_000) continue;
+      if (t.length < 12 || t.length > 50_000) continue;
       if (looksLikeFooter(t)) continue;
       candidates.push({ el, bottom: r.bottom, area: r.width * r.height, t });
     }
@@ -536,12 +690,14 @@ function extractFromMessageLikeRows() {
   for (const leaf of leaves.slice(0, 6)) {
     if (classifyBubble(leaf.el) === "user") continue;
     if (matchesUserMessage(leaf.t)) continue;
+    if (looksLikeTypingPlaceholder(leaf.t)) continue;
     if (looksSentencey(leaf.t)) return leaf.t;
   }
   // Fallback: any non-user bubble
   for (const leaf of leaves) {
     if (classifyBubble(leaf.el) === "user") continue;
     if (matchesUserMessage(leaf.t)) continue;
+    if (looksLikeTypingPlaceholder(leaf.t)) continue;
     if (leaf.t.length) return leaf.t;
   }
   return null;
@@ -561,7 +717,7 @@ function extractLeafAboveComposer() {
     if (r.bottom > cTop - 8) continue;
     if (r.height > 700 || r.height < 14) continue;
     const t = textOf(el);
-    if (t.length < 15 || t.length > 10_000) continue;
+    if (t.length < 15 || t.length > 50_000) continue;
     if (looksLikeFooter(t)) continue;
     blocks.push({ el, bottom: r.bottom, area: r.width * r.height, t });
   }
@@ -576,12 +732,14 @@ function extractLeafAboveComposer() {
   for (const leaf of leaves.slice(0, 6)) {
     if (classifyBubble(leaf.el) === "user") continue;
     if (matchesUserMessage(leaf.t)) continue;
+    if (looksLikeTypingPlaceholder(leaf.t)) continue;
     if (looksSentencey(leaf.t)) return leaf.t;
   }
   // Fallback: any non-user text
   for (const leaf of leaves.slice(0, 6)) {
     if (classifyBubble(leaf.el) === "user") continue;
     if (matchesUserMessage(leaf.t)) continue;
+    if (looksLikeTypingPlaceholder(leaf.t)) continue;
     if (leaf.t.length) return leaf.t;
   }
   return leaves[0]?.t || null;
@@ -594,7 +752,7 @@ function extractFromAriaLiveRegion() {
     .sort((a, b) => b.getBoundingClientRect().bottom - a.getBoundingClientRect().bottom);
   for (const region of regions) {
     const t = textOf(region);
-    if (t.length >= 15 && t.length < 8000 && !looksLikeFooter(t) && !matchesUserMessage(t))
+    if (t.length >= 15 && t.length < 50_000 && !looksLikeFooter(t) && !matchesUserMessage(t) && !looksLikeTypingPlaceholder(t))
       return t;
     const ps = Array.from(region.querySelectorAll("p, div")).filter(
       (x) => isVisible(x) && !isInteractive(x) && !isPinned(x)
@@ -602,7 +760,7 @@ function extractFromAriaLiveRegion() {
     const lastP = ps[ps.length - 1];
     if (lastP) {
       const tp = textOf(lastP);
-      if (tp.length >= 12 && !looksLikeFooter(tp) && !matchesUserMessage(tp)) return tp;
+      if (tp.length >= 12 && !looksLikeFooter(tp) && !matchesUserMessage(tp) && !looksLikeTypingPlaceholder(tp)) return tp;
     }
   }
   return null;
@@ -625,11 +783,115 @@ function extractFromRoleFeed() {
   const last = items[items.length - 1];
   if (!last) return null;
   const t = textOf(last);
-  if (t.length < 10 || looksLikeFooter(t) || matchesUserMessage(t)) return null;
+  if (t.length < 10 || looksLikeFooter(t) || matchesUserMessage(t) || looksLikeTypingPlaceholder(t)) return null;
   return t;
 }
 
+/**
+ * Count visible message bubbles in the chat, split by role.
+ * Uses multiple strategies to find message containers and classify them.
+ */
+function countVisibleMessages() {
+  let total = 0, botCount = 0, userCount = 0;
+
+  // Strategy 1: Known dialogue/chat containers
+  const containerSels = [
+    '#chat-messages',
+    '[class*="chat-messages" i]',
+    '[class*="message-list" i]',
+    '[class*="conversation" i]',
+    '[class*="transcript" i]',
+    '[class*="chat-history" i]',
+    '[role="log"]',
+    '[role="feed"]',
+  ];
+  let container = null;
+  for (const sel of containerSels) {
+    const found = queryAllDeep(sel).filter((el) => el instanceof Element && isVisible(el));
+    if (found.length) { container = found[0]; break; }
+  }
+
+  // Collect leaf message elements
+  const msgSels = "li, article, [class*='message' i], [class*='bubble' i], [class*='msg-bubble' i], [role='listitem'], [role='article']";
+  const root = container || document;
+  const allEls = Array.from(root.querySelectorAll(msgSels)).filter((el) => {
+    if (!(el instanceof Element) || !isVisible(el)) return false;
+    const t = textOf(el);
+    return t.length >= 5 && !looksLikeFooter(t) && !isInteractive(el);
+  });
+
+  // De-dup: keep leaves
+  const leaves = allEls.filter((a) => !allEls.some((b) => a !== b && a.contains(b)));
+
+  for (const el of leaves) {
+    const cls = classifyBubble(el);
+    const t = textOf(el);
+    if (looksLikeTypingPlaceholder(t)) continue;
+    total++;
+    if (cls === "user") userCount++;
+    else if (cls === "bot") botCount++;
+    else {
+      // Unknown — use text matching as fallback
+      if (matchesUserMessage(t)) userCount++;
+      else botCount++;
+    }
+  }
+
+  return { total, botCount, userCount };
+}
+
+/**
+ * Check if the last bot message element has streaming/loading classes,
+ * indicating it's still being written to (even without a separate typing indicator).
+ */
+function isLastMessageStillStreaming() {
+  const streamingPatterns = [
+    "[class*='streaming' i]",
+    "[class*='loading' i]",
+    "[class*='generating' i]",
+    "[class*='typing' i]",
+    "[class*='pending' i]",
+    "[class*='in-progress' i]",
+    "[aria-busy='true']",
+  ];
+
+  // Check the last few message-like elements
+  const allMsgs = queryAllDeep(
+    "[class*='message' i], [class*='bubble' i], [class*='msg-bubble' i], [role='listitem']"
+  ).filter((el) => el instanceof Element && isVisible(el));
+
+  if (!allMsgs.length) return false;
+
+  // Check last 3 elements (the response might be nested)
+  const tail = allMsgs.slice(-3);
+  for (const el of tail) {
+    for (let n = el, hops = 0; n instanceof Element && hops < 3; n = n.parentElement, hops++) {
+      const cls = ((n.className || "") + "").toLowerCase();
+      if (
+        cls.includes("streaming") ||
+        cls.includes("generating") ||
+        cls.includes("in-progress") ||
+        cls.includes("loading-message") ||
+        cls.includes("is-typing")
+      ) return true;
+      if (n.getAttribute?.("aria-busy") === "true") return true;
+    }
+
+    // Check for streaming cursor character in the element
+    const html = el.innerHTML || "";
+    if (html.includes("streaming-cursor") || html.includes("▋")) return true;
+  }
+
+  return false;
+}
+
 (() => {
+  const stillTyping = isBotStillTyping();
+  const stillStreaming = isLastMessageStillStreaming();
+  const isActive = stillTyping || stillStreaming;
+
+  const counts = countVisibleMessages();
+
   const text =
     extractFromEmbeddedDialogue() ||
     extractFromAssistantBubbles() ||
@@ -639,6 +901,16 @@ function extractFromRoleFeed() {
     extractFromRoleFeed() ||
     extractFromRoleLog() ||
     extractByCommonLabels();
-  if (!text) return { ok: false, error: "No transcript text found in this frame." };
-  return { ok: true, text };
+
+  if (!text) {
+    if (isActive) return { ok: false, error: "bot_still_typing", typing: true, counts };
+    return { ok: false, error: "No transcript text found in this frame.", counts };
+  }
+
+  if (looksLikeTypingPlaceholder(text)) {
+    return { ok: false, error: "bot_still_typing", typing: true, counts };
+  }
+
+  const intermediate = looksLikeIntermediateStatus(text);
+  return { ok: true, text, typing: isActive, intermediate, counts };
 })();
