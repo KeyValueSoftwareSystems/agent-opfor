@@ -4,12 +4,50 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Opfor · Red-team</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
-      rel="stylesheet"
-    />
+    <style>
+      @font-face {
+        font-family: "Geist";
+        src: url("fonts/Geist-Regular.ttf") format("truetype");
+        font-weight: 400;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: "Geist";
+        src: url("fonts/Geist-Medium.ttf") format("truetype");
+        font-weight: 500;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: "Geist";
+        src: url("fonts/Geist-SemiBold.ttf") format("truetype");
+        font-weight: 600;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: "Geist";
+        src: url("fonts/Geist-Bold.ttf") format("truetype");
+        font-weight: 700;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: "Geist Mono";
+        src: url("fonts/GeistMono-Regular.ttf") format("truetype");
+        font-weight: 400;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: "Geist Mono";
+        src: url("fonts/GeistMono-Medium.ttf") format("truetype");
+        font-weight: 500;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: "Geist Mono";
+        src: url("fonts/GeistMono-SemiBold.ttf") format("truetype");
+        font-weight: 600;
+        font-style: normal;
+      }
+    </style>
     <style>
       :root {
         --bg: #0a0d14;
@@ -34,6 +72,7 @@
         --sev-high: #fbbf24;
         --sev-med: #60a5fa;
         --sev-low: #9ba3b8;
+        --font-weight-normal: 400;
         color-scheme: dark;
       }
 
@@ -49,15 +88,17 @@
         padding: 0;
         background: var(--bg);
         color: var(--text);
-        font-family: "Geist", "IBM Plex Sans", system-ui, sans-serif;
+        font-family: "Geist", system-ui, sans-serif;
         font-size: 13px;
+        line-height: 16px;
+        font-weight: var(--font-weight-normal);
       }
       body {
         width: 400px;
       }
 
       .mono {
-        font-family: "Geist Mono", "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-family: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
       }
 
       @keyframes pulse {
@@ -219,7 +260,7 @@
         letter-spacing: 0.12em;
         text-transform: uppercase;
         white-space: nowrap;
-        font-family: "Geist Mono", "IBM Plex Mono", monospace;
+        font-family: "Geist Mono", ui-monospace, monospace;
       }
       .wordmark-text .subtitle {
         font-size: 12px;
@@ -345,7 +386,7 @@
         text-overflow: ellipsis;
         max-width: 230px;
         margin-top: 2px;
-        font-family: "Geist Mono", "IBM Plex Mono", monospace;
+        font-family: "Geist Mono", ui-monospace, monospace;
       }
       .agent-desc-label {
         font-size: 12px;
@@ -393,7 +434,7 @@
         width: 100%;
         padding: 10px 12px;
         font-size: 13px;
-        font-family: inherit;
+        font-family: "Geist", system-ui, sans-serif;
         color: #ffffff;
         background: var(--bg-2);
         border: 1px solid var(--line-2);
@@ -420,7 +461,7 @@
         margin-top: 8px;
       }
       .api-key-wrap input {
-        font-family: "Geist Mono", "IBM Plex Mono", monospace;
+        font-family: "Geist Mono", ui-monospace, monospace;
         padding-right: 38px;
         letter-spacing: 0.15em;
       }
@@ -452,7 +493,7 @@
         border-radius: 8px;
         color: var(--text);
         font-size: 13px;
-        font-family: inherit;
+        font-family: "Geist", system-ui, sans-serif;
         text-align: left;
         cursor: pointer;
         display: flex;
@@ -506,7 +547,7 @@
         border-left: 2px solid transparent;
         color: var(--text);
         font-size: 13px;
-        font-family: inherit;
+        font-family: "Geist", system-ui, sans-serif;
         text-align: left;
         cursor: pointer;
         display: flex;
@@ -525,7 +566,7 @@
       .dd-option .meta {
         font-size: 13px;
         color: var(--muted-2);
-        font-family: "Geist Mono", "IBM Plex Mono", monospace;
+        font-family: "Geist Mono", ui-monospace, monospace;
       }
 
       .dd-desc {
@@ -550,7 +591,7 @@
         border: none;
         color: var(--text);
         font-size: 13.5px;
-        font-family: inherit;
+        font-family: "Geist", system-ui, sans-serif;
         cursor: pointer;
         display: flex;
         align-items: center;
@@ -654,7 +695,7 @@
         padding: 2px 5px;
         border-radius: 3px;
         flex-shrink: 0;
-        font-family: "Geist Mono", "IBM Plex Mono", monospace;
+        font-family: "Geist Mono", ui-monospace, monospace;
       }
       .sev[data-sev="critical"] {
         color: var(--sev-critical);
@@ -684,7 +725,7 @@
         border-radius: 10px;
         font-size: 13px;
         font-weight: 600;
-        font-family: inherit;
+        font-family: "Geist", system-ui, sans-serif;
         cursor: pointer;
         display: flex;
         align-items: center;
@@ -715,7 +756,7 @@
         color: var(--text);
         font-size: 13px;
         font-weight: 500;
-        font-family: inherit;
+        font-family: "Geist", system-ui, sans-serif;
         cursor: pointer;
         display: flex;
         align-items: center;
@@ -730,7 +771,7 @@
         color: var(--fail-soft);
         font-size: 13px;
         font-weight: 500;
-        font-family: inherit;
+        font-family: "Geist", system-ui, sans-serif;
         cursor: pointer;
         display: flex;
         align-items: center;
@@ -755,13 +796,13 @@
         font-size: 13.5px;
         color: var(--muted-2);
         letter-spacing: 0.04em;
-        font-family: "Geist Mono", "IBM Plex Mono", monospace;
+        font-family: "Geist Mono", ui-monospace, monospace;
       }
       .progress-row .pct {
         font-size: 13.5px;
         color: var(--accent);
         font-weight: 600;
-        font-family: "Geist Mono", "IBM Plex Mono", monospace;
+        font-family: "Geist Mono", ui-monospace, monospace;
       }
       .progress-track {
         height: 3px;
@@ -818,7 +859,7 @@
         white-space: nowrap;
       }
       .status-head .turn {
-        font-family: "Geist Mono", "IBM Plex Mono", monospace;
+        font-family: "Geist Mono", ui-monospace, monospace;
         font-size: 13.5px;
         color: var(--muted);
         flex-shrink: 0;
@@ -829,7 +870,7 @@
         color: var(--muted-2);
         letter-spacing: 0.01em;
         margin-bottom: 10px;
-        font-family: "Geist Mono", "IBM Plex Mono", monospace;
+        font-family: "Geist Mono", ui-monospace, monospace;
       }
       .status-phase.shimmer {
         background: linear-gradient(
@@ -879,7 +920,7 @@
         align-items: flex-start;
       }
       .bubble .kicker {
-        font-family: "Geist Mono", "IBM Plex Mono", monospace;
+        font-family: "Geist Mono", ui-monospace, monospace;
         font-size: 9.5px;
         letter-spacing: 0.05em;
         text-transform: uppercase;
@@ -976,7 +1017,7 @@
         background: var(--fail);
       }
       .ev-strip-chip .id {
-        font-family: "Geist Mono", "IBM Plex Mono", monospace;
+        font-family: "Geist Mono", ui-monospace, monospace;
         font-size: 12.5px;
         color: var(--muted-3);
         letter-spacing: 0.02em;
@@ -990,7 +1031,7 @@
       }
 
       .hint-line {
-        font-family: "Geist Mono", "IBM Plex Mono", monospace;
+        font-family: "Geist Mono", ui-monospace, monospace;
         font-size: 13.5px;
         color: var(--muted-3);
         text-align: center;
@@ -1027,7 +1068,7 @@
         color: var(--text);
       }
       .paused-sub {
-        font-family: "Geist Mono", "IBM Plex Mono", monospace;
+        font-family: "Geist Mono", ui-monospace, monospace;
         font-size: 13.5px;
         color: var(--muted-2);
         margin-top: 2px;
@@ -1040,7 +1081,7 @@
         background: var(--bg);
         border: 1px solid var(--line-2);
         border-radius: 8px;
-        font-family: "Geist Mono", "IBM Plex Mono", monospace;
+        font-family: "Geist Mono", ui-monospace, monospace;
         font-size: 13.5px;
         color: var(--muted);
       }
@@ -1109,7 +1150,7 @@
         color: var(--pass);
       }
       .verdict-kicker {
-        font-family: "Geist Mono", "IBM Plex Mono", monospace;
+        font-family: "Geist Mono", ui-monospace, monospace;
         font-size: 13.5px;
         color: var(--muted-2);
         letter-spacing: 0.04em;
@@ -1146,7 +1187,7 @@
         border: 1px solid var(--line-2);
       }
       .stat .k {
-        font-family: "Geist Mono", "IBM Plex Mono", monospace;
+        font-family: "Geist Mono", ui-monospace, monospace;
         font-size: 13.5px;
         color: var(--muted-3);
         letter-spacing: 0.03em;
@@ -1204,7 +1245,7 @@
         white-space: nowrap;
       }
       .result-pill {
-        font-family: "Geist Mono", "IBM Plex Mono", monospace;
+        font-family: "Geist Mono", ui-monospace, monospace;
         font-size: 11px;
         letter-spacing: 0.08em;
         text-transform: uppercase;
@@ -1235,7 +1276,7 @@
       .footer {
         padding: 8px 14px;
         border-top: 1px solid var(--line);
-        font-family: "Geist Mono", "IBM Plex Mono", monospace;
+        font-family: "Geist Mono", ui-monospace, monospace;
         font-size: 11px;
         color: var(--muted-3);
         letter-spacing: 0.06em;
@@ -1293,7 +1334,7 @@
         color: var(--text);
         font-size: 13px;
         font-weight: 500;
-        font-family: inherit;
+        font-family: "Geist", system-ui, sans-serif;
         cursor: pointer;
       }
 
@@ -1308,7 +1349,7 @@
         color: var(--text);
       }
       .stepper-head .value {
-        font-family: "Geist Mono", "IBM Plex Mono", monospace;
+        font-family: "Geist Mono", ui-monospace, monospace;
         font-size: 13px;
         color: var(--accent);
         font-weight: 600;
@@ -1334,7 +1375,7 @@
         color: var(--text);
         font-size: 14px;
         cursor: pointer;
-        font-family: inherit;
+        font-family: "Geist", system-ui, sans-serif;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -1416,26 +1457,37 @@
       <!-- ── Header ──────────────────────────────────── -->
       <div class="header">
         <div class="wordmark">
-          <svg width="28" height="28" viewBox="0 0 24 24">
-            <circle
-              cx="12"
-              cy="12"
-              r="9"
+          <svg width="28" height="28" viewBox="0 0 32 32">
+            <defs>
+              <linearGradient id="opforGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#f5ad5c" stop-opacity="1" />
+                <stop offset="100%" stop-color="#f5ad5c" stop-opacity="0.65" />
+              </linearGradient>
+            </defs>
+            <path
+              d="M16 2 L27.2 8 L27.2 24 L16 30 L4.8 24 L4.8 8 Z"
+              fill="url(#opforGrad)"
+              stroke="#f5ad5c"
+              stroke-width="1.2"
+              stroke-linejoin="round"
+            />
+            <path
+              d="M16 5.5 L24.3 10 L24.3 22 L16 26.5 L7.7 22 L7.7 10 Z"
               fill="none"
-              stroke="var(--accent)"
-              stroke-width="1.5"
-              opacity="0.4"
+              stroke="#0A0D14"
+              stroke-width="0.9"
+              opacity="0.55"
+              stroke-linejoin="round"
             />
             <path
-              d="M12 3v4M12 17v4M3 12h4M17 12h4"
-              stroke="var(--accent)"
-              stroke-width="1.5"
+              d="M9.5 12.5 L16 17 L22.5 12.5 M9.5 16 L16 20.5 L22.5 16"
+              fill="none"
+              stroke="#0A0D14"
+              stroke-width="2.2"
               stroke-linecap="round"
+              stroke-linejoin="round"
             />
-            <path
-              d="M12 8l1.6 2.4L16 12l-2.4 1.6L12 16l-1.6-2.4L8 12l2.4-1.6z"
-              fill="var(--accent)"
-            />
+            <rect x="14.5" y="3.5" width="3" height="1.2" rx="0.4" fill="#0A0D14" opacity="0.5" />
           </svg>
           <div class="wordmark-text">
             <div class="wordmark-title-row">
