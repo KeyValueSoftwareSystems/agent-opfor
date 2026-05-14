@@ -1,0 +1,136 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 380" role="img" aria-labelledby="title-pl desc-pl" preserveAspectRatio="xMidYMid meet" font-family="&#39;JetBrains Mono&#39;,&#39;SF Mono&#39;,Menlo,Consolas,monospace">
+  <title id="title-pl">What happens inside opfor execute</title>
+  <desc id="desc-pl">The opfor execute pipeline runs left to right: fetch, plan, multi-turn loop between Emulate and Agent, judge, report.</desc>
+
+  <defs>
+    <linearGradient id="pl-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0c1314"></stop>
+      <stop offset="1" stop-color="#080e0f"></stop>
+    </linearGradient>
+    <radialGradient id="pl-glow" cx="0.5" cy="0.5" r="0.55">
+      <stop offset="0" stop-color="#103a30" stop-opacity="0.45"></stop>
+      <stop offset="1" stop-color="#0a1a18" stop-opacity="0"></stop>
+    </radialGradient>
+    <linearGradient id="pl-emulate" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1b5c47"></stop>
+      <stop offset="1" stop-color="#0f3d2f"></stop>
+    </linearGradient>
+    <radialGradient id="pl-emulate-glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#34d399" stop-opacity="0.45"></stop>
+      <stop offset="1" stop-color="#34d399" stop-opacity="0"></stop>
+    </radialGradient>
+    <marker id="pl-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0,1 L9,5 L0,9 L2,5 z" fill="#34d399"></path>
+    </marker>
+    <marker id="pl-arrow-warm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0,1 L9,5 L0,9 L2,5 z" fill="#f4a48a"></path>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="380" fill="url(#pl-bg)"></rect>
+  <ellipse cx="620" cy="190" rx="540" ry="200" fill="url(#pl-glow)"></ellipse>
+
+  <g stroke="#1b4d3e" stroke-width="1" opacity="0.45" fill="none">
+    <path d="M30 30 L 42 30 M 30 30 L 30 42"></path>
+    <path d="M1170 30 L 1158 30 M 1170 30 L 1170 42"></path>
+    <path d="M30 350 L 42 350 M 30 350 L 30 338"></path>
+    <path d="M1170 350 L 1158 350 M 1170 350 L 1170 338"></path>
+  </g>
+
+  <text x="60" y="50" font-size="11" font-weight="600" letter-spacing="1.8" fill="#8a999c">OPFOR EXECUTE · PIPELINE</text>
+
+  
+  <g>
+    <rect x="60" y="170" width="140" height="64" rx="12" fill="#121a1c" stroke="#1e2a2d" stroke-width="1"></rect>
+    <g transform="translate(95,202)" stroke="#34d399" fill="none" stroke-width="1.8" stroke-linecap="round">
+      <circle cx="0" cy="0" r="8"></circle>
+      <line x1="6" y1="6" x2="12" y2="12"></line>
+    </g>
+    <text x="118" y="208" font-size="16" font-weight="600" fill="#ecf2f3">Fetch</text>
+  </g>
+
+  <path class="pl-flow" d="M200 202 L 238 202" stroke="#34d399" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-dasharray="5 7" marker-end="url(#pl-arrow)"></path>
+
+  
+  <g>
+    <rect x="240" y="170" width="140" height="64" rx="12" fill="#121a1c" stroke="#1e2a2d" stroke-width="1"></rect>
+    <g transform="translate(275,202)" stroke="#34d399" fill="none" stroke-width="1.6" stroke-linecap="round">
+      <rect x="-8" y="-9" width="16" height="18" rx="2"></rect>
+      <line x1="-5" y1="-5" x2="5" y2="-5"></line>
+      <line x1="-5" y1="-1" x2="5" y2="-1"></line>
+      <line x1="-5" y1="3" x2="3" y2="3"></line>
+    </g>
+    <text x="296" y="208" font-size="16" font-weight="600" fill="#ecf2f3">Plan</text>
+  </g>
+
+  <path class="pl-flow" d="M380 202 L 418 202" stroke="#34d399" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-dasharray="5 7" marker-end="url(#pl-arrow)"></path>
+
+  
+  <g>
+    <rect x="420" y="110" width="400" height="200" rx="16" fill="#0e1718" stroke="#1b4d3e" stroke-width="1" stroke-dasharray="4 5" opacity="0.9"></rect>
+    <text x="620" y="135" text-anchor="middle" font-size="11" font-weight="600" letter-spacing="1.8" fill="#8a999c">MULTI-TURN LOOP</text>
+
+    
+    <g>
+      <rect x="440" y="170" width="140" height="64" rx="12" fill="url(#pl-emulate)" stroke="#34d399" stroke-width="0.8"></rect>
+      <circle cx="475" cy="202" r="22" fill="url(#pl-emulate-glow)"></circle>
+      <g transform="translate(475,202)" stroke="#ffffff" fill="none" stroke-width="1.6" stroke-linecap="round">
+        <circle cx="0" cy="0" r="9"></circle>
+        <circle cx="0" cy="0" r="2" fill="#ffffff" stroke="none"></circle>
+        <line x1="-13" y1="0" x2="-5" y2="0"></line>
+        <line x1="5" y1="0" x2="13" y2="0"></line>
+        <line x1="0" y1="-13" x2="0" y2="-5"></line>
+        <line x1="0" y1="5" x2="0" y2="13"></line>
+      </g>
+      <text x="495" y="208" font-size="16" font-weight="700" fill="#ffffff">Emulate</text>
+    </g>
+
+    
+    <path class="pl-flow" d="M580 185 C 605 165, 635 165, 654 185" stroke="#34d399" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-dasharray="5 7" marker-end="url(#pl-arrow)"></path>
+    <text x="617" y="155" text-anchor="middle" font-size="11" font-weight="500" fill="#b6c2c5" letter-spacing="0.6">prompt</text>
+
+    
+    <path class="pl-flow-warm" d="M660 219 C 635 240, 605 240, 586 219" stroke="#f4a48a" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-dasharray="5 7" marker-end="url(#pl-arrow-warm)"></path>
+    <text x="617" y="262" text-anchor="middle" font-size="11" font-weight="500" fill="#f4a48a" letter-spacing="0.6">response</text>
+
+    
+    <g>
+      <rect x="660" y="170" width="140" height="64" rx="12" fill="#1a1411" stroke="#3a201a" stroke-width="1"></rect>
+      <g transform="translate(692,202)" stroke="#f4a48a" fill="none" stroke-width="1.6" stroke-linecap="round">
+        <rect x="-11" y="-7" width="22" height="16" rx="2.5"></rect>
+        <circle cx="-5" cy="1" r="1.4" fill="#f4a48a" stroke="none"></circle>
+        <circle cx="5" cy="1" r="1.4" fill="#f4a48a" stroke="none"></circle>
+        <line x1="0" y1="-11" x2="0" y2="-7"></line>
+        <circle cx="0" cy="-12" r="1.6" fill="#f4a48a" stroke="none"></circle>
+      </g>
+      <text x="716" y="208" font-size="16" font-weight="600" fill="#f4a48a">Agent</text>
+    </g>
+  </g>
+
+  <path class="pl-flow" d="M820 202 L 858 202" stroke="#34d399" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-dasharray="5 7" marker-end="url(#pl-arrow)"></path>
+
+  
+  <g>
+    <rect x="860" y="170" width="140" height="64" rx="12" fill="#121a1c" stroke="#1e2a2d" stroke-width="1"></rect>
+    <g transform="translate(895,202)" stroke="#34d399" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M-8 5 L 0 -8 L 8 5 Z"></path>
+      <line x1="-4" y1="0" x2="4" y2="0"></line>
+    </g>
+    <text x="916" y="208" font-size="16" font-weight="600" fill="#ecf2f3">Judge</text>
+  </g>
+
+  <path class="pl-flow" d="M1000 202 L 1038 202" stroke="#34d399" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-dasharray="5 7" marker-end="url(#pl-arrow)"></path>
+
+  
+  <g>
+    <rect x="1040" y="170" width="140" height="64" rx="12" fill="#0f1822" stroke="#1d2d44" stroke-width="1"></rect>
+    <g transform="translate(1072,202)" stroke="#93c2f4" fill="none" stroke-width="1.4" stroke-linecap="round">
+      <rect x="-8" y="-10" width="16" height="20" rx="2"></rect>
+      <line x1="-5" y1="-5" x2="5" y2="-5"></line>
+      <line x1="-5" y1="-1" x2="5" y2="-1"></line>
+      <line x1="-5" y1="3" x2="5" y2="3"></line>
+      <line x1="-5" y1="7" x2="2" y2="7"></line>
+    </g>
+    <text x="1092" y="208" font-size="16" font-weight="600" fill="#93c2f4">Report</text>
+  </g>
+</svg>

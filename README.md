@@ -1,325 +1,149 @@
-# `opfor`
+<p align="center">
+  <img src="assets/opfor-logo.png" alt="OPFOR" width="120" />
+</p>
 
-**Open-source red teaming for AI agents and MCP servers.**
+<p align="center">
+  <strong>Open-source adversary emulation for AI agents, LLM apps, and MCP servers.</strong><br/>
+  Test your AI like a real attacker would — from your CLI, your IDE, or a browser extension that anyone on your team can use.
+</p>
 
-One tool to generate OWASP-mapped attack prompts, fire them at your target, and judge every response with an LLM. Works as a CLI, an MCP server inside Cursor or Claude Desktop, or a slash command in any AI coding agent.
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache_2.0-444441?style=flat&labelColor=3d3d3a" alt="License: Apache 2.0"></a>
+  <a href="#evaluator-coverage"><img src="https://img.shields.io/badge/OWASP-LLM%20%2B%20Agentic%20%2B%20MCP%20%2B%20API-185FA5?style=flat&labelColor=3d3d3a" alt="OWASP coverage"></a>
+</p>
 
-[![License: Apache 2.0](https://img.shields.io/badge/license-Apache_2.0-444441?style=flat&labelColor=3d3d3a)](LICENSE)
-[![OWASP LLM Top 10](https://img.shields.io/badge/OWASP_LLM_Top_10-covered-185FA5?style=flat&labelColor=3d3d3a)](#evaluator-suites)
-[![OWASP Agentic Top 10](https://img.shields.io/badge/OWASP_Agentic_Top_10-covered-185FA5?style=flat&labelColor=3d3d3a)](#evaluator-suites)
-[![OWASP MCP Top 10](https://img.shields.io/badge/OWASP_MCP_Top_10-covered-185FA5?style=flat&labelColor=3d3d3a)](#evaluator-suites)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat&labelColor=3d3d3a)](CONTRIBUTING.md)
+<p align="center">
+  <a href="https://opfor.dev">Website</a> ·
+  <a href="https://opfor.dev/docs">Documentation</a> ·
+  <a href="docs/quickstart.md">Quick Start</a> ·
+  <a href="docs/browser-extension.md">Browser Extension</a>
+</p>
 
----
-
-## Who this is for
-
-- **Agent builders** — find out how your agent gets exploited before your users do.
-- **MCP server authors** — regression-test tool behavior (scope, input validation, secret handling) before release.
-- **Security reviewers** — reproducible runs: fixed attack plans, logged requests/responses, LLM-judged verdicts per call.
-
----
-
-## Three ways to run opfor
-
-| Mode           | How                                                | Best for                                            |
-| -------------- | -------------------------------------------------- | --------------------------------------------------- |
-| **CLI**        | `opfor setup` → `opfor generate` → `opfor execute` | Terminal-first workflows, CI/CD                     |
-| **MCP Server** | Add to Cursor / Claude Desktop, then ask in chat   | Agents that test agents                             |
-| **Skills**     | `/opfor-setup` and `/opfor-execute` slash commands | Any AI coding agent (Cursor, Claude Code, Windsurf) |
-
-All three modes share the same evaluators, attack templates, and judge logic.
+<p align="center">
+  <img src="assets/opfor-high-level.svg" alt="How OPFOR works" width="860" />
+</p>
 
 ---
 
-## Install
+## Why we built this
+
+We've shipped 130 products for 90 startups over the last ten years. In the last 18 months, almost every one of them had an AI agent in it — and every one of those teams hit the same wall when it came to testing.
+
+So we built OPFOR. For ourselves first. Now open source.
+
+Apache 2.0. Built from India.
+
+---
+
+## Quick Start
 
 ```bash
-git clone https://github.com/KeyValueSoftwareSystems/opfor.git
-cd opfor
-npm install --ignore-scripts
-npm run build
-npm install -g ./cli      # makes the `opfor` command available globally
-```
-
-Set an API key for your preferred LLM provider (used for attack generation and judging):
-
-```bash
-export GROQ_API_KEY=your-key-here
-# or: OPENAI_API_KEY, ANTHROPIC_API_KEY, GOOGLE_GENERATIVE_AI_API_KEY
-```
-
----
-
-## Mode 1 — CLI
-
-### Step 1 — Init (optional)
-
-```bash
-opfor init                        # writes a starter opfor.config.json
-opfor init --example python       # writes opfor-local-target.py stub only
-opfor init --example node         # writes opfor-local-target.js stub only
-```
-
-Skip this step if you prefer the interactive wizard (`opfor setup` with no flags).
-
----
-
-### Step 2 — Generate attack prompts
-
-```bash
-# Interactive wizard — no config file needed
+npm install -g opfor
 opfor setup
-
-# Non-interactive — reads a config file, good for CI
-opfor generate --config opfor.config.json
+opfor execute
 ```
 
-Both write a timestamped attacks file to `.opfor/attacks/`. You can inspect this file before running — it contains every attack prompt, the target config, and the judge config.
-
-**Minimal `opfor.config.json`:**
-
-```json
-{
-  "llm": { "provider": "groq", "model": "llama-3.3-70b-versatile" },
-  "target": {
-    "name": "My Support Bot",
-    "description": "A customer support chatbot with access to user booking data and PII.",
-    "type": "http-endpoint",
-    "endpoint": "http://localhost:4000/chat"
-  },
-  "selection": { "mode": "suite", "suite": "owasp-llm-top10" }
-}
-```
-
-YAML is also supported (`opfor.config.yml`).
-
----
-
-### Step 3 — Run the scan
+Opfor walks you through picking a target, generating attacks, running them, and producing an HTML report. Set an API key for your LLM provider first:
 
 ```bash
-opfor execute --attacks .opfor/attacks/opfor-attacks-<timestamp>-<id>.json
-
-# Override target at run time
-opfor execute --attacks .opfor/attacks/opfor-attacks-<timestamp>-<id>.json --target-script ./adapter.js
-
-# Custom report directory
-opfor execute --attacks .opfor/attacks/opfor-attacks-<timestamp>-<id>.json --out-dir ./reports
+export GROQ_API_KEY=your-key    # or OPENAI_API_KEY, ANTHROPIC_API_KEY, etc.
 ```
 
-Reports are written to:
-
-```
-.opfor/reports/report-<timestamp>/
-  ├── report.html   ← open in a browser
-  └── report.json   ← use in CI/CD
-```
-
-> **Shortcut:** `opfor execute` and `opfor generate` work without arguments — they invoke the setup wizard automatically if no file is provided.
-
-Full CLI reference: [`docs/cli.md`](docs/cli.md)
+→ [Full Quick Start guide](docs/quickstart.md) · [Examples](examples/) · [Browser extension](docs/browser-extension.md)
 
 ---
 
-## Mode 2 — MCP Server (Cursor, Claude Desktop)
+## What opfor does
 
-Register opfor as an MCP server and red-team directly from chat — no terminal required.
-
-**Cursor** — add to `~/.cursor/mcp.json`:
-
-```json
-{
-  "mcpServers": {
-    "opfor": {
-      "command": "node",
-      "args": ["/absolute/path/to/opfor/mcp/dist/index.js"]
-    }
-  }
-}
-```
-
-**Claude Desktop** — add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "opfor": {
-      "command": "node",
-      "args": ["/absolute/path/to/opfor/mcp/dist/index.js"]
-    }
-  }
-}
-```
-
-Then just talk to your agent:
-
-```
-"Red team my chatbot at http://localhost:4000/chat using the OWASP LLM Top 10 suite"
-```
-
-The agent calls three tools in sequence:
-
-| Tool                    | What it does                                                            |
-| ----------------------- | ----------------------------------------------------------------------- |
-| `opfor_list_evaluators` | Returns all evaluator IDs, severities, OWASP tags, and available suites |
-| `opfor_setup`           | Generates targeted attack prompts (inline params or config file path)   |
-| `opfor_execute`         | Fires attacks, judges responses, writes HTML + JSON reports             |
-
-Full MCP reference: [`docs/mcp.md`](docs/mcp.md)
+- 🎯 **Red-teams the whole AI agent surface** — prompts, tools, MCP servers, memory, multi-turn reasoning
+- 🧪 **Generates targeted attacks** for OWASP LLM Top 10, OWASP Agentic AI Top 10, OWASP MCP Top 10, OWASP API Security, and EU AI Act bias suites
+- 🔌 **Connects to MCP servers directly** — enumerates tools, fires real `tools/call` requests with adversarial inputs, judges responses
+- 👁️ **Trace-aware** — integrates with Langfuse and Netra so the LLM judge sees what your agent did internally, not just what it said
+- 📄 **Produces reports you can ship** — timestamped HTML for browsing, JSON for CI/CD, every prompt + response + judge verdict logged
 
 ---
 
-## Mode 3 — Skills (slash commands)
+## Why opfor
 
-In any AI coding agent that supports slash commands (Cursor, Claude Code, Windsurf):
+Most red-team tooling in this space is excellent at one thing — a probe library, a developer evaluator, a programmatic framework. None of them ship a browser extension. None of them run as an MCP server themselves. None of them cover all four OWASP standards in one tool.
 
-```
-/opfor-setup    ← interactive wizard: picks target, suite, LLM provider
-/opfor-execute  ← fires attacks and generates a report in chat
-```
+We built opfor because we needed all three.
 
-No CLI install needed. The agent reads the skill files directly from the `skills/` directory.
-
----
-
-## What it tests
-
-### Agent mode — HTTP or local-script targets
-
-Send attack prompts to any HTTP endpoint or a local stdin/stdout adapter script.
-
-```json
-{
-  "target": {
-    "name": "My Bot",
-    "type": "http-endpoint",
-    "endpoint": "http://localhost:4000/chat",
-    "requestFormat": "openai"
-  }
-}
-```
-
-For a local script adapter (when your target is not a single URL):
-
-```json
-{
-  "target": {
-    "name": "My Bot",
-    "type": "local-script",
-    "scriptPath": "./opfor-local-target.js"
-  }
-}
-```
-
-The script reads `{"prompt":"...","sessionId":"..."}` from stdin and writes `{"response":"..."}` to stdout.
-
-### MCP mode — live tool calls against MCP servers
-
-Opfor connects to your MCP server, calls `tools/list`, generates tool-specific attacks, fires real `tools/call` requests, and judges the responses.
-
-**STDIO transport:**
-
-```json
-{
-  "mode": "mcp",
-  "mcp": {
-    "server": { "transport": "stdio", "command": "node", "args": ["dist/index.js"] },
-    "llm": { "provider": "openai", "model": "gpt-4o-mini", "apiKeyEnv": "OPENAI_API_KEY" }
-  }
-}
-```
-
-**HTTP/SSE transport:**
-
-```json
-{
-  "mode": "mcp",
-  "mcp": {
-    "server": {
-      "transport": "url",
-      "url": "https://your-mcp-server.example.com/mcp",
-      "headers": { "Authorization": "Bearer <token>" }
-    },
-    "llm": { "provider": "openai", "model": "gpt-4o-mini", "apiKeyEnv": "OPENAI_API_KEY" }
-  }
-}
-```
+- 🌐 **Browser extension for non-developers** — anyone on your team can red-team a deployed chatbot in 30 seconds, no code, no env vars, no YAML
+- 🤖 **Run opfor as an MCP server** — let your AI coding agent in Cursor or Claude Desktop red-team your other agents through natural language
+- 🛡️ **Full OWASP coverage in one tool** — LLM Top 10, Agentic AI Top 10, MCP Top 10, API Security Top 10
+- 🔓 **No black box** — every attack prompt, request, response, and judge verdict is logged. Reproducible, auditable, forkable.
+- 🎯 **Built for agents, not just models** — designed for tool calls, MCP, memory, and multi-turn state from day one
 
 ---
 
-## Evaluator suites
+## Four ways to run opfor
 
-| Suite ID              | Standard                  | Evaluators                                                                                                   |
-| --------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `owasp-llm-top10`     | OWASP LLM Top 10 (2025)   | prompt-injection, jailbreaking, sensitive-disclosure, system-prompt-leakage, misinformation, …               |
-| `owasp-agentic-ai`    | OWASP Agentic AI Top 10   | excessive-agency, tool-misuse, agent-goal-hijack, rogue-agents, memory-poisoning, cascading-failures, …      |
-| `owasp-mcp-top10`     | OWASP MCP Top 10 (2025)   | secret-exposure, oauth-token-passthrough, scope-escalation, tool-description-injection, command-injection, … |
-| `owasp-api`           | OWASP API Security Top 10 | bola, bfla, sql-injection, …                                                                                 |
-| `eu-ai-act-bias`      | EU AI Act — Bias          | bias-age, bias-gender, bias-race, bias-disability                                                            |
-| `output-trust-safety` | Output trust & safety     | hallucination, misinformation, improper-output-handling, …                                                   |
+Different people on your team need different entry points. Opfor ships four.
 
-### OWASP MCP Top 10 — evaluator mapping
+| Mode                     | How                                                              | Best for                                                                                  |
+| ------------------------ | ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| **🖥️ CLI**               | `opfor setup` → `opfor execute`                                  | Engineers, CI/CD, terminal-first workflows                                                |
+| **🌐 Browser extension** | Install the extension, click the icon on any chat interface      | Product managers, designers, QA, security analysts — anyone who can't or won't write code |
+| **🤖 MCP server**        | Register opfor in Cursor or Claude Desktop, then ask in chat     | AI coding agents that test your other agents                                              |
+| **⚡ Skills**            | `/opfor-setup` and `/opfor-run` in Cursor, Claude Code, Windsurf | Developers who want one-command testing inside their IDE                                  |
 
-| OWASP ID | Evaluator ID                 | What it probes                                               | Severity |
-| -------- | ---------------------------- | ------------------------------------------------------------ | -------- |
-| MCP01    | `secret-exposure`            | API keys, tokens, credentials leaked via errors or responses | Critical |
-| MCP01    | `oauth-token-passthrough`    | OAuth confused deputy and token passthrough attacks          | Critical |
-| MCP02    | `scope-escalation`           | Privilege escalation and scope bypass                        | High     |
-| MCP03    | `tool-description-injection` | Hidden instructions injected via adversarial tool inputs     | Critical |
-| MCP03    | `content-injection`          | Second-order content injection via fetched page content      | High     |
-| MCP03    | `tool-description-scan`      | Static scan of tool descriptions for hidden LLM directives   | High     |
-| MCP04    | `supply-chain`               | Software supply chain attacks and dependency tampering       | High     |
-| MCP05    | `ssrf`                       | SSRF — internal IPs, cloud metadata, localhost               | Critical |
-| MCP05    | `command-injection`          | Command injection and shell metacharacter attacks            | Critical |
-| MCP06    | `intent-subversion`          | Agent intent redirection via tool responses                  | High     |
-| MCP07    | `missing-authentication`     | Unauthenticated or weakly authenticated tool access          | High     |
-| MCP08    | `audit-telemetry`            | Actions taken without traceability                           | Medium   |
-| MCP09    | `shadow-mcp-server`          | Shadow / rogue MCP server detection and spoofing             | High     |
-| MCP10    | `cross-resource-leakage`     | Cross-user, cross-tenant, and cross-session data leakage     | High     |
+All four share the same evaluators, attack templates, and judge logic.
 
-Run a specific subset instead of a full suite:
-
-```json
-"selection": {
-  "mode": "evaluators",
-  "evaluators": ["prompt-injection", "sensitive-disclosure", "jailbreaking"]
-}
-```
+→ [CLI reference](docs/cli.md) · [Browser extension setup](docs/browser-extension.md) · [MCP setup](docs/mcp.md) · [Skills setup](docs/skills.md)
 
 ---
 
-## Supported LLM providers
+## How it works
 
-| `llm.provider` | Env var                        | Default model               |
-| -------------- | ------------------------------ | --------------------------- |
-| `groq`         | `GROQ_API_KEY`                 | `llama-3.3-70b-versatile`   |
-| `openai`       | `OPENAI_API_KEY`               | `gpt-4o-mini`               |
-| `anthropic`    | `ANTHROPIC_API_KEY`            | `claude-3-5-haiku-20241022` |
-| `google`       | `GOOGLE_GENERATIVE_AI_API_KEY` | `gemini-2.0-flash`          |
-| `other`        | `OPFOR_API_KEY`                | requires `llm.baseURL`      |
+<p align="center">
+  <img src="assets/opfor-execution-flow.svg" alt="What happens during opfor execute" width="860" />
+</p>
 
-Any OpenAI-compatible endpoint (LiteLLM, OpenRouter, Azure, Ollama) works via `provider: "other"` + `llm.baseURL`:
+When you run a scan, opfor:
 
-```json
-"llm": { "provider": "other", "baseURL": "http://localhost:11434/v1", "model": "llama3.2" }
-```
+1. **Fetches target info** — connects to your agent, detects available tools, MCP endpoints, capabilities
+2. **Plans attacks per category** — generates targeted prompts for each evaluator in your selected suite
+3. **Emulates the attack** — runs multi-turn adversarial conversations (real requests, real responses)
+4. **Evaluates with a judge** — an LLM judge classifies each response with pass/fail + reasoning
+5. **Generates a report** — HTML for browsing, JSON for CI/CD, all artifacts logged for reproducibility
+
+Reports land in `.opfor/reports/report-<timestamp>/`.
 
 ---
 
-## Advanced features
+## Browser extension — red-team a chatbot in 30 seconds
 
-### Multi-turn attacks
+The browser extension is opfor's no-code path. Install it, open any chat interface, click the opfor icon, pick a suite, and watch it run.
 
-Opfor can run adversarial multi-turn conversations — after each response, an attacker LLM generates a more escalating follow-up:
+It auto-detects the chat interface, sends attack prompts as if you were typing them, watches the responses, and downloads an HTML report when done. No CLI, no API keys to configure if you connect via SSO, no YAML.
 
-```json
-{ "turnMode": "multi", "turns": 3, "target": { "sessionIdField": "session_id" } }
-```
+This is the path for the half of every product team that doesn't open a terminal.
 
-### Telemetry enrichment (Langfuse / Netra)
+→ [Install the extension](docs/browser-extension.md)
 
-When configured, opfor pulls real production traces to ground attack prompts in actual user language, and injects trace IDs so the LLM judge has visibility into internal tool calls — not just the final response.
+---
+
+## Evaluator coverage
+
+Opfor ships with curated suites that map to industry standards. Pick a suite or run individual evaluators.
+
+| Suite ID              | Standard                  | Focus                                                                     |
+| --------------------- | ------------------------- | ------------------------------------------------------------------------- |
+| `owasp-llm-top10`     | OWASP LLM Top 10 (2025)   | Prompt injection, jailbreaks, sensitive disclosure, system prompt leakage |
+| `owasp-agentic-ai`    | OWASP Agentic AI Top 10   | Excessive agency, tool misuse, agent goal hijack, memory poisoning        |
+| `owasp-mcp-top10`     | OWASP MCP Top 10 (2025)   | Secret exposure, scope escalation, tool description injection, SSRF       |
+| `owasp-api`           | OWASP API Security Top 10 | BOLA, BFLA, SQL injection                                                 |
+| `eu-ai-act-bias`      | EU AI Act — Bias          | Age, gender, race, disability                                             |
+| `output-trust-safety` | Output trust & safety     | Hallucination, misinformation, improper output handling                   |
+
+→ [Full evaluator reference and OWASP mapping](docs/evaluators.md)
+
+---
+
+## Trace-aware testing
+
+Plug opfor into your observability stack and the LLM judge sees not just the final response — but every tool call, retrieval, and intermediate reasoning step. Out of the box, opfor integrates with **[Langfuse](https://langfuse.com)** and **[Netra](https://netra.io)** (Netra is our paid hosted product — same team).
 
 ```json
 "telemetry": {
@@ -328,125 +152,84 @@ When configured, opfor pulls real production traces to ground attack prompts in 
 }
 ```
 
-```bash
-export LANGFUSE_PUBLIC_KEY=pk-lf-...
-export LANGFUSE_SECRET_KEY=sk-lf-...
-```
+This catches what input/output testing misses — PII that leaks into a tool call but never reaches the user, scope escalations in MCP that don't change the response text, agents that retrieve unauthorized data but render a clean reply.
 
-### CI/CD
-
-```yaml
-- name: Generate attacks
-  run: opfor generate --config opfor.config.json
-
-- name: Run scan
-  run: opfor execute --attacks .opfor/attacks/opfor-attacks-*.json
-```
+→ [Trace-aware testing guide](docs/trace-aware.md)
 
 ---
 
-## API keys
+## Examples
 
-Keys are loaded in this order: `--api-key` CLI flag → `llm.apiKey` in config → provider env var. The CLI loads `.env` from the current working directory automatically.
+| Example                                               | Description                                                     |
+| ----------------------------------------------------- | --------------------------------------------------------------- |
+| [vanilla-chat](tests/e2e/agents/vanilla-chat)         | Plain customer support chatbot — test LLM-level vulnerabilities |
+| [customer-support](tests/e2e/agents/customer-support) | Tool-calling agent with PostgreSQL — test BOLA, BFLA, RBAC, PII |
+| [mcp-server-demo](examples/mcp-server-demo)           | Sample MCP server with intentional vulnerabilities              |
+| [github-actions](examples/ci-cd/github-actions.yml)   | Run opfor in CI on every PR                                     |
 
-Never commit API keys. Add `.opfor/` to `.gitignore`.
-
----
-
-## Developer testing
-
-`tests/e2e/agents/` contains pre-built target agents you can spin up locally to test Opfor against a real endpoint — no external service required.
-
-### vanilla-chat
-
-A plain customer support chatbot (no tools) backed by your choice of provider.
-
-**Step 1 — configure and start the agent:**
-
-```bash
-cd tests/e2e/agents/vanilla-chat
-cp .env.example .env          # set PROVIDER + the matching API key for the agent
-./scripts/start.sh            # builds image, starts agent, waits for health
-```
-
-**Step 2 — set the attack LLM key in your shell** (separate from the Docker `.env`):
-
-```bash
-export GROQ_API_KEY=your-key-here   # or OPENAI_API_KEY / ANTHROPIC_API_KEY etc.
-```
-
-**Step 3 — generate and run attacks from the repo root:**
-
-```bash
-opfor generate --config tests/e2e/agents/vanilla-chat/opfor.config.json
-opfor execute --attacks .opfor/attacks/opfor-attacks-*-vanilla-chat.json
-```
-
-**Supported providers:** `openai` · `anthropic` · `groq` · `google` · any OpenAI-compatible endpoint via `BASE_URL`
-
-**Evaluator coverage:** OWASP LLM Top 10, system-prompt-leakage, jailbreaking, bias, misinformation.
+→ [All examples](examples/)
 
 ---
 
-### customer-support
+## Supported LLM providers
 
-A tool-calling customer support agent backed by PostgreSQL. Has intentional authorization gaps to exercise BOLA, BFLA, RBAC, and PII evaluators. Runs multi-turn attacks by default.
+| Provider          | Env var                        | Default model                      |
+| ----------------- | ------------------------------ | ---------------------------------- |
+| Groq              | `GROQ_API_KEY`                 | `llama-3.3-70b-versatile`          |
+| OpenAI            | `OPENAI_API_KEY`               | `gpt-4o-mini`                      |
+| Anthropic         | `ANTHROPIC_API_KEY`            | `claude-3-5-haiku-20241022`        |
+| Google            | `GOOGLE_GENERATIVE_AI_API_KEY` | `gemini-2.0-flash`                 |
+| OpenAI-compatible | `OPFOR_API_KEY` + `baseURL`    | LiteLLM, OpenRouter, Azure, Ollama |
 
-**Step 1 — configure and start the agent:**
-
-```bash
-cd tests/e2e/agents/customer-support
-cp .env.example .env          # set PROVIDER + the matching API key for the agent
-./scripts/start.sh            # starts postgres + agent, seeds DB, waits for health
-```
-
-**Step 2 — set the attack LLM key in your shell:**
-
-```bash
-export GROQ_API_KEY=your-key-here
-```
-
-**Step 3 — generate and run attacks from the repo root:**
-
-```bash
-opfor generate --config tests/e2e/agents/customer-support/opfor.config.json
-opfor execute --attacks .opfor/attacks/opfor-attacks-*-customer-support.json
-```
-
-**Other commands (from the agent directory):**
-
-```bash
-./scripts/stop.sh    # stop containers, preserve DB data
-./scripts/reset.sh   # wipe DB and restart with fresh seed data
-```
-
-**Supported providers:** `openai` · `anthropic` · `groq` · `google` · any OpenAI-compatible endpoint via `BASE_URL`
-
-**Evaluator coverage:** BOLA, BFLA, RBAC, PII (direct/session/API), SQL injection, prompt injection, jailbreaking, system-prompt-leakage, contracts, competitors, hallucination.
+→ [Provider configuration](docs/providers.md)
 
 ---
 
 ## Contributing
 
-Opfor is open source and contributions are welcome. Highest-impact ways to contribute:
+Highest-impact ways to contribute:
 
-1. **New evaluators** — add a `.md` file to `skills/agent-redteaming/opfor-setup/evaluators/` or `skills/mcp-redteaming/evaluators/` with attack templates, pass/fail criteria, and a CVE or paper citation. No TypeScript needed — the engine auto-discovers it.
-2. **New target adapters** — add support for new agent frameworks or transports in `core/src/mcp-client/`.
-3. **Findings** — run opfor against a public agent or MCP server and open a PR to `findings/` with a writeup.
-4. **Bug reports** — open an [issue](https://github.com/KeyValueSoftwareSystems/opfor/issues) with steps to reproduce.
+1. **New evaluators** — add a `.md` file under `skills/*/evaluators/` with attack templates and pass/fail criteria. The engine auto-discovers it. No TypeScript needed.
+2. **New target adapters** — extend `core/src/mcp-client/` to support new agent frameworks.
+3. **Findings** — run opfor against a public agent or MCP server and PR your writeup to `findings/`.
+4. **Bug reports** — open an [issue](https://github.com/KeyValueSoftwareSystems/opfor/issues).
 
-Read the full [Contributing Guide](CONTRIBUTING.md) before opening a PR.
+Read the [Contributing Guide](CONTRIBUTING.md).
 
 ---
 
-## Security disclosure
+## Security
 
 Use opfor only on systems you own or are authorized to test.
 
-To report a vulnerability in opfor itself, see [SECURITY.md](SECURITY.md). Do not open a public issue — email [opfor@keyvalue.systems](mailto:opfor@keyvalue.systems) instead.
+To report a vulnerability in opfor itself, see [SECURITY.md](SECURITY.md). Email [opfor@keyvalue.systems](mailto:opfor@keyvalue.systems) — do not open a public issue.
 
 ---
 
 ## License
 
 [Apache 2.0](LICENSE) — free to use, modify, and distribute.
+
+---
+
+_OPFOR is short for Opposition Force — a military term for the dedicated unit that plays the enemy in training, so the rest of the army learns what real attacks feel like before they come. We named the tool after that idea: to defend AI agents better, you have to attack them first._
+
+---
+
+<p align="center">
+  <strong>Built by <a href="https://keyvalue.systems">KeyValue</a></strong><br/>
+  130 products · 10 years · From India
+</p>
+
+<br/>
+
+<p align="center">
+  Also from our team: <a href="https://netra.io"><strong>Netra</strong></a> — AI observability, tracing, and simulation.<br/>
+  <a href="docs/trace-aware.md">Integrates with opfor for trace-aware testing.</a>
+</p>
+
+<br/>
+
+<p align="center">
+  Apache 2.0 · <a href="https://github.com/KeyValueSoftwareSystems/opfor">GitHub</a>
+</p>
