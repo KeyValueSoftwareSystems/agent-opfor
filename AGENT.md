@@ -52,7 +52,20 @@ opfor/
 │       └── core/
 │           ├── setup.ts         # runSetup() — thin wrapper over @opfor/core
 │           └── run.ts           # runScan() — thin wrapper over @opfor/core
-├── extension/                   # npm workspace — browser extension
+├── extension/                   # npm workspace — browser extension (MV3, no build step)
+│   ├── service_worker.js        # Entry point — message routing only; imports from modules below
+│   ├── orchestrator.js          # Main run loop: locate → attack → extract → reset → judge
+│   ├── llmPlanner.js            # All LLM prompts (frame selection, attack generation, judging)
+│   ├── frameDiscovery.js        # Frame collection, scoring, and chat-frame selection
+│   ├── domActions.js            # chrome.scripting wrappers (send, click, verify, vendor APIs)
+│   ├── responseExtractor.js     # Smart three-phase polling extractor for bot responses
+│   ├── llm.js                   # callOpenAiCompat — OpenAI-compatible HTTP client
+│   ├── storage.js               # chrome.storage.local helpers (run status, results, paused run)
+│   ├── catalog.js               # catalog.json loading and evaluator/suite lookups
+│   ├── config.js                # getLlmProfile / assertLlmCfg — reads Options storage
+│   ├── state.js                 # Shared mutable run state (OPFOR_STOP, AbortController)
+│   ├── utils.js                 # sleep, formatTranscript, safeJsonParse
+│   └── frame_*.js               # Frame scripts injected into page contexts (standalone, no imports)
 ├── skills/
 │   ├── agent-redteaming/
 │   │   └── opfor-setup/
@@ -128,6 +141,9 @@ npm run format:check             # prettier --check
 | `cli/src/commands/generate.ts`          | Non-interactive attack generation (`opfor generate`)                                    |
 | `cli/src/commands/execute.ts`           | Execute entrypoint (`opfor execute`)                                                    |
 | `mcp/src/index.ts`                      | MCP server: registers `opfor_list_evaluators`, `opfor_setup`, `opfor_run` tools         |
+| `extension/service_worker.js`           | Extension entry point — message routing; imports from focused ES modules                |
+| `extension/orchestrator.js`             | Full adaptive run loop (locate chat → multi-turn attack → judge)                        |
+| `extension/llmPlanner.js`               | All LLM prompts used by the extension (attacker, judge, frame reader)                   |
 
 ---
 
