@@ -14,9 +14,9 @@ Opfor is an open-source red-teaming toolkit for AI agents and MCP servers. It ge
 
 | Mode       | Entry point                                        | Who runs it                                  |
 | ---------- | -------------------------------------------------- | -------------------------------------------- |
-| Skills     | `/opfor-setup`, `/opfor-run` slash commands        | AI coding agent reads markdown skill files   |
+| Skills     | `/opfor-setup`, `/opfor-execute` slash commands    | AI coding agent reads markdown skill files   |
 | CLI        | `opfor setup` / `opfor generate` / `opfor execute` | User in terminal or CI                       |
-| MCP Server | `opfor_setup`, `opfor_run` tools                   | MCP-compatible host (Cursor, Claude Desktop) |
+| MCP Server | `opfor_setup`, `opfor_execute` tools               | MCP-compatible host (Cursor, Claude Desktop) |
 
 ---
 
@@ -46,7 +46,7 @@ opfor/
 │       │   ├── agent/           # agent-mode subcommands
 │       │   └── mcp/             # mcp-mode subcommands
 │       └── lib/                 # artifacts.ts, env.ts, unifiedConfig.ts
-├── mcp/                         # npm workspace — MCP server (`opfor_setup`, `opfor_run` tools)
+├── mcp/                         # npm workspace — MCP server (`opfor_setup`, `opfor_execute` tools)
 │   └── src/
 │       ├── index.ts             # MCP server entrypoint — registers tools, stdio transport
 │       └── core/
@@ -140,7 +140,7 @@ npm run format:check             # prettier --check
 | `cli/src/commands/setup.ts`             | Interactive setup wizard                                                                |
 | `cli/src/commands/generate.ts`          | Non-interactive attack generation (`opfor generate`)                                    |
 | `cli/src/commands/execute.ts`           | Execute entrypoint (`opfor execute`)                                                    |
-| `mcp/src/index.ts`                      | MCP server: registers `opfor_list_evaluators`, `opfor_setup`, `opfor_run` tools         |
+| `mcp/src/index.ts`                      | MCP server: registers `opfor_list_evaluators`, `opfor_setup`, `opfor_execute` tools     |
 | `extension/service_worker.js`           | Extension entry point — message routing; imports from focused ES modules                |
 | `extension/orchestrator.js`             | Full adaptive run loop (locate chat → multi-turn attack → judge)                        |
 | `extension/llmPlanner.js`               | All LLM prompts used by the extension (attacker, judge, frame reader)                   |

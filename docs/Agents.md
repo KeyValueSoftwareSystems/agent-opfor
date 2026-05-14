@@ -21,11 +21,11 @@ Read this file before making any changes to this repo.
 
 **Three usage modes — one set of evaluators:**
 
-| Mode   | Entry point                                                | Who runs it                                                                             |
-| ------ | ---------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| Skills | `skills/opfor-setup/SKILL.md`, `skills/opfor-run/SKILL.md` | AI coding agent (Cursor, Claude Code, Windsurf) reads and follows markdown instructions |
-| CLI    | `cli/dist/index.js` via `opfor` command                    | User runs `opfor setup` / `opfor execute` in terminal                                   |
-| MCP    | `mcp/dist/index.js` (long-lived stdio process)             | MCP-compatible host calls `opfor_setup` / `opfor_run` tools                             |
+| Mode   | Entry point                                                    | Who runs it                                                                             |
+| ------ | -------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Skills | `skills/opfor-setup/SKILL.md`, `skills/opfor-execute/SKILL.md` | AI coding agent (Cursor, Claude Code, Windsurf) reads and follows markdown instructions |
+| CLI    | `cli/dist/index.js` via `opfor` command                        | User runs `opfor setup` / `opfor execute` in terminal                                   |
+| MCP    | `mcp/dist/index.js` (long-lived stdio process)                 | MCP-compatible host calls `opfor_setup` / `opfor_execute` tools                         |
 
 **Key design principles:**
 
@@ -52,8 +52,8 @@ opfor/
 │   │   ├── evaluators/                ← 20 evaluator .md files (YAML frontmatter + narrative)
 │   │   ├── suites/                    ← Suite definitions (YAML frontmatter + narrative)
 │   │   └── targets/                   ← Target adapter instructions (http-endpoint, custom-function)
-│   └── opfor-run/
-│       ├── SKILL.md                   ← /opfor-run slash command (orchestrator)
+│   └── opfor-execute/
+│       ├── SKILL.md                   ← /opfor-execute slash command (orchestrator)
 │       └── report-schema.md           ← Report HTML/JSON specification
 │
 ├── core/                              ← @opfor/core — shared TypeScript engine (npm workspace)
@@ -94,7 +94,7 @@ opfor/
 │   │   ├── index.ts                   ← MCP server entrypoint: registers tools, connects stdio transport
 │   │   └── core/
 │   │       ├── setup.ts               ← runSetup(): thin wrapper over @opfor/core for opfor_setup tool
-│   │       └── run.ts                 ← runScan(): thin wrapper over @opfor/core for opfor_run tool
+│   │       └── run.ts                 ← runScan(): thin wrapper over @opfor/core for opfor_execute tool
 │   ├── dist/                          ← Compiled output (generated — do not edit)
 │   ├── package.json
 │   └── tsconfig.json
@@ -305,8 +305,8 @@ JSON or YAML file used by `opfor setup --config` and the MCP `opfor_setup` tool.
 2. Agent reads `skills/opfor-setup/SKILL.md` — follows the interactive wizard
 3. Agent reads suite files from `skills/opfor-setup/suites/` and evaluator files from `skills/opfor-setup/evaluators/`
 4. Agent writes `opfor.config.md` (markdown config for the skills workflow — different from the JSON/YAML CLI config)
-5. User types `/opfor-run`
-6. Agent reads `skills/opfor-run/SKILL.md`, loads the config and target adapter, runs evaluators, generates a report in chat
+5. User types `/opfor-execute`
+6. Agent reads `skills/opfor-execute/SKILL.md`, loads the config and target adapter, runs evaluators, generates a report in chat
 
 ### CLI
 
@@ -338,7 +338,7 @@ The MCP server is a **long-lived process** spawned by the MCP host (Cursor, Clau
 **Lifecycle:**
 
 1. Host spawns `node mcp/dist/index.js`
-2. `mcp/src/index.ts` loads `.env`, registers tools (`opfor_setup`, `opfor_run`), calls `server.connect(stdio)` — blocks forever
+2. `mcp/src/index.ts` loads `.env`, registers tools (`opfor_setup`, `opfor_execute`), calls `server.connect(stdio)` — blocks forever
 3. Host sends `tools/list` → SDK responds with tool schemas
 4. Host sends `tools/call` with arguments → SDK validates, calls handler → handler calls `runSetup()` or `runScan()` from `mcp/src/core/`
 5. Handler returns result → SDK writes JSON-RPC response to stdout → host gives text to agent
@@ -512,7 +512,7 @@ Configured via `@opfor/core/providers/factory.ts`. Supports:
 - Evaluator-centric architecture (from vulnerability-centric)
 - Monorepo: `core/`, `cli/`, `mcp/` as npm workspaces
 - `@opfor/core` shared engine — single source of logic for CLI and MCP
-- MCP server (`opfor_setup` + `opfor_run` tools)
+- MCP server (`opfor_setup` + `opfor_execute` tools)
 - CLI rewritten in TypeScript with interactive wizard, suite selection, `@ai-sdk/*` provider support
 - Attack prompts generated by LLM from YAML frontmatter templates
 - LLM-as-judge for PASS/FAIL verdicts

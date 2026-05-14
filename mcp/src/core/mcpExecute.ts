@@ -1,72 +1,59 @@
 import path from "node:path";
 import { readFile } from "node:fs/promises";
-import { Command } from "commander";
-import { log } from "../../../../core/dist/lib/logger.js";
-import { connectMcpClient } from "../../../../core/dist/mcp-client/createClient.js";
-import { executeAttack } from "../../../../core/dist/run/executeAttack.js";
+import { connectMcpClient } from "../../../core/dist/mcp-client/createClient.js";
+import { executeAttack } from "../../../core/dist/run/executeAttack.js";
 import {
   judgeToolResponse,
   sanitizeJudgeResult,
   errorJudge,
-} from "../../../../core/dist/run/judge.js";
-import { generateNextMcpAttackTurn } from "../../../../core/dist/run/generateNextMcpAttackTurn.js";
-import type { ToolCallTurn } from "../../../../core/dist/run/generateNextMcpAttackTurn.js";
+} from "../../../core/dist/run/judge.js";
+import { generateNextMcpAttackTurn } from "../../../core/dist/run/generateNextMcpAttackTurn.js";
+import type { ToolCallTurn } from "../../../core/dist/run/generateNextMcpAttackTurn.js";
+import { loadEvaluatorCriteria } from "../../../core/dist/catalog/loadEvaluatorCriteria.js";
+import { buildReport, enrichReportWithCriteria } from "../../../core/dist/report/buildReport.js";
+import { writeHtmlReport } from "../../../core/dist/report/renderHtml.js";
+import { scanResources } from "../../../core/dist/run/scanResources.js";
+import type { AttackPlanWritten } from "../../../core/dist/attacks/planSchema.js";
+import type { AttackRunResult, TurnRecord } from "../../../core/dist/run/types.js";
 
-import { loadEvaluatorCriteria } from "../../../../core/dist/catalog/loadEvaluatorCriteria.js";
-import { buildReport, enrichReportWithCriteria } from "../../../../core/dist/report/buildReport.js";
-import { writeHtmlReport } from "../../../../core/dist/report/renderHtml.js";
-import { scanResources } from "../../../../core/dist/run/scanResources.js";
-import type { AttackPlanWritten } from "../../../../core/dist/attacks/planSchema.js";
-import type { AttackRunResult, TurnRecord } from "../../../../core/dist/run/types.js";
-
-interface ParsedToolResponse {
-  text: string;
-  isError: boolean;
+export interface McpExecuteOptions {
+  inputPath: string;
+  outputDir?: string;
 }
 
-/** Parse MCP tool response JSON into readable text + error flag. */
-function parseToolResponse(raw: string): ParsedToolResponse {
-  if (!raw) return { text: "(empty)", isError: false };
-  try {
-    const parsed = JSON.parse(raw) as {
-      content?: Array<{ type?: string; text?: string }>;
-      isError?: boolean;
-    };
-    const texts = (parsed.content ?? [])
-      .filter((c) => c.type === "text" && typeof c.text === "string")
-      .map((c) => c.text as string);
-    const text = texts.join("\n").trim() || raw;
-    return { text, isError: parsed.isError === true };
-  } catch {
-    return { text: raw, isError: false };
-  }
+export interface McpExecuteResult {
+  safetyScore: number;
+  total: number;
+  passed: number;
+  failed: number;
+  errors: number;
+  rugPullCount: number;
+  htmlReport: string;
+  jsonReport: string;
+  failedAttacks: Array<{
+    evaluatorId: string;
+    toolName: string;
+    score: number;
+    reasoning: string;
+  }>;
 }
 
-const DEFAULT_ATTACKS_FILE = "opfor-mcp-attacks.json";
-const DEFAULT_REPORT_DIR = ".opfor/reports";
+export async function runMcpExecute(opts: McpExecuteOptions): Promise<McpExecuteResult> {
+  const { inputPath, outputDir = ".opfor/reports" } = opts;
 
-export async function runMcpAttackPlan(opts: {
-  input: string;
-  outDir: string;
-}): Promise<{ html: string; json: string }> {
-  const { input, outDir } = opts;
-
-  const inputPath = path.resolve(input);
-  log.info(`Loading attack plan: ${inputPath}`);
-  const planRaw = await readFile(inputPath, "utf8");
+  const planRaw = await readFile(path.resolve(inputPath), "utf8");
   const plan = JSON.parse(planRaw) as AttackPlanWritten;
-  log.success(`Loaded ${plan.attacks.length} attacks (suite: ${plan.suiteId})`);
 
   if (!plan.server) {
     throw new Error(
       "Attack plan is missing embedded server config. " +
-        "Re-run `opfor generate --config <path>` to regenerate the plan with current config."
+        "Re-run opfor_mcp_setup to regenerate the plan."
     );
   }
   if (!plan.generatorModel) {
     throw new Error(
       "Attack plan is missing embedded generator model config. " +
-        "Re-run `opfor generate --config <path>` to regenerate the plan with current config."
+        "Re-run opfor_mcp_setup to regenerate the plan."
     );
   }
 
@@ -79,30 +66,17 @@ export async function runMcpAttackPlan(opts: {
     )
   );
 
-  const resolvedOutDir = path.resolve(outDir);
-  log.info(`Reports will be written to: ${resolvedOutDir}`);
-  log.start("Connecting to MCP server…");
+  const resolvedOutDir = path.resolve(outputDir);
   const mcp = await connectMcpClient(plan.server);
-  log.success("Connected.");
 
   const runResults: AttackRunResult[] = [];
   const unauthServerUrl = plan.server.transport !== "stdio" ? plan.server.url : undefined;
 
-  // Phase 0: Resource scan — enumerate and read all MCP resources, judge for exposure
+  // Phase 0: Resource scan
   const scanEnabled = (plan as Record<string, unknown>).scanResources !== false;
   if (scanEnabled) {
-    log.start("Scanning MCP resources (resources/list + resources/read)…");
     const resourceScan = await scanResources(mcp);
-    if (resourceScan.resources.length === 0) {
-      log.info("No resources exposed by this server.");
-    } else {
-      log.success(
-        `resources/list: ${resourceScan.resources.length} resource(s)` +
-          (resourceScan.templates.length > 0
-            ? `, ${resourceScan.templates.length} template(s)`
-            : "")
-      );
-
+    if (resourceScan.resources.length > 0) {
       let resourceCriteria = criteriaMap.get("resource-exposure");
       if (!resourceCriteria) {
         try {
@@ -126,10 +100,8 @@ export async function runMcpAttackPlan(opts: {
       for (let ri = 0; ri < resourceScan.resources.length; ri++) {
         const res = resourceScan.resources[ri];
         const attackId = `resource-exposure-${res.name}-${ri + 1}`;
-        log.start(`[resource ${ri + 1}/${resourceScan.resources.length}] Reading: ${res.uri}`);
 
         if (res.readError) {
-          log.log(`  ↓ err  ${res.readError}`);
           runResults.push({
             attackId,
             evaluatorId: "resource-exposure",
@@ -165,22 +137,6 @@ export async function runMcpAttackPlan(opts: {
           }
         );
 
-        const verdict =
-          judgeResult.verdict === "PASS"
-            ? "✔ PASS"
-            : judgeResult.verdict === "ERROR"
-              ? "⚠ ERROR"
-              : "✖ FAIL";
-        log.log(
-          judgeResult.verdict === "ERROR"
-            ? `  ${verdict} · ${judgeResult.errorMessage}`
-            : `  ${verdict} · score ${judgeResult.score}/10 · confidence ${judgeResult.confidence}%`
-        );
-        log.log(`  ↓ res  ${res.content.slice(0, 300)}`);
-        if (judgeResult.verdict !== "ERROR" && judgeResult.reasoning) {
-          log.log(`  ⚑ ${judgeResult.reasoning}`);
-        }
-
         runResults.push({
           attackId,
           evaluatorId: "resource-exposure",
@@ -193,11 +149,11 @@ export async function runMcpAttackPlan(opts: {
     }
   }
 
+  let rugPullCount = 0;
+
   try {
     for (let i = 0; i < plan.attacks.length; i++) {
       const attack = plan.attacks[i];
-      log.start(`[${i + 1}/${plan.attacks.length}] Running: ${attack.id}`);
-
       const criteria = criteriaMap.get(attack.evaluatorId);
       if (!criteria) throw new Error(`No criteria loaded for evaluator: ${attack.evaluatorId}`);
 
@@ -205,7 +161,6 @@ export async function runMcpAttackPlan(opts: {
 
       if (numTurns <= 1) {
         const execResult = await executeAttack(mcp, attack, undefined, unauthServerUrl);
-
         const isTransportFailure = Boolean(execResult.toolError && !execResult.rawToolResponse);
         const judgeResult = isTransportFailure
           ? errorJudge(execResult.toolError!)
@@ -228,42 +183,12 @@ export async function runMcpAttackPlan(opts: {
               }
             );
 
-        const singleResult: AttackRunResult = { ...execResult, judge: judgeResult };
-        runResults.push(singleResult);
-
-        const verdict =
-          judgeResult.verdict === "PASS"
-            ? "✔ PASS"
-            : judgeResult.verdict === "ERROR"
-              ? "⚠ ERROR"
-              : "✖ FAIL";
-        log.log(
-          judgeResult.verdict === "ERROR"
-            ? `  ${verdict} · ${judgeResult.errorMessage}`
-            : `  ${verdict} · score ${judgeResult.score}/10 · confidence ${judgeResult.confidence}%`
-        );
-
-        log.log(`  ↑ req  ${execResult.toolName}`);
-        log.log(`         ${JSON.stringify(execResult.toolArguments, null, 2)}`);
-        if (execResult.toolError) {
-          log.log(`  ↓ err  ${execResult.toolError}`);
-        } else {
-          const { text, isError } = parseToolResponse(execResult.rawToolResponse);
-          const errorTag = isError ? " [isError=true]" : "";
-          log.log(`  ↓ res${errorTag}  ${text.slice(0, 300)}`);
-        }
-
-        if (judgeResult.verdict !== "ERROR" && judgeResult.reasoning) {
-          log.log(`  ⚑ ${judgeResult.reasoning}`);
-        }
+        runResults.push({ ...execResult, judge: judgeResult });
       } else {
-        log.log(`  ↻ multi-turn (${numTurns} turns)`);
         const turnHistory: ToolCallTurn[] = [];
         const turnResults: TurnRecord[] = [];
 
         for (let t = 1; t <= numTurns; t++) {
-          log.log(`  ── turn ${t}/${numTurns}`);
-
           let overrideArgs: Record<string, unknown> | undefined;
           let turnJudgeHint: string | undefined = attack.judgeHint;
           if (t > 1) {
@@ -280,7 +205,6 @@ export async function runMcpAttackPlan(opts: {
           }
 
           const turnExec = await executeAttack(mcp, attack, overrideArgs, unauthServerUrl);
-
           const isTransportFailure = Boolean(turnExec.toolError && !turnExec.rawToolResponse);
           const judgeResult = isTransportFailure
             ? errorJudge(turnExec.toolError!)
@@ -321,35 +245,11 @@ export async function runMcpAttackPlan(opts: {
             judge: judgeResult,
           });
 
-          const verdict =
-            judgeResult.verdict === "PASS"
-              ? "✔ PASS"
-              : judgeResult.verdict === "ERROR"
-                ? "⚠ ERROR"
-                : "✖ FAIL";
-          log.log(
-            `     ${verdict}${
-              judgeResult.verdict !== "ERROR"
-                ? ` · score ${judgeResult.score}/10`
-                : ` · ${judgeResult.errorMessage}`
-            }`
-          );
-
-          log.log(
-            `     ↑ ${turnExec.toolName}  ${JSON.stringify(turnExec.toolArguments, null, 2)}`
-          );
-          if (turnExec.toolError) {
-            log.log(`     ↓ err  ${turnExec.toolError}`);
-          } else {
-            const { text, isError } = parseToolResponse(turnExec.rawToolResponse);
-            log.log(`     ↓ res${isError ? " [isError=true]" : ""}  ${text.slice(0, 200)}`);
-          }
-
           if (judgeResult.verdict !== "PASS") break;
         }
 
         const finalTurn = turnResults[turnResults.length - 1];
-        const multiResult: AttackRunResult = {
+        runResults.push({
           attackId: attack.id,
           evaluatorId: attack.evaluatorId,
           toolName: finalTurn.toolName,
@@ -358,19 +258,11 @@ export async function runMcpAttackPlan(opts: {
           toolError: finalTurn.toolError,
           judge: finalTurn.judge,
           turns: turnResults,
-        };
-        runResults.push(multiResult);
-
-        const overallVerdict = finalTurn.judge.verdict;
-        const verdictLabel =
-          overallVerdict === "PASS" ? "✔ PASS" : overallVerdict === "ERROR" ? "⚠ ERROR" : "✖ FAIL";
-        log.log(`  ${verdictLabel} after ${turnResults.length} turn(s)`);
-        if (finalTurn.judge.reasoning) log.log(`  ⚑ ${finalTurn.judge.reasoning}`);
+        });
       }
     }
 
     // Rug-pull detection: re-list tools after attacks and diff descriptions
-    log.start("Post-execution rug-pull check (re-listing tools)…");
     try {
       const postListed = await mcp.client.listTools();
       const postTools = (postListed.tools ?? []) as Array<{
@@ -380,19 +272,13 @@ export async function runMcpAttackPlan(opts: {
       const initialDigest = plan.toolsDigest ?? [];
       const initialMap = new Map(initialDigest.map((t) => [t.name, t.description ?? ""]));
 
-      let rugPullCount = 0;
       for (const tool of postTools) {
         const initialDesc = initialMap.get(tool.name);
         const currentDesc = tool.description ?? "";
         if (initialDesc !== undefined && initialDesc !== currentDesc) {
           rugPullCount++;
-          const attackId = `rug-pull-${tool.name}-description-mutation`;
-          log.log(`  ✖ FAIL · Tool "${tool.name}" description MUTATED after execution`);
-          log.log(`    Before: ${initialDesc.slice(0, 150)}`);
-          log.log(`    After:  ${currentDesc.slice(0, 150)}`);
-
           runResults.push({
-            attackId,
+            attackId: `rug-pull-${tool.name}-description-mutation`,
             evaluatorId: "tool-description-injection",
             toolName: tool.name,
             toolArguments: { _opfor_scan: "rug_pull_diff" },
@@ -415,44 +301,9 @@ export async function runMcpAttackPlan(opts: {
           });
         }
       }
-
-      if (rugPullCount === 0) {
-        log.success("No tool description mutations detected.");
-      } else {
-        log.warn(`Rug-pull: ${rugPullCount} tool description(s) mutated after execution.`);
-      }
     } catch {
-      log.info("Post-execution tools/list failed (server may have disconnected).");
+      // Post-execution tools/list failed — server may have disconnected
     }
-  } catch (runErr: unknown) {
-    if (runResults.length > 0) {
-      try {
-        let partialReport = buildReport({
-          plan,
-          results: runResults,
-          generatorModel: plan.generatorModel,
-          judgeModel: judgeModelCfg,
-        });
-        partialReport = enrichReportWithCriteria(
-          partialReport,
-          new Map(
-            [...criteriaMap.entries()].map(([id, c]) => [
-              id,
-              { name: c.name, owasp: c.owasp ?? "", severity: c.severity },
-            ])
-          )
-        );
-        const { html, json } = await writeHtmlReport(partialReport, resolvedOutDir);
-        log.warn(
-          `Run interrupted — partial report (${runResults.length}/${plan.attacks.length} attacks):`
-        );
-        log.log(`  HTML: ${html}`);
-        log.log(`  JSON: ${json}`);
-      } catch {
-        /* ignore */
-      }
-    }
-    throw runErr;
   } finally {
     await mcp.close().catch(() => undefined);
   }
@@ -475,39 +326,24 @@ export async function runMcpAttackPlan(opts: {
 
   const paths = await writeHtmlReport(report, resolvedOutDir);
 
-  log.success(`Report written:`);
-  log.log(`  HTML: ${paths.html}`);
-  log.log(`  JSON: ${paths.json}`);
-  log.box(
-    `Safety score: ${report.summary.safetyScore}%  ·  ${report.summary.passed}/${report.summary.total} passed  ·  ${report.summary.failed} attack(s) succeeded` +
-      (report.summary.errors > 0 ? `  ·  ${report.summary.errors} error(s) excluded` : "")
-  );
+  const failedAttacks = runResults
+    .filter((r) => r.judge.verdict === "FAIL")
+    .map((r) => ({
+      evaluatorId: r.evaluatorId,
+      toolName: r.toolName,
+      score: r.judge.score,
+      reasoning: r.judge.reasoning,
+    }));
 
-  return paths;
-}
-
-export function registerRunCommand(program: Command) {
-  program
-    .command("execute")
-    .description("Execute attacks from a plan file, judge each result, and write an HTML report")
-    .option(
-      "-i, --input <path>",
-      `Attack plan file (default: ./${DEFAULT_ATTACKS_FILE})`,
-      DEFAULT_ATTACKS_FILE
-    )
-    .option(
-      "-o, --out-dir <path>",
-      `Report output directory (default: ./${DEFAULT_REPORT_DIR})`,
-      DEFAULT_REPORT_DIR
-    )
-    .action(async ({ input, outDir }: { input: string; outDir: string }) => {
-      try {
-        await runMcpAttackPlan({ input, outDir });
-        process.exit(0);
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
-        log.error(msg);
-        process.exit(1);
-      }
-    });
+  return {
+    safetyScore: report.summary.safetyScore,
+    total: report.summary.total,
+    passed: report.summary.passed,
+    failed: report.summary.failed,
+    errors: report.summary.errors,
+    rugPullCount,
+    htmlReport: paths.html,
+    jsonReport: paths.json,
+    failedAttacks,
+  };
 }

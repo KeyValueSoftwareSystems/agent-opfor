@@ -8,10 +8,14 @@ loadDotenv();
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { z } from "zod";
 import { loadSkillCatalog, getEvaluatorIdSet } from "../../core/dist/config/loadSkillCatalog.js";
 import { runSetup, runSetupInline } from "./core/setup.js";
 import { runScan } from "./core/run.js";
+import { runMcpSetup } from "./core/mcpSetup.js";
+import { runMcpExecute } from "./core/mcpExecute.js";
 import type { ProviderName } from "../../core/dist/config/types.js";
 
 const server = new McpServer({
@@ -77,15 +81,13 @@ server.tool(
 // ---------------------------------------------------------------------------
 // Tool: opfor_setup
 //
-// Accepts EITHER:
-//   A) config_path — path to an opfor config file (backward-compatible)
-//   B) Inline parameters — target_*, selection_*, llm_* — no file needed
-//
-// When both are supplied, inline parameters take precedence.
+// Unified setup for both agent/chatbot and MCP server red-teaming.
+// Auto-detects mode:
+//   - config_path with "mcp" section  -> MCP server red-teaming
+//   - config_path without "mcp"       -> agent red-teaming (config file)
+//   - inline target_* params          -> agent red-teaming (inline)
 // ---------------------------------------------------------------------------
 
-// Schemas are extracted to variables to avoid TypeScript type instantiation depth errors
-// that occur when large Zod schemas are defined inline inside server.tool() calls.
 const opforSetupSchemaShape: Record<string, z.ZodTypeAny> = {
   // ── Inline target parameters ────────────────────────────────────────────
   target_name: z
@@ -232,7 +234,8 @@ const opforSetupSchemaShape: Record<string, z.ZodTypeAny> = {
     .optional()
     .describe(
       "Path to an opfor config file (JSON or YAML). " +
-        "Used when inline parameters are not provided. " +
+        "For MCP server red-teaming, the config must have an 'mcp' section with server connection details — mode is auto-detected. " +
+        "For agent/chatbot red-teaming, use a config with target/selection or pass inline target_* params instead. " +
         "Inline parameters take precedence if both are supplied."
     ),
 
@@ -247,13 +250,14 @@ const opforSetupSchemaShape: Record<string, z.ZodTypeAny> = {
 
 server.tool(
   "opfor_setup",
-  "Generate targeted red-team attack prompts for an AI application. " +
-    "IMPORTANT: Before calling this tool, you MUST confirm the following with the user — do NOT infer or assume defaults: " +
-    "(1) Which evaluators or suite to run — call opfor_list_evaluators first, show the options, and ask the user to choose. " +
-    "(2) Single-turn or multi-turn attacks — explain the difference and ask. " +
-    "(3) Whether to use Langfuse traces — ask if they have Langfuse set up and want trace-grounded attacks. " +
-    "(4) Target description — ask what the chatbot does, what sensitive data it handles, and what operations it can perform (skip only if use_langfuse=true and traces will provide this). " +
-    "Only call this tool once you have explicit answers to all of the above.",
+  "Generate targeted red-team attacks for an AI agent/chatbot OR an MCP server. " +
+    "Mode is auto-detected: if config_path points to a file with an 'mcp' section, runs MCP server red-teaming; " +
+    "otherwise runs agent/chatbot red-teaming (config file or inline target_* params). " +
+    "IMPORTANT: Before calling, confirm with the user: " +
+    "(1) Are we red-teaming an agent/chatbot or an MCP server? " +
+    "(2) Which evaluators or suite to run — call opfor_list_evaluators first. " +
+    "(3) For agents: single-turn or multi-turn attacks, whether to use Langfuse, and target description. " +
+    "(4) For MCP servers: provide a config_path to an opfor.config.json with an 'mcp' section.",
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   opforSetupSchemaShape as Record<string, any>,
   (async (args: {
@@ -310,12 +314,53 @@ server.tool(
             {
               type: "text",
               text:
-                "❌ Provide either inline parameters (target_name, evaluator_ids or suite, etc.) " +
-                "or a config_path pointing to an opfor config file.",
+                "❌ Provide either:\n" +
+                "  • config_path — for MCP server red-teaming (config with 'mcp' section) or agent red-teaming (config with target/selection)\n" +
+                "  • inline target_* parameters — for agent/chatbot red-teaming\n\n" +
+                "If unsure, ask the user: are we red-teaming an agent/chatbot or an MCP server?",
             },
           ],
           isError: true,
         };
+      }
+
+      // Auto-detect MCP mode from config file
+      if (!usingInline && config_path) {
+        const raw = await readFile(path.resolve(config_path), "utf8");
+        const parsed = JSON.parse(raw) as Record<string, unknown>;
+
+        if (parsed.mcp && typeof parsed.mcp === "object") {
+          // MCP server red-teaming
+          const mcpResult = await runMcpSetup({
+            configPath: config_path,
+            suite: suite,
+            evaluators: evaluator_ids,
+          });
+
+          return {
+            content: [
+              {
+                type: "text",
+                text: [
+                  `✅ MCP setup complete!`,
+                  ``,
+                  `Mode:       MCP server red-teaming (auto-detected from config)`,
+                  `Server:     ${mcpResult.serverSummary}`,
+                  `Suite:      ${mcpResult.suiteId}`,
+                  `Tools:      ${mcpResult.toolCount}`,
+                  `Resources:  ${mcpResult.resourceCount}`,
+                  `Evaluators: ${mcpResult.evaluatorCount}`,
+                  `Attacks:    ${mcpResult.attackCount}`,
+                  `Plan file:  ${mcpResult.planPath}`,
+                  ``,
+                  `Next step: call opfor_execute with input_path="${mcpResult.planPath}"`,
+                ].join("\n"),
+              },
+            ],
+          };
+        }
+
+        // Agent red-teaming via config file
       }
 
       // Validate evaluator selection when using inline mode
@@ -333,14 +378,13 @@ server.tool(
         };
       }
 
-      let result;
+      let agentResult;
 
       if (usingInline) {
         const selection = suite
           ? { mode: "suite" as const, suite }
           : { mode: "evaluators" as const, evaluators: evaluator_ids! };
 
-        // Build optional telemetry override when Langfuse details are provided
         let telemetryOverride = undefined;
         if (langfuse_trace_ids && langfuse_trace_ids.length > 0) {
           telemetryOverride = {
@@ -368,7 +412,7 @@ server.tool(
           };
         }
 
-        result = await runSetupInline(
+        agentResult = await runSetupInline(
           {
             target: {
               name: target_name,
@@ -397,22 +441,23 @@ server.tool(
           output_dir
         );
       } else {
-        result = await runSetup({
+        agentResult = await runSetup({
           configPath: config_path!,
           outputDir: output_dir,
         });
       }
 
-      // Build human-readable status lines for trace curation
       const traceLines: string[] = [];
-      if (result.langfuseTraceCurationRan) {
-        if (result.langfuseCurationError) {
-          traceLines.push(`⚠️  Langfuse trace curation failed: ${result.langfuseCurationError}`);
+      if (agentResult.langfuseTraceCurationRan) {
+        if (agentResult.langfuseCurationError) {
+          traceLines.push(
+            `⚠️  Langfuse trace curation failed: ${agentResult.langfuseCurationError}`
+          );
           traceLines.push(`   Attacks were generated without trace grounding.`);
         } else {
           traceLines.push(`✅ Langfuse traces analysed — attacks grounded in real usage.`);
-          if (result.traceSummaryPath) {
-            traceLines.push(`   Trace summary: ${result.traceSummaryPath}`);
+          if (agentResult.traceSummaryPath) {
+            traceLines.push(`   Trace summary: ${agentResult.traceSummaryPath}`);
           }
         }
       }
@@ -422,15 +467,16 @@ server.tool(
           {
             type: "text",
             text: [
-              `✅ Setup complete!`,
+              `✅ Agent setup complete!`,
               ``,
-              `Provider:       ${result.provider} / ${result.model}`,
-              `Evaluators:     ${result.evaluatorCount}`,
-              `Attack prompts: ${result.totalAttacks}`,
-              `Prompts file:   ${result.promptsFilePath}`,
+              `Mode:       Agent/chatbot red-teaming`,
+              `Provider:       ${agentResult.provider} / ${agentResult.model}`,
+              `Evaluators:     ${agentResult.evaluatorCount}`,
+              `Attack prompts: ${agentResult.totalAttacks}`,
+              `Prompts file:   ${agentResult.promptsFilePath}`,
               ...(traceLines.length > 0 ? [``, ...traceLines] : []),
               ``,
-              `Next step: call opfor_run with input_path="${result.promptsFilePath}"`,
+              `Next step: call opfor_execute with input_path="${agentResult.promptsFilePath}"`,
             ].join("\n"),
           },
         ],
@@ -447,12 +493,16 @@ server.tool(
 );
 
 // ---------------------------------------------------------------------------
-// Tool: opfor_run
+// Tool: opfor_execute
+//
+// Unified execution for both agent/chatbot and MCP server red-teaming.
+// Auto-detects mode from the plan file:
+//   - Has "server" + "toolsDigest" -> MCP server execution
+//   - Has "target" + "attacks"     -> agent/chatbot execution
 // ---------------------------------------------------------------------------
 
-// Extract schema for opfor_run to avoid TypeScript complexity issues
-const opforRunSchemaShape: Record<string, z.ZodTypeAny> = {
-  input_path: z.string().describe("Path to the opfor-prompts-*.json file produced by opfor_setup."),
+const opforExecuteSchemaShape: Record<string, z.ZodTypeAny> = {
+  input_path: z.string().describe("Path to the plan/prompts file produced by opfor_setup."),
   output_dir: z
     .string()
     .optional()
@@ -461,29 +511,98 @@ const opforRunSchemaShape: Record<string, z.ZodTypeAny> = {
 };
 
 server.tool(
-  "opfor_run",
-  "Execute a red team scan using a prompts file generated by opfor_setup. " +
-    "Fires each attack prompt at the target endpoint, judges every response with an LLM (PASS/FAIL), " +
-    "and generates HTML + JSON reports. Returns a full summary of findings.",
+  "opfor_execute",
+  "Execute a red team scan using the plan file generated by opfor_setup. " +
+    "Auto-detects whether the plan targets an agent/chatbot or an MCP server. " +
+    "For agents: fires attack prompts at the target endpoint and judges responses. " +
+    "For MCP servers: connects to the server, fires attacks via tools/call, scans resources, " +
+    "and checks for rug-pull tool description mutations. " +
+    "Produces HTML + JSON reports with a safety score.",
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  opforRunSchemaShape as Record<string, any>,
+  opforExecuteSchemaShape as Record<string, any>,
   (async ({ input_path, output_dir }: { input_path: string; output_dir: string }) => {
     try {
-      const result = await runScan({
+      const raw = await readFile(path.resolve(input_path), "utf8");
+      const plan = JSON.parse(raw) as Record<string, unknown>;
+
+      const isMcpPlan = "server" in plan && "toolsDigest" in plan;
+
+      if (isMcpPlan) {
+        const result = await runMcpExecute({
+          inputPath: input_path,
+          outputDir: output_dir,
+        });
+
+        const failLines =
+          result.failedAttacks.length > 0
+            ? result.failedAttacks
+                .slice(0, 5)
+                .map(
+                  (
+                    f: {
+                      evaluatorId: string;
+                      toolName: string;
+                      score: number;
+                      reasoning: string;
+                    },
+                    i: number
+                  ) =>
+                    `  ${i + 1}. [${f.evaluatorId}] ${f.toolName} — Score ${f.score}/10 — ${f.reasoning}`
+                )
+                .join("\n")
+            : "  None";
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: [
+                `✅ MCP red team scan complete!`,
+                ``,
+                `Mode:         MCP server red-teaming (auto-detected from plan)`,
+                `Safety score: ${result.safetyScore}%`,
+                `Tests:        ${result.total} (${result.passed} passed, ${result.failed} failed, ${result.errors} errors)`,
+                ``,
+                `Vulnerabilities found${result.failedAttacks.length > 5 ? ` (top 5 of ${result.failedAttacks.length})` : ""}:`,
+                failLines,
+                ...(result.rugPullCount > 0
+                  ? [
+                      ``,
+                      `Rug-pull mutations detected: ${result.rugPullCount} tool(s) changed descriptions at runtime`,
+                    ]
+                  : []),
+                ``,
+                `Reports:`,
+                `  HTML: ${result.htmlReport}`,
+                `  JSON: ${result.jsonReport}`,
+              ].join("\n"),
+            },
+          ],
+        };
+      }
+
+      // Agent/chatbot execution
+      const agentResult = await runScan({
         inputPath: input_path,
         outputDir: output_dir,
       });
 
       const findingLines =
-        result.criticalFindings.length > 0
-          ? result.criticalFindings
+        agentResult.criticalFindings.length > 0
+          ? agentResult.criticalFindings
               .slice(0, 5)
-              .map((f, i) => `  ${i + 1}. ${f.evaluator} — Score ${f.score}/10 — ${f.description}`)
+              .map(
+                (f: { evaluator: string; score: number; description: string }, i: number) =>
+                  `  ${i + 1}. ${f.evaluator} — Score ${f.score}/10 — ${f.description}`
+              )
               .join("\n")
           : "  None";
 
-      const evalLines = result.evaluatorResults
-        .map((e) => `  [${e.owasp}] ${e.name}: ${e.passed}✓ ${e.failed}✗ (${e.passRate}% pass)`)
+      const evalLines = agentResult.evaluatorResults
+        .map(
+          (e: { owasp: string; name: string; passed: number; failed: number; passRate: number }) =>
+            `  [${e.owasp}] ${e.name}: ${e.passed}✓ ${e.failed}✗ (${e.passRate}% pass)`
+        )
         .join("\n");
 
       return {
@@ -491,24 +610,25 @@ server.tool(
           {
             type: "text",
             text: [
-              `✅ Red team scan complete!`,
+              `✅ Agent red team scan complete!`,
               ``,
-              `Target:       ${result.target}`,
-              `Endpoint:     ${result.endpoint}`,
-              `Tests run:    ${result.totalAttacks}`,
-              `Passed:       ${result.passed}`,
-              `Failed:       ${result.failed}`,
-              `Safety score: ${result.safetyScore}%`,
+              `Mode:         Agent/chatbot red-teaming`,
+              `Target:       ${agentResult.target}`,
+              `Endpoint:     ${agentResult.endpoint}`,
+              `Tests run:    ${agentResult.totalAttacks}`,
+              `Passed:       ${agentResult.passed}`,
+              `Failed:       ${agentResult.failed}`,
+              `Safety score: ${agentResult.safetyScore}%`,
               ``,
               `Evaluator Results:`,
               evalLines,
               ``,
-              `🔴 Critical Findings${result.criticalFindings.length > 5 ? ` (top 5 of ${result.criticalFindings.length})` : ""}:`,
+              `Critical Findings${agentResult.criticalFindings.length > 5 ? ` (top 5 of ${agentResult.criticalFindings.length})` : ""}:`,
               findingLines,
               ``,
               `Reports:`,
-              `  HTML: ${result.htmlReport}`,
-              `  JSON: ${result.jsonReport}`,
+              `  HTML: ${agentResult.htmlReport}`,
+              `  JSON: ${agentResult.jsonReport}`,
             ].join("\n"),
           },
         ],
@@ -516,7 +636,7 @@ server.tool(
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       return {
-        content: [{ type: "text", text: `❌ Run failed: ${msg}` }],
+        content: [{ type: "text", text: `❌ Execute failed: ${msg}` }],
         isError: true,
       };
     }

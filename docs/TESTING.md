@@ -49,7 +49,7 @@ Or use the CLI:
 npx opfor execute --config .opfor/configs/my-target.md
 ```
 
-The agent uses `skills/opfor-run/SKILL.md` to orchestrate the assessment and generate a report.
+The agent uses `skills/opfor-execute/SKILL.md` to orchestrate the assessment and generate a report.
 
 ---
 
@@ -101,7 +101,7 @@ npx opfor execute --config .opfor/configs/my-target.md --suite owasp-agentic-ai
 - [ ] Lists available evaluators
 - [ ] Saves config to `.opfor/configs/` folder with all fields
 
-### Assessment Runner (`skills/opfor-run/SKILL.md`)
+### Assessment Runner (`skills/opfor-execute/SKILL.md`)
 
 - [ ] Loads config from `.opfor/configs/` folder
 - [ ] Loads target adapter correctly
@@ -202,4 +202,4 @@ Check:
 2. `Agents.md` — architecture and schema documentation
 3. `.opfor/configs/README.md` — configuration management
 4. `skills/opfor-setup/SKILL.md` — full config wizard workflow
-5. `skills/opfor-run/SKILL.md` — full assessment runner workflow
+5. `skills/opfor-execute/SKILL.md` — full assessment runner workflow

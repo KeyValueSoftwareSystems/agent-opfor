@@ -23,8 +23,11 @@ export function buildReport(args: {
     byEvaluator.set(r.evaluatorId, existing);
   }
 
-  // Pull evaluator metadata from the plan's attacks (it's the only source available here)
-  const evaluatorIds = [...new Set(plan.attacks.map((a) => a.evaluatorId))];
+  // Pull evaluator IDs from both the plan's attacks and the actual results
+  // (results may include evaluators not in the plan, e.g. resource-exposure from resource scanning)
+  const evaluatorIds = [
+    ...new Set([...plan.attacks.map((a) => a.evaluatorId), ...results.map((r) => r.evaluatorId)]),
+  ];
 
   const evaluators: EvaluatorRunSummary[] = evaluatorIds.map((id) => {
     const evalResults = byEvaluator.get(id) ?? [];

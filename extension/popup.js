@@ -35,8 +35,6 @@ const state = {
   attackObjective: "",
   businessUseCase: "",
   judgeHint: "",
-  saveTranscript: true,
-  verbose: false,
   // Run state
   screen: /** @type {"idle"|"running"|"paused"|"done"} */ ("idle"),
   queue: /** @type {{id:string;name:string;sev:string}[]} */ ([]),
@@ -304,8 +302,6 @@ async function loadSettings() {
     attackObjective: s.attackObjective ?? "",
     businessUseCase: s.businessUseCase ?? "",
     judgeHint: s.judgeHint ?? "",
-    saveTranscript: s.saveTranscript ?? true,
-    verbose: s.verbose ?? false,
   });
   const profiles = stored.opforLlmProfiles;
   if (profiles?.attacker) {
@@ -325,8 +321,6 @@ async function saveSettings() {
       attackObjective: state.attackObjective,
       businessUseCase: state.businessUseCase,
       judgeHint: state.judgeHint,
-      saveTranscript: state.saveTranscript,
-      verbose: state.verbose,
     },
   });
 }
@@ -669,7 +663,7 @@ function renderDone() {
   }
 }
 
-// ── Report generation (per skills/opfor-run/report-schema.md) ──
+// ── Report generation (per skills/opfor-execute/report-schema.md) ──
 function severityFull(s) {
   const v = String(s || "").toLowerCase();
   if (v === "med" || v === "medium") return "medium";
@@ -885,9 +879,8 @@ function generateHtmlReport(report) {
       const tr = e.testResults[0] || {};
       const sevColor = SEV_HEX[e.severity] || "#64748B";
       const verdictPass = tr.verdict === "PASS";
-      const transcript =
-        state.saveTranscript && turns.length
-          ? `<div class="transcript">
+      const transcript = turns.length
+        ? `<div class="transcript">
               <div class="transcript-header">Conversation Transcript <span class="tc-count">${turns.length} turn${turns.length === 1 ? "" : "s"}</span></div>
               ${turns
                 .map(
@@ -905,7 +898,7 @@ function generateHtmlReport(report) {
                 )
                 .join("")}
             </div>`
-          : "";
+        : "";
       return `
         <details class="eval-detail" id="eval-${idx}">
           <summary>
@@ -1999,24 +1992,6 @@ function wire() {
     saveSettings();
   });
 
-  // Advanced toggles
-  bindToggle(
-    "saveTranscriptToggle",
-    () => state.saveTranscript,
-    (v) => {
-      state.saveTranscript = v;
-      saveSettings();
-    }
-  );
-  bindToggle(
-    "verboseToggle",
-    () => state.verbose,
-    (v) => {
-      state.verbose = v;
-      saveSettings();
-    }
-  );
-
   // NOTE: We intentionally do NOT stop the background run on popup close.
   // The service worker can continue running; the popup can be reopened to Stop or view status.
 
@@ -2228,8 +2203,6 @@ async function init() {
   $("businessUseCase").value = state.businessUseCase;
   $("judgeHint").value = state.judgeHint;
   $("scrapeToggle").setAttribute("aria-checked", String(state.scrapeFromSite));
-  $("saveTranscriptToggle").setAttribute("aria-checked", String(state.saveTranscript));
-  $("verboseToggle").setAttribute("aria-checked", String(state.verbose));
   $("maxTurns").value = String(state.maxTurns);
   $("maxTurnsValue").textContent = String(state.maxTurns);
   $("waitSec").value = String(state.waitSec);

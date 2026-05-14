@@ -10,7 +10,7 @@ The agent calls three tools in sequence:
 
 1. **`opfor_list_evaluators`** — discover available evaluator IDs and suites
 2. **`opfor_setup`** — generate targeted attack prompts (inline parameters or config file)
-3. **`opfor_run`** — fire attacks, judge responses, write HTML + JSON reports
+3. **`opfor_execute`** — fire attacks, judge responses, write HTML + JSON reports
 
 No config file is required. The agent can pass all parameters inline based on what it finds in your repo.
 
@@ -69,7 +69,7 @@ Once registered, just talk to your agent:
 "Red team my chatbot at http://localhost:4000/chat"
 ```
 
-The agent will call `opfor_list_evaluators` → `opfor_setup` → `opfor_run` and return a full findings summary in chat, with HTML and JSON reports saved to disk.
+The agent will call `opfor_list_evaluators` → `opfor_setup` → `opfor_execute` and return a full findings summary in chat, with HTML and JSON reports saved to disk.
 
 ---
 
@@ -116,7 +116,7 @@ Generates attack prompts. Accepts **inline parameters** (preferred) or a **confi
 
 ---
 
-### `opfor_run`
+### `opfor_execute`
 
 Fires attacks and generates reports.
 

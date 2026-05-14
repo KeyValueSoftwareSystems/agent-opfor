@@ -1,5 +1,5 @@
 ---
-name: opfor-run
+name: opfor-execute
 description: >
   Execute an Opfor security assessment against a configured AI target. Use when the
   user wants to run, start, execute, or resume an Opfor assessment.
@@ -9,7 +9,7 @@ description: >
 
 # Opfor — assessment execution
 
-Execute an Opfor assessment using pre-generated attack inputs. The /opfor-setup skill generates all attack variations beforehand; this skill simply executes them, judges responses, and generates a report.
+Execute an Opfor assessment using pre-generated attack inputs. The /opfor-setup skill generates all attack variations beforehand; this skill executes them, judges responses, and generates a report.
 
 **Prerequisites:** A config folder created by `/opfor-setup` at `.opfor/configs/<uuid>/`
 

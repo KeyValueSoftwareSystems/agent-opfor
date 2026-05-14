@@ -83,12 +83,12 @@ We built opfor because we needed all three.
 
 Different people on your team need different entry points. Opfor ships four.
 
-| Mode | How | Best for |
-| --- | --- | --- |
-| **🖥️ CLI** | `opfor setup` → `opfor execute` | Engineers, CI/CD, terminal-first workflows |
-| **🌐 Browser extension** | Install the extension, click the icon on any chat interface | Product managers, designers, QA, security analysts — anyone who can't or won't write code |
-| **🤖 MCP server** | Register opfor in Cursor or Claude Desktop, then ask in chat | AI coding agents that test your other agents |
-| **⚡ Skills** | `/opfor-setup` and `/opfor-run` in Cursor, Claude Code, Windsurf | Developers who want one-command testing inside their IDE |
+| Mode                     | How                                                              | Best for                                                                                  |
+| ------------------------ | ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| **🖥️ CLI**               | `opfor setup` → `opfor execute`                                  | Engineers, CI/CD, terminal-first workflows                                                |
+| **🌐 Browser extension** | Install the extension, click the icon on any chat interface      | Product managers, designers, QA, security analysts — anyone who can't or won't write code |
+| **🤖 MCP server**        | Register opfor in Cursor or Claude Desktop, then ask in chat     | AI coding agents that test your other agents                                              |
+| **⚡ Skills**            | `/opfor-setup` and `/opfor-run` in Cursor, Claude Code, Windsurf | Developers who want one-command testing inside their IDE                                  |
 
 All four share the same evaluators, attack templates, and judge logic.
 
@@ -130,14 +130,14 @@ This is the path for the half of every product team that doesn't open a terminal
 
 Opfor ships with curated suites that map to industry standards. Pick a suite or run individual evaluators.
 
-| Suite ID | Standard | Focus |
-| --- | --- | --- |
-| `owasp-llm-top10` | OWASP LLM Top 10 (2025) | Prompt injection, jailbreaks, sensitive disclosure, system prompt leakage |
-| `owasp-agentic-ai` | OWASP Agentic AI Top 10 | Excessive agency, tool misuse, agent goal hijack, memory poisoning |
-| `owasp-mcp-top10` | OWASP MCP Top 10 (2025) | Secret exposure, scope escalation, tool description injection, SSRF |
-| `owasp-api` | OWASP API Security Top 10 | BOLA, BFLA, SQL injection |
-| `eu-ai-act-bias` | EU AI Act — Bias | Age, gender, race, disability |
-| `output-trust-safety` | Output trust & safety | Hallucination, misinformation, improper output handling |
+| Suite ID              | Standard                  | Focus                                                                     |
+| --------------------- | ------------------------- | ------------------------------------------------------------------------- |
+| `owasp-llm-top10`     | OWASP LLM Top 10 (2025)   | Prompt injection, jailbreaks, sensitive disclosure, system prompt leakage |
+| `owasp-agentic-ai`    | OWASP Agentic AI Top 10   | Excessive agency, tool misuse, agent goal hijack, memory poisoning        |
+| `owasp-mcp-top10`     | OWASP MCP Top 10 (2025)   | Secret exposure, scope escalation, tool description injection, SSRF       |
+| `owasp-api`           | OWASP API Security Top 10 | BOLA, BFLA, SQL injection                                                 |
+| `eu-ai-act-bias`      | EU AI Act — Bias          | Age, gender, race, disability                                             |
+| `output-trust-safety` | Output trust & safety     | Hallucination, misinformation, improper output handling                   |
 
 → [Full evaluator reference and OWASP mapping](docs/evaluators.md)
 
@@ -162,12 +162,12 @@ This catches what input/output testing misses — PII that leaks into a tool cal
 
 ## Examples
 
-| Example | Description |
-| --- | --- |
-| [vanilla-chat](tests/e2e/agents/vanilla-chat) | Plain customer support chatbot — test LLM-level vulnerabilities |
+| Example                                               | Description                                                     |
+| ----------------------------------------------------- | --------------------------------------------------------------- |
+| [vanilla-chat](tests/e2e/agents/vanilla-chat)         | Plain customer support chatbot — test LLM-level vulnerabilities |
 | [customer-support](tests/e2e/agents/customer-support) | Tool-calling agent with PostgreSQL — test BOLA, BFLA, RBAC, PII |
-| [mcp-server-demo](examples/mcp-server-demo) | Sample MCP server with intentional vulnerabilities |
-| [github-actions](examples/ci-cd/github-actions.yml) | Run opfor in CI on every PR |
+| [mcp-server-demo](examples/mcp-server-demo)           | Sample MCP server with intentional vulnerabilities              |
+| [github-actions](examples/ci-cd/github-actions.yml)   | Run opfor in CI on every PR                                     |
 
 → [All examples](examples/)
 
@@ -175,13 +175,13 @@ This catches what input/output testing misses — PII that leaks into a tool cal
 
 ## Supported LLM providers
 
-| Provider | Env var | Default model |
-| --- | --- | --- |
-| Groq | `GROQ_API_KEY` | `llama-3.3-70b-versatile` |
-| OpenAI | `OPENAI_API_KEY` | `gpt-4o-mini` |
-| Anthropic | `ANTHROPIC_API_KEY` | `claude-3-5-haiku-20241022` |
-| Google | `GOOGLE_GENERATIVE_AI_API_KEY` | `gemini-2.0-flash` |
-| OpenAI-compatible | `OPFOR_API_KEY` + `baseURL` | LiteLLM, OpenRouter, Azure, Ollama |
+| Provider          | Env var                        | Default model                      |
+| ----------------- | ------------------------------ | ---------------------------------- |
+| Groq              | `GROQ_API_KEY`                 | `llama-3.3-70b-versatile`          |
+| OpenAI            | `OPENAI_API_KEY`               | `gpt-4o-mini`                      |
+| Anthropic         | `ANTHROPIC_API_KEY`            | `claude-3-5-haiku-20241022`        |
+| Google            | `GOOGLE_GENERATIVE_AI_API_KEY` | `gemini-2.0-flash`                 |
+| OpenAI-compatible | `OPFOR_API_KEY` + `baseURL`    | LiteLLM, OpenRouter, Azure, Ollama |
 
 → [Provider configuration](docs/providers.md)
 
@@ -214,7 +214,7 @@ To report a vulnerability in opfor itself, see [SECURITY.md](SECURITY.md). Email
 
 ---
 
-*OPFOR is short for Opposition Force — a military term for the dedicated unit that plays the enemy in training, so the rest of the army learns what real attacks feel like before they come. We named the tool after that idea: to defend AI agents better, you have to attack them first.*
+_OPFOR is short for Opposition Force — a military term for the dedicated unit that plays the enemy in training, so the rest of the army learns what real attacks feel like before they come. We named the tool after that idea: to defend AI agents better, you have to attack them first._
 
 ---
 
