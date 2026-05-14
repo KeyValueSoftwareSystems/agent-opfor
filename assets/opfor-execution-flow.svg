@@ -1,0 +1,151 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 460" role="img" aria-labelledby="title-pl desc-pl" preserveAspectRatio="xMidYMid meet" font-family="&#39;JetBrains Mono&#39;,&#39;SF Mono&#39;,Menlo,Consolas,monospace">
+  <title id="title-pl">What happens inside opfor execute</title>
+  <desc id="desc-pl">The opfor execute pipeline runs left to right: fetch target info, plan attacks per evaluator, run a multi-turn loop where Emulate exchanges prompts and responses with the agent, judge each response, then emit a report.</desc>
+
+  <defs>
+    <linearGradient id="pl-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0c1314"></stop>
+      <stop offset="1" stop-color="#080e0f"></stop>
+    </linearGradient>
+    <radialGradient id="pl-glow" cx="0.5" cy="0.5" r="0.55">
+      <stop offset="0" stop-color="#103a30" stop-opacity="0.45"></stop>
+      <stop offset="1" stop-color="#0a1a18" stop-opacity="0"></stop>
+    </radialGradient>
+    <linearGradient id="pl-emulate" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1b5c47"></stop>
+      <stop offset="1" stop-color="#0f3d2f"></stop>
+    </linearGradient>
+    <marker id="pl-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0,1 L9,5 L0,9 L2,5 z" fill="#34d399"></path>
+    </marker>
+    <marker id="pl-arrow-warm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0,1 L9,5 L0,9 L2,5 z" fill="#f4a48a"></path>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="460" fill="url(#pl-bg)"></rect>
+  <ellipse cx="620" cy="230" rx="540" ry="240" fill="url(#pl-glow)"></ellipse>
+
+  <g stroke="#1b4d3e" stroke-width="1" opacity="0.45" fill="none">
+    <path d="M30 30 L 42 30 M 30 30 L 30 42"></path>
+    <path d="M1170 30 L 1158 30 M 1170 30 L 1170 42"></path>
+    <path d="M30 430 L 42 430 M 30 430 L 30 418"></path>
+    <path d="M1170 430 L 1158 430 M 1170 430 L 1170 418"></path>
+  </g>
+
+  <text x="60" y="50" font-size="11" font-weight="600" letter-spacing="1.8" fill="#8a999c">OPFOR EXECUTE · INTERNAL PIPELINE</text>
+  <circle cx="403" cy="46" r="3" fill="#34d399"></circle>
+
+  
+  <g>
+    <rect x="60" y="180" width="140" height="100" rx="12" fill="#121a1c" stroke="#1e2a2d" stroke-width="1"></rect>
+    <text x="76" y="206" font-size="10" font-weight="600" letter-spacing="1.8" fill="#6b7a7d">01 / FETCH</text>
+    <g transform="translate(85,232)" stroke="#34d399" fill="none" stroke-width="1.6" stroke-linecap="round">
+      <circle cx="0" cy="0" r="7"></circle>
+      <line x1="5" y1="5" x2="10" y2="10"></line>
+    </g>
+    <text x="106" y="237" font-size="16" font-weight="600" fill="#ecf2f3">Fetch</text>
+    <text x="76" y="260" font-size="11" font-weight="400" fill="#7b8a8d" letter-spacing="0.4">tools · endpoints</text>
+    <text x="76" y="274" font-size="11" font-weight="400" fill="#7b8a8d" letter-spacing="0.4">system prompts</text>
+  </g>
+
+  <path class="pl-flow" d="M200 230 L 238 230" stroke="#34d399" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-dasharray="5 7" marker-end="url(#pl-arrow)"></path>
+
+  
+  <g>
+    <rect x="240" y="180" width="140" height="100" rx="12" fill="#121a1c" stroke="#1e2a2d" stroke-width="1"></rect>
+    <text x="256" y="206" font-size="10" font-weight="600" letter-spacing="1.8" fill="#6b7a7d">02 / PLAN</text>
+    <g transform="translate(266,232)" stroke="#34d399" fill="none" stroke-width="1.4" stroke-linecap="round">
+      <rect x="-7" y="-8" width="14" height="16" rx="2"></rect>
+      <line x1="-4" y1="-4" x2="4" y2="-4"></line>
+      <line x1="-4" y1="-1" x2="4" y2="-1"></line>
+      <line x1="-4" y1="2" x2="2" y2="2"></line>
+      <line x1="-4" y1="5" x2="3" y2="5"></line>
+    </g>
+    <text x="288" y="237" font-size="16" font-weight="600" fill="#ecf2f3">Plan</text>
+    <text x="256" y="260" font-size="11" font-weight="400" fill="#7b8a8d" letter-spacing="0.4">per evaluator</text>
+    <text x="256" y="274" font-size="11" font-weight="400" fill="#7b8a8d" letter-spacing="0.4">attack tree</text>
+  </g>
+
+  <path class="pl-flow" d="M380 230 L 418 230" stroke="#34d399" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-dasharray="5 7" marker-end="url(#pl-arrow)"></path>
+
+  
+  <g>
+    <rect x="420" y="100" width="400" height="260" rx="16" fill="#0e1718" stroke="#1b4d3e" stroke-width="1" stroke-dasharray="4 5" opacity="0.9"></rect>
+    <text x="440" y="126" font-size="11" font-weight="600" letter-spacing="1.8" fill="#8a999c">MULTI-TURN LOOP</text>
+    <circle cx="575" cy="122" r="3" fill="#34d399"></circle>
+
+    
+    <g>
+      <rect x="440" y="180" width="140" height="120" rx="12" fill="url(#pl-emulate)" stroke="#34d399" stroke-width="0.8"></rect>
+      <text x="456" y="206" font-size="10" font-weight="600" letter-spacing="1.8" fill="#9fe7c8">03 / EMULATE</text>
+      <g transform="translate(466,234)" stroke="#ffffff" fill="none" stroke-width="1.6" stroke-linecap="round">
+        <path d="M-6 -6 L 6 6 M 6 -6 L -6 6"></path>
+      </g>
+      <text x="488" y="239" font-size="16" font-weight="700" fill="#ffffff">Emulate</text>
+      <text x="456" y="262" font-size="11" font-weight="400" fill="#9fe7c8" letter-spacing="0.4">attack prompts</text>
+      <text x="456" y="276" font-size="11" font-weight="400" fill="#9fe7c8" letter-spacing="0.4">strategy adapter</text>
+      <text x="456" y="290" font-size="11" font-weight="400" fill="#9fe7c8" letter-spacing="0.4">turn N of N_max</text>
+    </g>
+
+    
+    <path class="pl-flow" d="M580 215 C 605 200, 635 200, 654 215" stroke="#34d399" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-dasharray="5 7" marker-end="url(#pl-arrow)"></path>
+    <text x="617" y="190" text-anchor="middle" font-size="11" font-weight="500" fill="#b6c2c5" letter-spacing="0.6">prompt</text>
+
+    
+    <path class="pl-flow-warm" d="M660 265 C 635 280, 605 280, 586 265" stroke="#f4a48a" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-dasharray="5 7" marker-end="url(#pl-arrow-warm)"></path>
+    <text x="617" y="322" text-anchor="middle" font-size="11" font-weight="500" fill="#f4a48a" letter-spacing="0.6">response</text>
+
+    
+    <g>
+      <rect x="660" y="180" width="140" height="120" rx="12" fill="#1a1411" stroke="#3a201a" stroke-width="1"></rect>
+      <text x="676" y="206" font-size="10" font-weight="600" letter-spacing="1.8" fill="#7a4d40">04 / AGENT</text>
+      <g transform="translate(686,236)" stroke="#f4a48a" fill="none" stroke-width="1.5" stroke-linecap="round">
+        <rect x="-10" y="-6" width="20" height="14" rx="2"></rect>
+        <circle cx="-4" cy="0" r="1.3" fill="#f4a48a" stroke="none"></circle>
+        <circle cx="4" cy="0" r="1.3" fill="#f4a48a" stroke="none"></circle>
+        <line x1="0" y1="-10" x2="0" y2="-6"></line>
+        <circle cx="0" cy="-11" r="1.4" fill="#f4a48a" stroke="none"></circle>
+      </g>
+      <text x="708" y="241" font-size="16" font-weight="600" fill="#f4a48a">Agent</text>
+      <text x="676" y="264" font-size="11" font-weight="400" fill="#7b8a8d" letter-spacing="0.4">target under test</text>
+      <text x="676" y="278" font-size="11" font-weight="400" fill="#7b8a8d" letter-spacing="0.4">real responses</text>
+      <text x="676" y="292" font-size="11" font-weight="400" fill="#7b8a8d" letter-spacing="0.4">tool calls captured</text>
+    </g>
+  </g>
+
+  <path class="pl-flow" d="M820 230 L 858 230" stroke="#34d399" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-dasharray="5 7" marker-end="url(#pl-arrow)"></path>
+
+  
+  <g>
+    <rect x="860" y="180" width="140" height="100" rx="12" fill="#121a1c" stroke="#1e2a2d" stroke-width="1"></rect>
+    <text x="876" y="206" font-size="10" font-weight="600" letter-spacing="1.8" fill="#6b7a7d">05 / JUDGE</text>
+    <g transform="translate(888,232)" stroke="#34d399" fill="none" stroke-width="1.5" stroke-linecap="round">
+      <path d="M-7 4 L 0 -7 L 7 4 Z"></path>
+      <line x1="-3" y1="0" x2="3" y2="0"></line>
+    </g>
+    <text x="908" y="237" font-size="16" font-weight="600" fill="#ecf2f3">Judge</text>
+    <text x="876" y="260" font-size="11" font-weight="400" fill="#7b8a8d" letter-spacing="0.4">pass / fail · score</text>
+    <text x="876" y="274" font-size="11" font-weight="400" fill="#7b8a8d" letter-spacing="0.4">rubric + LLM</text>
+  </g>
+
+  <path class="pl-flow" d="M1000 230 L 1038 230" stroke="#34d399" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-dasharray="5 7" marker-end="url(#pl-arrow)"></path>
+
+  
+  <g>
+    <rect x="1040" y="180" width="140" height="100" rx="12" fill="#0f1822" stroke="#1d2d44" stroke-width="1"></rect>
+    <text x="1056" y="206" font-size="10" font-weight="600" letter-spacing="1.8" fill="#3a536d">06 / REPORT</text>
+    <g transform="translate(1056,232)" stroke="#93c2f4" fill="none" stroke-width="1.3" stroke-linecap="round">
+      <rect x="-7" y="-9" width="14" height="18" rx="2"></rect>
+      <line x1="-4" y1="-4" x2="4" y2="-4"></line>
+      <line x1="-4" y1="-1" x2="4" y2="-1"></line>
+      <line x1="-4" y1="2" x2="4" y2="2"></line>
+      <line x1="-4" y1="5" x2="2" y2="5"></line>
+    </g>
+    <text x="1078" y="237" font-size="16" font-weight="600" fill="#93c2f4">Report</text>
+    <text x="1056" y="260" font-size="11" font-weight="400" fill="#7b8a8d" letter-spacing="0.4">HTML · JSON</text>
+    <text x="1056" y="274" font-size="11" font-weight="400" fill="#7b8a8d" letter-spacing="0.4">findings + traces</text>
+  </g>
+
+  <text x="600" y="408" text-anchor="middle" font-size="11" font-weight="400" fill="#7b8a8d" letter-spacing="0.4">target → plan → emulate ⇄ agent (×N turns) → judge → report</text>
+</svg>

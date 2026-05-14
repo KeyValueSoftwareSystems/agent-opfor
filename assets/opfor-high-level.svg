@@ -1,0 +1,193 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 480" role="img" aria-labelledby="title-hl desc-hl" preserveAspectRatio="xMidYMid meet" font-family="&#39;JetBrains Mono&#39;,&#39;SF Mono&#39;,Menlo,Consolas,monospace">
+  <title id="title-hl">How opfor works</title>
+  <desc id="desc-hl">Four entry points — CLI, Browser, MCP and IDE — flow into opfor, which contains four evaluator suites: OWASP LLM, OWASP Agentic, OWASP MCP and EU AI Act bias. Opfor attacks the agent under test, then emits a report in HTML and JSON.</desc>
+
+  <defs>
+    <linearGradient id="hl-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0c1314"></stop>
+      <stop offset="1" stop-color="#080e0f"></stop>
+    </linearGradient>
+    <radialGradient id="hl-glow" cx="0.5" cy="0.45" r="0.6">
+      <stop offset="0" stop-color="#103a30" stop-opacity="0.55"></stop>
+      <stop offset="1" stop-color="#0a1a18" stop-opacity="0"></stop>
+    </radialGradient>
+    <linearGradient id="hl-opfor" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#11251f"></stop>
+      <stop offset="1" stop-color="#0b1a16"></stop>
+    </linearGradient>
+    <marker id="hl-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0,1 L9,5 L0,9 L2,5 z" fill="#34d399"></path>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="480" fill="url(#hl-bg)"></rect>
+  <ellipse cx="600" cy="240" rx="520" ry="280" fill="url(#hl-glow)"></ellipse>
+
+  <g stroke="#1b4d3e" stroke-width="1" opacity="0.45" fill="none">
+    <path d="M30 30 L 42 30 M 30 30 L 30 42"></path>
+    <path d="M1170 30 L 1158 30 M 1170 30 L 1170 42"></path>
+    <path d="M30 450 L 42 450 M 30 450 L 30 438"></path>
+    <path d="M1170 450 L 1158 450 M 1170 450 L 1170 438"></path>
+  </g>
+
+  <text x="60" y="58" font-size="11" font-weight="600" letter-spacing="1.8" fill="#8a999c">ENTRY POINTS</text>
+  <circle cx="185" cy="54" r="3" fill="#34d399">
+    
+  </circle>
+
+  <text x="940" y="58" font-size="11" font-weight="600" letter-spacing="1.8" fill="#8a999c">OUTCOME</text>
+  <circle cx="1027" cy="54" r="3" fill="#34d399">
+    
+  </circle>
+
+  
+  <g>
+    <rect x="60" y="110" width="200" height="58" rx="10" fill="#121a1c" stroke="#1e2a2d" stroke-width="1"></rect>
+    <g transform="translate(85,139)" stroke="#34d399" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M-7 -6 L 1 0 L -7 6"></path>
+      <line x1="4" y1="6" x2="13" y2="6"></line>
+    </g>
+    <text x="115" y="143" font-size="14" font-weight="600" fill="#ecf2f3">CLI</text>
+    <text x="115" y="160" font-size="11" font-weight="400" fill="#7b8a8d" letter-spacing="0.4">opfor execute …</text>
+  </g>
+
+  
+  <g>
+    <rect x="60" y="186" width="200" height="58" rx="10" fill="#121a1c" stroke="#1e2a2d" stroke-width="1"></rect>
+    <g transform="translate(85,215)" stroke="#34d399" fill="none" stroke-width="1.4">
+      <rect x="-9" y="-8" width="18" height="14" rx="2"></rect>
+      <line x1="-9" y1="-4" x2="9" y2="-4" stroke-linecap="round"></line>
+      <circle cx="-6" cy="-6.4" r="0.9" fill="#34d399" stroke="none"></circle>
+      <circle cx="-3.5" cy="-6.4" r="0.9" fill="#34d399" stroke="none"></circle>
+    </g>
+    <text x="115" y="219" font-size="14" font-weight="600" fill="#ecf2f3">Browser</text>
+    <text x="115" y="236" font-size="11" font-weight="400" fill="#7b8a8d" letter-spacing="0.4">localhost:7331</text>
+  </g>
+
+  
+  <g>
+    <rect x="60" y="262" width="200" height="58" rx="10" fill="#121a1c" stroke="#1e2a2d" stroke-width="1"></rect>
+    <g transform="translate(85,291)" stroke="#34d399" fill="none" stroke-width="1.4" stroke-linecap="round">
+      <line x1="-5" y1="-7" x2="-5" y2="-2"></line>
+      <line x1="5" y1="-7" x2="5" y2="-2"></line>
+      <rect x="-8" y="-2" width="16" height="7" rx="1.4"></rect>
+      <line x1="0" y1="5" x2="0" y2="9"></line>
+    </g>
+    <text x="115" y="295" font-size="14" font-weight="600" fill="#ecf2f3">MCP</text>
+    <text x="115" y="312" font-size="11" font-weight="400" fill="#7b8a8d" letter-spacing="0.4">stdio · sse</text>
+  </g>
+
+  
+  <g>
+    <rect x="60" y="338" width="200" height="58" rx="10" fill="#121a1c" stroke="#1e2a2d" stroke-width="1"></rect>
+    <g transform="translate(85,367)" stroke="#34d399" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M-3 -8 Q-9 -8 -9 -2 Q-9 0 -11 0 Q-9 0 -9 2 Q-9 8 -3 8"></path>
+      <path d="M3 -8 Q9 -8 9 -2 Q9 0 11 0 Q9 0 9 2 Q9 8 3 8"></path>
+    </g>
+    <text x="115" y="371" font-size="14" font-weight="600" fill="#ecf2f3">IDE</text>
+    <text x="115" y="388" font-size="11" font-weight="400" fill="#7b8a8d" letter-spacing="0.4">extension</text>
+  </g>
+
+  
+  <path d="M260 139 C 310 139, 330 200, 380 200" stroke="#34d399" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-dasharray="5 7">
+    
+  </path>
+  <path d="M260 215 C 310 215, 330 222, 380 222" stroke="#34d399" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-dasharray="5 7">
+    
+  </path>
+  <path d="M260 291 C 310 291, 330 258, 380 258" stroke="#34d399" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-dasharray="5 7">
+    
+  </path>
+  <path d="M260 367 C 310 367, 330 280, 380 280" stroke="#34d399" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-dasharray="5 7">
+    
+  </path>
+
+  
+  <g>
+    <rect x="380" y="80" width="440" height="340" rx="18" fill="url(#hl-opfor)" stroke="#1b4d3e" stroke-width="1.2"></rect>
+    <rect x="385" y="85" width="430" height="330" rx="14" fill="none" stroke="#34d399" stroke-width="0.6" opacity="0.18"></rect>
+
+    <text x="404" y="120" font-size="11" font-weight="600" letter-spacing="1.8" fill="#8a999c">[ opfor / runtime ]</text>
+    <circle cx="800" cy="116" r="4" fill="#34d399">
+      
+    </circle>
+    <circle cx="800" cy="116" r="9" fill="none" stroke="#34d399" stroke-width="1" opacity="0.25">
+      
+      
+    </circle>
+
+    <text x="404" y="162" font-size="26" font-weight="700" fill="#ecf2f3" font-family="&#39;Inter&#39;,&#39;Geist&#39;,-apple-system,system-ui,sans-serif" letter-spacing="-0.3">opfor</text>
+    <text x="404" y="186" font-size="12" font-weight="400" fill="#9fe7c8" letter-spacing="0.4">adversary emulation for ai · open source</text>
+
+    <line x1="404" y1="206" x2="796" y2="206" stroke="#1b4d3e" stroke-width="1" opacity="0.55"></line>
+
+    <text x="404" y="228" font-size="11" font-weight="600" letter-spacing="1.8" fill="#8a999c">EVALUATOR SUITES</text>
+
+    <g transform="translate(404,244)">
+      <rect width="186" height="46" rx="8" fill="#0c1c18" stroke="#1b4d3e" stroke-width="1"></rect>
+      <circle cx="16" cy="23" r="3" fill="#34d399"></circle>
+      <text x="30" y="22" font-size="12" font-weight="600" fill="#9fe7c8" letter-spacing="0.2">OWASP LLM</text>
+      <text x="30" y="37" font-size="11" font-weight="400" fill="#6b7a7d" letter-spacing="0.4">prompt injection · leakage</text>
+    </g>
+    <g transform="translate(610,244)">
+      <rect width="186" height="46" rx="8" fill="#0c1c18" stroke="#1b4d3e" stroke-width="1"></rect>
+      <circle cx="16" cy="23" r="3" fill="#34d399"></circle>
+      <text x="30" y="22" font-size="12" font-weight="600" fill="#9fe7c8" letter-spacing="0.2">OWASP Agentic</text>
+      <text x="30" y="37" font-size="11" font-weight="400" fill="#6b7a7d" letter-spacing="0.4">tool abuse · planning</text>
+    </g>
+    <g transform="translate(404,302)">
+      <rect width="186" height="46" rx="8" fill="#0c1c18" stroke="#1b4d3e" stroke-width="1"></rect>
+      <circle cx="16" cy="23" r="3" fill="#34d399"></circle>
+      <text x="30" y="22" font-size="12" font-weight="600" fill="#9fe7c8" letter-spacing="0.2">OWASP MCP</text>
+      <text x="30" y="37" font-size="11" font-weight="400" fill="#6b7a7d" letter-spacing="0.4">server &amp; transport</text>
+    </g>
+    <g transform="translate(610,302)">
+      <rect width="186" height="46" rx="8" fill="#0c1c18" stroke="#1b4d3e" stroke-width="1"></rect>
+      <circle cx="16" cy="23" r="3" fill="#34d399"></circle>
+      <text x="30" y="22" font-size="12" font-weight="600" fill="#9fe7c8" letter-spacing="0.2">EU AI Act bias</text>
+      <text x="30" y="37" font-size="11" font-weight="400" fill="#6b7a7d" letter-spacing="0.4">protected attrs · fairness</text>
+    </g>
+
+    <text x="600" y="383" text-anchor="middle" font-size="11" font-weight="400" fill="#7b8a8d" letter-spacing="0.4">+ run any individual evaluator</text>
+  </g>
+
+  
+  <path d="M820 150 C 870 150, 880 150, 920 150" stroke="#34d399" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-dasharray="5 7" marker-end="url(#hl-arrow)">
+    
+  </path>
+  <text x="870" y="138" text-anchor="middle" font-size="11" font-weight="500" fill="#b6c2c5" letter-spacing="0.6">attack</text>
+
+  
+  <g>
+    <rect x="920" y="110" width="220" height="80" rx="12" fill="#1a1411" stroke="#3a201a" stroke-width="1"></rect>
+    <g transform="translate(948,150)" stroke="#f4a48a" fill="none" stroke-width="1.4" stroke-linecap="round">
+      <rect x="-10" y="-6" width="20" height="14" rx="2"></rect>
+      <circle cx="-4" cy="0" r="1.2" fill="#f4a48a" stroke="none"></circle>
+      <circle cx="4" cy="0" r="1.2" fill="#f4a48a" stroke="none"></circle>
+      <line x1="0" y1="-10" x2="0" y2="-6"></line>
+      <circle cx="0" cy="-11" r="1.4" fill="#f4a48a" stroke="none"></circle>
+    </g>
+    <text x="975" y="146" font-size="14" font-weight="600" fill="#f4a48a">Agent</text>
+    <text x="975" y="166" font-size="11" font-weight="400" fill="#7b8a8d" letter-spacing="0.4">your AI system</text>
+  </g>
+
+  
+  <path d="M1030 190 L 1030 330" stroke="#34d399" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-dasharray="5 7" marker-end="url(#hl-arrow)">
+    
+  </path>
+  <text x="1044" y="263" font-size="11" font-weight="500" fill="#b6c2c5" letter-spacing="0.6">report</text>
+
+  
+  <g>
+    <rect x="920" y="330" width="220" height="80" rx="12" fill="#0f1822" stroke="#1d2d44" stroke-width="1"></rect>
+    <g transform="translate(948,370)" stroke="#93c2f4" fill="none" stroke-width="1.3" stroke-linecap="round">
+      <rect x="-9" y="-11" width="18" height="22" rx="2"></rect>
+      <line x1="-5" y1="-6" x2="5" y2="-6"></line>
+      <line x1="-5" y1="-2" x2="5" y2="-2"></line>
+      <line x1="-5" y1="2" x2="5" y2="2"></line>
+      <line x1="-5" y1="6" x2="2" y2="6"></line>
+    </g>
+    <text x="975" y="366" font-size="14" font-weight="600" fill="#93c2f4">Report</text>
+    <text x="975" y="386" font-size="11" font-weight="400" fill="#7b8a8d" letter-spacing="0.4">HTML · JSON</text>
+  </g>
+</svg>
