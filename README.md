@@ -2,8 +2,6 @@
   <img src="assets/opfor-logo.png" alt="OPFOR" width="120" />
 </p>
 
-<h1 align="center">opfor</h1>
-
 <p align="center">
   <strong>Open-source adversary emulation for AI agents, LLM apps, and MCP servers.</strong><br/>
   Test your AI like a real attacker would — from your CLI, your IDE, or a browser extension that anyone on your team can use.
