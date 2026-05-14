@@ -69,7 +69,7 @@ Most red-team tooling in this space is excellent at one thing — a probe librar
 
 We built opfor because we needed all three.
 
-- 🌐 **Browser extension for non-developers** — anyone on your team can red-team a deployed chatbot in 30 seconds, no code, no env vars, no YAML
+- 🌐 **Browser extension for non-developers** — anyone on your team can red-team a deployed chatbot, no code, no env vars, no YAML
 - 🤖 **Run opfor as an MCP server** — let your AI coding agent in Cursor or Claude Desktop red-team your other agents through natural language
 - 🛡️ **Full OWASP coverage in one tool** — LLM Top 10, Agentic AI Top 10, MCP Top 10, API Security Top 10
 - 🔓 **No black box** — every attack prompt, request, response, and judge verdict is logged. Reproducible, auditable, forkable.
@@ -112,11 +112,11 @@ Reports land in `.opfor/reports/report-<timestamp>/`.
 
 ---
 
-## Browser extension — red-team a chatbot in 30 seconds
+## Browser extension — red-team a chatbot
 
 The browser extension is opfor's no-code path. Install it, open any chat interface, click the opfor icon, pick a suite, and watch it run.
 
-It auto-detects the chat interface, sends attack prompts as if you were typing them, watches the responses, and downloads an HTML report when done. No CLI, no API keys to configure if you connect via SSO, no YAML.
+It auto-detects the chat interface, sends attack prompts as if you were typing them, watches the responses, and downloads an HTML report when done. No CLI, no target setup, no YAML.
 
 This is the path for the half of every product team that doesn't open a terminal.
 
