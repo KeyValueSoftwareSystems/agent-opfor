@@ -11,6 +11,7 @@ import { loadOpforMcpConfigFile } from "../../../../core/dist/lib/loadOpforMcpCo
 import { writeJsonFile } from "../../../../core/dist/lib/jsonFile.js";
 import { log } from "../../../../core/dist/lib/logger.js";
 import { connectMcpClient } from "../../../../core/dist/mcp-client/createClient.js";
+import type { ResourceInfo } from "../../../../core/dist/run/scanResources.js";
 
 const DEFAULT_SUITE_ID = "owasp-mcp-top10";
 const DEFAULT_ATTACK_PLAN_OUT = "opfor-mcp-attacks.json";
@@ -124,6 +125,7 @@ export async function runMcpGenerateAttackPlan(opts: {
   log.start("Connecting to MCP server (stdio or URL)…");
   const mcp = await connectMcpClient(cfg.server);
   let tools: Array<{ name: string; description?: string; inputSchema?: Record<string, unknown> }>;
+  let resources: ResourceInfo[] = [];
   try {
     const listed = await mcp.client.listTools();
     tools = (listed.tools ?? []).map(
@@ -136,6 +138,24 @@ export async function runMcpGenerateAttackPlan(opts: {
     log.success(
       `tools/list: ${tools.length} tool(s) (${tools.filter((t) => t.inputSchema).length} with inputSchema)`
     );
+
+    // Collect resource metadata for the generator (best-effort, not all servers support resources)
+    try {
+      const listed = await mcp.client.listResources();
+      resources = (listed.resources ?? []).map(
+        (r: { uri: string; name: string; description?: string; mimeType?: string }) => ({
+          uri: r.uri,
+          name: r.name,
+          ...(r.description ? { description: r.description } : {}),
+          ...(r.mimeType ? { mimeType: r.mimeType } : {}),
+        })
+      );
+      if (resources.length > 0) {
+        log.success(`resources/list: ${resources.length} resource(s)`);
+      }
+    } catch {
+      // Server doesn't support resources
+    }
   } finally {
     await mcp.close();
   }
@@ -164,6 +184,7 @@ export async function runMcpGenerateAttackPlan(opts: {
     evaluatorDocs,
     turns: cfg.turnMode === "multi" ? (cfg.turns ?? 3) : undefined,
     toolFilter,
+    resources: resources.length > 0 ? resources : undefined,
   });
 
   (plan as unknown as Record<string, unknown>).mode = "mcp";

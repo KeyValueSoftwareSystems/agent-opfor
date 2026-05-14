@@ -5,6 +5,7 @@ import { chatCompletionJsonContent } from "../llm/openaiCompatible.js";
 import { log } from "../lib/logger.js";
 import { AttackScenarioSchema, type AttackPlanWritten } from "./planSchema.js";
 import { attachReplayHints } from "./replayArtifacts.js";
+import type { ResourceInfo } from "../run/scanResources.js";
 
 const TOOL_DESCRIPTION_SCAN_ID = "tool-description-scan";
 const TOOL_FILTER_THRESHOLD = 5;
@@ -51,7 +52,9 @@ function buildSystemPrompt(
   evaluatorId: string,
   attackerInstructions?: string
 ): string {
-  const maxAttacks = toolNames.length * MAX_ATTACKS_PER_TOOL;
+  // For MCPs with few tools, allow more attacks per tool to cover multiple action types
+  const perTool = toolNames.length <= 2 ? 3 : MAX_ATTACKS_PER_TOOL;
+  const maxAttacks = toolNames.length * perTool;
 
   const lines: string[] = [];
 
@@ -73,9 +76,9 @@ function buildSystemPrompt(
     "### Task",
     `Generate concrete red-team attack scenarios for the evaluator "${evaluatorId}" against the ${toolNames.length} tools listed in the user message.`,
     "For each tool, judge whether the evaluator plausibly applies:",
-    "- PLAUSIBLE → produce 1–2 attacks for that tool, each using a different adversarial strategy.",
+    `- PLAUSIBLE → produce 1–${perTool} attacks for that tool, each using a different adversarial strategy.`,
     "- IMPLAUSIBLE → omit the tool entirely. Do NOT fabricate a probing attack just to cover it.",
-    `Total attacks must not exceed ${maxAttacks}.`,
+    `Total attacks must not exceed ${maxAttacks}. If a tool supports multiple distinct actions (e.g. read/write/delete), test different actions with separate attacks.`,
     "Across the batch, VARY the adversarial strategies — do not repeat the same strategy on every tool.",
     "",
     "### Output Contract",
@@ -111,6 +114,9 @@ function buildSystemPrompt(
     `6. BOUNDARY VALUES — empty strings "", negative numbers -1, or special chars like "<script>alert(1)</script>" or "; DROP TABLE--".`,
     "7. PII HARVEST — for trace/observability tools, wide time ranges and has_pii filters to find sensitive data.",
     "8. FILTER BYPASS — is_null / is_not_null operators to extract records where sensitive fields exist.",
+    `9. CODE INJECTION — for tools accepting expressions, formulas, or code: Python eval payloads like "__import__('os').popen('id').read()" or "open('/etc/passwd').read()"; JS eval like "require('child_process').execSync('id').toString()". Prefer language-level payloads over shell metacharacters when the tool description mentions evaluate/calculate/execute.`,
+    `10. DESTRUCTIVE ACTION — for tools with write/delete/update/create/execute actions: test if destructive operations are scoped correctly. Try writing to sensitive paths (/etc/crontab, /root/.ssh/authorized_keys), deleting critical files, or mutating configuration outside the tool's stated purpose. If a tool supports multiple actions (read/write/delete), test EACH action type, not just read.`,
+    `11. APP-SPECIFIC PATH PROBING — for file/path-based tools: probe application-specific sensitive paths beyond generic OS files. Try sibling directories (if "public" exists, try "private", "secrets", "config"), common credential files (.env, credentials.txt, config.json, secrets.yaml, id_rsa), and infer paths from tool descriptions or server context.`,
     "",
     "### Strict JSON Output Rules",
     "- Output ONLY a JSON object. No markdown, no prose, no code fences.",
@@ -166,6 +172,7 @@ async function generateAttacksForEvaluator(args: {
   serverSummary: string;
   tools: ToolInfo[];
   evaluatorDoc: EvaluatorDoc;
+  resources?: ResourceInfo[];
 }): Promise<z.infer<typeof AttackScenarioSchema>[]> {
   const toolNames = args.tools.map((t) => t.name);
 
@@ -181,16 +188,26 @@ async function generateAttacksForEvaluator(args: {
 
   const system = buildSystemPrompt(toolNames, args.evaluatorDoc.id, args.cfg.attackerInstructions);
 
-  const user = [
+  const userParts = [
     `TRANSPORT: ${args.transport}`,
     `SERVER: ${args.serverSummary}`,
     "",
     "TOOLS (name, description, inputSchema):",
     JSON.stringify(toolsDigest(args.tools), null, 2),
-    "",
-    "EVALUATOR PATTERNS:",
-    evaluatorBlock,
-  ].join("\n");
+  ];
+
+  if (args.resources && args.resources.length > 0) {
+    userParts.push(
+      "",
+      "RESOURCES (uri, name, description) — these are MCP resources the server exposes via resources/list:",
+      JSON.stringify(args.resources, null, 2),
+      "Consider crafting attacks that trick tools into revealing resource contents, or reference these resources in your attack strategy."
+    );
+  }
+
+  userParts.push("", "EVALUATOR PATTERNS:", evaluatorBlock);
+
+  const user = userParts.join("\n");
 
   const raw = await chatCompletionJsonContent({
     model: args.cfg.generatorModel,
@@ -317,6 +334,8 @@ export async function generateAttackPlan(args: {
   toolFilter?: boolean;
   /** How many evaluators to generate attacks for in parallel. Defaults to 1 (sequential). */
   concurrency?: number;
+  /** MCP resources discovered via resources/list — passed to the generator for context. */
+  resources?: ResourceInfo[];
 }): Promise<AttackPlanWritten> {
   const transport = args.cfg.server.transport;
   const serverSummary =
@@ -374,6 +393,7 @@ export async function generateAttackPlan(args: {
         serverSummary,
         tools: toolsForEval,
         evaluatorDoc,
+        resources: args.resources,
       });
       log.success(`  ${evaluatorDoc.id}: ${attacks.length} attacks`);
       return attacks;
@@ -422,6 +442,8 @@ export async function generateAttackPlan(args: {
     judgeModel: args.cfg.judgeModel,
     attackerInstructions: args.cfg.attackerInstructions,
     ...(relevanceMap ? { toolRelevanceMap: relevanceMap } : {}),
+    ...(args.resources && args.resources.length > 0 ? { resourcesDigest: args.resources } : {}),
+    ...(args.cfg.scanResources === false ? { scanResources: false } : {}),
   };
 
   return plan;

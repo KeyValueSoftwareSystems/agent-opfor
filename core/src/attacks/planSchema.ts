@@ -47,6 +47,17 @@ export const AttackPlanSchema = z.object({
   attackerInstructions: z.string().optional(),
   /** Which tools were deemed relevant for each evaluator (written when tool filtering is active). */
   toolRelevanceMap: z.record(z.string(), z.array(z.string())).optional(),
+  /** MCP resources discovered via resources/list — included for reporting and generator context. */
+  resourcesDigest: z
+    .array(
+      z.object({
+        uri: z.string(),
+        name: z.string(),
+        description: z.string().optional(),
+        mimeType: z.string().optional(),
+      })
+    )
+    .optional(),
 });
 
 export type AttackPlan = z.infer<typeof AttackPlanSchema>;

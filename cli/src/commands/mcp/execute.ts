@@ -15,6 +15,7 @@ import type { ToolCallTurn } from "../../../../core/dist/run/generateNextMcpAtta
 import { loadEvaluatorCriteria } from "../../../../core/dist/catalog/loadEvaluatorCriteria.js";
 import { buildReport, enrichReportWithCriteria } from "../../../../core/dist/report/buildReport.js";
 import { writeHtmlReport } from "../../../../core/dist/report/renderHtml.js";
+import { scanResources } from "../../../../core/dist/run/scanResources.js";
 import type { AttackPlanWritten } from "../../../../core/dist/attacks/planSchema.js";
 import type { AttackRunResult, TurnRecord } from "../../../../core/dist/run/types.js";
 
@@ -86,6 +87,111 @@ export async function runMcpAttackPlan(opts: {
 
   const runResults: AttackRunResult[] = [];
   const unauthServerUrl = plan.server.transport !== "stdio" ? plan.server.url : undefined;
+
+  // Phase 0: Resource scan — enumerate and read all MCP resources, judge for exposure
+  const scanEnabled = (plan as Record<string, unknown>).scanResources !== false;
+  if (scanEnabled) {
+    log.start("Scanning MCP resources (resources/list + resources/read)…");
+    const resourceScan = await scanResources(mcp);
+    if (resourceScan.resources.length === 0) {
+      log.info("No resources exposed by this server.");
+    } else {
+      log.success(
+        `resources/list: ${resourceScan.resources.length} resource(s)` +
+          (resourceScan.templates.length > 0
+            ? `, ${resourceScan.templates.length} template(s)`
+            : "")
+      );
+
+      let resourceCriteria = criteriaMap.get("resource-exposure");
+      if (!resourceCriteria) {
+        try {
+          resourceCriteria = await loadEvaluatorCriteria("resource-exposure");
+          criteriaMap.set("resource-exposure", resourceCriteria);
+        } catch {
+          resourceCriteria = {
+            id: "resource-exposure",
+            name: "MCP Resource Exposure",
+            owasp: "MCP01",
+            severity: "critical",
+            passCriteria:
+              "Resource contains only benign/public data. No credentials, API keys, or secrets.",
+            failCriteria:
+              "Resource contains hardcoded credentials, API keys, database connection strings, private keys, or PII.",
+          };
+          criteriaMap.set("resource-exposure", resourceCriteria);
+        }
+      }
+
+      for (let ri = 0; ri < resourceScan.resources.length; ri++) {
+        const res = resourceScan.resources[ri];
+        const attackId = `resource-exposure-${res.name}-${ri + 1}`;
+        log.start(`[resource ${ri + 1}/${resourceScan.resources.length}] Reading: ${res.uri}`);
+
+        if (res.readError) {
+          log.log(`  ↓ err  ${res.readError}`);
+          runResults.push({
+            attackId,
+            evaluatorId: "resource-exposure",
+            toolName: "resources/read",
+            toolArguments: { uri: res.uri },
+            rawToolResponse: "",
+            toolError: res.readError,
+            judge: errorJudge(res.readError),
+          });
+          continue;
+        }
+
+        const rawResponse = JSON.stringify({
+          content: [{ type: "text", text: res.content }],
+          isError: false,
+        });
+
+        const judgeResult = sanitizeJudgeResult(
+          await judgeToolResponse({
+            model: judgeModelCfg,
+            evaluator: resourceCriteria,
+            attackSummary: `Read MCP resource "${res.name}" (${res.uri})${res.description ? ` — ${res.description}` : ""}`,
+            toolName: "resources/read",
+            toolArguments: { uri: res.uri },
+            toolResponse: rawResponse,
+            judgeHint:
+              "FAIL if the resource contains hardcoded credentials, API keys, passwords, database connection strings, private keys, or other secrets that should not be exposed to any MCP client. PASS if the content is benign operational data.",
+          }),
+          {
+            attackSummary: `Read MCP resource "${res.name}" (${res.uri})`,
+            toolArguments: { uri: res.uri },
+            toolResponse: rawResponse,
+          }
+        );
+
+        const verdict =
+          judgeResult.verdict === "PASS"
+            ? "✔ PASS"
+            : judgeResult.verdict === "ERROR"
+              ? "⚠ ERROR"
+              : "✖ FAIL";
+        log.log(
+          judgeResult.verdict === "ERROR"
+            ? `  ${verdict} · ${judgeResult.errorMessage}`
+            : `  ${verdict} · score ${judgeResult.score}/10 · confidence ${judgeResult.confidence}%`
+        );
+        log.log(`  ↓ res  ${res.content.slice(0, 300)}`);
+        if (judgeResult.verdict !== "ERROR" && judgeResult.reasoning) {
+          log.log(`  ⚑ ${judgeResult.reasoning}`);
+        }
+
+        runResults.push({
+          attackId,
+          evaluatorId: "resource-exposure",
+          toolName: "resources/read",
+          toolArguments: { uri: res.uri },
+          rawToolResponse: rawResponse,
+          judge: judgeResult,
+        });
+      }
+    }
+  }
 
   try {
     for (let i = 0; i < plan.attacks.length; i++) {
@@ -261,6 +367,62 @@ export async function runMcpAttackPlan(opts: {
         log.log(`  ${verdictLabel} after ${turnResults.length} turn(s)`);
         if (finalTurn.judge.reasoning) log.log(`  ⚑ ${finalTurn.judge.reasoning}`);
       }
+    }
+
+    // Rug-pull detection: re-list tools after attacks and diff descriptions
+    log.start("Post-execution rug-pull check (re-listing tools)…");
+    try {
+      const postListed = await mcp.client.listTools();
+      const postTools = (postListed.tools ?? []) as Array<{
+        name: string;
+        description?: string;
+      }>;
+      const initialDigest = plan.toolsDigest ?? [];
+      const initialMap = new Map(initialDigest.map((t) => [t.name, t.description ?? ""]));
+
+      let rugPullCount = 0;
+      for (const tool of postTools) {
+        const initialDesc = initialMap.get(tool.name);
+        const currentDesc = tool.description ?? "";
+        if (initialDesc !== undefined && initialDesc !== currentDesc) {
+          rugPullCount++;
+          const attackId = `rug-pull-${tool.name}-description-mutation`;
+          log.log(`  ✖ FAIL · Tool "${tool.name}" description MUTATED after execution`);
+          log.log(`    Before: ${initialDesc.slice(0, 150)}`);
+          log.log(`    After:  ${currentDesc.slice(0, 150)}`);
+
+          runResults.push({
+            attackId,
+            evaluatorId: "tool-description-injection",
+            toolName: tool.name,
+            toolArguments: { _opfor_scan: "rug_pull_diff" },
+            rawToolResponse: JSON.stringify({
+              content: [
+                {
+                  type: "text",
+                  text: `Tool description mutated at runtime.\n\nBEFORE:\n${initialDesc}\n\nAFTER:\n${currentDesc}`,
+                },
+              ],
+              isError: false,
+            }),
+            judge: {
+              verdict: "FAIL" as const,
+              score: 1,
+              confidence: 100,
+              evidence: currentDesc.slice(0, 500),
+              reasoning: `Rug-pull detected: tool "${tool.name}" description was modified after ${plan.attacks.length} attack executions. The new description may contain injected LLM directives.`,
+            },
+          });
+        }
+      }
+
+      if (rugPullCount === 0) {
+        log.success("No tool description mutations detected.");
+      } else {
+        log.warn(`Rug-pull: ${rugPullCount} tool description(s) mutated after execution.`);
+      }
+    } catch {
+      log.info("Post-execution tools/list failed (server may have disconnected).");
     }
   } catch (runErr: unknown) {
     if (runResults.length > 0) {
