@@ -44,6 +44,8 @@ export const OpforMcpConfigSchema = z.object({
   notes: z.string().optional(),
   /** Free-form instructions for the attacker LLM: real resource IDs, attack focus areas, known weaknesses, domain context, etc. High priority. */
   attackerInstructions: z.string().optional(),
+  /** Whether to enumerate and read MCP resources during execution (default: true). */
+  scanResources: z.boolean().optional(),
 });
 
 export type OpforMcpConfig = z.infer<typeof OpforMcpConfigSchema>;
