@@ -1437,7 +1437,8 @@ async function setReportHistory(items) {
 
 async function addReportToHistory(report) {
   if (!report?.metadata?.reportId) return;
-  const verdict = report?.summary?.failed === 0 && report?.summary?.totalTests > 0 ? "PASS" : "FAIL";
+  const verdict =
+    report?.summary?.failed === 0 && report?.summary?.totalTests > 0 ? "PASS" : "FAIL";
   const item = {
     id: report.metadata.reportId,
     generated: report.metadata.generated,
@@ -1602,7 +1603,13 @@ function formatWhen(iso) {
   try {
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return String(iso || "—");
-    return d.toLocaleString(undefined, { year: "2-digit", month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+    return d.toLocaleString(undefined, {
+      year: "2-digit",
+      month: "short",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   } catch {
     return String(iso || "—");
   }
@@ -1613,32 +1620,55 @@ function suiteLabel(configId) {
   return s?.name || configId || "run";
 }
 
-function reportToPopupResults(report) {
-  const ers = Array.isArray(report?.evaluatorResults) ? report.evaluatorResults : [];
-  return ers.map((er) => {
-    const tr = Array.isArray(er?.testResults) ? er.testResults[0] : null;
-    const verdict = String(tr?.verdict || "FAIL").toUpperCase() === "PASS" ? "PASS" : "FAIL";
-    return {
-      id: er?.id || "",
-      name: er?.name || er?.id || "Evaluator",
-      sev: normalizeSev(er?.severity),
-      verdict,
-      summary: tr?.reasoning || "",
-      raw: er?.raw,
-    };
-  });
+const HISTORY_ICONS = {
+  download: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`,
+  trash: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1.4 13.1A2 2 0 0 1 15.6 21H8.4a2 2 0 0 1-2-1.9L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>`,
+  clock: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>`,
+};
+
+let pendingClearConfirm = false;
+
+function renderEmptyHistory(root) {
+  root.innerHTML = "";
+  const empty = document.createElement("div");
+  empty.className = "hist-empty";
+  empty.innerHTML = `
+    <div class="icon-wrap">${HISTORY_ICONS.clock}</div>
+    <div class="title">No past runs</div>
+    <div class="help">Reports from completed red-team runs will appear here so you can re-download or remove them.</div>
+  `;
+  root.appendChild(empty);
+}
+
+function updateHistoryChrome(count) {
+  const countEl = $("historyCount");
+  if (countEl) {
+    countEl.textContent = String(count);
+    countEl.hidden = count === 0;
+  }
+  const body = $("historyBody");
+  if (body) body.dataset.empty = count === 0 ? "true" : "false";
+  const foot = $("historyFoot");
+  if (foot) foot.hidden = count === 0;
+  resetClearConfirm();
+}
+
+function resetClearConfirm() {
+  pendingClearConfirm = false;
+  const btn = $("historyClearBtn");
+  const label = $("historyClearLabel");
+  if (btn) btn.dataset.confirm = "false";
+  if (label) label.textContent = "Clear history";
 }
 
 function renderHistoryList(items) {
   const root = $("historyList");
   if (!root) return;
   root.innerHTML = "";
+  updateHistoryChrome(items.length);
 
   if (!items.length) {
-    const empty = document.createElement("div");
-    empty.className = "hint-line";
-    empty.textContent = "No saved runs yet. Finish a run to see it here.";
-    root.appendChild(empty);
+    renderEmptyHistory(root);
     return;
   }
 
@@ -1646,59 +1676,81 @@ function renderHistoryList(items) {
     const report = item?.report;
     const id = item?.id || report?.metadata?.reportId || "";
     const cfg = item?.configId || report?.metadata?.configId || "";
-    const verdict = String(item?.verdict || "").toUpperCase() === "PASS" ? "PASS" : "FAIL";
     const sum = item?.summary || report?.summary || {};
     const total = Number(sum.totalEvaluators ?? sum.totalTests ?? 0) || 0;
     const failed = Number(sum.failed ?? 0) || 0;
     const passed = Number(sum.passed ?? 0) || 0;
     const gen = item?.generated || report?.metadata?.generated || "";
+    const allPassed = failed === 0 && total > 0;
 
     const wrap = document.createElement("div");
     wrap.className = "history-item";
+    wrap.dataset.status = allPassed ? "pass" : "fail";
 
-    const top = document.createElement("div");
-    top.className = "history-item-top";
+    const stripe = document.createElement("div");
+    stripe.className = "accent-stripe";
+    wrap.appendChild(stripe);
 
-    const title = document.createElement("div");
-    title.className = "history-item-title";
-    title.innerHTML = `
-      <div class="history-item-name"></div>
-      <div class="history-item-meta"></div>
-    `;
-    title.querySelector(".history-item-name").textContent = `${suiteLabel(cfg)} · ${verdict}`;
-    title.querySelector(".history-item-meta").textContent = `${formatWhen(gen)} · ${passed}/${total} passed · ${failed} failed`;
+    const body = document.createElement("div");
+    body.className = "history-item-body";
+
+    const name = document.createElement("div");
+    name.className = "history-item-name";
+    name.textContent = suiteLabel(cfg);
+    body.appendChild(name);
+
+    const meta = document.createElement("div");
+    meta.className = "history-item-meta";
+    const whenSpan = document.createElement("span");
+    whenSpan.textContent = formatWhen(gen);
+    const sep1 = document.createElement("span");
+    sep1.className = "sep";
+    sep1.textContent = "·";
+    const passedSpan = document.createElement("span");
+    passedSpan.className = "passed";
+    if (allPassed) passedSpan.dataset.all = "true";
+    passedSpan.textContent = `${passed}/${total} passed`;
+    const sep2 = document.createElement("span");
+    sep2.className = "sep";
+    sep2.textContent = "·";
+    const failedSpan = document.createElement("span");
+    failedSpan.className = "failed";
+    if (failed > 0) failedSpan.dataset.any = "true";
+    failedSpan.textContent = `${failed} failed`;
+    meta.append(whenSpan, sep1, passedSpan, sep2, failedSpan);
+    body.appendChild(meta);
+
+    const idEl = document.createElement("div");
+    idEl.className = "history-item-id";
+    idEl.textContent = trimStr(id, 80);
+    body.appendChild(idEl);
+
+    wrap.appendChild(body);
 
     const actions = document.createElement("div");
     actions.className = "history-item-actions";
 
-    const viewBtn = document.createElement("button");
-    viewBtn.type = "button";
-    viewBtn.className = "mini-btn";
-    viewBtn.textContent = "View";
-    viewBtn.addEventListener("click", () => {
-      if (!report) return;
-      state.lastReport = report;
-      state.suiteId = report?.metadata?.configId || state.suiteId;
-      state.results = reportToPopupResults(report);
-      state.evIdx = state.results.length;
-      renderDone();
-      setScreen("done");
-    });
-
     const dlBtn = document.createElement("button");
     dlBtn.type = "button";
-    dlBtn.className = "mini-btn";
-    dlBtn.textContent = "Download";
+    dlBtn.className = "btn-download";
+    dlBtn.innerHTML = `${HISTORY_ICONS.download}<span>Download</span>`;
     dlBtn.addEventListener("click", () => {
-      if (!report?.metadata?.reportId) return;
+      if (!report?.metadata?.reportId || dlBtn.dataset.state === "saved") return;
       downloadReportHtml(report);
+      dlBtn.dataset.state = "saved";
+      const labelEl = dlBtn.querySelector("span");
+      if (labelEl) labelEl.textContent = "Saved";
+      setTimeout(() => {
+        if (!dlBtn.isConnected) return;
+        delete dlBtn.dataset.state;
+        if (labelEl) labelEl.textContent = "Download";
+      }, 900);
     });
 
     const delBtn = document.createElement("button");
     delBtn.type = "button";
-    delBtn.className = "mini-btn";
-    delBtn.dataset.kind = "danger";
-    delBtn.textContent = "Delete";
+    delBtn.className = "btn-delete";
+    delBtn.innerHTML = `${HISTORY_ICONS.trash}<span>Delete</span>`;
     delBtn.addEventListener("click", async () => {
       const cur = await getReportHistory();
       const next = cur.filter((x) => x?.id !== id);
@@ -1706,18 +1758,9 @@ function renderHistoryList(items) {
       renderHistoryList(next);
     });
 
-    actions.appendChild(viewBtn);
     actions.appendChild(dlBtn);
     actions.appendChild(delBtn);
-
-    top.appendChild(title);
-    top.appendChild(actions);
-    wrap.appendChild(top);
-
-    const meta = document.createElement("div");
-    meta.className = "history-item-meta";
-    meta.textContent = trimStr(id, 80);
-    wrap.appendChild(meta);
+    wrap.appendChild(actions);
 
     root.appendChild(wrap);
   }
@@ -1732,9 +1775,20 @@ async function openHistory() {
 
 function closeHistory() {
   $("historyPanel").dataset.open = "false";
+  resetClearConfirm();
 }
 
 async function clearHistory() {
+  const btn = $("historyClearBtn");
+  const label = $("historyClearLabel");
+  const items = await getReportHistory();
+  if (!items.length) return;
+  if (!pendingClearConfirm) {
+    pendingClearConfirm = true;
+    if (btn) btn.dataset.confirm = "true";
+    if (label) label.textContent = `Confirm — clear all ${items.length} runs?`;
+    return;
+  }
   await setReportHistory([]);
   renderHistoryList([]);
 }
@@ -2271,6 +2325,7 @@ function wire() {
   $("historyBtn").addEventListener("click", openHistory);
   $("historyCloseBtn").addEventListener("click", closeHistory);
   $("historyClearBtn").addEventListener("click", clearHistory);
+  $("historyClearBtn").addEventListener("mouseleave", resetClearConfirm);
 
   // Advanced panel
   $("advancedBtn").addEventListener("click", openAdvanced);
