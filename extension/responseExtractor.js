@@ -44,8 +44,9 @@ export async function extractResponse(tabId, frameId, lastUserText = "", prevSna
   const POLL_FAST = 800;
   const POLL_SLOW = 1500;
   const POLL_CONFIRM = 1200;
-  const MAX_POLLS = 50;
+  const BASE_MAX_POLLS = 50;
   const TYPING_MAX_WAIT = 90_000;
+  const GROWTH_MAX_WAIT = 180_000;
 
   const normalize = (s) => (s || "").toLowerCase().replace(/\s+/g, " ").trim();
   const normUserMsg = normalize(lastUserText);
@@ -85,7 +86,15 @@ export async function extractResponse(tabId, frameId, lastUserText = "", prevSna
   let bestResult = null;
   let lastTextChangeAt = 0;
 
-  for (let poll = 0; poll < MAX_POLLS; poll++) {
+  // Text-growth tracking: implicit streaming detection for sites without CSS indicators.
+  let prevTextLen = 0;
+  let textGrowthStreak = 0;
+  let sawTextGrowth = false;
+  let lastGrowthAt = 0;
+  let growthStartedAt = 0;
+  let maxPolls = BASE_MAX_POLLS;
+
+  for (let poll = 0; poll < maxPolls; poll++) {
     if (state.OPFOR_STOP) break;
 
     const result = await extractResponseOnce(tabId, frameId, lastUserText);
@@ -97,6 +106,26 @@ export async function extractResponse(tabId, frameId, lastUserText = "", prevSna
 
     if (isTyping) sawTypingIndicator = true;
     if (isIntermediate) sawIntermediate = true;
+
+    // --- Text growth detection ---
+    const curTextLen = result?.ok ? (result.text || "").length : 0;
+    if (curTextLen > prevTextLen + 5) {
+      textGrowthStreak++;
+      lastGrowthAt = Date.now();
+      if (textGrowthStreak >= 2 && !sawTextGrowth) {
+        sawTextGrowth = true;
+        growthStartedAt = Date.now();
+      }
+      if (sawTextGrowth && poll >= maxPolls - 5) {
+        const elapsed = Date.now() - growthStartedAt;
+        if (elapsed < GROWTH_MAX_WAIT) {
+          maxPolls = Math.min(maxPolls + 10, 200);
+        }
+      }
+    } else if (curTextLen <= prevTextLen) {
+      textGrowthStreak = 0;
+    }
+    prevTextLen = Math.max(prevTextLen, curTextLen);
 
     // Echo guard: skip if extracted text is our own message.
     if (result?.ok && result.text && looksLikeOurMessage(result.text)) {
@@ -163,12 +192,20 @@ export async function extractResponse(tabId, frameId, lastUserText = "", prevSna
       lastTextChangeAt = Date.now();
     }
 
-    // Needed stable reads: more if we saw intermediate (tool execution).
-    const neededStable = sawIntermediate ? 3 : sawTypingIndicator ? 1 : 2;
+    // If text was recently growing, don't accept stability yet — the model
+    // may be pausing between sections or waiting on a tool call.
+    const growthCooldown = sawTextGrowth ? 8000 : 0;
+    if (sawTextGrowth && lastGrowthAt && Date.now() - lastGrowthAt < growthCooldown) {
+      stableCount = 0;
+      await sleep(POLL_FAST);
+      continue;
+    }
+
+    const neededStable = (sawTextGrowth || sawIntermediate) ? 3 : sawTypingIndicator ? 1 : 2;
 
     if (stableCount >= neededStable) {
       const sinceLast = Date.now() - lastTextChangeAt;
-      const confirmWait = sawIntermediate ? 4000 : 3000;
+      const confirmWait = sawTextGrowth ? 8000 : sawIntermediate ? 4000 : 3000;
       if (sinceLast < confirmWait) {
         await sleep(confirmWait - sinceLast);
         const verify = await extractResponseOnce(tabId, frameId, lastUserText);
@@ -180,6 +217,11 @@ export async function extractResponse(tabId, frameId, lastUserText = "", prevSna
           if (verify.typing || verify.intermediate) {
             sawTypingIndicator = sawTypingIndicator || !!verify.typing;
             sawIntermediate = sawIntermediate || !!verify.intermediate;
+          }
+          const verifyLen = (verify.text || "").length;
+          if (verifyLen > prevTextLen + 5) {
+            lastGrowthAt = Date.now();
+            prevTextLen = verifyLen;
           }
           continue;
         }
@@ -196,7 +238,10 @@ export async function extractResponse(tabId, frameId, lastUserText = "", prevSna
       continue;
     }
 
-    await sleep(sawIntermediate ? POLL_CONFIRM : sawTypingIndicator ? POLL_FAST : POLL_SLOW);
+    await sleep(
+      (sawTextGrowth || sawIntermediate) ? POLL_CONFIRM :
+      sawTypingIndicator ? POLL_FAST : POLL_SLOW
+    );
   }
 
   if (bestResult?.ok && bestResult.text && !looksLikeOurMessage(bestResult.text)) return bestResult;

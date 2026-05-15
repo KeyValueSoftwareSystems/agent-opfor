@@ -189,6 +189,38 @@ function setInputValue(el, value) {
     return { kind: "contenteditable" };
   }
 
+  // Safety: refuse to set textContent on large container elements (e.g. #root, body, main)
+  // that would destroy the entire page. Only write to leaf-ish elements.
+  const tag = el.tagName?.toLowerCase() || "";
+  const role = el.getAttribute?.("role") || "";
+  const children = el.children?.length || 0;
+  const rect = el.getBoundingClientRect?.();
+  const area = rect ? rect.width * rect.height : 0;
+  const looksLikeContainer =
+    tag === "body" ||
+    tag === "main" ||
+    tag === "section" ||
+    tag === "article" ||
+    tag === "header" ||
+    tag === "footer" ||
+    tag === "nav" ||
+    el.id === "root" ||
+    el.id === "app" ||
+    el.id === "__next" ||
+    el.id === "__nuxt" ||
+    children > 5 ||
+    area > window.innerWidth * window.innerHeight * 0.3;
+
+  if (looksLikeContainer) {
+    return { kind: "rejected", reason: "element_is_container" };
+  }
+
+  if (role === "textbox" || role === "combobox") {
+    el.textContent = value;
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    return { kind: role };
+  }
+
   el.textContent = value;
   el.dispatchEvent(new Event("input", { bubbles: true }));
   return { kind: "unknown" };
@@ -401,7 +433,12 @@ async function submitWithRetries({ inputEl, desiredMethod, buttonEl, originalTex
     if (!input) return { ok: false, error: "inputSelector did not match" };
 
     const injectedText = String(plan.text ?? "hi");
-    const { kind } = setInputValue(input, injectedText);
+    const setResult = setInputValue(input, injectedText);
+    const kind = setResult.kind;
+
+    if (kind === "rejected") {
+      return { ok: false, error: "input_is_container", reason: setResult.reason };
+    }
 
     const method = plan?.submit?.method === "click" ? "click" : "enter";
     const btn =

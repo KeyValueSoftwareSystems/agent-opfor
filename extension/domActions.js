@@ -109,6 +109,30 @@ export async function actVerifyInputVisible(tabId, frameId, selector) {
         const style = window.getComputedStyle(el);
         if (style.display === "none" || style.visibility === "hidden" || style.opacity === "0")
           return { visible: false, reason: "hidden_css" };
+
+        const tag = el.tagName.toLowerCase();
+        const role = (el.getAttribute("role") || "").toLowerCase();
+        const isInput =
+          tag === "textarea" ||
+          tag === "input" ||
+          el.isContentEditable ||
+          role === "textbox" ||
+          role === "combobox";
+        if (!isInput) {
+          const id = el.id || "";
+          const children = el.children?.length || 0;
+          const area = rect.width * rect.height;
+          const viewportArea = window.innerWidth * window.innerHeight;
+          if (
+            id === "root" || id === "app" || id === "__next" || id === "__nuxt" ||
+            tag === "body" || tag === "main" || tag === "section" ||
+            children > 10 ||
+            area > viewportArea * 0.3
+          ) {
+            return { visible: false, reason: "element_is_container" };
+          }
+        }
+
         return { visible: true };
       },
       args: [selector],

@@ -305,6 +305,10 @@ function classifyBubble(el) {
   if (author === "user" || author === "customer") return "user";
   if (author === "assistant" || author === "bot" || author === "agent") return "bot";
 
+  const variant = (el.getAttribute("data-variant") || "").toLowerCase();
+  if (variant === "user" || variant === "customer") return "user";
+  if (variant === "agent" || variant === "bot" || variant === "assistant") return "bot";
+
   // --- Class name patterns (walk up a few parents) ---
   for (let n = el, hops = 0; n instanceof Element && hops < 4; n = n.parentElement, hops++) {
     const cls = ((n.className || "") + "").toLowerCase();
@@ -372,6 +376,16 @@ function classifyBubble(el) {
         return "bot";
     }
   }
+
+  // --- Child data-variant (avatar chips like Axari's data-variant="agent") ---
+  try {
+    const avatarChip = el.querySelector("[data-variant]");
+    if (avatarChip) {
+      const v = (avatarChip.getAttribute("data-variant") || "").toLowerCase();
+      if (v === "user" || v === "customer") return "user";
+      if (v === "agent" || v === "bot" || v === "assistant") return "bot";
+    }
+  } catch {}
 
   // --- ARIA label ---
   const ariaLabel = (el.getAttribute("aria-label") || "").toLowerCase();
@@ -661,6 +675,7 @@ function extractFromMessageLikeRows() {
     '[class*="Message"]',
     '[class*="bubble" i]',
     '[class*="Bubble"]',
+    '[class*="prose" i]',
     '[data-testid*="message" i]',
   ];
   const seen = new Set();
@@ -698,7 +713,8 @@ function extractFromMessageLikeRows() {
       if (isInteractive(el) || isPinned(el) || isLikelyButtonRow(el)) continue;
       const r = el.getBoundingClientRect();
       if (r.bottom > composerTop - 6) continue;
-      if (r.height > 900 || r.width < 24) continue;
+      const maxMsgH = looksLikeContentContainer(el) ? 5000 : 900;
+      if (r.height > maxMsgH || r.width < 24) continue;
       const t = textOf(el);
       if (t.length < 12 || t.length > 50_000) continue;
       if (looksLikeFooter(t)) continue;
@@ -738,7 +754,11 @@ function extractLeafAboveComposer() {
     if (isInteractive(el) || isPinned(el) || isLikelyButtonRow(el)) continue;
     const r = el.getBoundingClientRect();
     if (r.bottom > cTop - 8) continue;
-    if (r.height > 700 || r.height < 14) continue;
+    if (r.height < 14) continue;
+    // Allow taller elements if they look like prose/content containers;
+    // only reject very tall elements that are clearly full-page containers.
+    const maxH = looksLikeContentContainer(el) ? 5000 : 700;
+    if (r.height > maxH) continue;
     const t = textOf(el);
     if (t.length < 15 || t.length > 50_000) continue;
     if (looksLikeFooter(t)) continue;
@@ -766,6 +786,125 @@ function extractLeafAboveComposer() {
     if (leaf.t.length) return leaf.t;
   }
   return leaves[0]?.t || null;
+}
+
+function looksLikeContentContainer(el) {
+  const cls = ((el.className || "") + "").toLowerCase();
+  return (
+    cls.includes("prose") ||
+    cls.includes("markdown") ||
+    cls.includes("message-content") ||
+    cls.includes("msg-content") ||
+    cls.includes("chat-content") ||
+    cls.includes("reply-content") ||
+    cls.includes("response-body") ||
+    cls.includes("bot-reply") ||
+    cls.includes("agent-reply")
+  );
+}
+
+/**
+ * Generic flex-layout chat extractor.
+ * Modern React/Tailwind chat UIs often use flex-direction (row vs row-reverse)
+ * to distinguish bot from user messages instead of semantic class names.
+ * Finds sibling message groups above the composer and picks the last bot group.
+ */
+function extractFromFlexLayoutChat() {
+  const composer = findComposerElement();
+  if (!composer) return null;
+  const composerTop = composer.getBoundingClientRect().top;
+
+  // Walk up from the composer to find the scrollable container.
+  let scrollContainer = null;
+  for (let n = composer.parentElement, hops = 0; n && hops < 12; n = n.parentElement, hops++) {
+    try {
+      const style = window.getComputedStyle(n);
+      if (style.overflowY === "auto" || style.overflowY === "scroll") {
+        scrollContainer = n;
+        break;
+      }
+    } catch {}
+  }
+  if (!scrollContainer) return null;
+
+  // Collect flex containers (row / row-reverse) above the composer.
+  const flexItems = [];
+  for (const el of scrollContainer.querySelectorAll("div")) {
+    if (!isVisible(el)) continue;
+    const rect = el.getBoundingClientRect();
+    if (rect.bottom > composerTop - 4) continue;
+    if (rect.height < 30 || rect.width < 100) continue;
+
+    let flexDir, display;
+    try {
+      const style = window.getComputedStyle(el);
+      display = style.display;
+      flexDir = style.flexDirection;
+    } catch {
+      continue;
+    }
+    if (display !== "flex" && display !== "inline-flex") continue;
+    if (flexDir !== "row" && flexDir !== "row-reverse") continue;
+
+    const t = textOf(el);
+    if (t.length < 15) continue;
+
+    flexItems.push({
+      el,
+      isUser: flexDir === "row-reverse",
+      t,
+      bottom: rect.bottom,
+      parent: el.parentElement,
+    });
+  }
+
+  // Must see both row-reverse (user) and row (bot) groups to confirm this is a chat.
+  if (!flexItems.some((g) => g.isUser) || !flexItems.some((g) => !g.isUser)) return null;
+
+  // Group by parent to find the set of sibling message groups.
+  const parentMap = new Map();
+  for (const item of flexItems) {
+    if (!item.parent) continue;
+    if (!parentMap.has(item.parent)) parentMap.set(item.parent, []);
+    parentMap.get(item.parent).push(item);
+  }
+
+  // Pick the parent whose children have BOTH user and bot groups (the message list).
+  let bestChildren = null;
+  let bestScore = 0;
+  for (const [, children] of parentMap) {
+    const users = children.filter((c) => c.isUser).length;
+    const bots = children.filter((c) => !c.isUser).length;
+    if (users === 0 || bots === 0) continue;
+    const score = users + bots;
+    if (score > bestScore) {
+      bestScore = score;
+      bestChildren = children;
+    }
+  }
+  if (!bestChildren) return null;
+
+  // Sort bottom-most first and find the last bot message.
+  bestChildren.sort((a, b) => b.bottom - a.bottom);
+
+  for (const item of bestChildren) {
+    if (item.isUser) continue;
+    if (matchesUserMessage(item.t)) continue;
+    if (looksLikeFooter(item.t) || looksLikeTypingPlaceholder(item.t)) continue;
+
+    // Try to find a prose/markdown content container for cleaner extraction.
+    const contentEl = item.el.querySelector(
+      '[class*="prose" i], [class*="markdown" i], [class*="message-content" i], [class*="msg-content" i]'
+    );
+    if (contentEl) {
+      const ct = textOf(contentEl);
+      if (ct.length >= 15 && !looksLikeTypingPlaceholder(ct)) return ct;
+    }
+
+    if (item.t.length >= 15) return item.t;
+  }
+
+  return null;
 }
 
 /** Live regions sometimes mirror the latest bot line (Drift, Chili Piper, etc.). */
@@ -939,6 +1078,7 @@ function isLastMessageStillStreaming() {
     extractFromEmbeddedDialogue() ||
     extractFromAssistantBubbles() ||
     extractFromMessageLikeRows() ||
+    extractFromFlexLayoutChat() ||
     extractLeafAboveComposer() ||
     extractFromAriaLiveRegion() ||
     extractFromRoleFeed() ||
