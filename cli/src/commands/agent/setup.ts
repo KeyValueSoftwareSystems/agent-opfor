@@ -227,6 +227,21 @@ async function runInteractiveWizard(
       mask: "*",
     });
 
+    const headersInput = await input({
+      message:
+        'Custom HTTP headers (JSON object, e.g. {"X-Api-Key": "secret", "X-Custom": "value"}, leave blank to skip):',
+      default: "",
+    });
+
+    let headers: Record<string, string> | undefined;
+    if (headersInput.trim()) {
+      try {
+        headers = JSON.parse(headersInput.trim()) as Record<string, string>;
+      } catch {
+        console.warn("Invalid JSON for headers; skipping custom headers");
+      }
+    }
+
     let promptPath: string | undefined;
     let responsePath: string | undefined;
     if (requestFormat === "json") {
@@ -256,6 +271,7 @@ async function runInteractiveWizard(
       requestFormat,
       targetModel,
       targetApiKey: targetApiKey.trim() || undefined,
+      ...(headers ? { headers } : {}),
       ...(promptPath ? { promptPath } : {}),
       ...(responsePath ? { responsePath } : {}),
       ...(sessionIdFieldInput.trim() ? { sessionIdField: sessionIdFieldInput.trim() } : {}),

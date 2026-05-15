@@ -180,6 +180,7 @@ export async function runAgentAttacksFromFile(opts: {
         sessionIdField: target.sessionIdField,
         promptPath: target.promptPath,
         responsePath: target.responsePath,
+        targetHeaders: target.headers,
       };
 
       for (let t = 1; t <= numTurns; t++) {

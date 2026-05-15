@@ -307,6 +307,11 @@ export interface TargetConfig {
   targetApiKey?: string;
   targetModel?: string;
   /**
+   * Custom HTTP headers to send with each request to the target.
+   * Example: { "Authorization": "Bearer xyz", "X-Custom-Header": "value" }
+   */
+  headers?: Record<string, string>;
+  /**
    * For multi-turn attacks: JSON body field name to inject a session ID on every request
    * (e.g. "session_id"). The target uses this to maintain its own conversation history.
    * Leave unset to skip session ID injection.

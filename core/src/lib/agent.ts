@@ -65,6 +65,8 @@ export interface RunAgentConfigHttp extends RunAgentConfig {
   promptPath?: string;
   /** Dot-path to extract the reply from the response JSON (e.g. "data.reply"). */
   responsePath?: string;
+  /** Custom HTTP headers to send with each request (from target.headers config). */
+  targetHeaders?: Record<string, string>;
 }
 
 /**
@@ -86,6 +88,11 @@ export async function callTargetHttp(
 
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (resolvedApiKey) headers["Authorization"] = `Bearer ${resolvedApiKey}`;
+
+  // Merge custom headers from target config (if http target)
+  if ("targetHeaders" in cfg && cfg.targetHeaders) {
+    Object.assign(headers, cfg.targetHeaders);
+  }
 
   const prop = cfg.propagation;
   const hasPropagation =
@@ -282,6 +289,10 @@ export async function runAttackAgent(cfg: RunAgentConfig): Promise<AgentAttackRe
         if (resolvedApiKey) headers["Authorization"] = `Bearer ${resolvedApiKey}`;
 
         const httpCfg = cfg as RunAgentConfigHttp;
+        if (httpCfg.targetHeaders) {
+          Object.assign(headers, httpCfg.targetHeaders);
+        }
+
         const prop = httpCfg.propagation;
         const hasPropagation =
           Boolean(prop?.headers && Object.keys(prop.headers).length > 0) ||

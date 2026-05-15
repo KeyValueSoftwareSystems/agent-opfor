@@ -124,6 +124,27 @@ opfor setup --mcp --empty     # writes a minimal MCP config, no prompts
 
 > `apiKeyEnv` is the **env var name** that holds the key — not the key itself. Never put the raw key in the config file.
 
+**Agent config with custom headers:**
+
+To include custom HTTP headers in agent mode (e.g., API keys, custom authentication, trace correlation), add the `headers` field to `agent.target`:
+
+```json
+"target": {
+  "name": "My API",
+  "description": "...",
+  "type": "http-endpoint",
+  "endpoint": "https://api.example.com/chat",
+  "requestFormat": "openai",
+  "targetModel": "gpt-4o-mini",
+  "headers": {
+    "Authorization": "Bearer your-api-key",
+    "X-Custom-Header": "custom-value"
+  }
+}
+```
+
+Headers are merged with built-in headers (e.g., `Content-Type: application/json` and any Bearer token from `targetApiKey`).
+
 **Minimal MCP config (stdio transport):**
 
 ```json
@@ -403,6 +424,7 @@ Top-level keys are `configId`, `createdAt`, `mode` (`agent` or `mcp`), and one o
 | `agent.target.requestFormat`                   | For HTTP           | `openai`, `json`, or `auto` (default).                                                         |
 | `agent.target.targetModel`                     | For HTTP / openai  | Model name to send in the request body.                                                        |
 | `agent.target.targetApiKey`                    | No                 | Bearer token for the target endpoint.                                                          |
+| `agent.target.headers`                         | No                 | Custom HTTP headers (e.g. `{"Authorization": "Bearer xyz", "X-Custom": "val"}`).               |
 | `agent.target.promptPath`                      | No                 | Dot-path for the prompt field (e.g. `input.message`). Defaults to `prompt`.                    |
 | `agent.target.responsePath`                    | No                 | Dot-path to extract the reply (e.g. `data.reply`). Falls back to built-in chain.               |
 | `agent.target.sessionIdField`                  | No                 | Body field to inject a session ID for multi-turn attacks.                                      |
