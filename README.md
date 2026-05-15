@@ -114,13 +114,13 @@ Reports land in `.opfor/reports/report-<timestamp>/`.
 
 ## Browser extension — red-team a chatbot
 
-The browser extension is opfor's no-code path. Install it, open any chat interface, click the opfor icon, pick a suite, and watch it run.
+The browser extension is opfor's no-code path. Install from the Chrome Web Store, open any chat interface, click the opfor icon, pick a suite, and watch it run.
 
 It auto-detects the chat interface, sends attack prompts as if you were typing them, watches the responses, and downloads an HTML report when done. No CLI, no target setup, no YAML.
 
 This is the path for the half of every product team that doesn't open a terminal.
 
-→ [Install the extension](docs/browser-extension.md)
+→ [Install from the Chrome Web Store](https://chromewebstore.google.com/) · [Setup guide](docs/browser-extension.md)
 
 ---
 
@@ -224,7 +224,7 @@ _OPFOR is short for Opposition Force — a military term for the dedicated unit 
 <br/>
 
 <p align="center">
-  Also from our team: <a href="https://netra.io"><strong>Netra</strong></a> — AI observability, tracing, and simulation.<br/>
+  Also from our team: <a href="https://getnetra.ai/"><strong>Netra</strong></a> — AI observability, tracing, and simulation.<br/>
   <a href="docs/trace-aware.md">Integrates with opfor for trace-aware testing.</a>
 </p>
 

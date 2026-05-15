@@ -1,0 +1,68 @@
+# Opfor — Skills
+
+Opfor ships two Skills (markdown instruction files an AI coding agent reads and follows). Install once, then trigger from chat inside your project.
+
+> Skills currently cover **agent / chatbot red-teaming only**. For MCP server red-teaming use the [CLI](cli.md) or [MCP server tool](mcp.md).
+
+---
+
+## Install
+
+Run this from the **root of the project you want to test** (the agent scans the repo, so context matters):
+
+```bash
+npx skills add https://github.com/KeyValueSoftwareSystems/OPFOR.git
+```
+
+The CLI walks you through a short wizard: pick which agent to install into (Claude Code, Cursor, Windsurf, Gemini CLI, GitHub Copilot, etc.) and which skills (`opfor-setup`, `opfor-execute`, or both — pick both). Skills land in your agent's skills directory (e.g. `.claude/skills/opfor-setup/` for Claude Code; path varies per agent).
+
+---
+
+## What you get
+
+| Skill               | What the agent does when you invoke it                                                                                                                                                                                    |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`opfor-setup`**   | Scans the repo (endpoints, `opfor.config*`, `.env`, telemetry SDK imports), asks only what's still unknown, picks a suite or evaluators, generates attack prompts, writes a config folder under `.opfor/configs/<uuid>/`. |
+| **`opfor-execute`** | Loads the config folder, fires the pre-generated attack prompts at the target, runs the LLM-as-judge, writes an HTML + JSON report, and summarises findings in chat.                                                      |
+
+Flow: `opfor-setup` → `opfor-execute`. Run setup once per target; re-run execute whenever you want a fresh report.
+
+---
+
+## Trace-aware
+
+`opfor-setup` auto-detects Langfuse / Netra / OpenTelemetry usage by scanning `opfor.config*`, `.env*`, `package.json`, Docker / Helm files, and app code for SDK imports and exporters. If traces are wired, the agent grounds attack prompts in real production flows and (when supported) configures trace-ID propagation so the judge sees the full target trace per attack. No manual telemetry block needed unless something is ambiguous.
+
+---
+
+## Prerequisites
+
+- An API key for an LLM provider in your shell or `.env` — `GROQ_API_KEY` / `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `GOOGLE_GENERATIVE_AI_API_KEY`. The agent reads `.env` from the project root.
+- A reachable target — HTTP endpoint or a local script. The agent will ask for it on first setup if not found in the repo.
+
+---
+
+## Usage from chat
+
+Inside your IDE chat, just say:
+
+```
+Set up an Opfor assessment for this project.
+```
+
+The agent reads `opfor-setup/SKILL.md` and walks the wizard. When done, say:
+
+```
+Run the Opfor assessment.
+```
+
+The agent reads `opfor-execute/SKILL.md` and runs the scan.
+
+---
+
+## Update / remove
+
+```bash
+npx skills update opfor-setup opfor-execute
+npx skills remove opfor-setup opfor-execute
+```

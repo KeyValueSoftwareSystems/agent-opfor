@@ -1,25 +1,51 @@
 # Opfor — CLI
 
-The CLI is a self-contained tool that handles everything: interactive setup, attack prompt generation, firing attacks, judging responses, and producing reports — all without an agent.
+The CLI handles everything: interactive setup, attack generation, firing attacks, judging responses, and producing reports.
+
+---
+
+## Two testing modes
+
+The CLI supports two distinct red-team modes. Pick one per config; opfor decides which pipeline to run from the config's `mode` field.
+
+| Mode                        | Target                                                | How attacks are delivered                                                                                                                  | How responses are judged                                                                                                                       |
+| --------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Agent** (`mode: "agent"`) | HTTP endpoint or local script speaking LLM-style chat | Attacker LLM writes free-text adversarial prompts; opfor POSTs them                                                                        | Judge LLM reads the target's text reply                                                                                                        |
+| **MCP** (`mode: "mcp"`)     | MCP server (stdio process or remote URL)              | Opfor connects to the server, lists tools, attacker LLM crafts tool-name + JSON arguments; opfor fires real `tools/call` JSON-RPC requests | Judge LLM reads the JSON-RPC response (content + `isError`); plus optional resource-exposure scan and post-run tool-description rug-pull check |
+
+Pick agent mode for chatbots, RAG apps, and tool-calling agents fronted by an HTTP API. Pick MCP mode when you want to attack an MCP server directly without going through an agent.
+
+> Not to be confused with [running Opfor itself as an MCP server](mcp.md) so AI coding assistants can invoke it.
 
 ---
 
 ## How the pieces fit together
 
-| Command                                      | What it does                                                                                                                     |
-| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| **`opfor init`**                             | Writes a starter `opfor.config.json` in the current directory. Optional — skip if you prefer the wizard or hand-write YAML/JSON. |
-| **`opfor init --example …`**                 | Writes sample `opfor-local-target.py` / `.js` stubs only (no config). For local-script targets.                                  |
-| **`opfor setup`**                            | Interactive wizard — chooses mode (MCP vs agent) and writes `.opfor/configs/opfor-config-<timestamp>-<id>.json`.                 |
-| **`opfor generate --config <file>`**         | Non-interactive — reads your config, then writes `.opfor/attacks/opfor-attacks-<timestamp>-<configId>.json`. Use this in CI.     |
-| **`opfor execute --attacks <attacks.json>`** | Runs attacks from the attacks file, judges responses, writes HTML + JSON reports.                                                |
+Three commands. **Only `execute` is required.** `setup` and `generate` exist to freeze intermediate artifacts on disk so you can inspect, version-control, or replay them.
+
+**The three commands and their artifacts:**
+
+| Command                              | Input                                                          | Output artifact                                                                                                                                                             |
+| ------------------------------------ | -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`opfor setup`**                    | Interactive prompts (or `--empty` / `--agent` / `--mcp` flags) | **Config JSON** at `.opfor/configs/opfor-config-<timestamp>-<id>.json` — target metadata, attacker/judge LLM, selection, telemetry. _No LLM called yet._                    |
+| **`opfor generate --config <file>`** | Config JSON                                                    | **Attacks JSON** at `.opfor/attacks/opfor-attacks-<timestamp>-<configId>.json` — config + frozen first-turn attack prompts (one per evaluator). _Attacker LLM called once._ |
+| **`opfor execute`**                  | See next table                                                 | **Reports** at `.opfor/reports/report-<timestamp>/` — `report.html` + `report.json`.                                                                                        |
+
+**`opfor execute` accepts three input modes:**
+
+| Invocation                       | What it does                                                                                         |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `opfor execute --attacks <file>` | Replays a frozen Attacks JSON. Skips setup + generate. **Fastest path; no attacker LLM for turn 1.** |
+| `opfor execute --config <file>`  | Reads a Config JSON, runs generate on the fly, then executes. Skips setup.                           |
+| `opfor execute` _(no args)_      | Runs `setup` wizard → `generate` → executes. Full pipeline in one command.                           |
+
+In every case `execute` fires attacks at the target, runs the judge, and writes the report. The flags just decide which prior steps it has to run itself.
 
 **Typical paths:**
 
-1. **Config-first:** `opfor setup --empty` → edit the generated `.opfor/configs/...json` → `opfor generate --config ...` → `opfor execute --attacks ...`
-2. **Wizard-only:** set API key in env → `opfor setup` → follow the printed `Next:` commands
-
-`setup` always produces the prompts file; `run` always consumes it.
+1. **Zero-friction first run:** `opfor execute` → wizard + generate + execute end to end.
+2. **Repeated single-turn runs (save cost):** `opfor setup` → `opfor generate --config ...` → `opfor execute --attacks ...` then re-run `opfor execute --attacks ...` whenever you want, attacker LLM not called again.
+3. **CI / config-first:** hand-edit `opfor setup --agent --empty` output → `opfor execute --config ...` (or split into `generate` + `execute --attacks` if you want to review attacks before firing them).
 
 ---
 
@@ -33,86 +59,103 @@ The CLI is a self-contained tool that handles everything: interactive setup, att
 ## Install
 
 ```bash
-git clone https://github.com/yourusername/opfor.git
+npm install -g opfor
+```
+
+**From source:**
+
+```bash
+git clone https://github.com/KeyValueSoftwareSystems/opfor.git
 cd opfor
 npm install --ignore-scripts
 npm run build
-npm install -g ./cli   # make the `opfor` command available globally
+npm install -g ./cli
 ```
 
 ---
 
-## Step 1 — Config file (optional)
+## Step 1 — Create a config
 
-Only needed for `opfor setup --config`. Skip this step if using the interactive wizard.
-
-```bash
-opfor init   # writes opfor.config.json
-```
-
-**Sample local-target stubs** (no config written):
+**Interactive wizard (recommended):**
 
 ```bash
-opfor init --example python    # writes opfor-local-target.py
-opfor init --example node      # writes opfor-local-target.js
-opfor init --example both
-opfor init --example python --script-dir ./scripts
+opfor setup          # prompts: MCP or agent, provider, target, suite
+opfor setup --agent  # skip mode prompt, go straight to agent wizard
+opfor setup --mcp    # skip mode prompt, go straight to MCP wizard
 ```
 
-**Minimal JSON config:**
+**Blank config to hand-edit:**
+
+```bash
+opfor setup --agent --empty   # writes a minimal agent config, no prompts
+opfor setup --mcp --empty     # writes a minimal MCP config, no prompts
+```
+
+**Minimal agent config:**
 
 ```json
 {
-  "llm": {
-    "provider": "groq",
-    "model": "llama-3.3-70b-versatile"
-  },
-  "target": {
-    "name": "My Support Bot",
-    "description": "A customer support chatbot with access to user booking data and PII. It can issue partial refunds and look up bookings by name.",
-    "type": "http-endpoint",
-    "endpoint": "http://localhost:4000/chat",
-    "requestFormat": "openai",
-    "targetModel": "gpt-4o-mini"
-  },
-  "selection": {
-    "mode": "suite",
-    "suite": "owasp-llm-top10"
+  "configId": "my-config",
+  "createdAt": "2026-01-01T00:00:00.000Z",
+  "mode": "agent",
+  "agent": {
+    "attackLlm": {
+      "provider": "groq",
+      "model": "llama-3.3-70b-versatile",
+      "apiKeyEnv": "GROQ_API_KEY"
+    },
+    "target": {
+      "name": "My Support Bot",
+      "description": "A customer support chatbot with access to booking data and PII. Can issue partial refunds.",
+      "type": "http-endpoint",
+      "endpoint": "http://localhost:4000/chat",
+      "requestFormat": "openai",
+      "targetModel": "gpt-4o-mini"
+    },
+    "selection": {
+      "mode": "suite",
+      "suite": "owasp-llm-top10"
+    },
+    "turnMode": "single",
+    "telemetry": { "provider": "none" }
   }
 }
 ```
 
-**YAML equivalent (`opfor.config.yml`):**
+> `apiKeyEnv` is the **env var name** that holds the key — not the key itself. Never put the raw key in the config file.
 
-```yaml
-llm:
-  provider: groq
-  model: llama-3.3-70b-versatile
+**Minimal MCP config (stdio transport):**
 
-target:
-  name: My Support Bot
-  description: >
-    A customer support chatbot with access to user booking data and PII.
-    It can issue partial refunds and look up bookings by name.
-  type: local-script
-  scriptPath: ./opfor-local-target.py
-
-selection:
-  mode: evaluators
-  evaluators:
-    - prompt-injection
-    - sensitive-disclosure
-    - system-prompt-leakage
-    - jailbreaking
+```json
+{
+  "configId": "my-mcp-config",
+  "createdAt": "2026-01-01T00:00:00.000Z",
+  "mode": "mcp",
+  "mcp": {
+    "server": {
+      "transport": "stdio",
+      "command": "node",
+      "args": ["dist/index.js"]
+    },
+    "generatorModel": {
+      "provider": "groq",
+      "model": "llama-3.3-70b-versatile",
+      "apiKeyEnv": "GROQ_API_KEY"
+    },
+    "turnMode": "single"
+  }
+}
 ```
+
+For a remote MCP server, swap `server` to `{ "transport": "url", "url": "https://...", "headers": { "Authorization": "Bearer ..." } }`.
 
 ---
 
 ## Step 2 — API key
 
-The LLM key is used during `opfor setup` (prompt generation) and `opfor execute` (judging). Set it before running either command.
+The LLM key is used during `generate` (attack generation) and `execute` (judging). Set it before running either.
 
-**A — Environment variable / `.env` file (recommended):**
+**Environment variable / `.env` file (recommended):**
 
 ```bash
 export GROQ_API_KEY=your-key-here
@@ -123,58 +166,69 @@ export GOOGLE_GENERATIVE_AI_API_KEY=...
 
 The CLI loads `.env` from the current working directory automatically. Add `.env` to `.gitignore`.
 
-**B — Config file field:**
-
-```json
-{ "llm": { "provider": "groq", "apiKey": "gsk_your-key-here" } }
-```
-
-**C — CLI flag (overrides A and B):**
+**`--env` flag (for CI or non-standard paths):**
 
 ```bash
-opfor setup --config opfor.config.json --api-key gsk_your-key-here
-opfor execute --attacks .opfor/attacks/opfor-attacks-….json --api-key gsk_your-key-here
+opfor generate --config .opfor/configs/opfor-config-....json --env .env.prod
+opfor execute --attacks .opfor/attacks/opfor-attacks-....json --env .env.prod
 ```
 
-> Avoid committing secrets. Add `.opfor/` (configs, attacks, reports) to `.gitignore` (already the default in this repo).
+> Add `.opfor/` to `.gitignore` — it contains configs, attacks, and reports with embedded target metadata.
 
 ---
 
-## Step 3 — Generate attack prompts
+## Step 3 — Generate attack prompts (optional)
+
+`generate` calls the attacker LLM and writes a self-contained attacks JSON that `execute` can replay later. You can skip this step entirely — `opfor execute --config <file>` does it on the fly.
 
 ```bash
-# From a config file (non-interactive; good for CI)
-opfor setup --config opfor.config.json
-opfor setup --config opfor.config.json --api-key gsk_your-key-here
+# Freeze attacks for later replay
+opfor generate --config .opfor/configs/opfor-config-<timestamp>-<id>.json
 
-# Interactive wizard (no config file needed)
-opfor setup
+# Override suite or pick specific evaluators at generate time
+opfor generate --config ... --suite owasp-agentic-ai
+opfor generate --config ... --evaluators prompt-injection sensitive-disclosure
 ```
 
-`opfor generate` writes `.opfor/attacks/opfor-attacks-<timestamp>-<configId>.json` containing attacks and embedded run metadata.
+Writes `.opfor/attacks/opfor-attacks-<timestamp>-<configId>.json` — contains one frozen first-turn prompt per evaluator, plus the full target/judge config copied from the config file.
+
+**When freezing pays off:**
+
+- **Single-turn scans** — attacker LLM is called once during `generate` and never again. Re-running `opfor execute --attacks ...` does only target requests + judging. Big savings on re-runs.
+- **CI** — reviewable, version-controlled attack set; build fails on the _same_ attacks each run.
+- **Audit** — the exact prompts that hit your target are pinned on disk.
+
+**When freezing doesn't help much:**
+
+- **Multi-turn scans** — only turn 1 is frozen. Turns 2-N are still generated live by the attacker LLM during `execute`, so most of the attacker-LLM cost remains.
+- **One-off runs** — just use `opfor execute --config <file>` or `opfor execute` with no args.
 
 ---
 
 ## Step 4 — Run the scan
 
 ```bash
-opfor execute --attacks .opfor/attacks/opfor-attacks-<timestamp>-<configId>.json
-
-# Override API key at run time
-opfor execute --attacks .opfor/attacks/opfor-attacks-<timestamp>-<configId>.json --api-key gsk_your-key-here
+opfor execute --attacks .opfor/attacks/opfor-attacks-<timestamp>-<id>.json
 
 # Custom report directory
-opfor execute --attacks .opfor/attacks/opfor-attacks-<timestamp>-<configId>.json --out-dir ./reports
+opfor execute --attacks .opfor/attacks/opfor-attacks-<timestamp>-<id>.json --out-dir ./reports
 
-# Force attacks through a local script
-opfor execute --attacks .opfor/attacks/opfor-attacks-<timestamp>-<configId>.json --target-script ./opfor-local-target.js
+# Force attacks through a local script (overrides what's in the attacks file)
+opfor execute --attacks .opfor/attacks/opfor-attacks-<timestamp>-<id>.json --target-script ./opfor-local-target.js
 ```
+
+Reports land in `.opfor/reports/report-<timestamp>/` as `report.html` and `report.json`.
+
+**MCP mode adds two phases not present in agent mode:**
+
+- **Resource scan** — before firing attacks, opfor calls `resources/list` and `resources/read` on each one, judging for secret/PII exposure. Disable with `mcp.scanResources: false`.
+- **Rug-pull check** — after firing attacks, opfor re-lists tools and diffs descriptions against the initial digest, flagging any mutations as a `tool-description-injection` failure.
 
 ---
 
-## Local target scripts (`.js` / `.py`)
+## Local target scripts (`.js` / `.py`) — agent mode
 
-When your target is not a single HTTP URL, use a local script as an adapter.
+When your agent-mode target is not a single HTTP URL, use a local script as an adapter (`target.type: "local-script"`).
 
 **stdin/stdout contract (one attack = one process):**
 
@@ -197,12 +251,6 @@ When your target is not a single HTTP URL, use a local script as an adapter.
 }
 ```
 
-**Override at run time:**
-
-```bash
-opfor execute --attacks .opfor/attacks/opfor-attacks-<timestamp>-<configId>.json --target-script ./opfor-local-target.js
-```
-
 **Sanity-check without a full scan:**
 
 ```bash
@@ -214,11 +262,11 @@ echo '{"prompt":"hello","context":{}}' | python3 ./opfor-local-target.py
 
 ## Single-turn vs multi-turn
 
-By default opfor executes **single-turn** attacks: one prompt → one response → judged.
+By default opfor executes **single-turn** attacks: one attack → one response → judged.
 
-**Multi-turn** fires a short adversarial conversation. After each response, if the target holds firm, an attacker LLM generates a more escalating follow-up (up to `turns`, default 3). Stops as soon as the judge returns FAIL.
+**Multi-turn** fires a short adversarial conversation. After each response, if the judge holds the target as PASS, an attacker LLM generates a more escalating follow-up (up to `turns`, default 3). Stops early when judge returns FAIL.
 
-Multi-turn requires your target to maintain conversation history across requests using a `sessionId`. Opfor injects it but does not replay history itself.
+**Agent mode:** multi-turn requires your target to maintain its own conversation history across requests using a `sessionId`. Opfor injects it but does not replay history itself.
 
 ```json
 {
@@ -233,14 +281,18 @@ Multi-turn requires your target to maintain conversation history across requests
 - **HTTP targets:** set `target.sessionIdField` so opfor injects the ID into the request body.
 - **Local-script targets:** `sessionId` is always included in the stdin JSON.
 
+**MCP mode:** multi-turn is fully adaptive. Opfor feeds the previous `tools/call` response and judge reasoning back to the attacker LLM, which crafts the next tool name + arguments. No session-ID wiring needed — opfor manages the loop. Set `mcp.turnMode: "multi"` and `mcp.turns` (2–10).
+
 ---
 
-## Telemetry (optional)
+## Trace-aware testing (agent mode only)
 
-When a telemetry provider is configured, opfor does two things:
+> Applies only to `mode: "agent"` configs. MCP red-teaming uses JSON-RPC, which can't propagate OTel trace IDs through `tools/call` requests yet.
 
-1. **Setup** — fetches real production traces and uses them to ground attack prompts in actual user language and flows, producing more targeted attacks.
-2. **Run** — optionally injects a trace ID into each target request (`propagation.traceIdBodyField`) so the recorded trace can be fetched after the attack and passed to the LLM judge, giving it visibility into internal tool calls, retrieved data, and intermediate reasoning — not just the final response.
+Plugging in a telemetry provider (Langfuse or Netra) unlocks two capabilities:
+
+1. **Smarter attack generation** — opfor fetches real production traces and uses them to ground prompts in actual user language, flows, and data patterns. Generic attacks become targeted ones.
+2. **Trace-enriched judging** — opfor injects a trace ID into each attack request, then fetches the recorded trace after execution and passes every tool call, retrieval step, and intermediate reasoning span to the LLM judge — not just the final response. This catches PII leaking into a tool call but never reaching the user, scope escalations that don't change the response text, and agents that retrieve unauthorized data but render a clean reply.
 
 ### Langfuse
 
@@ -250,7 +302,11 @@ When a telemetry provider is configured, opfor does two things:
   "langfuse": {
     "baseUrl": "https://cloud.langfuse.com",
     "traceSelection": { "lookbackHours": 24 }
-  }
+  },
+  "propagation": {
+    "traceIdBodyField": "trace_id"
+  },
+  "enrichJudgeFromTrace": true
 }
 ```
 
@@ -280,13 +336,19 @@ For custom env var names use `langfuse.publicKeyEnv` / `langfuse.secretKeyEnv` i
 }
 ```
 
-Set the API key in the environment:
-
 ```bash
 export NETRA_API_KEY=NE_...
 ```
 
-For a custom env var name use `netra.apiKeyEnv` in the config. `propagation.traceIdBodyField` must match a field your agent reads from the request body and forwards to the Netra SDK as the active OTel trace ID — without that wiring, judge enrichment won't correlate correctly.
+`propagation.traceIdBodyField` must match the field your agent reads from the request body and forwards to the Netra SDK as the active OTel trace ID. Without that wiring, judge enrichment won't correlate correctly.
+
+**Propagation via headers** (alternative to body field):
+
+```json
+"propagation": {
+  "headers": { "X-Trace-Id": "{{traceId}}" }
+}
+```
 
 ---
 
@@ -295,9 +357,9 @@ For a custom env var name use `netra.apiKeyEnv` in the config. `propagation.trac
 ```yaml
 # .github/workflows/opfor.yml
 - name: Generate attack prompts
-  run: opfor setup --config opfor.config.json
+  run: opfor generate --config opfor.config.json
 
-- name: Run Opfor scan
+- name: Run scan
   run: opfor execute --attacks .opfor/attacks/opfor-attacks-*.json
 ```
 
@@ -305,63 +367,97 @@ For a custom env var name use `netra.apiKeyEnv` in the config. `propagation.trac
 
 ## Commands reference
 
-| Command                                                 | Description                                                   |
-| ------------------------------------------------------- | ------------------------------------------------------------- |
-| `opfor init`                                            | Generate a sample `opfor.config.json`                         |
-| `opfor init --example python` / `node` / `both`         | Write sample local-target stubs only; optional `--script-dir` |
-| `opfor setup`                                           | Interactive wizard — generate attack prompts                  |
-| `opfor setup --config <file>`                           | Non-interactive setup from a JSON or YAML config file         |
-| `opfor setup --config <file> --api-key <key>`           | Setup with API key override                                   |
-| `opfor execute --attacks <file>`                        | Fire attacks and generate HTML + JSON report                  |
-| `opfor execute --attacks <file> --target-script <path>` | Run attacks via a local `.js`/`.py` adapter                   |
-| `opfor execute --attacks <file> --api-key <key>`        | Run with API key override                                     |
+| Command                                                 | Description                                      |
+| ------------------------------------------------------- | ------------------------------------------------ |
+| `opfor setup`                                           | Interactive wizard — write a timestamped config  |
+| `opfor setup --agent` / `--mcp`                         | Skip mode prompt                                 |
+| `opfor setup --empty`                                   | Write a blank config without wizard prompts      |
+| `opfor generate --config <file>`                        | Generate attacks from a config (non-interactive) |
+| `opfor generate --config <file> --suite <id>`           | Override suite at generate time                  |
+| `opfor generate --config <file> --evaluators <ids...>`  | Run specific evaluators only                     |
+| `opfor execute --attacks <file>`                        | Fire attacks and generate HTML + JSON report     |
+| `opfor execute --config <file>`                         | Generate + execute in one step                   |
+| `opfor execute --attacks <file> --target-script <path>` | Run attacks via a local `.js`/`.py` adapter      |
+| `opfor execute --attacks <file> --out-dir <path>`       | Custom report directory                          |
 
 ---
 
 ## Config fields reference
 
-| Field                                    | Required           | Description                                                                                                                   |
-| ---------------------------------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
-| `llm.provider`                           | No                 | `groq`, `openai`, `anthropic`, `google`, or `other`. Defaults to `groq`.                                                      |
-| `llm.model`                              | No                 | Model name. Defaults to provider's recommended model.                                                                         |
-| `llm.apiKey`                             | No                 | API key. If omitted, read from the corresponding env var.                                                                     |
-| `llm.baseURL`                            | Only for `other`   | Base URL for custom OpenAI-compatible endpoints.                                                                              |
-| `target.name`                            | Yes                | Human-readable name for the target.                                                                                           |
-| `target.description`                     | No                 | What the target does, data it handles, restrictions. More detail = better attacks. Optional when Langfuse enrichment is used. |
-| `target.type`                            | Yes                | `http-endpoint` or `local-script`.                                                                                            |
-| `target.scriptPath`                      | For `local-script` | Path to the adapter script, relative to cwd.                                                                                  |
-| `target.endpoint`                        | For HTTP           | Full URL to POST attacks to.                                                                                                  |
-| `target.requestFormat`                   | For HTTP           | `openai`, `json`, or `auto` (default).                                                                                        |
-| `target.targetModel`                     | For HTTP / openai  | Model name to send in the request body.                                                                                       |
-| `target.targetApiKey`                    | No                 | Bearer token for the target endpoint.                                                                                         |
-| `target.promptPath`                      | No                 | Dot-path for the prompt field (e.g. `input.message`). Defaults to `prompt`.                                                   |
-| `target.responsePath`                    | No                 | Dot-path to extract the reply (e.g. `data.reply`). Falls back to built-in chain.                                              |
-| `target.sessionIdField`                  | No                 | Body field to inject a session ID for multi-turn attacks.                                                                     |
-| `selection.mode`                         | Yes                | `suite` or `evaluators`.                                                                                                      |
-| `selection.suite`                        | For suite          | `owasp-llm-top10` or `owasp-agentic-ai`.                                                                                      |
-| `selection.evaluators`                   | For evaluators     | Array of evaluator IDs.                                                                                                       |
-| `turnMode`                               | No                 | `single` (default) or `multi`.                                                                                                |
-| `turns`                                  | No                 | Number of turns per attack when `turnMode` is `multi`. Defaults to `3`.                                                       |
-| `telemetry.provider`                     | No                 | `langfuse`, `netra`, or `none` (default).                                                                                     |
-| `telemetry.propagation.traceIdBodyField` | No                 | Request body field to inject a trace ID into (e.g. `trace_id`). Requires the target agent to forward it to the telemetry SDK. |
-| `telemetry.propagation.traceIdStrategy`  | No                 | `per-attack` (default) or `per-run`.                                                                                          |
-| `telemetry.enrichJudgeFromTrace`         | No                 | Fetch the recorded trace after each attack and pass spans to the LLM judge. Default `false`.                                  |
+Top-level keys are `configId`, `createdAt`, `mode` (`agent` or `mcp`), and one of the two mode-specific blocks below.
+
+### Agent mode fields (`agent.*`)
+
+| Field                                          | Required           | Description                                                                                    |
+| ---------------------------------------------- | ------------------ | ---------------------------------------------------------------------------------------------- |
+| `agent.attackLlm.provider`                     | No                 | `groq`, `openai`, `anthropic`, `google`, or `other`. Defaults to `groq`.                       |
+| `agent.attackLlm.model`                        | No                 | Model name. Defaults to provider's recommended model.                                          |
+| `agent.attackLlm.apiKeyEnv`                    | No                 | Env var **name** holding the API key (e.g. `"GROQ_API_KEY"`).                                  |
+| `agent.attackLlm.baseURL`                      | Only for `other`   | Base URL for OpenAI-compatible endpoints.                                                      |
+| `agent.judgeLlm.*`                             | No                 | Same fields as `attackLlm`. Separate model for judging. Falls back to `attackLlm` when absent. |
+| `agent.target.name`                            | Yes                | Human-readable name for the target.                                                            |
+| `agent.target.description`                     | No                 | What it does, data it handles, restrictions. More detail = better attacks.                     |
+| `agent.target.type`                            | Yes                | `http-endpoint` or `local-script`.                                                             |
+| `agent.target.scriptPath`                      | For `local-script` | Path to the adapter script, relative to cwd.                                                   |
+| `agent.target.endpoint`                        | For HTTP           | Full URL to POST attacks to.                                                                   |
+| `agent.target.requestFormat`                   | For HTTP           | `openai`, `json`, or `auto` (default).                                                         |
+| `agent.target.targetModel`                     | For HTTP / openai  | Model name to send in the request body.                                                        |
+| `agent.target.targetApiKey`                    | No                 | Bearer token for the target endpoint.                                                          |
+| `agent.target.promptPath`                      | No                 | Dot-path for the prompt field (e.g. `input.message`). Defaults to `prompt`.                    |
+| `agent.target.responsePath`                    | No                 | Dot-path to extract the reply (e.g. `data.reply`). Falls back to built-in chain.               |
+| `agent.target.sessionIdField`                  | No                 | Body field to inject a session ID for multi-turn attacks.                                      |
+| `agent.selection.mode`                         | Yes                | `suite` or `evaluators`.                                                                       |
+| `agent.selection.suite`                        | For suite          | Suite ID — see [evaluators reference](evaluators.md).                                          |
+| `agent.selection.evaluators`                   | For evaluators     | Array of evaluator IDs.                                                                        |
+| `agent.turnMode`                               | No                 | `single` (default) or `multi`.                                                                 |
+| `agent.turns`                                  | No                 | Number of turns per attack when `turnMode` is `multi`. Defaults to `3`.                        |
+| `agent.telemetry.provider`                     | No                 | `langfuse`, `netra`, or `none` (default).                                                      |
+| `agent.telemetry.enrichJudgeFromTrace`         | No                 | Fetch the recorded trace after each attack and pass spans to the LLM judge. Default `false`.   |
+| `agent.telemetry.propagation.traceIdBodyField` | No                 | Request body field to inject a trace ID (e.g. `trace_id`).                                     |
+| `agent.telemetry.propagation.headers`          | No                 | HTTP headers to set on each target request. Values support `{{traceId}}`, `{{runId}}`.         |
+| `agent.telemetry.propagation.traceIdStrategy`  | No                 | `per-attack` (default) or `per-run`.                                                           |
+
+### MCP mode fields (`mcp.*`)
+
+| Field                          | Required         | Description                                                                                   |
+| ------------------------------ | ---------------- | --------------------------------------------------------------------------------------------- |
+| `mcp.server.transport`         | Yes              | `stdio` (local process) or `url` (remote endpoint).                                           |
+| `mcp.server.command`           | For stdio        | Executable to run (e.g. `node`).                                                              |
+| `mcp.server.args`              | For stdio        | Array of CLI args (e.g. `["dist/index.js"]`).                                                 |
+| `mcp.server.cwd`               | No               | Working directory for the spawned process.                                                    |
+| `mcp.server.env`               | No               | Environment variables passed to the server process.                                           |
+| `mcp.server.url`               | For url          | Full HTTP/SSE/WS endpoint URL.                                                                |
+| `mcp.server.headers`           | No               | HTTP headers (e.g. `{"Authorization":"Bearer ..."}`).                                         |
+| `mcp.generatorModel.provider`  | Yes              | Attacker LLM provider. Same values as agent's `attackLlm.provider`.                           |
+| `mcp.generatorModel.model`     | Yes              | Attacker LLM model name.                                                                      |
+| `mcp.generatorModel.apiKeyEnv` | No               | Env var name holding the API key.                                                             |
+| `mcp.generatorModel.baseURL`   | Only for `other` | Base URL for OpenAI-compatible endpoints.                                                     |
+| `mcp.judgeModel.*`             | No               | Same fields as `generatorModel`. Falls back to `generatorModel` when absent.                  |
+| `mcp.suite`                    | No               | Suite ID; default `owasp-mcp-top10`. Ignored if `evaluators` is set.                          |
+| `mcp.evaluators`               | No               | Explicit array of evaluator IDs (highest priority).                                           |
+| `mcp.turnMode`                 | No               | `single` (default) or `multi` (attacker adapts using judge feedback).                         |
+| `mcp.turns`                    | No               | Number of adaptive turns when `turnMode` is `multi` (2–10, default 3).                        |
+| `mcp.scanResources`            | No               | Enumerate + read resources before attacks. Default `true`.                                    |
+| `mcp.attackerInstructions`     | No               | Free-form notes the attacker LLM uses to ground attacks (real IDs, tenant info, focus areas). |
+| `mcp.notes`                    | No               | Free-form comment on the config.                                                              |
 
 ---
 
 ## Supported LLM providers
 
-| Provider    | Env var                        | Default model               |
-| ----------- | ------------------------------ | --------------------------- |
-| `groq`      | `GROQ_API_KEY`                 | `llama-3.3-70b-versatile`   |
-| `openai`    | `OPENAI_API_KEY`               | `gpt-4o-mini`               |
-| `anthropic` | `ANTHROPIC_API_KEY`            | `claude-3-5-haiku-20241022` |
-| `google`    | `GOOGLE_GENERATIVE_AI_API_KEY` | `gemini-2.0-flash`          |
-| `other`     | `OPFOR_API_KEY`                | (requires `llm.baseURL`)    |
+| Provider    | Env var                        | Default model                  |
+| ----------- | ------------------------------ | ------------------------------ |
+| `groq`      | `GROQ_API_KEY`                 | `llama-3.3-70b-versatile`      |
+| `openai`    | `OPENAI_API_KEY`               | `gpt-4o-mini`                  |
+| `anthropic` | `ANTHROPIC_API_KEY`            | `claude-3-5-haiku-20241022`    |
+| `google`    | `GOOGLE_GENERATIVE_AI_API_KEY` | `gemini-2.0-flash`             |
+| `other`     | `OPFOR_API_KEY`                | (requires `attackLlm.baseURL`) |
 
 ---
 
-## Target endpoint formats
+## Target endpoint formats — agent mode
+
+Applies to `agent.target.requestFormat` for HTTP targets.
 
 **`openai`** — OpenAI messages format:
 
