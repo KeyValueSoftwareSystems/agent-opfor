@@ -36,18 +36,25 @@ const state = {
   businessUseCase: "",
   judgeHint: "",
   // Run state
-  screen: /** @type {"idle"|"running"|"paused"|"done"} */ ("idle"),
+  screen: /** @type {"idle"|"running"|"paused"|"done"|"history"} */ ("idle"),
   queue: /** @type {{id:string;name:string;sev:string}[]} */ ([]),
   evIdx: 0,
   results:
     /** @type {{id:string;name:string;sev:string;verdict:string;summary:string;raw:any}[]} */ ([]),
+  lastReport: /** @type {any | null} */ (null),
   running: false,
   cancelRequested: false,
   pauseRequested: false,
 };
 
 // ── Screen / status ────────────────────────────────────────────
-const PILL_LABELS = { idle: "Ready", running: "Running", paused: "Paused", done: "Done" };
+
+function syncNav() {
+  const historyBtn = $("historyBtn");
+  if (historyBtn) {
+    historyBtn.disabled = state.screen === "running";
+  }
+}
 
 function setScreen(name) {
   state.screen = name;
@@ -55,14 +62,12 @@ function setScreen(name) {
     const el = $("screen" + s.charAt(0).toUpperCase() + s.slice(1));
     if (el) el.hidden = s !== name;
   }
-  const pill = $("statusPill");
-  pill.dataset.screen = name;
-  $("statusPillText").textContent = PILL_LABELS[name] || "Ready";
   $("footer").dataset.screen = name;
   // Gear icon only useful on idle
   $("advancedBtn").style.display = name === "idle" ? "" : "none";
   const runBar = $("runBtnWrap");
   if (runBar) runBar.hidden = name !== "idle";
+  syncNav();
 }
 
 // ── Toggle (button with role=switch) ───────────────────────────
@@ -1340,7 +1345,161 @@ function generateHtmlReport(report) {
 </html>`;
 }
 
+const REPORT_HISTORY_KEY = "opforReportHistory";
+const LAST_SUITE_REPORT_KEY = "opforLastSuiteReport";
+const MAX_HISTORY_ITEMS = 25;
+
+function safeClone(obj) {
+  // MV3 popup runs in modern Chromium; structuredClone is available in most environments.
+  if (typeof structuredClone === "function") {
+    try {
+      return structuredClone(obj);
+    } catch {}
+  }
+  try {
+    return JSON.parse(JSON.stringify(obj));
+  } catch {
+    return obj;
+  }
+}
+
+function trimStr(s, max) {
+  const v = String(s ?? "");
+  return v.length > max ? v.slice(0, max) : v;
+}
+
+function pruneRawForHistory(raw) {
+  if (!raw || typeof raw !== "object") return raw;
+  const out = {
+    ok: raw.ok,
+    completed: raw.completed,
+    partial: raw.partial,
+    stopped: raw.stopped,
+    stopReason: raw.stopReason,
+    siteUrl: raw.siteUrl,
+    suiteId: raw.suiteId,
+    evaluatorId: raw.evaluatorId,
+    evaluatorName: raw.evaluatorName,
+    severity: raw.severity,
+    maxRounds: raw.maxRounds,
+    frame: raw.frame,
+    judgment: raw.judgment,
+  };
+
+  const transcript = Array.isArray(raw.transcript) ? raw.transcript : [];
+  if (transcript.length) {
+    out.transcript = transcript.slice(-80).map((m) => ({
+      role: m?.role,
+      content: trimStr(m?.content, 20_000),
+    }));
+  }
+
+  const turns = Array.isArray(raw.turns) ? raw.turns : [];
+  if (turns.length) {
+    out.turns = turns.slice(-60).map((t) => ({
+      round: t?.round,
+      userMessage: trimStr(t?.userMessage, 20_000),
+      assistantPreview: trimStr(t?.assistantPreview, 20_000),
+    }));
+  }
+
+  return out;
+}
+
+function pruneReportForHistory(report) {
+  const r = safeClone(report);
+  if (Array.isArray(r?.evaluatorResults)) {
+    r.evaluatorResults = r.evaluatorResults.map((er) => ({
+      ...er,
+      raw: pruneRawForHistory(er?.raw),
+    }));
+  }
+  return r;
+}
+
+async function getReportHistory() {
+  try {
+    const data = await chrome.storage.local.get(REPORT_HISTORY_KEY);
+    const cur = data?.[REPORT_HISTORY_KEY];
+    return Array.isArray(cur?.items) ? cur.items : [];
+  } catch {
+    return [];
+  }
+}
+
+async function setReportHistory(items) {
+  try {
+    await chrome.storage.local.set({
+      [REPORT_HISTORY_KEY]: { v: 1, updatedAt: Date.now(), items },
+    });
+  } catch {}
+}
+
+async function addReportToHistory(report) {
+  if (!report?.metadata?.reportId) return;
+  const verdict = report?.summary?.failed === 0 && report?.summary?.totalTests > 0 ? "PASS" : "FAIL";
+  const item = {
+    id: report.metadata.reportId,
+    generated: report.metadata.generated,
+    configId: report.metadata.configId,
+    model: report.metadata.llmJudge,
+    verdict,
+    summary: report.summary,
+    report,
+  };
+  const items = await getReportHistory();
+  const next = [item, ...items.filter((x) => x?.id !== item.id)].slice(0, MAX_HISTORY_ITEMS);
+  await setReportHistory(next);
+}
+
+async function persistLastSuiteReport(report) {
+  try {
+    await chrome.storage.local.set({
+      [LAST_SUITE_REPORT_KEY]: { v: 1, savedAt: Date.now(), report },
+    });
+  } catch {}
+}
+
+async function finalizeAndPersistCurrentReport() {
+  if (!state.results.length) return null;
+  const built = buildReport();
+  const pruned = pruneReportForHistory(built);
+  state.lastReport = pruned;
+  await persistLastSuiteReport(pruned);
+  await addReportToHistory(pruned);
+  return pruned;
+}
+
+function downloadReportHtml(report) {
+  const html = generateHtmlReport(report);
+  const blob = new Blob([html], { type: "text/html" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${report.metadata.reportId}.html`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 async function downloadReport() {
+  if (state.lastReport?.metadata?.reportId) {
+    downloadReportHtml(state.lastReport);
+    return;
+  }
+
+  // Try the last persisted suite report first (stable reportId across popup reopen).
+  try {
+    const data = await chrome.storage.local.get(LAST_SUITE_REPORT_KEY);
+    const saved = data?.[LAST_SUITE_REPORT_KEY]?.report;
+    if (saved?.metadata?.reportId) {
+      state.lastReport = saved;
+      downloadReportHtml(saved);
+      return;
+    }
+  } catch {}
+
   // If state.results is empty (popup was reopened after run), recover from storage.
   if (!state.results.length) {
     try {
@@ -1432,17 +1591,152 @@ async function downloadReport() {
       }
     } catch {}
   }
-  const report = buildReport();
-  const html = generateHtmlReport(report);
-  const blob = new Blob([html], { type: "text/html" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${report.metadata.reportId}.html`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+
+  const report = (await finalizeAndPersistCurrentReport()) || pruneReportForHistory(buildReport());
+  state.lastReport = report;
+  downloadReportHtml(report);
+}
+
+// ── History UI ──────────────────────────────────────────────────
+function formatWhen(iso) {
+  try {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return String(iso || "—");
+    return d.toLocaleString(undefined, { year: "2-digit", month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+  } catch {
+    return String(iso || "—");
+  }
+}
+
+function suiteLabel(configId) {
+  const s = state.catalog?.suites?.find((x) => x.id === configId);
+  return s?.name || configId || "run";
+}
+
+function reportToPopupResults(report) {
+  const ers = Array.isArray(report?.evaluatorResults) ? report.evaluatorResults : [];
+  return ers.map((er) => {
+    const tr = Array.isArray(er?.testResults) ? er.testResults[0] : null;
+    const verdict = String(tr?.verdict || "FAIL").toUpperCase() === "PASS" ? "PASS" : "FAIL";
+    return {
+      id: er?.id || "",
+      name: er?.name || er?.id || "Evaluator",
+      sev: normalizeSev(er?.severity),
+      verdict,
+      summary: tr?.reasoning || "",
+      raw: er?.raw,
+    };
+  });
+}
+
+function renderHistoryList(items) {
+  const root = $("historyList");
+  if (!root) return;
+  root.innerHTML = "";
+
+  if (!items.length) {
+    const empty = document.createElement("div");
+    empty.className = "hint-line";
+    empty.textContent = "No saved runs yet. Finish a run to see it here.";
+    root.appendChild(empty);
+    return;
+  }
+
+  for (const item of items) {
+    const report = item?.report;
+    const id = item?.id || report?.metadata?.reportId || "";
+    const cfg = item?.configId || report?.metadata?.configId || "";
+    const verdict = String(item?.verdict || "").toUpperCase() === "PASS" ? "PASS" : "FAIL";
+    const sum = item?.summary || report?.summary || {};
+    const total = Number(sum.totalEvaluators ?? sum.totalTests ?? 0) || 0;
+    const failed = Number(sum.failed ?? 0) || 0;
+    const passed = Number(sum.passed ?? 0) || 0;
+    const gen = item?.generated || report?.metadata?.generated || "";
+
+    const wrap = document.createElement("div");
+    wrap.className = "history-item";
+
+    const top = document.createElement("div");
+    top.className = "history-item-top";
+
+    const title = document.createElement("div");
+    title.className = "history-item-title";
+    title.innerHTML = `
+      <div class="history-item-name"></div>
+      <div class="history-item-meta"></div>
+    `;
+    title.querySelector(".history-item-name").textContent = `${suiteLabel(cfg)} · ${verdict}`;
+    title.querySelector(".history-item-meta").textContent = `${formatWhen(gen)} · ${passed}/${total} passed · ${failed} failed`;
+
+    const actions = document.createElement("div");
+    actions.className = "history-item-actions";
+
+    const viewBtn = document.createElement("button");
+    viewBtn.type = "button";
+    viewBtn.className = "mini-btn";
+    viewBtn.textContent = "View";
+    viewBtn.addEventListener("click", () => {
+      if (!report) return;
+      state.lastReport = report;
+      state.suiteId = report?.metadata?.configId || state.suiteId;
+      state.results = reportToPopupResults(report);
+      state.evIdx = state.results.length;
+      renderDone();
+      setScreen("done");
+    });
+
+    const dlBtn = document.createElement("button");
+    dlBtn.type = "button";
+    dlBtn.className = "mini-btn";
+    dlBtn.textContent = "Download";
+    dlBtn.addEventListener("click", () => {
+      if (!report?.metadata?.reportId) return;
+      downloadReportHtml(report);
+    });
+
+    const delBtn = document.createElement("button");
+    delBtn.type = "button";
+    delBtn.className = "mini-btn";
+    delBtn.dataset.kind = "danger";
+    delBtn.textContent = "Delete";
+    delBtn.addEventListener("click", async () => {
+      const cur = await getReportHistory();
+      const next = cur.filter((x) => x?.id !== id);
+      await setReportHistory(next);
+      renderHistoryList(next);
+    });
+
+    actions.appendChild(viewBtn);
+    actions.appendChild(dlBtn);
+    actions.appendChild(delBtn);
+
+    top.appendChild(title);
+    top.appendChild(actions);
+    wrap.appendChild(top);
+
+    const meta = document.createElement("div");
+    meta.className = "history-item-meta";
+    meta.textContent = trimStr(id, 80);
+    wrap.appendChild(meta);
+
+    root.appendChild(wrap);
+  }
+}
+
+async function openHistory() {
+  if (state.screen === "running") return;
+  const items = await getReportHistory();
+  renderHistoryList(items);
+  $("historyPanel").dataset.open = "true";
+}
+
+function closeHistory() {
+  $("historyPanel").dataset.open = "false";
+}
+
+async function clearHistory() {
+  await setReportHistory([]);
+  renderHistoryList([]);
 }
 
 // ── Run loop ───────────────────────────────────────────────────
@@ -1662,6 +1956,7 @@ async function startRun({ resume = false } = {}) {
   state.running = true;
   state.cancelRequested = false;
   state.pauseRequested = false;
+  state.lastReport = null;
   await saveModelAndKey();
 
   // Build queue from current selection (or use existing queue if resuming)
@@ -1811,6 +2106,7 @@ async function startRun({ resume = false } = {}) {
     return;
   }
 
+  await finalizeAndPersistCurrentReport();
   renderDone();
   setScreen("done");
 }
@@ -1848,6 +2144,7 @@ async function requestStop() {
         raw: opforLastResult,
       });
       state.evIdx = Math.min(state.evIdx + 1, state.queue.length);
+      await finalizeAndPersistCurrentReport();
       renderDone();
       setScreen("done");
       stopCosmeticTicker();
@@ -1965,9 +2262,15 @@ function wire() {
     state.queue = [];
     state.results = [];
     state.evIdx = 0;
+    state.lastReport = null;
     setScreen("idle");
   });
   $("downloadBtn").addEventListener("click", downloadReport);
+
+  // History panel
+  $("historyBtn").addEventListener("click", openHistory);
+  $("historyCloseBtn").addEventListener("click", closeHistory);
+  $("historyClearBtn").addEventListener("click", clearHistory);
 
   // Advanced panel
   $("advancedBtn").addEventListener("click", openAdvanced);
@@ -2142,6 +2445,7 @@ function startRunStatusPoller() {
               },
             ];
             state.evIdx = 1;
+            await finalizeAndPersistCurrentReport();
             renderDone();
             setScreen("done");
           } else {
