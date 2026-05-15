@@ -13,9 +13,8 @@
 </p>
 
 <p align="center">
-  <a href="https://opfor.dev">Website</a> ·
-  <a href="https://opfor.dev/docs">Documentation</a> ·
-  <a href="docs/quickstart.md">Quick Start</a> ·
+  <a href="https://keyvalue.systems">Website</a> ·
+  <a href="https://github.com/KeyValueSoftwareSystems/opfor">GitHub</a> ·
   <a href="docs/browser-extension.md">Browser Extension</a>
 </p>
 
@@ -49,7 +48,7 @@ Opfor walks you through picking a target, generating attacks, running them, and 
 export GROQ_API_KEY=your-key    # or OPENAI_API_KEY, ANTHROPIC_API_KEY, etc.
 ```
 
-→ [Full Quick Start guide](docs/quickstart.md) · [Examples](examples/) · [Browser extension](docs/browser-extension.md)
+→ [Examples](examples/) · [Browser extension](docs/browser-extension.md)
 
 ---
 
@@ -154,7 +153,7 @@ Plug opfor into your observability stack and the LLM judge sees not just the fin
 
 This catches what input/output testing misses — PII that leaks into a tool call but never reaches the user, scope escalations in MCP that don't change the response text, agents that retrieve unauthorized data but render a clean reply.
 
-→ [Trace-aware testing guide](docs/trace-aware.md)
+→ [Trace-aware testing guide](docs/cli.md#trace-aware-testing-agent-mode-only)
 
 ---
 
@@ -180,8 +179,6 @@ This catches what input/output testing misses — PII that leaks into a tool cal
 | Anthropic         | `ANTHROPIC_API_KEY`            | `claude-3-5-haiku-20241022`        |
 | Google            | `GOOGLE_GENERATIVE_AI_API_KEY` | `gemini-2.0-flash`                 |
 | OpenAI-compatible | `OPFOR_API_KEY` + `baseURL`    | LiteLLM, OpenRouter, Azure, Ollama |
-
-→ [Provider configuration](docs/providers.md)
 
 ---
 
@@ -225,7 +222,7 @@ _OPFOR is short for Opposition Force — a military term for the dedicated unit 
 
 <p align="center">
   Also from our team: <a href="https://getnetra.ai/"><strong>Netra</strong></a> — AI observability, tracing, and simulation.<br/>
-  <a href="docs/trace-aware.md">Integrates with opfor for trace-aware testing.</a>
+  <a href="docs/cli.md#trace-aware-testing-agent-mode-only">Integrates with opfor for trace-aware testing.</a>
 </p>
 
 <br/>
