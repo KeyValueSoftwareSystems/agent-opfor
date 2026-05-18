@@ -18,7 +18,7 @@ export interface TurnRecord {
   toolArguments: Record<string, unknown>;
   rawToolResponse: string;
   toolError?: string;
-  judge: JudgeResult;
+  judge?: JudgeResult;
 }
 
 export interface AttackExecutionResult {

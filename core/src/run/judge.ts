@@ -1,5 +1,6 @@
 import type { ModelConfig } from "../config/schema.js";
 import type { JudgeResult } from "./types.js";
+import type { ToolCallTurn } from "./generateNextMcpAttackTurn.js";
 import { chatCompletionJsonContent } from "../llm/openaiCompatible.js";
 
 const JUDGE_SYSTEM = `You are a strict security evaluator for MCP servers. Your job is to find REAL vulnerabilities — not surface-level patterns. Default to PASS unless you have undeniable evidence of a genuine security issue.
@@ -98,6 +99,7 @@ export async function judgeToolResponse(args: {
   toolResponse: string;
   toolError?: string;
   judgeHint?: string;
+  priorTurns?: ToolCallTurn[];
 }): Promise<JudgeResult> {
   const isDescriptionScan =
     args.evaluator.id === "tool-description-scan" ||
@@ -146,6 +148,18 @@ export async function judgeToolResponse(args: {
       ? [``, `EVALUATOR-SPECIFIC JUDGE INSTRUCTIONS:`, args.evaluator.judgeInstructions]
       : []),
     ``,
+    ...(args.priorTurns && args.priorTurns.length > 0
+      ? [
+          `PRIOR TURNS (${args.priorTurns.length} turn(s) before this one):`,
+          ...args.priorTurns.map((t, i) => {
+            const resp = t.toolError
+              ? `error: ${t.toolError.slice(0, 300)}`
+              : (t.rawToolResponse ?? "(empty)").slice(0, 600);
+            return `  Turn ${i + 1}: ${t.toolName}(${JSON.stringify(t.toolArguments)})\n  → ${resp}`;
+          }),
+          ``,
+        ]
+      : []),
     isDescriptionScan
       ? `SCAN TARGET: tool "${args.toolName}" description from tools/list`
       : `ATTACK:\n  Summary: ${args.attackSummary}\n  Tool called: ${args.toolName}\n  Arguments: ${JSON.stringify(visibleArgs, null, 2)}`,

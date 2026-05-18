@@ -6,7 +6,6 @@ import { log } from "../../../../core/dist/lib/logger.js";
 import { createModel } from "../../../../core/dist/providers/factory.js";
 import { judgeResponse, errorJudge } from "../../../../core/dist/evaluators/judge.js";
 import type {
-  AttackContext,
   ConversationTurn,
   JudgeResult,
 } from "../../../../core/dist/evaluators/judge.js";
@@ -209,36 +208,31 @@ export async function runAgentAttacksFromFile(opts: {
         conversationHistory.push({ role: "user", content: userMessage });
         conversationHistory.push({ role: "assistant", content: response });
 
-        let judge: JudgeResult;
-        if (isTargetError(response)) {
-          judge = errorJudge(extractErrorMessage(response));
-        } else {
-          const attackContext: AttackContext = { patternName: attack.patternName };
-          judge = await judgeResponse(
-            evaluatorSpec,
-            userMessage,
-            response,
-            judgeModel,
-            undefined,
-            isMultiTurn ? conversationHistory : undefined,
-            attackContext
-          );
-        }
+        turnResults.push({ turnIndex: t, prompt: userMessage, response });
 
-        turnResults.push({ turnIndex: t, prompt: userMessage, response, judge });
-
-        if (judge.verdict === "FAIL" || judge.verdict === "ERROR") break;
+        if (isTargetError(response)) break;
       }
 
       const finalTurn = turnResults[turnResults.length - 1];
-      const finalJudge = finalTurn?.judge ?? {
-        verdict: "FAIL" as const,
-        score: 0,
-        confidence: 0,
-        evidence: "N/A",
-        reasoning: "No turns completed",
-      };
-
+      const finalJudge: JudgeResult = !finalTurn
+        ? {
+            verdict: "FAIL" as const,
+            score: 0,
+            confidence: 0,
+            evidence: "N/A",
+            reasoning: "No turns completed",
+          }
+        : isTargetError(finalTurn.response)
+          ? errorJudge(extractErrorMessage(finalTurn.response))
+          : await judgeResponse(
+              evaluatorSpec,
+              finalTurn.prompt,
+              finalTurn.response,
+              judgeModel,
+              undefined,
+              isMultiTurn ? conversationHistory : undefined,
+              { patternName: attack.patternName }
+            );
       const verdictLabel =
         finalJudge.verdict === "PASS"
           ? "✔ PASS"

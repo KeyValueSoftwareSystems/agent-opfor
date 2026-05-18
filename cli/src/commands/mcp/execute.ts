@@ -265,7 +265,6 @@ export async function runMcpAttackPlan(opts: {
           log.log(`  ── turn ${t}/${numTurns}`);
 
           let overrideArgs: Record<string, unknown> | undefined;
-          let turnJudgeHint: string | undefined = attack.judgeHint;
           if (t > 1) {
             const turnResult = await generateNextMcpAttackTurn(
               turnHistory,
@@ -276,40 +275,17 @@ export async function runMcpAttackPlan(opts: {
               plan.attackerInstructions
             );
             overrideArgs = turnResult.args;
-            turnJudgeHint = turnResult.judgeHint ?? attack.judgeHint;
           }
 
           const turnExec = await executeAttack(mcp, attack, overrideArgs, unauthServerUrl);
 
           const isTransportFailure = Boolean(turnExec.toolError && !turnExec.rawToolResponse);
-          const judgeResult = isTransportFailure
-            ? errorJudge(turnExec.toolError!)
-            : sanitizeJudgeResult(
-                await judgeToolResponse({
-                  model: judgeModelCfg,
-                  evaluator: criteria,
-                  attackSummary: attack.summary,
-                  toolName: turnExec.toolName,
-                  toolArguments: turnExec.toolArguments,
-                  toolResponse: turnExec.rawToolResponse,
-                  toolError: turnExec.toolError,
-                  judgeHint: turnJudgeHint,
-                }),
-                {
-                  attackSummary: attack.summary,
-                  toolArguments: turnExec.toolArguments,
-                  toolResponse: turnExec.rawToolResponse,
-                  toolError: turnExec.toolError,
-                }
-              );
 
           turnHistory.push({
             toolName: turnExec.toolName,
             toolArguments: turnExec.toolArguments,
             rawToolResponse: turnExec.rawToolResponse,
             toolError: turnExec.toolError,
-            judgeVerdict: judgeResult.verdict,
-            judgeReasoning: judgeResult.reasoning || undefined,
           });
 
           turnResults.push({
@@ -318,22 +294,7 @@ export async function runMcpAttackPlan(opts: {
             toolArguments: turnExec.toolArguments,
             rawToolResponse: turnExec.rawToolResponse,
             toolError: turnExec.toolError,
-            judge: judgeResult,
           });
-
-          const verdict =
-            judgeResult.verdict === "PASS"
-              ? "✔ PASS"
-              : judgeResult.verdict === "ERROR"
-                ? "⚠ ERROR"
-                : "✖ FAIL";
-          log.log(
-            `     ${verdict}${
-              judgeResult.verdict !== "ERROR"
-                ? ` · score ${judgeResult.score}/10`
-                : ` · ${judgeResult.errorMessage}`
-            }`
-          );
 
           log.log(
             `     ↑ ${turnExec.toolName}  ${JSON.stringify(turnExec.toolArguments, null, 2)}`
@@ -345,10 +306,38 @@ export async function runMcpAttackPlan(opts: {
             log.log(`     ↓ res${isError ? " [isError=true]" : ""}  ${text.slice(0, 200)}`);
           }
 
-          if (judgeResult.verdict !== "PASS") break;
+          if (isTransportFailure) break;
         }
 
         const finalTurn = turnResults[turnResults.length - 1];
+        const isFinalTransport = Boolean(finalTurn.toolError && !finalTurn.rawToolResponse);
+        const finalJudge = isFinalTransport
+          ? errorJudge(finalTurn.toolError!)
+          : sanitizeJudgeResult(
+              await judgeToolResponse({
+                model: judgeModelCfg,
+                evaluator: criteria,
+                attackSummary: attack.summary,
+                toolName: finalTurn.toolName,
+                toolArguments: finalTurn.toolArguments,
+                toolResponse: finalTurn.rawToolResponse,
+                toolError: finalTurn.toolError,
+                judgeHint: attack.judgeHint,
+                priorTurns: turnResults.slice(0, -1).map((t) => ({
+                  toolName: t.toolName,
+                  toolArguments: t.toolArguments,
+                  rawToolResponse: t.rawToolResponse,
+                  toolError: t.toolError,
+                })),
+              }),
+              {
+                attackSummary: attack.summary,
+                toolArguments: finalTurn.toolArguments,
+                toolResponse: finalTurn.rawToolResponse,
+                toolError: finalTurn.toolError,
+              }
+            );
+
         const multiResult: AttackRunResult = {
           attackId: attack.id,
           evaluatorId: attack.evaluatorId,
@@ -356,16 +345,16 @@ export async function runMcpAttackPlan(opts: {
           toolArguments: finalTurn.toolArguments,
           rawToolResponse: finalTurn.rawToolResponse,
           toolError: finalTurn.toolError,
-          judge: finalTurn.judge,
+          judge: finalJudge,
           turns: turnResults,
         };
         runResults.push(multiResult);
 
-        const overallVerdict = finalTurn.judge.verdict;
+        const overallVerdict = finalJudge.verdict;
         const verdictLabel =
           overallVerdict === "PASS" ? "✔ PASS" : overallVerdict === "ERROR" ? "⚠ ERROR" : "✖ FAIL";
         log.log(`  ${verdictLabel} after ${turnResults.length} turn(s)`);
-        if (finalTurn.judge.reasoning) log.log(`  ⚑ ${finalTurn.judge.reasoning}`);
+        if (finalJudge.reasoning) log.log(`  ⚑ ${finalJudge.reasoning}`);
       }
     }
 

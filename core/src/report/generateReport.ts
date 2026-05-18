@@ -9,7 +9,7 @@ export interface TurnRecord {
   turnIndex: number;
   prompt: string;
   response: string;
-  judge: JudgeResult;
+  judge?: JudgeResult;
 }
 
 export interface TestResult {
@@ -216,10 +216,10 @@ export async function generateReport(
             ? {
                 turns: t.turns.map((turn) => ({
                   turnIndex: turn.turnIndex,
-                  verdict: turn.judge.verdict,
-                  score: turn.judge.score,
-                  reasoning: turn.judge.reasoning,
-                  ...(turn.judge.errorMessage ? { errorMessage: turn.judge.errorMessage } : {}),
+                  verdict: turn.judge?.verdict,
+                  score: turn.judge?.score,
+                  reasoning: turn.judge?.reasoning,
+                  ...(turn.judge?.errorMessage ? { errorMessage: turn.judge.errorMessage } : {}),
                 })),
               }
             : {}),
@@ -579,16 +579,16 @@ function testCard(t: TestResult): string {
   if (isMultiTurn) {
     turnsHtml = t
       .turns!.map((turn) => {
-        const tv = turn.judge.verdict;
+        const tv = turn.judge?.verdict;
         const tColor = tv === "PASS" ? "var(--pass)" : tv === "ERROR" ? "#D97706" : "var(--fail)";
         return `
           <div style="margin-bottom:8px;padding:8px 10px;background:var(--surface-2);border-radius:6px;border-left:2px solid ${tColor}">
-            <div style="font-size:11px;font-weight:600;color:var(--text);margin-bottom:4px">Turn ${turn.turnIndex} · <span style="color:${tColor}">${tv}</span>${tv !== "ERROR" ? ` · ${turn.judge.score}/10` : ""}</div>
+            <div style="font-size:11px;font-weight:600;color:var(--text);margin-bottom:4px">Turn ${turn.turnIndex}${tv ? ` · <span style="color:${tColor}">${tv}</span>${tv !== "ERROR" ? ` · ${turn.judge!.score}/10` : ""}` : ""}</div>
             <div class="test-section-label">Attacker Prompt</div>
             <pre class="test-code" style="max-height:120px">${esc(truncate(turn.prompt, 2000))}</pre>
             <div class="test-section-label" style="margin-top:6px">Agent Response</div>
             <pre class="test-code" style="max-height:120px">${esc(truncate(turn.response, 2000))}</pre>
-            ${turn.judge.reasoning ? `<div style="font-size:11px;color:var(--muted);margin-top:4px;font-style:italic">${esc(turn.judge.reasoning)}</div>` : ""}
+            ${turn.judge?.reasoning ? `<div style="font-size:11px;color:var(--muted);margin-top:4px;font-style:italic">${esc(turn.judge.reasoning)}</div>` : ""}
           </div>`;
       })
       .join("");

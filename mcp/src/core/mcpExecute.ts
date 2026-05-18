@@ -190,7 +190,6 @@ export async function runMcpExecute(opts: McpExecuteOptions): Promise<McpExecute
 
         for (let t = 1; t <= numTurns; t++) {
           let overrideArgs: Record<string, unknown> | undefined;
-          let turnJudgeHint: string | undefined = attack.judgeHint;
           if (t > 1) {
             const turnResult = await generateNextMcpAttackTurn(
               turnHistory,
@@ -201,39 +200,16 @@ export async function runMcpExecute(opts: McpExecuteOptions): Promise<McpExecute
               plan.attackerInstructions
             );
             overrideArgs = turnResult.args;
-            turnJudgeHint = turnResult.judgeHint ?? attack.judgeHint;
           }
 
           const turnExec = await executeAttack(mcp, attack, overrideArgs, unauthServerUrl);
           const isTransportFailure = Boolean(turnExec.toolError && !turnExec.rawToolResponse);
-          const judgeResult = isTransportFailure
-            ? errorJudge(turnExec.toolError!)
-            : sanitizeJudgeResult(
-                await judgeToolResponse({
-                  model: judgeModelCfg,
-                  evaluator: criteria,
-                  attackSummary: attack.summary,
-                  toolName: turnExec.toolName,
-                  toolArguments: turnExec.toolArguments,
-                  toolResponse: turnExec.rawToolResponse,
-                  toolError: turnExec.toolError,
-                  judgeHint: turnJudgeHint,
-                }),
-                {
-                  attackSummary: attack.summary,
-                  toolArguments: turnExec.toolArguments,
-                  toolResponse: turnExec.rawToolResponse,
-                  toolError: turnExec.toolError,
-                }
-              );
 
           turnHistory.push({
             toolName: turnExec.toolName,
             toolArguments: turnExec.toolArguments,
             rawToolResponse: turnExec.rawToolResponse,
             toolError: turnExec.toolError,
-            judgeVerdict: judgeResult.verdict,
-            judgeReasoning: judgeResult.reasoning || undefined,
           });
 
           turnResults.push({
@@ -242,13 +218,40 @@ export async function runMcpExecute(opts: McpExecuteOptions): Promise<McpExecute
             toolArguments: turnExec.toolArguments,
             rawToolResponse: turnExec.rawToolResponse,
             toolError: turnExec.toolError,
-            judge: judgeResult,
           });
 
-          if (judgeResult.verdict !== "PASS") break;
+          if (isTransportFailure) break;
         }
 
         const finalTurn = turnResults[turnResults.length - 1];
+        const isFinalTransport = Boolean(finalTurn.toolError && !finalTurn.rawToolResponse);
+        const finalJudge = isFinalTransport
+          ? errorJudge(finalTurn.toolError!)
+          : sanitizeJudgeResult(
+              await judgeToolResponse({
+                model: judgeModelCfg,
+                evaluator: criteria,
+                attackSummary: attack.summary,
+                toolName: finalTurn.toolName,
+                toolArguments: finalTurn.toolArguments,
+                toolResponse: finalTurn.rawToolResponse,
+                toolError: finalTurn.toolError,
+                judgeHint: attack.judgeHint,
+                priorTurns: turnResults.slice(0, -1).map((t) => ({
+                  toolName: t.toolName,
+                  toolArguments: t.toolArguments,
+                  rawToolResponse: t.rawToolResponse,
+                  toolError: t.toolError,
+                })),
+              }),
+              {
+                attackSummary: attack.summary,
+                toolArguments: finalTurn.toolArguments,
+                toolResponse: finalTurn.rawToolResponse,
+                toolError: finalTurn.toolError,
+              }
+            );
+
         runResults.push({
           attackId: attack.id,
           evaluatorId: attack.evaluatorId,
@@ -256,7 +259,7 @@ export async function runMcpExecute(opts: McpExecuteOptions): Promise<McpExecute
           toolArguments: finalTurn.toolArguments,
           rawToolResponse: finalTurn.rawToolResponse,
           toolError: finalTurn.toolError,
-          judge: finalTurn.judge,
+          judge: finalJudge,
           turns: turnResults,
         });
       }
