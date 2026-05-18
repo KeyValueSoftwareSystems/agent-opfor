@@ -1,4 +1,5 @@
 import type { ModelConfig } from "../config/schema.js";
+import { PROVIDERS } from "../config/types.js";
 
 function resolveApiKey(model: ModelConfig): string | undefined {
   if (model.apiKeyEnv) {
@@ -9,15 +10,18 @@ function resolveApiKey(model: ModelConfig): string | undefined {
 }
 
 function chatCompletionsUrl(model: ModelConfig): string {
-  if (model.provider === "other") {
-    if (!model.baseURL) throw new Error('models.*.provider "other" requires baseURL in config');
+  if (model.provider === PROVIDERS.OPENAI_COMPATIBLE) {
+    if (!model.baseURL)
+      throw new Error(
+        `models.*.provider "${PROVIDERS.OPENAI_COMPATIBLE}" requires baseURL in config`
+      );
     const base = model.baseURL.replace(/\/$/, "");
     return `${base}/chat/completions`;
   }
-  if (model.provider === "groq") return "https://api.groq.com/openai/v1/chat/completions";
-  if (model.provider === "openai") return "https://api.openai.com/v1/chat/completions";
+  if (model.provider === PROVIDERS.GROQ) return "https://api.groq.com/openai/v1/chat/completions";
+  if (model.provider === PROVIDERS.OPENAI) return "https://api.openai.com/v1/chat/completions";
   throw new Error(
-    `LLM provider "${model.provider}" is not yet supported. Use openai, groq, or other (OpenAI-compatible).`
+    `LLM provider "${model.provider}" is not yet supported. Use ${PROVIDERS.OPENAI}, ${PROVIDERS.GROQ}, or ${PROVIDERS.OPENAI_COMPATIBLE}.`
   );
 }
 

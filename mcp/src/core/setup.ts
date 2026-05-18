@@ -16,6 +16,7 @@ import {
 } from "../../../core/dist/config/loadSkillCatalog.js";
 import { resolveTelemetryEnv } from "../../../core/dist/config/resolveTelemetryEnv.js";
 import { runLangfuseSetupTraceCuration } from "../../../core/dist/telemetry/langfuseTraceCuration.js";
+import { PROVIDERS } from "../../../core/dist/config/types.js";
 import type {
   AttackEntry,
   InlineSetupConfig,
@@ -72,7 +73,7 @@ export async function runSetup(opts: SetupOptions): Promise<SetupResult> {
     selectedEvaluatorIds = cfg.selection.evaluators;
   }
 
-  const provider: ProviderName = (cfg.attackLlm?.provider as ProviderName) ?? "groq";
+  const provider: ProviderName = (cfg.attackLlm?.provider as ProviderName) ?? PROVIDERS.GROQ;
   const attackLlm: LlmConfig = {
     provider,
     model: cfg.attackLlm?.model ?? PROVIDER_DEFAULTS[provider],
@@ -134,7 +135,7 @@ export async function runSetupInline(
     selectedEvaluatorIds = inline.selection.evaluators;
   }
 
-  const provider: ProviderName = (inline.attackLlm?.provider as ProviderName) ?? "groq";
+  const provider: ProviderName = (inline.attackLlm?.provider as ProviderName) ?? PROVIDERS.GROQ;
   const attackLlm: LlmConfig = {
     provider,
     model: inline.attackLlm?.model ?? PROVIDER_DEFAULTS[provider],

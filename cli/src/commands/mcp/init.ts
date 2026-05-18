@@ -1,23 +1,8 @@
 import { confirm, input, select } from "@inquirer/prompts";
 import { McpScannerSectionSchema, type ProviderName } from "../../../../core/dist/config/schema.js";
+import { PROVIDERS, PROVIDER_CHOICES } from "../../../../core/dist/config/types.js";
+import { PROVIDER_ENV_VARS } from "../../../../core/dist/providers/factory.js";
 import { log } from "../../../../core/dist/lib/logger.js";
-
-function defaultApiKeyEnv(provider: ProviderName): string {
-  switch (provider) {
-    case "openai":
-      return "OPENAI_API_KEY";
-    case "anthropic":
-      return "ANTHROPIC_API_KEY";
-    case "groq":
-      return "GROQ_API_KEY";
-    case "google":
-      return "GOOGLE_GENERATIVE_AI_API_KEY";
-    case "other":
-      return "OPFOR_API_KEY";
-  }
-  // Fallback for unexpected values (should be unreachable).
-  return "OPFOR_API_KEY";
-}
 
 function parseArgsCsv(raw: string): string[] {
   return raw
@@ -29,13 +14,7 @@ function parseArgsCsv(raw: string): string[] {
 async function promptModelConfig(label: string) {
   const provider = await select<ProviderName>({
     message: `Which provider should the MCP scanner use for "${label}"?`,
-    choices: [
-      { name: "OpenAI", value: "openai" as const },
-      { name: "Anthropic", value: "anthropic" as const },
-      { name: "Groq", value: "groq" as const },
-      { name: "Google", value: "google" as const },
-      { name: "Other (OpenAI-compatible)", value: "other" as const },
-    ],
+    choices: PROVIDER_CHOICES,
   });
 
   const model = await input({
@@ -51,13 +30,13 @@ async function promptModelConfig(label: string) {
   const apiKeyEnv = storeKeyAsEnv
     ? await input({
         message: `Env var name for "${label}" API key`,
-        default: defaultApiKeyEnv(provider),
+        default: PROVIDER_ENV_VARS[provider],
         validate: (v: string) => (v.trim().length > 0 ? true : "Env var name is required"),
       })
     : undefined;
 
   const baseURL =
-    provider === "other"
+    provider === PROVIDERS.OPENAI_COMPATIBLE
       ? await input({
           message: `Base URL for OpenAI-compatible provider (e.g. https://api.your-host.com/v1)`,
           validate: (v: string) => {
@@ -88,7 +67,7 @@ export function buildEmptyMcpSection() {
       env: {},
     },
     generatorModel: {
-      provider: "groq" as const,
+      provider: PROVIDERS.GROQ,
       model: "llama-3.3-70b-versatile",
       apiKeyEnv: "GROQ_API_KEY",
     },

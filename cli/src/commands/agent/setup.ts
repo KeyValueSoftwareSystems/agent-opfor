@@ -28,7 +28,7 @@ import type {
   ProviderName,
   TelemetryConfig,
 } from "../../../../core/dist/config/types.js";
-import { PROVIDER_CHOICES } from "../../../../core/dist/config/types.js";
+import { PROVIDERS, PROVIDER_CHOICES } from "../../../../core/dist/config/types.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -148,7 +148,7 @@ async function collectLlmConfig(label: string): Promise<LlmConfig> {
   });
 
   let baseURL: string | undefined;
-  if (provider === "other") {
+  if (provider === PROVIDERS.OPENAI_COMPATIBLE) {
     baseURL = await input({
       message: "Base URL (e.g. https://my-ollama.local/v1):",
       validate: (v) => v.trim().startsWith("http") || "Must be a valid URL",
@@ -387,7 +387,7 @@ async function loadConfigFile(
     selectedEvaluatorIds = cfg.selection.evaluators;
   }
 
-  const provider: ProviderName = (cfg.attackLlm?.provider as ProviderName) ?? "groq";
+  const provider: ProviderName = (cfg.attackLlm?.provider as ProviderName) ?? PROVIDERS.GROQ;
   const attackLlm: LlmConfig = {
     provider,
     model: cfg.attackLlm?.model ?? PROVIDER_DEFAULTS[provider],

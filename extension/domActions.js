@@ -124,8 +124,13 @@ export async function actVerifyInputVisible(tabId, frameId, selector) {
           const area = rect.width * rect.height;
           const viewportArea = window.innerWidth * window.innerHeight;
           if (
-            id === "root" || id === "app" || id === "__next" || id === "__nuxt" ||
-            tag === "body" || tag === "main" || tag === "section" ||
+            id === "root" ||
+            id === "app" ||
+            id === "__next" ||
+            id === "__nuxt" ||
+            tag === "body" ||
+            tag === "main" ||
+            tag === "section" ||
             children > 10 ||
             area > viewportArea * 0.3
           ) {

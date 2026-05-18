@@ -3,23 +3,49 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
-import type { LlmConfig, ProviderName } from "../config/types.js";
+import { PROVIDERS, type LlmConfig, type ProviderName } from "../config/types.js";
 
 export const PROVIDER_DEFAULTS: Record<ProviderName, string> = {
-  openai: "gpt-4o-mini",
-  anthropic: "claude-3-5-haiku-20241022",
-  groq: "llama-3.3-70b-versatile",
-  google: "gemini-2.0-flash",
-  other: "",
+  [PROVIDERS.OPENAI]: "gpt-4o-mini",
+  [PROVIDERS.ANTHROPIC]: "claude-3-5-haiku-20241022",
+  [PROVIDERS.GROQ]: "llama-3.3-70b-versatile",
+  [PROVIDERS.GOOGLE]: "gemini-2.0-flash",
+  [PROVIDERS.OPENAI_COMPATIBLE]: "",
 };
 
 export const PROVIDER_ENV_VARS: Record<ProviderName, string> = {
-  openai: "OPENAI_API_KEY",
-  anthropic: "ANTHROPIC_API_KEY",
-  groq: "GROQ_API_KEY",
-  google: "GOOGLE_GENERATIVE_AI_API_KEY",
-  other: "OPFOR_API_KEY",
+  [PROVIDERS.OPENAI]: "OPENAI_API_KEY",
+  [PROVIDERS.ANTHROPIC]: "ANTHROPIC_API_KEY",
+  [PROVIDERS.GROQ]: "GROQ_API_KEY",
+  [PROVIDERS.GOOGLE]: "GOOGLE_GENERATIVE_AI_API_KEY",
+  [PROVIDERS.OPENAI_COMPATIBLE]: "OPFOR_API_KEY",
 };
+
+export interface ProviderCapabilities {
+  supportsJsonMode: boolean;
+  requiresBaseURL: boolean;
+}
+
+export const PROVIDER_CAPABILITIES: Record<ProviderName, ProviderCapabilities> = {
+  [PROVIDERS.OPENAI]: { supportsJsonMode: true, requiresBaseURL: false },
+  [PROVIDERS.ANTHROPIC]: { supportsJsonMode: false, requiresBaseURL: false },
+  [PROVIDERS.GROQ]: { supportsJsonMode: true, requiresBaseURL: false },
+  [PROVIDERS.GOOGLE]: { supportsJsonMode: false, requiresBaseURL: false },
+  [PROVIDERS.OPENAI_COMPATIBLE]: { supportsJsonMode: true, requiresBaseURL: true },
+};
+
+/** Returns an error message string if the config is invalid, or null if valid. */
+export function validateLlmConfig(llm: LlmConfig): string | null {
+  if (!llm.provider) return "provider is required";
+  if (!llm.model) return "model is required";
+  if (!llm.apiKeyEnv) return "apiKeyEnv is required";
+  if (PROVIDER_CAPABILITIES[llm.provider]?.requiresBaseURL && !llm.baseURL) {
+    return `baseURL is required for provider '${llm.provider}'`;
+  }
+  const apiKey = process.env[llm.apiKeyEnv]?.trim();
+  if (!apiKey) return `env var '${llm.apiKeyEnv}' is not set`;
+  return null;
+}
 
 export function createModel(llm: LlmConfig): LanguageModel {
   const apiKey = process.env[llm.apiKeyEnv]?.trim();
@@ -27,24 +53,25 @@ export function createModel(llm: LlmConfig): LanguageModel {
   const { provider, model, baseURL } = llm;
 
   switch (provider) {
-    case "openai":
+    case PROVIDERS.OPENAI:
       return createOpenAI({ apiKey })(model);
 
-    case "anthropic":
+    case PROVIDERS.ANTHROPIC:
       return createAnthropic({ apiKey })(model);
 
-    case "groq":
+    case PROVIDERS.GROQ:
       return createOpenAICompatible({
         name: "groq",
         apiKey,
         baseURL: "https://api.groq.com/openai/v1",
       }).chatModel(model);
 
-    case "google":
+    case PROVIDERS.GOOGLE:
       return createGoogleGenerativeAI({ apiKey })(model);
 
-    case "other": {
-      if (!baseURL) throw new Error("baseURL is required for provider 'other'");
+    case PROVIDERS.OPENAI_COMPATIBLE: {
+      if (!baseURL)
+        throw new Error(`baseURL is required for provider '${PROVIDERS.OPENAI_COMPATIBLE}'`);
       return createOpenAICompatible({ name: "custom", apiKey, baseURL }).chatModel(model);
     }
 
