@@ -583,7 +583,7 @@ function testCard(t: TestResult): string {
         const tColor = tv === "PASS" ? "var(--pass)" : tv === "ERROR" ? "#D97706" : "var(--fail)";
         return `
           <div style="margin-bottom:8px;padding:8px 10px;background:var(--surface-2);border-radius:6px;border-left:2px solid ${tColor}">
-            <div style="font-size:11px;font-weight:600;color:var(--text);margin-bottom:4px">Turn ${turn.turnIndex}${tv ? ` · <span style="color:${tColor}">${tv}</span>${tv !== "ERROR" ? ` · ${turn.judge!.score}/10` : ""}` : ""}</div>
+            <div style="font-size:11px;font-weight:600;color:var(--text);margin-bottom:4px">Turn ${turn.turnIndex}${tv ? ` · <span style="color:${tColor}">${tv}</span>${tv !== "ERROR" ? ` · ${turn.judge?.score}/10` : ""}` : ""}</div>
             <div class="test-section-label">Attacker Prompt</div>
             <pre class="test-code" style="max-height:120px">${esc(truncate(turn.prompt, 2000))}</pre>
             <div class="test-section-label" style="margin-top:6px">Agent Response</div>

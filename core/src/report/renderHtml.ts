@@ -587,17 +587,18 @@ function attackCard(result: AttackRunResult, index: number): string {
         const tResp = turn.toolError
           ? `Error: ${esc(truncate(turn.toolError, 600))}`
           : esc(truncate(turn.rawToolResponse, 800));
-        const tVerdict = turn.judge.verdict;
+        const tVerdict = turn.judge?.verdict;
         const tColor =
           tVerdict === "PASS" ? "var(--pass)" : tVerdict === "ERROR" ? "#D97706" : "var(--fail)";
+        const borderColor = tVerdict ? tColor : "var(--surface-3)";
         return `
-          <div style="margin-bottom:8px;padding:8px 10px;background:var(--surface-2);border-radius:6px;border-left:2px solid ${tColor}">
-            <div style="font-size:11px;font-weight:600;color:var(--text);margin-bottom:4px">Turn ${turn.turnIndex} · <code>${esc(turn.toolName)}</code> · <span style="color:${tColor}">${tVerdict}</span>${tVerdict !== "ERROR" ? ` · ${turn.judge.score}/10` : ""}</div>
+          <div style="margin-bottom:8px;padding:8px 10px;background:var(--surface-2);border-radius:6px;border-left:2px solid ${borderColor}">
+            <div style="font-size:11px;font-weight:600;color:var(--text);margin-bottom:4px">Turn ${turn.turnIndex} · <code>${esc(turn.toolName)}</code>${tVerdict ? ` · <span style="color:${tColor}">${tVerdict}</span>${tVerdict !== "ERROR" ? ` · ${turn.judge!.score}/10` : ""}` : ""}</div>
             <div class="attack-section-label">Arguments</div>
             <pre class="attack-code" style="max-height:120px">${tArgs}</pre>
             <div class="attack-section-label" style="margin-top:6px">Response</div>
             <pre class="attack-code" style="max-height:120px">${tResp}</pre>
-            ${turn.judge.reasoning ? `<div style="font-size:11px;color:var(--muted);margin-top:4px;font-style:italic">${esc(turn.judge.reasoning)}</div>` : ""}
+            ${turn.judge?.reasoning ? `<div style="font-size:11px;color:var(--muted);margin-top:4px;font-style:italic">${esc(turn.judge.reasoning)}</div>` : ""}
           </div>`;
       })
       .join("");

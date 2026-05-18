@@ -5,10 +5,7 @@ import { randomUUID } from "node:crypto";
 import { log } from "../../../../core/dist/lib/logger.js";
 import { createModel } from "../../../../core/dist/providers/factory.js";
 import { judgeResponse, errorJudge } from "../../../../core/dist/evaluators/judge.js";
-import type {
-  ConversationTurn,
-  JudgeResult,
-} from "../../../../core/dist/evaluators/judge.js";
+import type { ConversationTurn, JudgeResult } from "../../../../core/dist/evaluators/judge.js";
 import { generateReport } from "../../../../core/dist/report/generateReport.js";
 import type {
   EvaluatorReport,

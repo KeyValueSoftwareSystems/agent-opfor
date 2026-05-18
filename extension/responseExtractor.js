@@ -201,7 +201,7 @@ export async function extractResponse(tabId, frameId, lastUserText = "", prevSna
       continue;
     }
 
-    const neededStable = (sawTextGrowth || sawIntermediate) ? 3 : sawTypingIndicator ? 1 : 2;
+    const neededStable = sawTextGrowth || sawIntermediate ? 3 : sawTypingIndicator ? 1 : 2;
 
     if (stableCount >= neededStable) {
       const sinceLast = Date.now() - lastTextChangeAt;
@@ -239,8 +239,7 @@ export async function extractResponse(tabId, frameId, lastUserText = "", prevSna
     }
 
     await sleep(
-      (sawTextGrowth || sawIntermediate) ? POLL_CONFIRM :
-      sawTypingIndicator ? POLL_FAST : POLL_SLOW
+      sawTextGrowth || sawIntermediate ? POLL_CONFIRM : sawTypingIndicator ? POLL_FAST : POLL_SLOW
     );
   }
 
