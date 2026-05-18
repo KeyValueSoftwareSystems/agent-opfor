@@ -3,7 +3,7 @@ schema_version: 1
 id: command-injection
 name: Command Injection and STDIO RCE
 severity: critical
-owasp: MCP05
+ref: MCP05
 mcp_top_10: MCP05
 description: >-
   Tests whether MCP server tool arguments are passed to shell commands, exec calls, or script

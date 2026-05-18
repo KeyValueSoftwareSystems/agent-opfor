@@ -16,7 +16,7 @@ import { runSetup, runSetupInline } from "./core/setup.js";
 import { runScan } from "./core/run.js";
 import { runMcpSetup } from "./core/mcpSetup.js";
 import { runMcpExecute } from "./core/mcpExecute.js";
-import type { ProviderName } from "../../core/dist/config/types.js";
+import { PROVIDERS, type ProviderName } from "../../core/dist/config/types.js";
 
 const server = new McpServer({
   name: "opfor",
@@ -48,8 +48,7 @@ server.tool(
       );
 
       const evalLines = catalog.evaluators.map(
-        (e) =>
-          `  ${e.id}  [${e.severity.toUpperCase()}]  ${e.name}\n` + `    OWASP: ${e.owasp ?? "—"}`
+        (e) => `  ${e.id}  [${e.severity.toUpperCase()}]  ${e.name}\n` + `    Ref: ${e.ref ?? "—"}`
       );
 
       return {
@@ -154,7 +153,13 @@ const opforSetupSchemaShape: Record<string, z.ZodTypeAny> = {
 
   // ── LLM for attack generation ───────────────────────────────────────────
   llm_provider: z
-    .enum(["groq", "openai", "anthropic", "google", "other"])
+    .enum([
+      PROVIDERS.GROQ,
+      PROVIDERS.OPENAI,
+      PROVIDERS.ANTHROPIC,
+      PROVIDERS.GOOGLE,
+      PROVIDERS.OPENAI_COMPATIBLE,
+    ] as [ProviderName, ...ProviderName[]])
     .optional()
     .describe(
       "LLM provider opfor uses to generate attack prompts and judge responses. " +
@@ -600,8 +605,8 @@ server.tool(
 
       const evalLines = agentResult.evaluatorResults
         .map(
-          (e: { owasp: string; name: string; passed: number; failed: number; passRate: number }) =>
-            `  [${e.owasp}] ${e.name}: ${e.passed}✓ ${e.failed}✗ (${e.passRate}% pass)`
+          (e: { ref: string; name: string; passed: number; failed: number; passRate: number }) =>
+            `  [${e.ref}] ${e.name}: ${e.passed}✓ ${e.failed}✗ (${e.passRate}% pass)`
         )
         .join("\n");
 

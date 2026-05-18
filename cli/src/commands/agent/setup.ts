@@ -28,7 +28,7 @@ import type {
   ProviderName,
   TelemetryConfig,
 } from "../../../../core/dist/config/types.js";
-import { PROVIDER_CHOICES } from "../../../../core/dist/config/types.js";
+import { PROVIDERS, PROVIDER_CHOICES } from "../../../../core/dist/config/types.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -148,7 +148,7 @@ async function collectLlmConfig(label: string): Promise<LlmConfig> {
   });
 
   let baseURL: string | undefined;
-  if (provider === "other") {
+  if (provider === PROVIDERS.OPENAI_COMPATIBLE) {
     baseURL = await input({
       message: "Base URL (e.g. https://my-ollama.local/v1):",
       validate: (v) => v.trim().startsWith("http") || "Must be a valid URL",
@@ -316,7 +316,7 @@ async function runInteractiveWizard(
     selectedEvaluatorIds = await checkbox<string>({
       message: "Select evaluators (space to toggle, enter to confirm):",
       choices: sorted.map((e) => ({
-        name: `[${e.severity.toUpperCase().padEnd(8)}] ${e.owasp.padEnd(6)} ${e.name}`,
+        name: `[${e.severity.toUpperCase().padEnd(8)}] ${e.ref.padEnd(6)} ${e.name}`,
         value: e.id,
       })),
       validate: (v) => v.length > 0 || "Select at least one evaluator",
@@ -387,7 +387,7 @@ async function loadConfigFile(
     selectedEvaluatorIds = cfg.selection.evaluators;
   }
 
-  const provider: ProviderName = (cfg.attackLlm?.provider as ProviderName) ?? "groq";
+  const provider: ProviderName = (cfg.attackLlm?.provider as ProviderName) ?? PROVIDERS.GROQ;
   const attackLlm: LlmConfig = {
     provider,
     model: cfg.attackLlm?.model ?? PROVIDER_DEFAULTS[provider],
@@ -524,7 +524,7 @@ export function registerSetupCommand(program: Command) {
             evaluatorName: evaluator.name,
             description: evaluator.description,
             severity: evaluator.severity,
-            owasp: evaluator.owasp,
+            ref: evaluator.ref,
             patternName: attack.patternName,
             prompt: attack.prompt,
             passCriteria: evaluator.passCriteria,
@@ -692,7 +692,7 @@ export async function generateAgentAttacksFromConfig(opts: {
         evaluatorName: evaluator.name,
         description: evaluator.description,
         severity: evaluator.severity,
-        owasp: evaluator.owasp,
+        ref: evaluator.ref,
         patternName: attack.patternName,
         prompt: attack.prompt,
         passCriteria: evaluator.passCriteria,

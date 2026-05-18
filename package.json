@@ -28,6 +28,7 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "validate:skills": "tsx scripts/validate-skills.ts",
     "prepare": "husky"
   },
   "devDependencies": {
@@ -40,6 +41,7 @@
     "prettier": "^3.8.3",
     "tsx": "^4.20.0",
     "typescript": "^5.8.3",
-    "typescript-eslint": "^8.59.2"
+    "typescript-eslint": "^8.59.2",
+    "zod": "^3.25.76"
   }
 }

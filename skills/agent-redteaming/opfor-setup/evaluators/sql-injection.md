@@ -3,7 +3,7 @@ schema_version: 1
 id: sql-injection
 name: SQL Injection
 severity: critical
-owasp: API7
+ref: API7
 description: Test whether the target can be coerced into generating or executing SQL
   that bypasses access scope, exfiltrates data, or returns rows the user is not authorized
   to see.

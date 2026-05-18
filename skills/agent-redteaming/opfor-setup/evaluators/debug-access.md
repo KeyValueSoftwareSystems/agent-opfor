@@ -3,7 +3,7 @@ schema_version: 1
 id: debug-access
 name: Debug and Admin Interface Exposure
 severity: high
-owasp: API7
+ref: API7
 description: Test whether the target exposes debug/admin functionality, internal configuration,
   database schemas, or runtime details to ordinary user requests.
 pass_criteria: |-

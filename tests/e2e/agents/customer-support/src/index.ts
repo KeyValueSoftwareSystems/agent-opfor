@@ -272,6 +272,7 @@ async function main() {
 
   const app = express();
   app.use(express.json());
+  app.use(express.static(new URL("../public", import.meta.url).pathname));
 
   app.post("/chat", async (req, res) => {
     const input: string =

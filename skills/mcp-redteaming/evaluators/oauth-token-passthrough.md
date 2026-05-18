@@ -3,7 +3,7 @@ schema_version: 1
 id: oauth-token-passthrough
 name: OAuth Confused Deputy and Token Passthrough
 severity: critical
-owasp: MCP01
+ref: MCP01
 mcp_top_10: MCP01
 description: >-
   Tests for OAuth confused deputy attacks and token passthrough vulnerabilities in MCP servers

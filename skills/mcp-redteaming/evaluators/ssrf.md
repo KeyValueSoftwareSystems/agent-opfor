@@ -3,7 +3,7 @@ schema_version: 1
 id: ssrf
 name: Server-Side Request Forgery (SSRF)
 severity: critical
-owasp: MCP05
+ref: MCP05
 description: >-
   Tests whether the MCP server can be coerced into making outbound HTTP requests
   to attacker-controlled or internal destinations. Covers classic SSRF (internal

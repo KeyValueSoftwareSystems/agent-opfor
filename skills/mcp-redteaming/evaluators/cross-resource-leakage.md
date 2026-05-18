@@ -3,7 +3,7 @@ schema_version: 1
 id: cross-resource-leakage
 name: Context Injection, Over-Sharing & Cross-Resource Leakage
 severity: critical
-owasp: MCP10
+ref: MCP10
 mcp_top_10: MCP10
 description: >-
   Tests for the full OWASP MCP10 category — Context Injection & Over-Sharing — which covers

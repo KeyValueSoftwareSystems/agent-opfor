@@ -36,6 +36,7 @@ Thanks for helping make AI red teaming better. This guide covers the three highe
 | `docs/`     | Documentation only                          |
 | `refactor/` | Code change with no behaviour change        |
 | `chore/`    | Dependency updates, tooling, CI             |
+| `test/`     | Adding or updating tests                    |
 
 Examples: `feat/add-prompt-leak-evaluator`, `fix/ssrf-judge-false-positive`, `docs/contributing-guide`
 

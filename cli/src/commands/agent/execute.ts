@@ -138,7 +138,7 @@ export async function runAgentAttacksFromFile(opts: {
       id: evaluatorId,
       name: first.evaluatorName,
       severity: first.severity,
-      owasp: first.owasp,
+      ref: first.ref,
       description: first.description ?? "",
       passCriteria: first.passCriteria,
       failCriteria: first.failCriteria,

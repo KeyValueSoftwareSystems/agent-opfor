@@ -3,7 +3,7 @@ schema_version: 1
 id: intent-subversion
 name: Intent Flow Subversion
 severity: high
-owasp: MCP06
+ref: MCP06
 mcp_top_10: MCP06
 description: >-
   Tests whether tool descriptions or tool return values contain content that would subvert

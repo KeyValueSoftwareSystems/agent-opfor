@@ -13,7 +13,7 @@ evaluators:
   - secret-exposure
   - oauth-token-passthrough
   - scope-escalation
-  - supply-chain
+  - mcp-supply-chain
   - tool-description-injection
   - command-injection
   - missing-authentication

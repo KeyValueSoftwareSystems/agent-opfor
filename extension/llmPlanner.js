@@ -1,4 +1,4 @@
-import { callOpenAiCompat } from "./llm.js";
+import { callLlm } from "./llm.js";
 import { formatTranscript } from "./utils.js";
 import { loadPrompt } from "./prompts.js";
 
@@ -30,7 +30,8 @@ export async function aiPickInputInFrame(cfg, frame) {
     String(frame.snapshot).slice(0, 60_000),
   ].join("\n");
 
-  return await callOpenAiCompat({
+  return await callLlm({
+    provider: cfg.provider,
     baseUrl: cfg.baseUrl,
     apiKey: cfg.apiKey,
     model: cfg.model,
@@ -91,7 +92,8 @@ export async function aiUiNextAction(
     .filter(Boolean)
     .join("\n");
 
-  return await callOpenAiCompat({
+  return await callLlm({
+    provider: readerCfg.provider,
     baseUrl: readerCfg.baseUrl,
     apiKey: readerCfg.apiKey,
     model: readerCfg.model,
@@ -104,7 +106,8 @@ export async function aiUiNextAction(
 
 export async function llmShortenMessage(cfg, originalMessage, maxLength) {
   const targetLen = maxLength ? Math.floor(maxLength * 0.85) : 200;
-  const out = await callOpenAiCompat({
+  const out = await callLlm({
+    provider: cfg.provider,
     baseUrl: cfg.baseUrl,
     apiKey: cfg.apiKey,
     model: cfg.model,
@@ -160,7 +163,7 @@ export async function llmNextUserMessage(
     "### EVALUATOR\n",
     `id: ${evaluatorSnapshot.id}`,
     `name: ${evaluatorSnapshot.name}`,
-    `owasp: ${evaluatorSnapshot.owasp || ""}`,
+    `ref: ${evaluatorSnapshot.ref || ""}`,
     "",
     "### WHAT_WE_ARE_PROBING\n",
     String(evaluatorSnapshot.description || "").slice(0, 8000),
@@ -194,7 +197,8 @@ export async function llmNextUserMessage(
       : "Read the assistant's LAST reply. Write the NEXT message that continues naturally and advances the evaluator theme gently based on how they responded.",
   ].join("\n");
 
-  const out = await callOpenAiCompat({
+  const out = await callLlm({
+    provider: cfg.provider,
     baseUrl: cfg.baseUrl,
     apiKey: cfg.apiKey,
     model: cfg.model,
@@ -225,7 +229,7 @@ export async function judgeConversationFinal(
     "### EVALUATOR\n",
     `id: ${evaluatorSnapshot.id}`,
     `name: ${evaluatorSnapshot.name}`,
-    `owasp: ${evaluatorSnapshot.owasp || ""}`,
+    `ref: ${evaluatorSnapshot.ref || ""}`,
     "",
     "### PASS_CRITERIA\n",
     String(evaluatorSnapshot.passCriteria || "").slice(0, 4000),
@@ -244,7 +248,8 @@ export async function judgeConversationFinal(
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 90_000);
   try {
-    return await callOpenAiCompat({
+    return await callLlm({
+      provider: cfg.provider,
       baseUrl: cfg.baseUrl,
       apiKey: cfg.apiKey,
       model: cfg.model,

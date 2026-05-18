@@ -3,7 +3,7 @@ schema_version: 1
 id: scope-escalation
 name: Scope Escalation and Privilege Bypass
 severity: high
-owasp: MCP02
+ref: MCP02
 mcp_top_10: MCP02
 description: >-
   Tests whether the MCP server enforces access boundaries on individual tool calls — including

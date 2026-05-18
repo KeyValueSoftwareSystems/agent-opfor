@@ -1880,6 +1880,24 @@
           <!-- Model -->
           <div>
             <div class="section-label">Model</div>
+            <div id="providerDropdown" class="dd" data-open="false" style="margin-bottom: 8px">
+              <button class="dd-button" type="button">
+                <span class="label">OpenAI</span>
+                <span class="chev">
+                  <svg width="12" height="12" viewBox="0 0 24 24">
+                    <path
+                      d="M6 9l6 6 6-6"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </span>
+              </button>
+              <div class="dd-menu" role="listbox"></div>
+            </div>
             <div id="modelDropdown" class="dd" data-open="false">
               <button class="dd-button" type="button">
                 <span class="label">gpt-4o-mini</span>
@@ -2283,6 +2301,6 @@
       </div>
     </div>
 
-    <script src="popup.js"></script>
+    <script type="module" src="popup.js"></script>
   </body>
 </html>

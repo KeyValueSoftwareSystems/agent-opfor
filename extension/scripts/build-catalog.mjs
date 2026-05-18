@@ -73,7 +73,7 @@ async function parseEvaluatorMd(filePath, fname) {
     id: id.trim(),
     name: name.trim(),
     severity: str(doc, "severity") || "high",
-    owasp: str(doc, "owasp"),
+    ref: str(doc, "ref"),
     description: str(doc, "description"),
     passCriteria: str(doc, "pass_criteria") || str(doc, "passCriteria"),
     failCriteria: str(doc, "fail_criteria") || str(doc, "failCriteria"),

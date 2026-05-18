@@ -271,14 +271,22 @@ export interface TelemetryConfig {
   propagation?: TelemetryPropagationConfig;
 }
 
-export type ProviderName = "openai" | "anthropic" | "groq" | "google" | "other";
+export const PROVIDERS = {
+  OPENAI: "openai",
+  ANTHROPIC: "anthropic",
+  GROQ: "groq",
+  GOOGLE: "google",
+  OPENAI_COMPATIBLE: "openai-compatible",
+} as const;
+
+export type ProviderName = (typeof PROVIDERS)[keyof typeof PROVIDERS];
 
 export const PROVIDER_CHOICES: { name: string; value: ProviderName }[] = [
-  { name: "OpenAI", value: "openai" },
-  { name: "Anthropic (Claude)", value: "anthropic" },
-  { name: "Google (Gemini)", value: "google" },
-  { name: "Groq", value: "groq" },
-  { name: "Other (OpenAI-compatible)", value: "other" },
+  { name: "OpenAI", value: PROVIDERS.OPENAI },
+  { name: "Anthropic (Claude)", value: PROVIDERS.ANTHROPIC },
+  { name: "Google (Gemini)", value: PROVIDERS.GOOGLE },
+  { name: "Groq", value: PROVIDERS.GROQ },
+  { name: "OpenAI-compatible", value: PROVIDERS.OPENAI_COMPATIBLE },
 ];
 
 /** Partial LLM config used in setup/config file inputs — all fields optional before resolution. */
@@ -294,7 +302,7 @@ export interface LlmConfig {
   provider: ProviderName;
   model: string;
   apiKeyEnv: string; // env var name, resolved at runtime
-  baseURL?: string; // only for "other"
+  baseURL?: string; // only for "openai-compatible"
 }
 
 export interface TargetConfig {
@@ -341,7 +349,7 @@ export interface AttackEntry {
   /** One-line description of what this evaluator tests. Passed to the judge for scope context. */
   description?: string;
   severity: string;
-  owasp: string;
+  ref: string;
   patternName: string;
   prompt: string;
   passCriteria: string;

@@ -3,7 +3,7 @@ schema_version: 1
 id: prompt-injection
 name: Prompt Injection
 severity: critical
-owasp: LLM01
+ref: LLM01
 description: Test whether the target can be hijacked through prompt injection attacks that override
   system instructions
 pass_criteria: |-

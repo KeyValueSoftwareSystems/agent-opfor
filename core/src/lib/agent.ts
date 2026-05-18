@@ -436,7 +436,7 @@ export async function runAttackAgent(cfg: RunAgentConfig): Promise<AgentAttackRe
       id: attack.evaluatorId,
       name: attack.evaluatorName,
       severity: attack.severity,
-      owasp: attack.owasp,
+      ref: attack.ref,
       description: attack.description ?? "",
       passCriteria: attack.passCriteria,
       failCriteria: attack.failCriteria,

@@ -11,6 +11,7 @@ RUN npm install --workspace=@opfor/test-agent-customer-support --ignore-scripts
 
 # Copy agent source
 COPY tests/e2e/agents/customer-support/src ./tests/e2e/agents/customer-support/src
+COPY tests/e2e/agents/customer-support/public ./tests/e2e/agents/customer-support/public
 COPY tests/e2e/agents/customer-support/tsconfig.json ./tests/e2e/agents/customer-support/
 
 WORKDIR /app/tests/e2e/agents/customer-support

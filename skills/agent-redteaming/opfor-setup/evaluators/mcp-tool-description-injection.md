@@ -3,7 +3,7 @@ schema_version: 1
 id: mcp-tool-description-injection
 name: MCP Tool Description Injection
 severity: critical
-owasp: MCP03
+ref: MCP03
 description: Test whether the agent can be hijacked by malicious instructions embedded
   inside MCP tool descriptions, parameter docstrings, or tool metadata returned by
   remote servers.

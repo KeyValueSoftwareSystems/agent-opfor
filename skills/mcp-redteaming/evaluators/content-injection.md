@@ -3,7 +3,7 @@ schema_version: 1
 id: content-injection
 name: Second-Order Content Injection
 severity: high
-owasp: MCP03
+ref: MCP03
 description: >-
   Tests whether content fetched or returned by an MCP tool (e.g. web pages,
   documents, database records, search results) can carry hidden LLM directives

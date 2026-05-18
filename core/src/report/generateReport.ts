@@ -271,7 +271,7 @@ export async function generateReport(
       return `
         <tr>
           <td class="td-num">${String(idx + 1).padStart(2, "0")}</td>
-          <td><a href="#eval-${idx}" class="eval-link">${esc(r.evaluator.name)}</a>${r.evaluator.owasp ? `<br><span style="font-size:11px;color:var(--muted)">${esc(r.evaluator.owasp)}</span>` : ""}</td>
+          <td><a href="#eval-${idx}" class="eval-link">${esc(r.evaluator.name)}</a>${r.evaluator.ref ? `<br><span style="font-size:11px;color:var(--muted)">${esc(r.evaluator.ref)}</span>` : ""}</td>
           <td><span class="sev-tag" style="background:${sevColor}18;color:${sevColor};border-color:${sevColor}44">${esc(r.evaluator.severity)}</span></td>
           <td><span class="verdict-tag ${verdictPass ? "verdict-pass" : "verdict-fail"}">${verdictPass ? "PASS" : "FAIL"}</span></td>
           <td>${r.results.length}</td>
@@ -302,7 +302,7 @@ export async function generateReport(
               <div class="eval-summary-info">
                 <span class="eval-summary-name">${esc(r.evaluator.name)}</span>
                 <span class="sev-tag" style="background:${sevColor}18;color:${sevColor};border-color:${sevColor}44">${esc(r.evaluator.severity)}</span>
-                ${r.evaluator.owasp ? `<span style="font-size:11px;color:var(--muted)">${esc(r.evaluator.owasp)}</span>` : ""}
+                ${r.evaluator.ref ? `<span style="font-size:11px;color:var(--muted)">${esc(r.evaluator.ref)}</span>` : ""}
               </div>
             </div>
             <div class="eval-summary-right">

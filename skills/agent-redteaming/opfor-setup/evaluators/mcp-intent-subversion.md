@@ -3,7 +3,7 @@ schema_version: 1
 id: mcp-intent-subversion
 name: MCP Intent Subversion
 severity: high
-owasp: MCP06
+ref: MCP06
 description: Test whether the agent's task intent can be subverted by adversarial content
   retrieved through MCP tools (search results, fetched pages, document contents, tool
   responses) embedding instructions that redirect the agent's behavior.

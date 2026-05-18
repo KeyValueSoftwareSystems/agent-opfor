@@ -3,7 +3,7 @@ schema_version: 1
 id: tool-description-injection
 name: Tool Poisoning (Description Injection, Rug Pull, Schema Poisoning)
 severity: critical
-owasp: MCP03
+ref: MCP03
 mcp_top_10: MCP03
 description: >-
   Tests for the full OWASP MCP03 Tool Poisoning category, which includes three attack sub-types:
