@@ -274,6 +274,7 @@
         align-items: center;
         gap: 6px;
       }
+
       .status-pill {
         display: flex;
         align-items: center;
@@ -1262,6 +1263,243 @@
         background: rgba(255, 90, 110, 0.09);
       }
 
+      /* ── History panel (slide-in like Advanced) ─────────────── */
+      .hist {
+        position: absolute;
+        inset: 0;
+        background: var(--bg);
+        transform: translateX(100%);
+        transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+        display: flex;
+        flex-direction: column;
+        z-index: 5;
+      }
+      .hist[data-open="true"] {
+        transform: translateX(0);
+      }
+      .hist-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--line);
+      }
+      .hist-head .title {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text);
+      }
+      .hist-head .count {
+        font-family: "Geist Mono", ui-monospace, monospace;
+        font-size: 11px;
+        font-weight: 500;
+        color: var(--muted-3);
+        letter-spacing: 0.04em;
+        margin-left: 2px;
+      }
+      .hist-body {
+        flex: 1;
+        overflow-y: auto;
+        padding: 12px 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .hist-body[data-empty="true"] {
+        padding: 16px;
+      }
+      .hist-foot {
+        padding: 12px;
+        border-top: 1px solid var(--line);
+      }
+      .hist-clear-btn {
+        width: 100%;
+        padding: 11px 12px;
+        background: rgba(255, 90, 110, 0.06);
+        border: 1px solid rgba(255, 90, 110, 0.22);
+        border-radius: 10px;
+        color: var(--fail-soft);
+        font-size: 13px;
+        font-weight: 600;
+        font-family: "Geist", system-ui, sans-serif;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        transition:
+          background 0.15s,
+          border-color 0.15s;
+      }
+      .hist-clear-btn[data-confirm="true"] {
+        background: rgba(255, 90, 110, 0.18);
+        border-color: rgba(255, 90, 110, 0.55);
+      }
+
+      .hist-empty {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        padding: 40px 20px;
+        color: var(--muted-3);
+        text-align: center;
+      }
+      .hist-empty .icon-wrap {
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        background: var(--bg-2);
+        border: 1px solid var(--line-2);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #3a4360;
+      }
+      .hist-empty .title {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--muted);
+      }
+      .hist-empty .help {
+        font-size: 12px;
+        color: var(--muted-3);
+        line-height: 1.5;
+        max-width: 260px;
+      }
+
+      .history-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .history-item {
+        position: relative;
+        background: var(--bg-2);
+        border: 1px solid var(--line-2);
+        border-radius: 10px;
+        padding: 12px 12px 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        flex-shrink: 0;
+      }
+      .history-item .accent-stripe {
+        position: absolute;
+        left: 0;
+        top: 12px;
+        bottom: 12px;
+        width: 3px;
+        border-radius: 0 3px 3px 0;
+        opacity: 0.7;
+      }
+      .history-item[data-status="pass"] .accent-stripe {
+        background: var(--pass);
+      }
+      .history-item[data-status="fail"] .accent-stripe {
+        background: var(--fail);
+      }
+      .history-item-body {
+        padding-left: 6px;
+        min-width: 0;
+      }
+      .history-item-name {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        letter-spacing: -0.005em;
+      }
+      .history-item-meta {
+        margin-top: 4px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        font-family: "Geist Mono", ui-monospace, monospace;
+        font-size: 11px;
+        color: var(--muted-2);
+        letter-spacing: 0.02em;
+      }
+      .history-item-meta .sep {
+        color: var(--line-3);
+      }
+      .history-item-meta .passed {
+        color: var(--muted);
+      }
+      .history-item-meta .passed[data-all="true"] {
+        color: var(--pass);
+      }
+      .history-item-meta .failed {
+        color: var(--muted-3);
+      }
+      .history-item-meta .failed[data-any="true"] {
+        color: var(--fail-soft);
+      }
+      .history-item-id {
+        margin-top: 6px;
+        font-family: "Geist Mono", ui-monospace, monospace;
+        font-size: 10.5px;
+        color: #3f4659;
+        letter-spacing: 0.02em;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .history-item-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+        padding-left: 6px;
+      }
+      .history-item-actions button {
+        padding: 8px 10px;
+        border-radius: 8px;
+        font-size: 12.5px;
+        font-weight: 500;
+        font-family: "Geist", system-ui, sans-serif;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        transition:
+          background 0.15s,
+          border-color 0.15s,
+          color 0.15s;
+      }
+      .history-item-actions .btn-download {
+        background: var(--bg-3);
+        border: 1px solid var(--line-3);
+        color: var(--text);
+      }
+      .history-item-actions .btn-download:hover {
+        background: #1a2030;
+        border-color: #3a4360;
+      }
+      .history-item-actions .btn-download[data-state="saved"] {
+        background: var(--accent-soft);
+        border-color: var(--accent-ring);
+        color: var(--accent);
+        cursor: default;
+      }
+      .history-item-actions .btn-delete {
+        background: rgba(255, 90, 110, 0.06);
+        border: 1px solid rgba(255, 90, 110, 0.22);
+        color: var(--fail-soft);
+      }
+      .history-item-actions .btn-delete:hover {
+        background: rgba(255, 90, 110, 0.14);
+        border-color: rgba(255, 90, 110, 0.45);
+      }
+
       /* ── Run bar ────────────────────────────────────────────── */
       .run-bar {
         padding: 10px 14px;
@@ -1498,10 +1736,21 @@
           </div>
         </div>
         <div class="header-right">
-          <div id="statusPill" class="status-pill" data-screen="idle">
-            <div class="dot"></div>
-            <span id="statusPillText">Ready</span>
-          </div>
+          <button id="historyBtn" class="icon-btn" title="Past runs" aria-label="Past runs">
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>
+          </button>
           <button id="advancedBtn" class="icon-btn" title="Advanced" aria-label="Advanced settings">
             <svg width="15" height="15" viewBox="0 0 24 24">
               <g
@@ -1972,6 +2221,64 @@
         </div>
         <div class="adv-foot">
           <button id="advDoneBtn">Done</button>
+        </div>
+      </div>
+
+      <!-- ── History panel ─────────────────────────────── -->
+      <div id="historyPanel" class="hist" data-open="false">
+        <div class="hist-head">
+          <div class="title">
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.7"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <circle cx="12" cy="12" r="9" />
+              <polyline points="12 7 12 12 15.5 14" />
+            </svg>
+            <span>Past runs</span>
+            <span id="historyCount" class="count" hidden></span>
+          </div>
+          <button id="historyCloseBtn" class="icon-btn" aria-label="Close">
+            <svg width="14" height="14" viewBox="0 0 24 24">
+              <path
+                d="M18 6L6 18M6 6l12 12"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </button>
+        </div>
+        <div id="historyBody" class="hist-body">
+          <div id="historyList" class="history-list"></div>
+        </div>
+        <div id="historyFoot" class="hist-foot" hidden>
+          <button id="historyClearBtn" class="hist-clear-btn" type="button" data-confirm="false">
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.7"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <polyline points="3 6 5 6 21 6" />
+              <path d="M19 6l-1.4 13.1A2 2 0 0 1 15.6 21H8.4a2 2 0 0 1-2-1.9L5 6" />
+              <path d="M10 11v6M14 11v6" />
+              <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+            </svg>
+            <span id="historyClearLabel">Clear history</span>
+          </button>
         </div>
       </div>
     </div>
