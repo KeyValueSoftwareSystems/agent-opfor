@@ -16,7 +16,7 @@ import { runSetup, runSetupInline } from "./core/setup.js";
 import { runScan } from "./core/run.js";
 import { runMcpSetup } from "./core/mcpSetup.js";
 import { runMcpExecute } from "./core/mcpExecute.js";
-import type { ProviderName } from "../../core/dist/config/types.js";
+import { PROVIDERS, type ProviderName } from "../../core/dist/config/types.js";
 
 const server = new McpServer({
   name: "opfor",
@@ -154,7 +154,13 @@ const opforSetupSchemaShape: Record<string, z.ZodTypeAny> = {
 
   // ── LLM for attack generation ───────────────────────────────────────────
   llm_provider: z
-    .enum(["groq", "openai", "anthropic", "google", "other"])
+    .enum([
+      PROVIDERS.GROQ,
+      PROVIDERS.OPENAI,
+      PROVIDERS.ANTHROPIC,
+      PROVIDERS.GOOGLE,
+      PROVIDERS.OPENAI_COMPATIBLE,
+    ] as [ProviderName, ...ProviderName[]])
     .optional()
     .describe(
       "LLM provider opfor uses to generate attack prompts and judge responses. " +

@@ -1,6 +1,6 @@
 import { sleep } from "./utils.js";
 import { state, beginUiRunAbortController, endUiRunAbortController } from "./state.js";
-import { callOpenAiCompat } from "./llm.js";
+import { callLlm } from "./llm.js";
 import { getLlmProfile, assertLlmCfg } from "./config.js";
 import { loadAttackCatalog, evaluatorFromCatalog, assertEvaluatorInSuite } from "./catalog.js";
 import {
@@ -72,7 +72,8 @@ export async function resetChatSession(tabId, readerCfg) {
       String(snapshot || "").slice(0, 60_000),
     ].join("\n");
 
-    return await callOpenAiCompat({
+    return await callLlm({
+      provider: readerCfg.provider,
       baseUrl: readerCfg.baseUrl,
       apiKey: readerCfg.apiKey,
       model: readerCfg.model,

@@ -4,7 +4,7 @@ import { loadAttackCatalog } from "./catalog.js";
 import { clearRunStatus } from "./storage.js";
 import { pickChatFrameWithRetry, embeddedChatBoost } from "./frameDiscovery.js";
 import { preparePageForChat, actSendText } from "./domActions.js";
-import { callOpenAiCompat } from "./llm.js";
+import { callLlm } from "./llm.js";
 import { resetChatSession, executeAdaptiveRedTeamRun } from "./orchestrator.js";
 import { judgeConversationFinal } from "./llmPlanner.js";
 import { persistPartialResult } from "./storage.js";
@@ -84,7 +84,8 @@ function handleInjectSendHi(message, sendResponse) {
           String(f.snapshot).slice(0, 60_000),
         ].join("\n");
 
-        const ai = await callOpenAiCompat({
+        const ai = await callLlm({
+          provider: cfg.provider,
           baseUrl: cfg.baseUrl,
           apiKey: cfg.apiKey,
           model: cfg.model,
@@ -187,7 +188,8 @@ function handleAiPickInput(message, sendResponse) {
         "\n"
       );
 
-      const out = await callOpenAiCompat({
+      const out = await callLlm({
+        provider: cfg.provider,
         baseUrl: cfg.baseUrl,
         apiKey: cfg.apiKey,
         model: cfg.model,

@@ -5,18 +5,39 @@
 // OPFOR_UI_RUN / RESUME / STOP / DISCARD_PAUSED message contracts.
 // ─────────────────────────────────────────────────────────────────
 
-const MODELS = [
-  "gpt-4o-mini",
-  "gpt-4o",
-  "gpt-4.1",
-  "gpt-5",
-  "claude-opus-4-5",
-  "claude-sonnet-4-5",
-  "claude-3-7-sonnet-latest",
-  "claude-haiku-4-5",
-  "llama-3.1-70b",
-  "llama-3.3-70b-versatile",
+import { PROVIDERS } from "./providers.js";
+
+const PROVIDER_OPTIONS = [
+  { value: PROVIDERS.OPENAI, label: "OpenAI" },
+  { value: PROVIDERS.ANTHROPIC, label: "Anthropic" },
+  { value: PROVIDERS.GOOGLE, label: "Google (Gemini)" },
+  { value: PROVIDERS.GROQ, label: "Groq" },
+  { value: PROVIDERS.OPENAI_COMPATIBLE, label: "OpenAI-compatible" },
 ];
+
+const MODELS_BY_PROVIDER = {
+  [PROVIDERS.OPENAI]: ["gpt-4o-mini", "gpt-4o", "gpt-4.1", "gpt-5"],
+  [PROVIDERS.ANTHROPIC]: [
+    "claude-haiku-4-5",
+    "claude-sonnet-4-5",
+    "claude-opus-4-5",
+    "claude-3-7-sonnet-latest",
+  ],
+  [PROVIDERS.GOOGLE]: ["gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"],
+  [PROVIDERS.GROQ]: ["llama-3.3-70b-versatile", "llama-3.1-70b"],
+  [PROVIDERS.OPENAI_COMPATIBLE]: [],
+};
+
+const PROVIDER_DEFAULT_MODELS = {
+  [PROVIDERS.OPENAI]: "gpt-4o-mini",
+  [PROVIDERS.ANTHROPIC]: "claude-sonnet-4-5",
+  [PROVIDERS.GOOGLE]: "gemini-2.0-flash",
+  [PROVIDERS.GROQ]: "llama-3.3-70b-versatile",
+  [PROVIDERS.OPENAI_COMPATIBLE]: "",
+};
+
+/** Providers that require a user-supplied baseUrl. */
+const PROVIDERS_NEEDING_BASE_URL = new Set([PROVIDERS.OPENAI_COMPATIBLE]);
 
 const $ = (id) => document.getElementById(id);
 
@@ -25,6 +46,7 @@ const state = {
   catalog: /** @type {null | { suites: any[]; evaluators: any[] }} */ (null),
   suiteId: "",
   selectedEvaluators: new Set(),
+  provider: PROVIDERS.OPENAI,
   baseUrl: "https://api.openai.com/v1",
   model: "gpt-4o-mini",
   apiKey: "",
@@ -217,7 +239,7 @@ function updateRunButton() {
 }
 
 // ── Suite description + dropdown wiring ────────────────────────
-let suiteDD, modelDD;
+let suiteDD, modelDD, providerDD;
 function setSuite(id) {
   state.suiteId = id;
   const suite = state.catalog?.suites.find((s) => s.id === id);
@@ -310,6 +332,7 @@ async function loadSettings() {
   });
   const profiles = stored.opforLlmProfiles;
   if (profiles?.attacker) {
+    state.provider = profiles.attacker.provider || state.provider;
     state.baseUrl = profiles.attacker.baseUrl || state.baseUrl;
     state.model = profiles.attacker.model || state.model;
     state.apiKey = profiles.attacker.apiKey || "";
@@ -331,11 +354,12 @@ async function saveSettings() {
 }
 
 async function saveModelAndKey() {
-  // Single popup-driven config — same baseUrl/model/apiKey for all three roles.
+  // Single popup-driven config — same provider/model/apiKey for all three roles.
   const baseUrl = (state.baseUrl || "").trim() || "https://api.openai.com/v1";
-  const next = { v: 1, provider: "openai_compat" };
+  const next = { v: 1 };
   for (const k of ["attacker", "judge", "reader"]) {
     next[k] = {
+      provider: state.provider,
       baseUrl,
       model: state.model,
       apiKey: state.apiKey,
@@ -2228,21 +2252,37 @@ async function discardPaused() {
   setScreen("idle");
 }
 
+function modelsForProvider(provider) {
+  const list = MODELS_BY_PROVIDER[provider] || [];
+  return list.map((m) => ({ value: m, label: m }));
+}
+
+function applyProvider() {
+  const models = modelsForProvider(state.provider);
+  modelDD?.setOptions(models);
+  const defaultModel = PROVIDER_DEFAULT_MODELS[state.provider] || "";
+  state.model = defaultModel;
+  modelDD?.setValue(defaultModel);
+  const needsBaseUrl = PROVIDERS_NEEDING_BASE_URL.has(state.provider);
+  $("baseUrl").style.display = needsBaseUrl ? "" : "none";
+}
+
 // ── Wiring ─────────────────────────────────────────────────────
 function wire() {
   // Dropdowns
   suiteDD = buildDropdown("suiteDropdown", [{ value: "", label: "Loading…" }], "", (v) =>
     setSuite(v)
   );
-  modelDD = buildDropdown(
-    "modelDropdown",
-    MODELS.map((m) => ({ value: m, label: m, meta: "" })),
-    state.model,
-    (v) => {
-      state.model = v;
-      saveModelAndKey();
-    }
-  );
+  providerDD = buildDropdown("providerDropdown", PROVIDER_OPTIONS, state.provider, (v) => {
+    state.provider = v;
+    applyProvider();
+    saveModelAndKey();
+  });
+
+  modelDD = buildDropdown("modelDropdown", modelsForProvider(state.provider), state.model, (v) => {
+    state.model = v;
+    saveModelAndKey();
+  });
 
   // Evals collapse
   $("evalsHead").addEventListener("click", () => {
@@ -2554,9 +2594,12 @@ async function init() {
   await loadSettings();
 
   // Apply loaded settings to UI fields
-  $("baseUrl").value = state.baseUrl;
-  $("apiKey").value = state.apiKey;
+  providerDD.setValue(state.provider);
+  modelDD.setOptions(modelsForProvider(state.provider));
   modelDD.setValue(state.model);
+  $("baseUrl").value = state.baseUrl;
+  $("baseUrl").style.display = PROVIDERS_NEEDING_BASE_URL.has(state.provider) ? "" : "none";
+  $("apiKey").value = state.apiKey;
   $("agentDescription").value = state.agentDescription;
   $("attackObjective").value = state.attackObjective;
   $("businessUseCase").value = state.businessUseCase;

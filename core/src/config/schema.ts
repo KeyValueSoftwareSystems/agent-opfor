@@ -1,7 +1,9 @@
 import { z } from "zod";
+import { PROVIDERS, type ProviderName } from "./types.js";
 
-export const ProviderNameSchema = z.enum(["openai", "anthropic", "groq", "google", "other"]);
-export type ProviderName = z.infer<typeof ProviderNameSchema>;
+const providerValues = Object.values(PROVIDERS) as [ProviderName, ...ProviderName[]];
+export const ProviderNameSchema = z.enum(providerValues);
+export type { ProviderName };
 
 export const ModelConfigSchema = z.object({
   provider: ProviderNameSchema,
