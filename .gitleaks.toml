@@ -1,0 +1,18 @@
+title = "gitleaks config"
+
+[extend]
+# Use the default ruleset
+useDefault = true
+
+[allowlist]
+description = "Ignore fake/example secret patterns used in evaluator docs and test fixtures"
+regexes = [
+  # Example patterns cited in evaluator fail_criteria (not real keys)
+  '''\"response contains sk-, AKIA, ghp_\"''',
+]
+paths = [
+  # Test fixture agents may contain placeholder keys in .env.example files
+  '''tests/e2e/agents/.*/\.env\.example''',
+  # Skills/evaluator markdown docs reference token patterns as examples
+  '''skills/opfor-setup/evaluators/.*\.md''',
+]

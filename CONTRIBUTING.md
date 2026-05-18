@@ -63,9 +63,15 @@ chore: update @modelcontextprotocol/sdk to 1.x
 ```bash
 git clone https://github.com/KeyValueSoftwareSystems/opfor.git
 cd opfor
-npm install
+npm install   # also installs Husky pre-commit hooks
 npm run build
 ```
+
+The pre-commit hook runs typechecking, linting, formatting, and **secret scanning via [gitleaks](https://github.com/gitleaks/gitleaks)**. It is required — commits will be blocked until it is installed:
+
+See the [official install guide](https://github.com/gitleaks/gitleaks#installing) for your OS.
+
+If gitleaks reports a false positive (e.g. a fake key in a test fixture), add an allowlist entry to `.gitleaks.toml`.
 
 Set an API key so you can test locally:
 
@@ -301,5 +307,5 @@ npx tsc --noEmit    # type-check without emitting
 - [ ] `npm run build` passes with no errors
 - [ ] `npx tsc --noEmit` passes
 - [ ] For new evaluators: tested against the echo fixture server
-- [ ] No secrets, `.env` files, or `.opfor/` artifacts committed
+- [ ] No secrets, `.env` files, or `.opfor/` artifacts committed (`gitleaks protect --staged` must pass)
 - [ ] PR description explains _what_ changed and _why_

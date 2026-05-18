@@ -1,4 +1,12 @@
+#!/usr/bin/env sh
 npm run typecheck
 npm run lint
 npm run format:check
 npm run validate:skills
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "Error: gitleaks is required but not installed."
+  echo "Install: https://github.com/gitleaks/gitleaks#installing"
+  exit 1
+fi
+gitleaks protect --staged --redact
