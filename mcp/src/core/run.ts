@@ -48,7 +48,7 @@ export interface RunSummary {
     id: string;
     name: string;
     severity: string;
-    owasp: string;
+    ref: string;
     passed: number;
     failed: number;
     passRate: number;
@@ -130,7 +130,7 @@ export async function runScan(opts: RunOptions): Promise<RunSummary> {
       id: evaluatorId,
       name: first.evaluatorName,
       severity: first.severity,
-      owasp: first.owasp,
+      ref: first.ref,
       description: first.description ?? "",
       passCriteria: first.passCriteria,
       failCriteria: first.failCriteria,
@@ -294,7 +294,7 @@ export async function runScan(opts: RunOptions): Promise<RunSummary> {
       id: r.evaluator.id,
       name: r.evaluator.name,
       severity: r.evaluator.severity,
-      owasp: r.evaluator.owasp,
+      ref: r.evaluator.ref,
       passed: p,
       failed: f,
       passRate: r.results.length > 0 ? Math.round((p / r.results.length) * 100) : 0,

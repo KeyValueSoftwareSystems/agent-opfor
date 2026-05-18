@@ -8,7 +8,7 @@ export interface EvaluatorMeta {
   id: string;
   name: string;
   severity: "critical" | "high" | "medium" | "low";
-  owasp: string;
+  ref: string;
 }
 
 export interface SuiteMeta {
@@ -69,7 +69,7 @@ export async function loadSkillCatalog(): Promise<{
     evaluators.push({
       id,
       name: typeof doc.name === "string" ? doc.name : id,
-      owasp: typeof doc.owasp === "string" ? doc.owasp : "",
+      ref: typeof doc.ref === "string" ? doc.ref : "",
       severity: normalizeSeverity(typeof doc.severity === "string" ? doc.severity : "high"),
     });
   }

@@ -38,7 +38,7 @@ export function buildReport(args: {
     return {
       evaluatorId: id,
       evaluatorName: id,
-      owasp: "",
+      ref: "",
       severity: "",
       total: evalResults.length,
       passed,
@@ -75,18 +75,16 @@ export function buildReport(args: {
   };
 }
 
-/** Merge evaluator metadata (name, owasp, severity) into an already-built report. */
+/** Merge evaluator metadata (name, ref, severity) into an already-built report. */
 export function enrichReportWithCriteria(
   report: RunReport,
-  criteriaMap: Map<string, { name: string; owasp: string; severity: string }>
+  criteriaMap: Map<string, { name: string; ref: string; severity: string }>
 ): RunReport {
   return {
     ...report,
     evaluators: report.evaluators.map((e) => {
       const meta = criteriaMap.get(e.evaluatorId);
-      return meta
-        ? { ...e, evaluatorName: meta.name, owasp: meta.owasp, severity: meta.severity }
-        : e;
+      return meta ? { ...e, evaluatorName: meta.name, ref: meta.ref, severity: meta.severity } : e;
     }),
   };
 }

@@ -14,7 +14,7 @@ export async function loadEvaluatorCriteria(evaluatorId: string): Promise<Evalua
   return {
     id: typeof doc.id === "string" ? doc.id : evaluatorId,
     name: typeof doc.name === "string" ? doc.name : evaluatorId,
-    owasp: typeof doc.owasp === "string" ? doc.owasp : "",
+    ref: typeof doc.ref === "string" ? doc.ref : "",
     severity: typeof doc.severity === "string" ? doc.severity : "high",
     passCriteria: typeof doc.pass_criteria === "string" ? doc.pass_criteria : "",
     failCriteria: typeof doc.fail_criteria === "string" ? doc.fail_criteria : "",

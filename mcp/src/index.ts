@@ -48,8 +48,7 @@ server.tool(
       );
 
       const evalLines = catalog.evaluators.map(
-        (e) =>
-          `  ${e.id}  [${e.severity.toUpperCase()}]  ${e.name}\n` + `    OWASP: ${e.owasp ?? "—"}`
+        (e) => `  ${e.id}  [${e.severity.toUpperCase()}]  ${e.name}\n` + `    Ref: ${e.ref ?? "—"}`
       );
 
       return {
@@ -606,8 +605,8 @@ server.tool(
 
       const evalLines = agentResult.evaluatorResults
         .map(
-          (e: { owasp: string; name: string; passed: number; failed: number; passRate: number }) =>
-            `  [${e.owasp}] ${e.name}: ${e.passed}✓ ${e.failed}✗ (${e.passRate}% pass)`
+          (e: { ref: string; name: string; passed: number; failed: number; passRate: number }) =>
+            `  [${e.ref}] ${e.name}: ${e.passed}✓ ${e.failed}✗ (${e.passRate}% pass)`
         )
         .join("\n");
 

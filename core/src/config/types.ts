@@ -349,7 +349,7 @@ export interface AttackEntry {
   /** One-line description of what this evaluator tests. Passed to the judge for scope context. */
   description?: string;
   severity: string;
-  owasp: string;
+  ref: string;
   patternName: string;
   prompt: string;
   passCriteria: string;

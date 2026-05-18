@@ -85,7 +85,7 @@ Different people on your team need different entry points. Opfor ships four.
 | **🖥️ CLI**               | `opfor setup` → `opfor execute`                                  | Engineers, CI/CD, terminal-first workflows                                                |
 | **🌐 Browser extension** | Install the extension, click the icon on any chat interface      | Product managers, designers, QA, security analysts — anyone who can't or won't write code |
 | **🤖 MCP server**        | Register opfor in Cursor or Claude Desktop, then ask in chat     | AI coding agents that test your other agents                                              |
-| **⚡ Skills**            | `/opfor-setup` and `/opfor-run` in Cursor, Claude Code, Windsurf | Developers who want one-command testing inside their IDE                                  |
+| **⚡ Skills**            | `/opfor-setup` and `/opfor-execute` in Cursor, Claude Code, Windsurf | Developers who want one-command testing inside their IDE                              |
 
 All four share the same evaluators, attack templates, and judge logic.
 

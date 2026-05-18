@@ -13,7 +13,7 @@ export interface EvaluatorSpec {
   id: string;
   name: string;
   severity: string;
-  owasp: string;
+  ref: string;
   description: string;
   passCriteria: string;
   failCriteria: string;
@@ -58,7 +58,7 @@ export async function parseEvaluator(mdPath: string): Promise<EvaluatorSpec> {
   const id = str(doc, "id");
   const name = str(doc, "name");
   const severity = str(doc, "severity");
-  const owasp = str(doc, "owasp");
+  const ref = str(doc, "ref");
   const description = str(doc, "description");
   const passCriteria = str(doc, "pass_criteria") || str(doc, "passCriteria");
   const failCriteria = str(doc, "fail_criteria") || str(doc, "failCriteria");
@@ -74,7 +74,7 @@ export async function parseEvaluator(mdPath: string): Promise<EvaluatorSpec> {
     id,
     name,
     severity,
-    owasp,
+    ref,
     description,
     passCriteria,
     failCriteria,

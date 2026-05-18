@@ -82,7 +82,7 @@ export function errorJudge(errorMessage: string): JudgeResult {
 export interface EvaluatorCriteria {
   id: string;
   name: string;
-  owasp: string;
+  ref: string;
   severity: string;
   passCriteria: string;
   failCriteria: string;
