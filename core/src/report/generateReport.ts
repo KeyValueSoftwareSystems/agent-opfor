@@ -73,8 +73,7 @@ export async function generateReport(
     .toISOString()
     .replace(/[-:.T]/g, "")
     .slice(0, 15);
-  const uuid = randomUUID().slice(0, 8);
-  const reportId = `opfor-${uuid}-${timestamp}`;
+  const reportId = `opfor-agent-${randomUUID().slice(0, 8)}`;
 
   // --- aggregate metrics ---
   let totalTests = 0;
@@ -559,8 +558,8 @@ export async function generateReport(
   const reportDir = path.join(outputDir, `report-${folderTs}`);
   await mkdir(reportDir, { recursive: true });
 
-  const htmlPath = path.join(reportDir, `report.html`);
-  const jsonPath = path.join(reportDir, `report.json`);
+  const htmlPath = path.join(reportDir, `${reportId}.html`);
+  const jsonPath = path.join(reportDir, `${reportId}.json`);
 
   await writeFile(htmlPath, html, "utf8");
   await writeFile(jsonPath, JSON.stringify(jsonData, null, 2), "utf8");
@@ -580,7 +579,14 @@ function testCard(t: TestResult): string {
     turnsHtml = t
       .turns!.map((turn) => {
         const tv = turn.judge?.verdict;
-        const tColor = tv === "PASS" ? "var(--pass)" : tv === "ERROR" ? "#D97706" : "var(--fail)";
+        const tColor =
+          tv === "PASS"
+            ? "var(--pass)"
+            : tv === "ERROR"
+              ? "#D97706"
+              : tv === "FAIL"
+                ? "var(--fail)"
+                : "var(--muted)";
         return `
           <div style="margin-bottom:8px;padding:8px 10px;background:var(--surface-2);border-radius:6px;border-left:2px solid ${tColor}">
             <div style="font-size:11px;font-weight:600;color:var(--text);margin-bottom:4px">Turn ${turn.turnIndex}${tv ? ` · <span style="color:${tColor}">${tv}</span>${tv !== "ERROR" ? ` · ${turn.judge?.score}/10` : ""}` : ""}</div>
