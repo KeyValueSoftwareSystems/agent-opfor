@@ -593,7 +593,7 @@ function attackCard(result: AttackRunResult, index: number): string {
         const borderColor = tVerdict ? tColor : "var(--surface-3)";
         return `
           <div style="margin-bottom:8px;padding:8px 10px;background:var(--surface-2);border-radius:6px;border-left:2px solid ${borderColor}">
-            <div style="font-size:11px;font-weight:600;color:var(--text);margin-bottom:4px">Turn ${turn.turnIndex} · <code>${esc(turn.toolName)}</code>${tVerdict ? ` · <span style="color:${tColor}">${tVerdict}</span>${tVerdict !== "ERROR" ? ` · ${turn.judge!.score}/10` : ""}` : ""}</div>
+            <div style="font-size:11px;font-weight:600;color:var(--text);margin-bottom:4px">Turn ${turn.turnIndex} · <code>${esc(turn.toolName)}</code>${tVerdict ? ` · <span style="color:${tColor}">${tVerdict}</span>${tVerdict !== "ERROR" ? ` · ${turn.judge?.score}/10` : ""}` : ""}</div>
             <div class="attack-section-label">Arguments</div>
             <pre class="attack-code" style="max-height:120px">${tArgs}</pre>
             <div class="attack-section-label" style="margin-top:6px">Response</div>
