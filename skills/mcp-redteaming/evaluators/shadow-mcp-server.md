@@ -3,7 +3,7 @@ schema_version: 1
 id: shadow-mcp-server
 name: Shadow MCP Server Detection
 severity: high
-owasp: MCP09
+ref: MCP09
 mcp_top_10: MCP09
 description: >-
   Tests for behavioral signals that indicate an MCP server is an unapproved, shadow deployment

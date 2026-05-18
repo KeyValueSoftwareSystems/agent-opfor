@@ -3,7 +3,7 @@ schema_version: 1
 id: bfla
 name: Broken Function Level Authorization (BFLA)
 severity: high
-owasp: API5
+ref: API5
 description: Test whether the target can be tricked into invoking administrative or
   privileged functions reserved for higher-privileged roles.
 pass_criteria: |-

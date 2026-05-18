@@ -316,7 +316,7 @@ async function runInteractiveWizard(
     selectedEvaluatorIds = await checkbox<string>({
       message: "Select evaluators (space to toggle, enter to confirm):",
       choices: sorted.map((e) => ({
-        name: `[${e.severity.toUpperCase().padEnd(8)}] ${e.owasp.padEnd(6)} ${e.name}`,
+        name: `[${e.severity.toUpperCase().padEnd(8)}] ${e.ref.padEnd(6)} ${e.name}`,
         value: e.id,
       })),
       validate: (v) => v.length > 0 || "Select at least one evaluator",
@@ -524,7 +524,7 @@ export function registerSetupCommand(program: Command) {
             evaluatorName: evaluator.name,
             description: evaluator.description,
             severity: evaluator.severity,
-            owasp: evaluator.owasp,
+            ref: evaluator.ref,
             patternName: attack.patternName,
             prompt: attack.prompt,
             passCriteria: evaluator.passCriteria,
@@ -692,7 +692,7 @@ export async function generateAgentAttacksFromConfig(opts: {
         evaluatorName: evaluator.name,
         description: evaluator.description,
         severity: evaluator.severity,
-        owasp: evaluator.owasp,
+        ref: evaluator.ref,
         patternName: attack.patternName,
         prompt: attack.prompt,
         passCriteria: evaluator.passCriteria,

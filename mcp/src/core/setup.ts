@@ -272,7 +272,7 @@ async function runSetupCore({
         evaluatorName: evaluator.name,
         description: evaluator.description,
         severity: evaluator.severity,
-        owasp: evaluator.owasp,
+        ref: evaluator.ref,
         patternName: attack.patternName,
         prompt: attack.prompt,
         passCriteria: evaluator.passCriteria,

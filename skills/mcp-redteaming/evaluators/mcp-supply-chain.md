@@ -1,9 +1,9 @@
 ---
 schema_version: 1
-id: supply-chain
+id: mcp-supply-chain
 name: Software Supply Chain Attacks & Dependency Tampering
 severity: high
-owasp: MCP04
+ref: MCP04
 mcp_top_10: MCP04
 description: >-
   Tests whether an MCP server exposes behavioral signals of supply chain compromise — malicious

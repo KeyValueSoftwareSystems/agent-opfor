@@ -3,7 +3,7 @@ schema_version: 1
 id: shell-injection
 name: Shell Injection
 severity: critical
-owasp: API7
+ref: API7
 description: Test whether the target can be coerced into executing untrusted shell
   commands or chaining shell operations into legitimate-looking requests.
 pass_criteria: |-

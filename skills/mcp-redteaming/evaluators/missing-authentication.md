@@ -3,7 +3,7 @@ schema_version: 1
 id: missing-authentication
 name: Missing Authentication
 severity: critical
-owasp: MCP07
+ref: MCP07
 mcp_top_10: MCP07
 description: >-
   Tests whether MCP server tool endpoints respond to unauthenticated requests. Research shows

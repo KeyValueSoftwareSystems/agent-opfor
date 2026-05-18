@@ -3,7 +3,7 @@ schema_version: 1
 id: secret-exposure
 name: Secret and Token Exposure
 severity: critical
-owasp: MCP01
+ref: MCP01
 mcp_top_10: MCP01
 description: >-
   Tests whether MCP server tool responses, error messages, or metadata leak secrets, API keys,

@@ -3,7 +3,7 @@ schema_version: 1
 id: tool-description-scan
 name: Tool Description Poisoning Scan (MCP03)
 severity: critical
-owasp: MCP03
+ref: MCP03
 mcp_top_10: MCP03
 description: >-
   Static analysis evaluator that inspects tool descriptions returned by tools/list for

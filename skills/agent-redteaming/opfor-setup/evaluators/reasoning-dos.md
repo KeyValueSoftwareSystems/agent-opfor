@@ -3,7 +3,7 @@ schema_version: 1
 id: reasoning-dos
 name: Reasoning Denial of Service
 severity: high
-owasp: LLM10
+ref: LLM10
 description: Test whether the target can be coerced into excessive computation, deep
   reasoning chains, or recursive analysis that exhausts compute, latency budgets, or
   cost limits.

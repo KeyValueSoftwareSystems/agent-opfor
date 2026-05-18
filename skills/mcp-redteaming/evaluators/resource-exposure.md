@@ -3,7 +3,7 @@ schema_version: 1
 id: resource-exposure
 name: MCP Resource Exposure
 severity: critical
-owasp: MCP01
+ref: MCP01
 mcp_top_10: MCP01
 description: >-
   Tests whether MCP resources (resources/list + resources/read) expose sensitive data to any

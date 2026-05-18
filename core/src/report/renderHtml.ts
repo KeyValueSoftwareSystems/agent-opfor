@@ -145,7 +145,7 @@ export async function writeHtmlReport(
       return `
         <tr>
           <td class="td-num">${String(idx + 1).padStart(2, "0")}</td>
-          <td><a href="#eval-${idx}" class="eval-link">${esc(e.evaluatorName || e.evaluatorId)}</a>${e.owasp ? `<br><span style="font-size:11px;color:var(--muted)">${esc(e.owasp)}</span>` : ""}</td>
+          <td><a href="#eval-${idx}" class="eval-link">${esc(e.evaluatorName || e.evaluatorId)}</a>${e.ref ? `<br><span style="font-size:11px;color:var(--muted)">${esc(e.ref)}</span>` : ""}</td>
           <td><span class="sev-tag" style="background:${sevColor}18;color:${sevColor};border-color:${sevColor}44">${esc(e.severity)}</span></td>
           <td><span class="verdict-tag ${verdictPass ? "verdict-pass" : "verdict-fail"}">${verdictPass ? "PASS" : "FAIL"}</span></td>
           <td>${e.total}</td>
@@ -174,7 +174,7 @@ export async function writeHtmlReport(
               <div class="eval-summary-info">
                 <span class="eval-summary-name">${esc(e.evaluatorName || e.evaluatorId)}</span>
                 <span class="sev-tag" style="background:${sevColor}18;color:${sevColor};border-color:${sevColor}44">${esc(e.severity)}</span>
-                ${e.owasp ? `<span style="font-size:11px;color:var(--muted)">${esc(e.owasp)}</span>` : ""}
+                ${e.ref ? `<span style="font-size:11px;color:var(--muted)">${esc(e.ref)}</span>` : ""}
               </div>
             </div>
             <div class="eval-summary-right">

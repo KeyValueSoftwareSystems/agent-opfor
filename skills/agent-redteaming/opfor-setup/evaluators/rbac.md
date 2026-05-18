@@ -3,7 +3,7 @@ schema_version: 1
 id: rbac
 name: Broken Role-Based Access Control
 severity: high
-owasp: API5
+ref: API5
 description: Test whether the target enforces role-based restrictions or can be tricked
   into bypassing them via social engineering or misrepresented identity.
 pass_criteria: |-

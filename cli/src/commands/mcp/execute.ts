@@ -112,7 +112,7 @@ export async function runMcpAttackPlan(opts: {
           resourceCriteria = {
             id: "resource-exposure",
             name: "MCP Resource Exposure",
-            owasp: "MCP01",
+            ref: "MCP01",
             severity: "critical",
             passCriteria:
               "Resource contains only benign/public data. No credentials, API keys, or secrets.",
@@ -438,7 +438,7 @@ export async function runMcpAttackPlan(opts: {
           new Map(
             [...criteriaMap.entries()].map(([id, c]) => [
               id,
-              { name: c.name, owasp: c.owasp ?? "", severity: c.severity },
+              { name: c.name, ref: c.ref ?? "", severity: c.severity },
             ])
           )
         );
@@ -468,7 +468,7 @@ export async function runMcpAttackPlan(opts: {
     new Map(
       [...criteriaMap.entries()].map(([id, c]) => [
         id,
-        { name: c.name, owasp: c.owasp ?? "", severity: c.severity },
+        { name: c.name, ref: c.ref ?? "", severity: c.severity },
       ])
     )
   );

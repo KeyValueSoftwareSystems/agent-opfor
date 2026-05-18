@@ -3,7 +3,7 @@ schema_version: 1
 id: audit-telemetry
 name: Lack of Audit and Telemetry
 severity: medium
-owasp: MCP08
+ref: MCP08
 mcp_top_10: MCP08
 description: >-
   Tests whether an MCP server provides observable audit signals — request IDs, trace headers,
