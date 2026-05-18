@@ -4,12 +4,12 @@ import { randomUUID } from "node:crypto";
 import { createModel } from "../../../core/dist/providers/factory.js";
 import { judgeResponse, errorJudge } from "../../../core/dist/evaluators/judge.js";
 import type { ConversationTurn, JudgeResult } from "../../../core/dist/evaluators/judge.js";
-import { generateReport } from "../../../core/dist/report/generateReport.js";
+import { generateReport } from "../../../core/dist/report/agentReport.js";
 import type {
   EvaluatorReport,
   TestResult,
   TurnRecord,
-} from "../../../core/dist/report/generateReport.js";
+} from "../../../core/dist/report/agentReport.js";
 import type { EvaluatorSpec } from "../../../core/dist/evaluators/parseEvaluator.js";
 import type { AttackEntry, PromptsFile } from "../../../core/dist/config/types.js";
 import { resolveTelemetryEnv } from "../../../core/dist/config/resolveTelemetryEnv.js";

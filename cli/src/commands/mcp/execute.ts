@@ -13,8 +13,11 @@ import { generateNextMcpAttackTurn } from "../../../../core/dist/run/generateNex
 import type { ToolCallTurn } from "../../../../core/dist/run/generateNextMcpAttackTurn.js";
 
 import { loadEvaluatorCriteria } from "../../../../core/dist/catalog/loadEvaluatorCriteria.js";
-import { buildReport, enrichReportWithCriteria } from "../../../../core/dist/report/buildReport.js";
-import { writeHtmlReport } from "../../../../core/dist/report/renderHtml.js";
+import {
+  buildReport,
+  enrichReportWithCriteria,
+  writeHtmlReport,
+} from "../../../../core/dist/report/mcpReport.js";
 import { scanResources } from "../../../../core/dist/run/scanResources.js";
 import type { AttackPlanWritten } from "../../../../core/dist/attacks/planSchema.js";
 import type { AttackRunResult, TurnRecord } from "../../../../core/dist/run/types.js";

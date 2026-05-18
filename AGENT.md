@@ -74,8 +74,14 @@ opfor/
 │   │       ├── suites/          # Suite .md files grouping evaluator IDs
 │   │       └── targets/         # Target adapter docs (http-endpoint, custom-function)
 │   └── mcp-redteaming/
-│       ├── evaluators/          # MCP-native evaluator .md files (JSON-RPC payload style)
-│       └── suites/              # owasp-mcp-top10.md
+│       ├── opfor-setup/
+│       │   ├── SKILL.md         # MCP target configuration skill entry point
+│       │   ├── evaluators/      # MCP-native evaluator .md files (JSON-RPC payload style)
+│       │   ├── suites/          # owasp-mcp-top10.md
+│       │   └── targets/         # Transport adapter docs (stdio, url)
+│       └── opfor-execute/
+│           ├── SKILL.md         # MCP assessment execution skill entry point
+│           └── report-schema.md # MCP report format specification
 ├── tests/
 │   └── e2e/
 │       └── agents/              # Test agents for local developer testing (never published)
@@ -136,7 +142,7 @@ npm run format:check             # prettier --check
 | `core/src/evaluators/parseEvaluator.ts` | Loads evaluator `.md`, parses YAML frontmatter → `EvaluatorSpec`                        |
 | `core/src/attacks/generatePlan.ts`      | Calls LLM to fill `{{placeholder}}` variables in attack templates                       |
 | `core/src/run/executeAttack.ts`         | Single attack execution — dispatch + judge                                              |
-| `core/src/report/generateReport.ts`     | Produces `report.html` and `report.json`                                                |
+| `core/src/report/agentReport.ts`        | Produces `report.html` and `report.json`                                                |
 | `cli/src/commands/setup.ts`             | Interactive setup wizard                                                                |
 | `cli/src/commands/generate.ts`          | Non-interactive attack generation (`opfor generate`)                                    |
 | `cli/src/commands/execute.ts`           | Execute entrypoint (`opfor execute`)                                                    |
@@ -175,7 +181,7 @@ patterns:
 
 **Agent-redteaming evaluators** (`skills/agent-redteaming/`) send the rendered template as a plain prompt to the target.
 
-**MCP-redteaming evaluators** (`skills/mcp-redteaming/`) produce JSON-RPC payloads fired directly at the MCP server. Templates include `{{tool_list_json}}` replaced with the live `tools/list` response.
+**MCP-redteaming evaluators** (`skills/mcp-redteaming/opfor-setup/evaluators/`) produce JSON-RPC payloads fired directly at the MCP server. Templates include `{{tool_list_json}}` replaced with the live `tools/list` response.
 
 ---
 
@@ -248,7 +254,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) — "Adding a test agent" section.
 
 ## Adding an evaluator (no TypeScript needed)
 
-1. Create `skills/agent-redteaming/opfor-setup/evaluators/<id>.md` (or `mcp-redteaming` equivalent)
+1. Create `skills/agent-redteaming/opfor-setup/evaluators/<id>.md` (or `skills/mcp-redteaming/opfor-setup/evaluators/<id>.md`)
 2. Fill YAML frontmatter: `id`, `name`, `severity`, `owasp`, `description`, `pass_criteria`, `fail_criteria`, `patterns`
 3. Add the ID to at least one suite's `evaluators:` list in `skills/*/suites/`
 4. Test: `opfor setup` → select your evaluator → `opfor generate` → `opfor execute`

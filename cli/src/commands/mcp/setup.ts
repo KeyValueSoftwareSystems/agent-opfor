@@ -108,7 +108,7 @@ export async function runMcpGenerateAttackPlan(opts: {
     const suite = catalog.suites.find((s) => s.id === DEFAULT_SUITE_ID);
     if (!suite) {
       throw new Error(
-        `Default suite "${DEFAULT_SUITE_ID}" not found (check skills/mcp-redteaming/suites/).`
+        `Default suite "${DEFAULT_SUITE_ID}" not found (check skills/mcp-redteaming/opfor-setup/suites/).`
       );
     }
     const missing = suite.evaluatorIds.filter((id) => !evalIds.has(id));

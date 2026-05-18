@@ -24,10 +24,10 @@ function normalizeSeverity(s: string): EvaluatorMeta["severity"] {
   return "high";
 }
 
-/** `skills/mcp-redteaming` at repo root — MCP-server-direct evaluator catalog. */
+/** `skills/mcp-redteaming/opfor-setup` at repo root — MCP-server-direct evaluator catalog. */
 export function getCatalogRoot(): string {
   const here = path.dirname(fileURLToPath(import.meta.url));
-  return path.resolve(here, "..", "..", "..", "skills", "mcp-redteaming");
+  return path.resolve(here, "..", "..", "..", "skills", "mcp-redteaming", "opfor-setup");
 }
 
 export async function loadCatalog(): Promise<{

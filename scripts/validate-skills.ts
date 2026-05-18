@@ -34,8 +34,8 @@ const SKILL_TREES = [
   },
   {
     label: "mcp-redteaming",
-    evaluatorsDir: path.join(REPO_ROOT, "skills/mcp-redteaming/evaluators"),
-    suitesDir: path.join(REPO_ROOT, "skills/mcp-redteaming/suites"),
+    evaluatorsDir: path.join(REPO_ROOT, "skills/mcp-redteaming/opfor-setup/evaluators"),
+    suitesDir: path.join(REPO_ROOT, "skills/mcp-redteaming/opfor-setup/suites"),
     requirePatterns: false,
   },
 ];
