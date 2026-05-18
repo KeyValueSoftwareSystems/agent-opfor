@@ -276,6 +276,8 @@ export const PROVIDERS = {
   ANTHROPIC: "anthropic",
   GROQ: "groq",
   GOOGLE: "google",
+  DEEPSEEK: "deepseek",
+  AZURE: "azure",
   OPENAI_COMPATIBLE: "openai-compatible",
 } as const;
 
@@ -286,7 +288,9 @@ export const PROVIDER_CHOICES: { name: string; value: ProviderName }[] = [
   { name: "Anthropic (Claude)", value: PROVIDERS.ANTHROPIC },
   { name: "Google (Gemini)", value: PROVIDERS.GOOGLE },
   { name: "Groq", value: PROVIDERS.GROQ },
-  { name: "OpenAI-compatible", value: PROVIDERS.OPENAI_COMPATIBLE },
+  { name: "DeepSeek", value: PROVIDERS.DEEPSEEK },
+  { name: "Azure OpenAI", value: PROVIDERS.AZURE },
+  { name: "Custom (OpenAI-compatible)", value: PROVIDERS.OPENAI_COMPATIBLE },
 ];
 
 /** Partial LLM config used in setup/config file inputs — all fields optional before resolution. */
@@ -302,7 +306,7 @@ export interface LlmConfig {
   provider: ProviderName;
   model: string;
   apiKeyEnv: string; // env var name, resolved at runtime
-  baseURL?: string; // only for "openai-compatible"
+  baseURL?: string; // required for "openai-compatible" and "azure"
 }
 
 export interface TargetConfig {

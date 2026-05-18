@@ -158,6 +158,8 @@ const opforSetupSchemaShape: Record<string, z.ZodTypeAny> = {
       PROVIDERS.OPENAI,
       PROVIDERS.ANTHROPIC,
       PROVIDERS.GOOGLE,
+      PROVIDERS.DEEPSEEK,
+      PROVIDERS.AZURE,
       PROVIDERS.OPENAI_COMPATIBLE,
     ] as [ProviderName, ...ProviderName[]])
     .optional()

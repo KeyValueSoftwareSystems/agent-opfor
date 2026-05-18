@@ -3,5 +3,7 @@ export const PROVIDERS = {
   ANTHROPIC: "anthropic",
   GROQ: "groq",
   GOOGLE: "google",
+  DEEPSEEK: "deepseek",
+  AZURE: "azure",
   OPENAI_COMPATIBLE: "openai-compatible",
 };

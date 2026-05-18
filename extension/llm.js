@@ -135,6 +135,23 @@ export async function callLlm({ provider, baseUrl, apiKey, model, messages, sign
       return callAnthropic({ apiKey, model, messages, signal });
     case PROVIDERS.GOOGLE:
       return callGoogle({ apiKey, model, messages, signal });
+    case PROVIDERS.DEEPSEEK:
+      return callOpenAiCompat({
+        baseUrl: "https://api.deepseek.com/v1",
+        apiKey,
+        model,
+        messages,
+        signal,
+      });
+    case PROVIDERS.AZURE:
+      // baseUrl is the Azure resource name; construct the endpoint
+      return callOpenAiCompat({
+        baseUrl: `https://${baseUrl}.openai.azure.com/openai/deployments/${model}`,
+        apiKey,
+        model,
+        messages,
+        signal,
+      });
     default:
       return callOpenAiCompat({
         baseUrl: baseUrl || "https://api.openai.com/v1",

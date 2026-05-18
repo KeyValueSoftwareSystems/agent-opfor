@@ -38,7 +38,7 @@ async function promptModelConfig(label: string) {
   const baseURL =
     provider === PROVIDERS.OPENAI_COMPATIBLE
       ? await input({
-          message: `Base URL for OpenAI-compatible provider (e.g. https://api.your-host.com/v1)`,
+          message: `Base URL for Custom (OpenAI-compatible) provider (e.g. https://api.your-host.com/v1)`,
           validate: (v: string) => {
             try {
               new URL(v);
@@ -48,7 +48,12 @@ async function promptModelConfig(label: string) {
             }
           },
         })
-      : undefined;
+      : provider === PROVIDERS.AZURE
+        ? await input({
+            message: `Azure resource name (e.g. my-resource — from https://my-resource.openai.azure.com)`,
+            validate: (v: string) => v.trim() !== "" || "Resource name is required",
+          })
+        : undefined;
 
   return {
     provider,

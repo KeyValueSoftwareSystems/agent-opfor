@@ -153,6 +153,12 @@ async function collectLlmConfig(label: string): Promise<LlmConfig> {
       message: "Base URL (e.g. https://my-ollama.local/v1):",
       validate: (v) => v.trim().startsWith("http") || "Must be a valid URL",
     });
+  } else if (provider === PROVIDERS.AZURE) {
+    baseURL = await input({
+      message:
+        "Azure resource name (e.g. my-resource — from https://my-resource.openai.azure.com):",
+      validate: (v) => v.trim() !== "" || "Resource name is required",
+    });
   }
 
   const defaultEnvVar = PROVIDER_ENV_VARS[provider];

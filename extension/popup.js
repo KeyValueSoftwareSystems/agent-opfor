@@ -12,7 +12,9 @@ const PROVIDER_OPTIONS = [
   { value: PROVIDERS.ANTHROPIC, label: "Anthropic" },
   { value: PROVIDERS.GOOGLE, label: "Google (Gemini)" },
   { value: PROVIDERS.GROQ, label: "Groq" },
-  { value: PROVIDERS.OPENAI_COMPATIBLE, label: "OpenAI-compatible" },
+  { value: PROVIDERS.DEEPSEEK, label: "DeepSeek" },
+  { value: PROVIDERS.AZURE, label: "Azure OpenAI" },
+  { value: PROVIDERS.OPENAI_COMPATIBLE, label: "Custom (OpenAI-compatible)" },
 ];
 
 const MODELS_BY_PROVIDER = {
@@ -25,6 +27,8 @@ const MODELS_BY_PROVIDER = {
   ],
   [PROVIDERS.GOOGLE]: ["gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"],
   [PROVIDERS.GROQ]: ["llama-3.3-70b-versatile", "llama-3.1-70b"],
+  [PROVIDERS.DEEPSEEK]: ["deepseek-chat", "deepseek-reasoner"],
+  [PROVIDERS.AZURE]: [],
   [PROVIDERS.OPENAI_COMPATIBLE]: [],
 };
 
@@ -33,11 +37,13 @@ const PROVIDER_DEFAULT_MODELS = {
   [PROVIDERS.ANTHROPIC]: "claude-sonnet-4-5",
   [PROVIDERS.GOOGLE]: "gemini-2.0-flash",
   [PROVIDERS.GROQ]: "llama-3.3-70b-versatile",
+  [PROVIDERS.DEEPSEEK]: "deepseek-chat",
+  [PROVIDERS.AZURE]: "",
   [PROVIDERS.OPENAI_COMPATIBLE]: "",
 };
 
 /** Providers that require a user-supplied baseUrl. */
-const PROVIDERS_NEEDING_BASE_URL = new Set([PROVIDERS.OPENAI_COMPATIBLE]);
+const PROVIDERS_NEEDING_BASE_URL = new Set([PROVIDERS.AZURE, PROVIDERS.OPENAI_COMPATIBLE]);
 
 const $ = (id) => document.getElementById(id);
 

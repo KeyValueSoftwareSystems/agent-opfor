@@ -2,6 +2,8 @@ import type { LanguageModel } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { createDeepSeek } from "@ai-sdk/deepseek";
+import { createAzure } from "@ai-sdk/azure";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { PROVIDERS, type LlmConfig, type ProviderName } from "../config/types.js";
 
@@ -10,6 +12,8 @@ export const PROVIDER_DEFAULTS: Record<ProviderName, string> = {
   [PROVIDERS.ANTHROPIC]: "claude-3-5-haiku-20241022",
   [PROVIDERS.GROQ]: "llama-3.3-70b-versatile",
   [PROVIDERS.GOOGLE]: "gemini-2.0-flash",
+  [PROVIDERS.DEEPSEEK]: "deepseek-chat",
+  [PROVIDERS.AZURE]: "gpt-4o-mini",
   [PROVIDERS.OPENAI_COMPATIBLE]: "",
 };
 
@@ -18,6 +22,8 @@ export const PROVIDER_ENV_VARS: Record<ProviderName, string> = {
   [PROVIDERS.ANTHROPIC]: "ANTHROPIC_API_KEY",
   [PROVIDERS.GROQ]: "GROQ_API_KEY",
   [PROVIDERS.GOOGLE]: "GOOGLE_GENERATIVE_AI_API_KEY",
+  [PROVIDERS.DEEPSEEK]: "DEEPSEEK_API_KEY",
+  [PROVIDERS.AZURE]: "AZURE_OPENAI_API_KEY",
   [PROVIDERS.OPENAI_COMPATIBLE]: "OPFOR_API_KEY",
 };
 
@@ -31,6 +37,8 @@ export const PROVIDER_CAPABILITIES: Record<ProviderName, ProviderCapabilities> =
   [PROVIDERS.ANTHROPIC]: { supportsJsonMode: false, requiresBaseURL: false },
   [PROVIDERS.GROQ]: { supportsJsonMode: true, requiresBaseURL: false },
   [PROVIDERS.GOOGLE]: { supportsJsonMode: false, requiresBaseURL: false },
+  [PROVIDERS.DEEPSEEK]: { supportsJsonMode: true, requiresBaseURL: false },
+  [PROVIDERS.AZURE]: { supportsJsonMode: true, requiresBaseURL: true },
   [PROVIDERS.OPENAI_COMPATIBLE]: { supportsJsonMode: true, requiresBaseURL: true },
 };
 
@@ -68,6 +76,17 @@ export function createModel(llm: LlmConfig): LanguageModel {
 
     case PROVIDERS.GOOGLE:
       return createGoogleGenerativeAI({ apiKey })(model);
+
+    case PROVIDERS.DEEPSEEK:
+      return createDeepSeek({ apiKey })(model);
+
+    case PROVIDERS.AZURE: {
+      if (!baseURL)
+        throw new Error(
+          `baseURL is required for provider '${PROVIDERS.AZURE}' (Azure resource endpoint, e.g. https://<resource>.openai.azure.com)`
+        );
+      return createAzure({ apiKey, resourceName: baseURL })(model);
+    }
 
     case PROVIDERS.OPENAI_COMPATIBLE: {
       if (!baseURL)
