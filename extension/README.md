@@ -35,23 +35,23 @@ Each profile needs: base URL, model name, API key, enabled toggle.
 
 The service worker is split into focused ES modules loaded via native `import`:
 
-| File                   | Responsibility                                                     |
-| ---------------------- | ------------------------------------------------------------------ |
-| `service_worker.js`    | Entry point — message routing only                                 |
-| `orchestrator.js`      | Main run loop: locate → attack → extract → judge                   |
-| `llmPlanner.js`        | All LLM prompts (frame selection, attack generation, judging)      |
+| File                   | Responsibility                                                      |
+| ---------------------- | ------------------------------------------------------------------- |
+| `service_worker.js`    | Entry point — message routing only                                  |
+| `orchestrator.js`      | Main run loop: locate → attack → extract → judge                    |
+| `llmPlanner.js`        | All LLM prompts (frame selection, attack generation, judging)       |
 | `chatLocator.js`       | LLM-driven chat widget detection using accessibility tree snapshots |
-| `frameDiscovery.js`    | Frame collection, scoring, and chat-frame selection                |
-| `domActions.js`        | DOM interaction via `chrome.scripting.executeScript`               |
-| `responseExtractor.js` | Smart polling extractor for bot responses                          |
-| `llm.js`               | OpenAI-compatible HTTP client (`callOpenAiCompat`)                 |
-| `storage.js`           | `chrome.storage.local` read/write helpers                          |
-| `catalog.js`           | `catalog.json` loading and evaluator/suite lookups                 |
-| `config.js`            | LLM profile loading from Options storage                           |
-| `state.js`             | Shared mutable run state (`OPFOR_STOP`, abort controller)          |
-| `utils.js`             | `sleep`, `formatTranscript`, `safeJsonParse`                       |
-| `frame_*.js`           | Frame scripts injected into page contexts (standalone, no imports) |
-| `popup.js`             | Extension popup UI                                                 |
+| `frameDiscovery.js`    | Frame collection, scoring, and chat-frame selection                 |
+| `domActions.js`        | DOM interaction via `chrome.scripting.executeScript`                |
+| `responseExtractor.js` | Smart polling extractor for bot responses                           |
+| `llm.js`               | OpenAI-compatible HTTP client (`callOpenAiCompat`)                  |
+| `storage.js`           | `chrome.storage.local` read/write helpers                           |
+| `catalog.js`           | `catalog.json` loading and evaluator/suite lookups                  |
+| `config.js`            | LLM profile loading from Options storage                            |
+| `state.js`             | Shared mutable run state (`OPFOR_STOP`, abort controller)           |
+| `utils.js`             | `sleep`, `formatTranscript`, `safeJsonParse`                        |
+| `frame_*.js`           | Frame scripts injected into page contexts (standalone, no imports)  |
+| `popup.js`             | Extension popup UI                                                  |
 
 Frame scripts (`frame_*.js`) are injected via `chrome.scripting.executeScript()` into page
 contexts and **cannot use ES module imports** — they remain standalone files.

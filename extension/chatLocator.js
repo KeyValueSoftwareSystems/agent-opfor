@@ -257,8 +257,7 @@ export async function locateChatWidget(tabId, readerCfg, options = {}) {
           const href =
             el instanceof HTMLAnchorElement ? short(el.getAttribute("href") || "", 160) : "";
           const nav = el instanceof HTMLAnchorElement && isNavigatingLink(el) ? " nav=true" : "";
-          const disabled =
-            el instanceof HTMLButtonElement && el.disabled ? " disabled=true" : "";
+          const disabled = el instanceof HTMLButtonElement && el.disabled ? " disabled=true" : "";
           push(
             `- role=${role || "unknown"} name="${name}" selector="${sel}"${
               href ? ` href="${href}"` : ""
@@ -300,6 +299,7 @@ export async function locateChatWidget(tabId, readerCfg, options = {}) {
   for (let attempt = 0; attempt < maxAiAttempts; attempt++) {
     if (state.OPFOR_STOP) return { ok: false, error: "Run stopped." };
 
+    // eslint-disable-next-line no-useless-assignment
     let frames = [];
     try {
       frames = await collectAxSnapshots();
@@ -311,10 +311,15 @@ export async function locateChatWidget(tabId, readerCfg, options = {}) {
     // If we can see the Ada "button" iframe, send the same command manual clicks send.
     if (openWidget) {
       try {
-        const adaButton = frames.find((f) => String(f.frameUrl || "").includes("ada.support/embed/button/"));
+        const adaButton = frames.find((f) =>
+          String(f.frameUrl || "").includes("ada.support/embed/button/")
+        );
         if (adaButton) {
           if (debug) {
-            console.log("[locateChatWidget] ada vendor open via postMessage frameId=", adaButton.frameId);
+            console.log(
+              "[locateChatWidget] ada vendor open via postMessage frameId=",
+              adaButton.frameId
+            );
           }
           await chrome.scripting.executeScript({
             target: { tabId, frameIds: [adaButton.frameId] },
@@ -419,10 +424,14 @@ export async function locateChatWidget(tabId, readerCfg, options = {}) {
 
       // If the LLM picked the Ada launcher, use vendor postMessage open (synthetic clicks are ignored).
       try {
-        const adaButton = frames.find((f) => String(f.frameUrl || "").includes("ada.support/embed/button/"));
+        const adaButton = frames.find((f) =>
+          String(f.frameUrl || "").includes("ada.support/embed/button/")
+        );
         const sel = String(decision.launcherSelector || "");
         const looksLikeAda =
-          sel.includes("ada-chat-button") || sel.includes('aria-label="Chat with us"') || sel.includes("Chat with us");
+          sel.includes("ada-chat-button") ||
+          sel.includes('aria-label="Chat with us"') ||
+          sel.includes("Chat with us");
         if (adaButton && looksLikeAda) {
           if (debug) {
             console.log("[locateChatWidget] ada launcher selected; using postMessage open");
@@ -464,7 +473,12 @@ export async function locateChatWidget(tabId, readerCfg, options = {}) {
       }
       if (debug) {
         try {
-          console.log("[locateChatWidget] click_launcher clicked=", clicked, "clickedFrameId=", clickedFrameId);
+          console.log(
+            "[locateChatWidget] click_launcher clicked=",
+            clicked,
+            "clickedFrameId=",
+            clickedFrameId
+          );
         } catch {}
       }
       if (!clicked) {

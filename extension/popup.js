@@ -128,7 +128,8 @@ function syncNav() {
 function setScreen(name) {
   state.screen = name;
   for (const s of ["idle", "running", "paused", "done", "awaitUser"]) {
-    const elId = s === "awaitUser" ? "screenAwaitUser" : "screen" + s.charAt(0).toUpperCase() + s.slice(1);
+    const elId =
+      s === "awaitUser" ? "screenAwaitUser" : "screen" + s.charAt(0).toUpperCase() + s.slice(1);
     const el = $(elId);
     if (el) el.hidden = s !== name;
   }
@@ -2852,7 +2853,7 @@ function startRunStatusPoller() {
     try {
       const { opforRunStatus } = await chrome.storage.local.get("opforRunStatus");
       if (!opforRunStatus) return;
-      
+
       // Handle await_user phase transition
       if (opforRunStatus.phase === "await_user" && state.screen !== "awaitUser") {
         state.awaitUserError = opforRunStatus.awaitUserError || "Could not find chat widget";
@@ -2862,7 +2863,7 @@ function startRunStatusPoller() {
         setScreen("awaitUser");
         return;
       }
-      
+
       // Handle transition back from await_user to running/locating
       if (state.screen === "awaitUser" && opforRunStatus.phase !== "await_user") {
         setScreen("running");

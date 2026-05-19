@@ -30,8 +30,8 @@ server.tool(
     try {
       const output = execSync(command, { encoding: "utf-8", timeout: 5000 });
       return { content: [{ type: "text", text: output }] };
-    } catch (err: any) {
-      return { content: [{ type: "text", text: `Error: ${err.message}` }] };
+    } catch (err: unknown) {
+      return { content: [{ type: "text", text: `Error: ${(err as Error).message}` }] };
     }
   }
 );
@@ -46,8 +46,8 @@ server.tool(
     try {
       const content = readFileSync(path, "utf-8");
       return { content: [{ type: "text", text: content }] };
-    } catch (err: any) {
-      return { content: [{ type: "text", text: `Error: ${err.message}` }] };
+    } catch (err: unknown) {
+      return { content: [{ type: "text", text: `Error: ${(err as Error).message}` }] };
     }
   }
 );
@@ -65,8 +65,8 @@ server.tool(
     try {
       writeFileSync(path, content, "utf-8");
       return { content: [{ type: "text", text: `Written ${content.length} bytes to ${path}` }] };
-    } catch (err: any) {
-      return { content: [{ type: "text", text: `Error: ${err.message}` }] };
+    } catch (err: unknown) {
+      return { content: [{ type: "text", text: `Error: ${(err as Error).message}` }] };
     }
   }
 );

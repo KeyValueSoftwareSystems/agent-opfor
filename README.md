@@ -163,7 +163,7 @@ This catches what input/output testing misses — PII that leaks into a tool cal
 | ----------------------------------------------------- | --------------------------------------------------------------- |
 | [vanilla-chat](tests/e2e/agents/vanilla-chat)         | Plain customer support chatbot — test LLM-level vulnerabilities |
 | [customer-support](tests/e2e/agents/customer-support) | Tool-calling agent with PostgreSQL — test BOLA, BFLA, RBAC, PII |
-| [mcp-server-demo](examples/mcp-server-demo)           | Sample MCP server with intentional vulnerabilities              |
+| [vulnerable-server](tests/e2e/mcp/vulnerable-server)  | Sample MCP server with intentional vulnerabilities              |
 | [github-actions](examples/ci-cd/github-actions.yml)   | Run opfor in CI on every PR                                     |
 
 → [All examples](examples/)

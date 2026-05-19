@@ -228,7 +228,7 @@ function handleMainMessages(message, sendResponse) {
       sendResponse({ ok: true });
       return true;
     }
-    
+
     // Otherwise, service worker may have restarted - restart the run from storage
     (async () => {
       try {
@@ -237,7 +237,7 @@ function handleMainMessages(message, sendResponse) {
           sendResponse({ ok: false, error: "No active await_user state to retry" });
           return;
         }
-        
+
         // Restart the run with stored parameters
         const restartMessage = {
           type: "OPFOR_UI_RUN",
@@ -249,7 +249,7 @@ function handleMainMessages(message, sendResponse) {
           businessUseCase: opforRunStatus.businessUseCase || "",
           judgeHint: opforRunStatus.judgeHint || "",
         };
-        
+
         await executeAdaptiveRedTeamRun(sendResponse, restartMessage, false);
       } catch (e) {
         sendResponse({ ok: false, error: e instanceof Error ? e.message : String(e) });

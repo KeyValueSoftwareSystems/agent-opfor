@@ -1,5 +1,11 @@
 import { sleep } from "./utils.js";
-import { state, beginUiRunAbortController, endUiRunAbortController, waitForRetryLocate, clearRetryLocate } from "./state.js";
+import {
+  state,
+  beginUiRunAbortController,
+  endUiRunAbortController,
+  waitForRetryLocate,
+  clearRetryLocate,
+} from "./state.js";
 import { callLlm } from "./llm.js";
 import { getLlmProfile, assertLlmCfg } from "./config.js";
 import { loadAttackCatalog, evaluatorFromCatalog, assertEvaluatorInSuite } from "./catalog.js";
@@ -362,10 +368,10 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
       });
 
       let located = await locateChatWidget(tab.id, readerCfg);
-      
+
       const MAX_USER_RETRIES = 5;
       let userRetryCount = 0;
-      
+
       while (!located.ok && !state.OPFOR_STOP && userRetryCount < MAX_USER_RETRIES) {
         broadcastProgress({
           kind: "phase",
@@ -376,22 +382,24 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
           evaluatorName: evaluatorSnapshot?.name,
           maxRounds,
         });
-        
+
         const retryPromise = waitForRetryLocate();
-        const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve("timeout"), 120_000));
-        
+        const timeoutPromise = new Promise((resolve) =>
+          setTimeout(() => resolve("timeout"), 120_000)
+        );
+
         const result = await Promise.race([retryPromise, timeoutPromise]);
-        
+
         if (state.OPFOR_STOP) {
           clearRetryLocate();
           throw new Error("Run stopped by user.");
         }
-        
+
         if (result === "timeout") {
           clearRetryLocate();
           throw new Error("Timed out waiting for user to open chat widget.");
         }
-        
+
         userRetryCount++;
         broadcastProgress({
           kind: "phase",
@@ -399,14 +407,14 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
           suiteId,
           evaluatorId: evaluatorSnapshot?.id,
         });
-        
+
         located = await locateChatWidget(tab.id, readerCfg);
       }
-      
+
       if (!located.ok) {
         throw new Error(located.error || "Could not find (or open) the chat input.");
       }
-      
+
       plan = located.plan;
       best = located.best;
       siteSnapshot = located.siteSnapshot || "";
