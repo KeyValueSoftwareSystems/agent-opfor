@@ -10,6 +10,7 @@ Thanks for helping make AI red teaming better. This guide covers the three highe
 - [Adding an evaluator](#adding-an-evaluator)
 - [Adding a suite](#adding-a-suite)
 - [Adding a target adapter](#adding-a-target-adapter)
+- [Adding a telemetry provider](#adding-a-telemetry-provider)
 - [Adding a test agent](#adding-a-test-agent)
 - [Submitting findings](#submitting-findings)
 - [Code contributions](#code-contributions)
@@ -180,6 +181,56 @@ When adding a new transport:
 - Add a new discriminated union branch to `McpServerConfigSchema` in `core/src/config/schema.ts`.
 - Update the CLI setup wizard (`cli/src/commands/`) to offer the new transport as an option.
 - Add a fixture config so others can test it.
+
+---
+
+## Adding a telemetry provider
+
+Opfor can fetch recorded traces from an observability platform and give them to the judge LLM for richer evaluation. Connectors live in `core/src/telemetry/providers/`. Use `providers/langfuse/` as the reference implementation.
+
+### Checklist
+
+1. **Create the API client** — `core/src/telemetry/providers/<name>/traces.ts`
+   - Functions to list traces, hydrate a single trace, and poll for a trace after an attack.
+   - Credentials must come from environment variables; resolve them via `resolveTelemetryEnv()` (see `core/src/config/resolveTelemetryEnv.ts`).
+
+2. **Create the adapter** — `core/src/telemetry/providers/<name>/adapter.ts`
+   - Implement the `TelemetryAdapter` interface from `core/src/telemetry/adapter.ts` (three methods):
+
+   ```typescript
+   import type { TelemetryAdapter } from "../../adapter.js";
+   import { pollUntilResult, POLL_DEFAULTS } from "../../pollingUtils.js";
+
+   export const myAdapter: TelemetryAdapter = {
+     async fetchTraceList(telemetry) {
+       /* return { traces, providerLabel } or null */
+     },
+     async hydrateTrace(telemetry, traceId) {
+       /* return full trace object or null */
+     },
+     async fetchTraceForJudge(telemetry, traceId, opts) {
+       const result = await pollUntilResult(async () => {
+         const data = await myFetchTrace(traceId);
+         return data ? JSON.stringify(data).slice(0, opts.maxChars) : null;
+       }, opts);
+       return result ?? `[<Name> trace not available after ${opts.maxAttempts} attempt(s).]`;
+     },
+   };
+   ```
+
+   Return `null` from `fetchTraceList` / `hydrateTrace` when credentials are missing or the provider is not configured. Return a bracketed error string (not `null`) from `fetchTraceForJudge` — the judge receives this as context.
+
+3. **Register the adapter** — add one line to `getAdapter()` in `core/src/telemetry/adapter.ts`:
+
+   ```typescript
+   if (provider === "my-provider") return myAdapter;
+   ```
+
+4. **Extend the config types** — in `core/src/config/types.ts`:
+   - Add `"my-provider"` to the `TelemetryProviderId` union.
+   - Add a `myProvider?: MyProviderTelemetryConfig` block to `TelemetryConfig`.
+
+5. **Polling defaults** — `POLL_DEFAULTS` in `core/src/telemetry/pollingUtils.ts` gives you sensible starting values (`500 ms` initial delay, `5` attempts, `400 ms` between). Pass them through `fetchTraceForJudge`'s `opts` argument — callers can override per `TelemetryConfig`.
 
 ---
 

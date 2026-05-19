@@ -455,14 +455,12 @@ server.tool(
       }
 
       const traceLines: string[] = [];
-      if (agentResult.langfuseTraceCurationRan) {
-        if (agentResult.langfuseCurationError) {
-          traceLines.push(
-            `⚠️  Langfuse trace curation failed: ${agentResult.langfuseCurationError}`
-          );
+      if (agentResult.traceCurationRan) {
+        if (agentResult.curationError) {
+          traceLines.push(`⚠️  Trace curation failed: ${agentResult.curationError}`);
           traceLines.push(`   Attacks were generated without trace grounding.`);
         } else {
-          traceLines.push(`✅ Langfuse traces analysed — attacks grounded in real usage.`);
+          traceLines.push(`✅ Traces analysed — attacks grounded in real usage.`);
           if (agentResult.traceSummaryPath) {
             traceLines.push(`   Trace summary: ${agentResult.traceSummaryPath}`);
           }
