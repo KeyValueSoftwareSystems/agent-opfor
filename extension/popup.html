@@ -482,6 +482,92 @@
         display: flex;
       }
 
+      /* Endpoint config card */
+      .endpoint-card-head {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 9px 12px;
+        background: var(--bg-3);
+        border: 1px solid var(--line-2);
+        border-radius: 8px;
+        color: var(--text);
+        font-size: 13px;
+        font-weight: 500;
+        font-family: "Geist", system-ui, sans-serif;
+        cursor: pointer;
+        margin-bottom: 4px;
+        text-align: left;
+      }
+      .endpoint-card-head:hover {
+        border-color: var(--line-3);
+      }
+      .endpoint-chev {
+        transition: transform 0.2s;
+        display: flex;
+        color: var(--muted-2);
+      }
+      .endpoint-card-body {
+        background: var(--bg-3);
+        border: 1px solid var(--line-2);
+        border-radius: 8px;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .endpoint-card-body[data-open="false"] {
+        display: none;
+      }
+      .endpoint-step {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+      }
+      .endpoint-step-label {
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--muted-2);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .endpoint-step-hint {
+        font-size: 11px;
+        color: var(--muted-3);
+        line-height: 1.5;
+      }
+      .endpoint-optional {
+        font-size: 10px;
+        font-weight: 400;
+        color: var(--muted-3);
+        padding: 1px 5px;
+        background: var(--line-2);
+        border-radius: 4px;
+      }
+      .endpoint-divider {
+        height: 1px;
+        background: var(--line-2);
+      }
+      .endpoint-error-hint {
+        font-size: 11px;
+        color: var(--fail);
+        line-height: 1.5;
+        margin-top: 2px;
+      }
+
+      .dd-loading-spinner {
+        width: 12px;
+        height: 12px;
+        border-radius: 999px;
+        border: 1.5px solid var(--line-3);
+        border-top-color: var(--muted-2);
+        animation: spin 0.8s linear infinite;
+        flex-shrink: 0;
+        margin-left: auto;
+      }
+
       /* Custom dropdown */
       .dd {
         position: relative;
@@ -1898,10 +1984,17 @@
               </button>
               <div class="dd-menu" role="listbox"></div>
             </div>
-            <div id="modelDropdown" class="dd" data-open="false">
-              <button class="dd-button" type="button">
-                <span class="label">gpt-4o-mini</span>
-                <span class="chev">
+
+            <!-- Endpoint config card (openai-compatible: accordion; azure: plain) -->
+            <div id="endpointSection" style="display: none; margin-bottom: 8px">
+              <button
+                id="endpointCardHead"
+                type="button"
+                class="endpoint-card-head"
+                style="display: none"
+              >
+                <span>Configure endpoint</span>
+                <span class="endpoint-chev">
                   <svg width="12" height="12" viewBox="0 0 24 24">
                     <path
                       d="M6 9l6 6 6-6"
@@ -1914,32 +2007,118 @@
                   </svg>
                 </span>
               </button>
-              <div class="dd-menu" role="listbox"></div>
+              <div id="endpointCardBody" class="endpoint-card-body" data-open="true">
+                <!-- Step 1: Base URL -->
+                <div class="endpoint-step">
+                  <div class="endpoint-step-label">Base URL</div>
+                  <input
+                    id="baseUrl"
+                    type="text"
+                    placeholder="https://api.openai.com/v1"
+                    autocomplete="off"
+                    spellcheck="false"
+                  />
+                  <div id="endpointUrlHint" class="endpoint-step-hint" style="display: none">
+                    Root URL of your OpenAI-compatible server, e.g.
+                    <code style="font-size: 10px; color: var(--muted)"
+                      >http://localhost:11434/v1</code
+                    >
+                  </div>
+                </div>
+                <div id="endpointDivider1" class="endpoint-divider" style="display: none"></div>
+                <!-- Step 2: API Key -->
+                <div class="endpoint-step">
+                  <div class="endpoint-step-label">
+                    API Key
+                    <span id="endpointKeyOptional" class="endpoint-optional" style="display: none"
+                      >optional for local servers</span
+                    >
+                  </div>
+                  <div class="api-key-wrap" style="margin-top: 0">
+                    <input id="apiKeyCard" type="password" placeholder="sk-…" autocomplete="off" />
+                    <button id="apiKeyCardEye" class="eye-btn" type="button" title="Show">
+                      <svg id="eyeIconCard" width="14" height="14" viewBox="0 0 24 24">
+                        <g
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.7"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        >
+                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z" />
+                          <circle cx="12" cy="12" r="3" />
+                        </g>
+                      </svg>
+                    </button>
+                  </div>
+                  <div id="endpointKeyHint" class="endpoint-step-hint" style="display: none">
+                    Leave empty if your server doesn't require authentication.
+                  </div>
+                </div>
+                <!-- Step 3: Load models (openai-compatible only) -->
+                <div id="endpointStepLoad" style="display: none">
+                  <div class="endpoint-divider" style="margin-bottom: 8px"></div>
+                  <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap">
+                    <button
+                      id="fetchModelsBtn"
+                      class="btn-ghost"
+                      type="button"
+                      style="padding: 7px 14px; font-size: 12px; flex-shrink: 0"
+                    >
+                      Load models
+                    </button>
+                    <span id="fetchModelsStatus" style="font-size: 12px"></span>
+                  </div>
+                </div>
+              </div>
             </div>
-            <input
-              id="baseUrl"
-              type="text"
-              placeholder="https://api.openai.com/v1"
-              autocomplete="off"
-              spellcheck="false"
-              style="margin-top: 8px"
-            />
-            <div class="api-key-wrap">
-              <input id="apiKey" type="password" placeholder="sk-…" autocomplete="off" />
-              <button id="apiKeyEye" class="eye-btn" type="button" title="Show">
-                <svg id="eyeIcon" width="14" height="14" viewBox="0 0 24 24">
-                  <g
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="1.7"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  >
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z" />
-                    <circle cx="12" cy="12" r="3" />
-                  </g>
-                </svg>
-              </button>
+
+            <!-- Standalone API key (simple providers: OpenAI, Anthropic, Google, Groq, DeepSeek) -->
+            <div id="standaloneApiKey" style="display: none; margin-bottom: 8px">
+              <div class="api-key-wrap" style="margin-top: 0">
+                <input id="apiKey" type="password" placeholder="sk-…" autocomplete="off" />
+                <button id="apiKeyEye" class="eye-btn" type="button" title="Show">
+                  <svg id="eyeIcon" width="14" height="14" viewBox="0 0 24 24">
+                    <g
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.7"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </g>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- Model dropdown (hidden for openai-compatible until fetch succeeds) -->
+            <div id="modelSection">
+              <div id="modelDropdown" class="dd" data-open="false">
+                <button class="dd-button" type="button">
+                  <span class="label">Select model</span>
+                  <span class="dd-loading-spinner" style="display: none"></span>
+                  <span class="chev">
+                    <svg width="12" height="12" viewBox="0 0 24 24">
+                      <path
+                        d="M6 9l6 6 6-6"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                    </svg>
+                  </span>
+                </button>
+                <div class="dd-menu" role="listbox"></div>
+              </div>
+              <div
+                id="modelFetchHint"
+                style="font-size: 11px; margin-top: 5px; display: none"
+              ></div>
             </div>
           </div>
         </div>

@@ -45,6 +45,47 @@ const PROVIDER_DEFAULT_MODELS = {
 /** Providers that require a user-supplied baseUrl. */
 const PROVIDERS_NEEDING_BASE_URL = new Set([PROVIDERS.AZURE, PROVIDERS.OPENAI_COMPATIBLE]);
 
+/** Providers whose models are fetched dynamically from a known endpoint. */
+const SIMPLE_PROVIDER_FETCH_CONFIG = {
+  [PROVIDERS.OPENAI]: {
+    url: () => "https://api.openai.com/v1/models",
+    headers: (key) => ({ Authorization: `Bearer ${key}` }),
+    parse: (json) =>
+      (json.data ?? [])
+        .map((m) => m.id)
+        .filter((id) => id?.startsWith("gpt-") || id?.startsWith("o"))
+        .sort(),
+  },
+  [PROVIDERS.ANTHROPIC]: {
+    url: () => "https://api.anthropic.com/v1/models",
+    headers: (key) => ({ "x-api-key": key, "anthropic-version": "2023-06-01" }),
+    parse: (json) => (json.data ?? []).map((m) => m.id).filter(Boolean),
+  },
+  [PROVIDERS.GOOGLE]: {
+    url: (key) =>
+      `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}`,
+    headers: () => ({}),
+    parse: (json) =>
+      (json.models ?? [])
+        .map((m) => m.name?.replace("models/", ""))
+        .filter((id) => id?.startsWith("gemini")),
+  },
+  [PROVIDERS.GROQ]: {
+    url: () => "https://api.groq.com/openai/v1/models",
+    headers: (key) => ({ Authorization: `Bearer ${key}` }),
+    parse: (json) =>
+      (json.data ?? [])
+        .map((m) => m.id)
+        .filter(Boolean)
+        .sort(),
+  },
+  [PROVIDERS.DEEPSEEK]: {
+    url: () => "https://api.deepseek.com/models",
+    headers: (key) => ({ Authorization: `Bearer ${key}` }),
+    parse: (json) => (json.data ?? []).map((m) => m.id).filter(Boolean),
+  },
+};
+
 const $ = (id) => document.getElementById(id);
 
 // ── State ───────────────────────────────────────────────────────
@@ -109,15 +150,17 @@ function bindToggle(btnId, getter, setter) {
 }
 
 // ── Custom dropdown ────────────────────────────────────────────
-function buildDropdown(rootId, options, value, onChange) {
+function buildDropdown(rootId, options, value, onChange, { onOpen } = {}) {
   const root = $(rootId);
   const button = root.querySelector(".dd-button");
   const labelEl = button.querySelector(".label");
+  const chevEl = button.querySelector(".chev");
+  const spinnerEl = button.querySelector(".dd-loading-spinner");
   const menu = root.querySelector(".dd-menu");
 
   function render() {
     const cur = options.find((o) => o.value === value);
-    labelEl.textContent = cur ? cur.label : "—";
+    labelEl.textContent = cur ? cur.label : "Select model";
     menu.innerHTML = "";
     for (const o of options) {
       const opt = document.createElement("button");
@@ -146,7 +189,10 @@ function buildDropdown(rootId, options, value, onChange) {
 
   button.addEventListener("click", (e) => {
     e.stopPropagation();
-    root.dataset.open = root.dataset.open === "true" ? "false" : "true";
+    if (button.disabled) return;
+    const opening = root.dataset.open !== "true";
+    root.dataset.open = opening ? "true" : "false";
+    if (opening && onOpen) onOpen();
   });
 
   document.addEventListener("mousedown", (e) => {
@@ -162,6 +208,17 @@ function buildDropdown(rootId, options, value, onChange) {
     setOptions(next) {
       options = next;
       render();
+    },
+    setLoading(isLoading) {
+      button.disabled = isLoading;
+      if (spinnerEl) spinnerEl.style.display = isLoading ? "" : "none";
+      if (chevEl) chevEl.style.display = isLoading ? "none" : "";
+      if (isLoading) {
+        labelEl.textContent = "Loading models…";
+        root.dataset.open = "false";
+      } else {
+        render();
+      }
     },
   };
 }
@@ -2293,14 +2350,168 @@ function modelsForProvider(provider) {
   return list.map((m) => ({ value: m, label: m }));
 }
 
-function applyProvider() {
-  const models = modelsForProvider(state.provider);
-  modelDD?.setOptions(models);
-  const defaultModel = PROVIDER_DEFAULT_MODELS[state.provider] || "";
-  state.model = defaultModel;
-  modelDD?.setValue(defaultModel);
+function applyProvider({ resetModel = false } = {}) {
+  const isCompatible = state.provider === PROVIDERS.OPENAI_COMPATIBLE;
   const needsBaseUrl = PROVIDERS_NEEDING_BASE_URL.has(state.provider);
-  $("baseUrl").style.display = needsBaseUrl ? "" : "none";
+  const isSimple = !!SIMPLE_PROVIDER_FETCH_CONFIG[state.provider];
+
+  // Endpoint card (Azure + OpenAI-compatible)
+  $("endpointSection").style.display = needsBaseUrl ? "" : "none";
+  $("endpointCardHead").style.display = isCompatible ? "" : "none";
+  const compatOnly = isCompatible ? "" : "none";
+  $("endpointUrlHint").style.display = compatOnly;
+  $("endpointDivider1").style.display = compatOnly;
+  $("endpointKeyHint").style.display = compatOnly;
+  $("endpointKeyOptional").style.display = compatOnly;
+  $("endpointStepLoad").style.display = compatOnly;
+
+  // Standalone API key (simple providers only)
+  $("standaloneApiKey").style.display = isSimple ? "" : "none";
+
+  if (isCompatible) {
+    $("endpointCardBody").dataset.open = "true";
+    setEndpointChevron(true);
+    $("modelSection").style.display = "none";
+    setFetchStatus("", "");
+  } else if (isSimple) {
+    $("modelSection").style.display = "";
+    if (resetModel) {
+      modelDD?.setOptions([]);
+      modelDD?.setValue("");
+      state.model = "";
+      setModelHint("Enter your API key to load models.");
+    }
+  } else {
+    // Azure
+    $("endpointCardBody").dataset.open = "true";
+    $("modelSection").style.display = "";
+    const models = modelsForProvider(state.provider);
+    modelDD?.setOptions(models);
+    if (resetModel) {
+      const defaultModel = PROVIDER_DEFAULT_MODELS[state.provider] || "";
+      state.model = defaultModel;
+      modelDD?.setValue(defaultModel);
+    }
+  }
+}
+
+function setEndpointChevron(open) {
+  const chev = $("endpointCardHead")?.querySelector(".endpoint-chev");
+  if (chev) chev.style.transform = open ? "rotate(0deg)" : "rotate(-90deg)";
+}
+
+async function fetchModelsFromBaseUrl() {
+  const baseUrl = state.baseUrl?.trim().replace(/\/$/, "");
+  if (!baseUrl) {
+    setFetchStatus("Enter a base URL first.", "error");
+    return;
+  }
+  setFetchStatus("Loading…", "loading");
+  try {
+    const headers = { "Content-Type": "application/json" };
+    if (state.apiKey) headers["Authorization"] = `Bearer ${state.apiKey}`;
+    const res = await fetch(`${baseUrl}/models`, { headers });
+    if (!res.ok) {
+      if (res.status === 401 || res.status === 403)
+        throw new Error("Invalid API key — authentication failed.");
+      if (res.status === 404) throw new Error("Server doesn't expose a /models endpoint.");
+      throw new Error(`Server returned HTTP ${res.status}.`);
+    }
+    const json = await res.json();
+    const ids = (json.data ?? json.models ?? []).map((m) => m.id ?? m).filter(Boolean);
+    if (!ids.length) {
+      setFetchStatus("No models returned by the server.", "error");
+      return;
+    }
+    const options = ids.map((id) => ({ value: id, label: id }));
+    modelDD?.setOptions(options);
+    state.model = ids[0];
+    modelDD?.setValue(ids[0]);
+    saveModelAndKey();
+    $("modelSection").style.display = "";
+    setFetchStatus(`${ids.length} model${ids.length > 1 ? "s" : ""} loaded.`, "ok");
+  } catch (e) {
+    const msg =
+      e instanceof TypeError ? "Could not reach the server — check the base URL." : e.message;
+    setFetchStatus(msg, "error");
+    $("modelSection").style.display = "none";
+  }
+}
+
+function setFetchStatus(msg, type) {
+  const el = $("fetchModelsStatus");
+  if (!el) return;
+  el.textContent = msg;
+  el.style.color =
+    type === "error" ? "var(--fail)" : type === "ok" ? "var(--pass)" : "var(--muted)";
+}
+
+function setModelHint(msg, type = "") {
+  const el = $("modelFetchHint");
+  if (!el) return;
+  el.style.display = msg ? "" : "none";
+  el.textContent = msg;
+  el.style.color =
+    type === "error" ? "var(--fail)" : type === "ok" ? "var(--pass)" : "var(--muted)";
+}
+
+async function fetchModelsForSimpleProvider() {
+  const provider = state.provider;
+  const cfg = SIMPLE_PROVIDER_FETCH_CONFIG[provider];
+  if (!cfg) return;
+
+  const key = state.apiKey.trim();
+  if (!key) {
+    setModelHint("Enter your API key to load models.");
+    return;
+  }
+
+  modelDD?.setLoading(true);
+  setModelHint("");
+  try {
+    const url = cfg.url(key);
+    const res = await fetch(url, { headers: cfg.headers(key) });
+
+    if (!res.ok) {
+      let errBody = null;
+      try {
+        errBody = await res.json();
+      } catch {}
+      const errMsg = errBody?.error?.message || "";
+      const errStatus = errBody?.error?.status || "";
+      if (
+        res.status === 401 ||
+        res.status === 403 ||
+        errStatus === "INVALID_ARGUMENT" ||
+        errMsg.toLowerCase().includes("api key") ||
+        errMsg.toLowerCase().includes("invalid")
+      )
+        throw new Error("Invalid API key — authentication failed.");
+      if (res.status === 429) throw new Error("Rate limited — try again shortly.");
+      throw new Error(errMsg || `Server returned HTTP ${res.status}.`);
+    }
+
+    const json = await res.json();
+    const ids = cfg.parse(json);
+    if (!ids.length) throw new Error("No models returned.");
+
+    const opts = ids.map((id) => ({ value: id, label: id }));
+    modelDD?.setLoading(false);
+    modelDD?.setOptions(opts);
+    const keep = ids.includes(state.model) ? state.model : ids[0];
+    state.model = keep;
+    modelDD?.setValue(keep);
+    saveModelAndKey();
+    setModelHint("");
+  } catch (e) {
+    modelDD?.setLoading(false);
+    modelDD?.setOptions([]);
+    const msg =
+      e instanceof TypeError
+        ? `Could not reach ${state.provider} — check your connection.`
+        : e.message;
+    setModelHint(msg, "error");
+  }
 }
 
 // ── Wiring ─────────────────────────────────────────────────────
@@ -2311,14 +2522,24 @@ function wire() {
   );
   providerDD = buildDropdown("providerDropdown", PROVIDER_OPTIONS, state.provider, (v) => {
     state.provider = v;
-    applyProvider();
+    applyProvider({ resetModel: true });
     saveModelAndKey();
   });
 
-  modelDD = buildDropdown("modelDropdown", modelsForProvider(state.provider), state.model, (v) => {
-    state.model = v;
-    saveModelAndKey();
-  });
+  modelDD = buildDropdown(
+    "modelDropdown",
+    modelsForProvider(state.provider),
+    state.model,
+    (v) => {
+      state.model = v;
+      saveModelAndKey();
+    },
+    {
+      onOpen: () => {
+        if (SIMPLE_PROVIDER_FETCH_CONFIG[state.provider]) fetchModelsForSimpleProvider();
+      },
+    }
+  );
 
   // Evals collapse
   $("evalsHead").addEventListener("click", () => {
@@ -2355,33 +2576,62 @@ function wire() {
     updateRunButton();
   });
 
-  // Base URL
+  // Endpoint card accordion
+  $("endpointCardHead").addEventListener("click", () => {
+    const body = $("endpointCardBody");
+    const willOpen = body.dataset.open !== "true";
+    body.dataset.open = willOpen ? "true" : "false";
+    setEndpointChevron(willOpen);
+  });
+
+  // Load models button (OpenAI-compatible)
+  $("fetchModelsBtn").addEventListener("click", () => fetchModelsFromBaseUrl());
+
+  // Base URL (Azure + OpenAI-compatible)
   $("baseUrl").addEventListener("input", (e) => {
     state.baseUrl = e.target.value;
     saveModelAndKey();
+    if (state.provider === PROVIDERS.OPENAI_COMPATIBLE) {
+      $("modelSection").style.display = "none";
+      setFetchStatus("", "");
+    }
   });
 
-  // API key
+  // Standalone API key (simple providers)
   $("apiKey").addEventListener("input", (e) => {
     state.apiKey = e.target.value;
+    $("apiKeyCard").value = e.target.value;
     saveModelAndKey();
     updateRunButton();
   });
-  $("apiKeyEye").addEventListener("click", () => {
-    const input = $("apiKey");
-    const eye = $("eyeIcon");
-    if (input.type === "password") {
-      input.type = "text";
-      eye.innerHTML = `<g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
-        <line x1="1" y1="1" x2="23" y2="23"/></g>`;
-    } else {
-      input.type = "password";
-      eye.innerHTML = `<g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/>
-        <circle cx="12" cy="12" r="3"/></g>`;
-    }
+
+  function wireEyeBtn(btnId, iconId, inputId) {
+    $(btnId).addEventListener("click", () => {
+      const input = $(inputId);
+      const eye = $(iconId);
+      if (input.type === "password") {
+        input.type = "text";
+        eye.innerHTML = `<g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+          <line x1="1" y1="1" x2="23" y2="23"/></g>`;
+      } else {
+        input.type = "password";
+        eye.innerHTML = `<g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/>
+          <circle cx="12" cy="12" r="3"/></g>`;
+      }
+    });
+  }
+  wireEyeBtn("apiKeyEye", "eyeIcon", "apiKey");
+
+  // Card API key (Azure + OpenAI-compatible)
+  $("apiKeyCard").addEventListener("input", (e) => {
+    state.apiKey = e.target.value;
+    $("apiKey").value = e.target.value;
+    saveModelAndKey();
+    updateRunButton();
   });
+  wireEyeBtn("apiKeyCardEye", "eyeIconCard", "apiKeyCard");
 
   // Buttons
   $("runBtn").addEventListener("click", () => startRun({ resume: false }));
@@ -2635,8 +2885,9 @@ async function init() {
   modelDD.setOptions(modelsForProvider(state.provider));
   modelDD.setValue(state.model);
   $("baseUrl").value = state.baseUrl;
-  $("baseUrl").style.display = PROVIDERS_NEEDING_BASE_URL.has(state.provider) ? "" : "none";
   $("apiKey").value = state.apiKey;
+  $("apiKeyCard").value = state.apiKey;
+  applyProvider();
   $("agentDescription").value = state.agentDescription;
   $("attackObjective").value = state.attackObjective;
   $("businessUseCase").value = state.businessUseCase;
