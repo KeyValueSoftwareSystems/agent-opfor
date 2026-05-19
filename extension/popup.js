@@ -127,8 +127,9 @@ function syncNav() {
 
 function setScreen(name) {
   state.screen = name;
-  for (const s of ["idle", "running", "paused", "done"]) {
-    const el = $("screen" + s.charAt(0).toUpperCase() + s.slice(1));
+  for (const s of ["idle", "running", "paused", "done", "awaitUser"]) {
+    const elId = s === "awaitUser" ? "screenAwaitUser" : "screen" + s.charAt(0).toUpperCase() + s.slice(1);
+    const el = $(elId);
     if (el) el.hidden = s !== name;
   }
   $("footer").dataset.screen = name;
@@ -685,10 +686,21 @@ function resetBubbles() {
 let progressActive = false;
 
 function handleProgress(message) {
-  if (state.screen !== "running") return;
+  if (state.screen !== "running" && state.screen !== "awaitUser") return;
   progressActive = true;
   stopCosmeticTicker();
   if (message.kind === "phase") {
+    if (message.phase === "await_user") {
+      state.awaitUserError = message.error || "Could not find chat widget";
+      $("awaitUserError").textContent = state.awaitUserError;
+      const cur = state.queue[state.evIdx];
+      $("awaitUserEvaluator").textContent = cur?.name || "—";
+      setScreen("awaitUser");
+      return;
+    }
+    if (state.screen === "awaitUser") {
+      setScreen("running");
+    }
     setPhase(message.phase);
     if (message.phase === "running") setTurnProgress(0);
     if (message.phase === "locating") {
@@ -2345,6 +2357,34 @@ async function discardPaused() {
   setScreen("idle");
 }
 
+async function cancelAwaitUser() {
+  try {
+    await chrome.runtime.sendMessage({ type: "OPFOR_UI_STOP" });
+  } catch {}
+  stopCosmeticTicker();
+  state.running = false;
+  state.queue = [];
+  state.results = [];
+  state.evIdx = 0;
+  setScreen("idle");
+}
+
+async function retryLocate() {
+  setScreen("running");
+  renderRunningHeader();
+  renderRunStrip();
+  setPhase("locating");
+  // Show evaluator name while retrying
+  const cur = state.queue[state.evIdx];
+  if (cur) {
+    $("runEvalName").textContent = cur.name;
+  }
+  $("runPhaseText").textContent = "Retrying chat detection";
+  try {
+    await chrome.runtime.sendMessage({ type: "OPFOR_UI_RETRY_LOCATE" });
+  } catch {}
+}
+
 function modelsForProvider(provider) {
   const list = MODELS_BY_PROVIDER[provider] || [];
   return list.map((m) => ({ value: m, label: m }));
@@ -2639,6 +2679,8 @@ function wire() {
   $("stopBtn").addEventListener("click", requestStop);
   $("resumeBtn").addEventListener("click", () => startRun({ resume: true }));
   $("discardPausedBtn").addEventListener("click", discardPaused);
+  $("awaitUserCancelBtn").addEventListener("click", cancelAwaitUser);
+  $("awaitUserRetryBtn").addEventListener("click", retryLocate);
   $("newRunBtn").addEventListener("click", () => {
     state.queue = [];
     state.results = [];
@@ -2756,12 +2798,22 @@ async function checkActiveRun() {
   state.cancelRequested = false;
   state.pauseRequested = false;
 
+  // Check if we need to show the await_user screen
+  const phase = opforRunStatus?.phase || "running";
+  if (phase === "await_user") {
+    state.awaitUserError = opforRunStatus?.awaitUserError || "Could not find chat widget";
+    $("awaitUserError").textContent = state.awaitUserError;
+    const cur = state.queue[state.evIdx];
+    $("awaitUserEvaluator").textContent = cur?.name || "—";
+    setScreen("awaitUser");
+    startRunStatusPoller();
+    return true;
+  }
+
   setScreen("running");
   renderRunningHeader();
   renderRunStrip();
 
-  // Restore current phase.
-  const phase = opforRunStatus?.phase || "running";
   setPhase(phase);
 
   // Replay persisted transcript into bubbles.
@@ -2793,13 +2845,37 @@ let runStatusPollInterval = null;
 function startRunStatusPoller() {
   stopRunStatusPoller();
   runStatusPollInterval = setInterval(async () => {
-    if (state.screen !== "running") {
+    if (state.screen !== "running" && state.screen !== "awaitUser") {
       stopRunStatusPoller();
       return;
     }
     try {
       const { opforRunStatus } = await chrome.storage.local.get("opforRunStatus");
       if (!opforRunStatus) return;
+      
+      // Handle await_user phase transition
+      if (opforRunStatus.phase === "await_user" && state.screen !== "awaitUser") {
+        state.awaitUserError = opforRunStatus.awaitUserError || "Could not find chat widget";
+        $("awaitUserError").textContent = state.awaitUserError;
+        const cur = state.queue[state.evIdx];
+        $("awaitUserEvaluator").textContent = cur?.name || "—";
+        setScreen("awaitUser");
+        return;
+      }
+      
+      // Handle transition back from await_user to running/locating
+      if (state.screen === "awaitUser" && opforRunStatus.phase !== "await_user") {
+        setScreen("running");
+        renderRunningHeader();
+        renderRunStrip();
+        setPhase(opforRunStatus.phase || "locating");
+        // Show evaluator name
+        const cur = state.queue[state.evIdx];
+        if (cur) {
+          $("runEvalName").textContent = cur.name;
+        }
+        return;
+      }
 
       // The service worker clears running=false after each evaluator finishes.
       // If the popup's own startRun loop is still active (state.running === true),

@@ -38,6 +38,9 @@ export function broadcastProgress(payload) {
       const patch = { updatedAt: Date.now() };
       if (payload.kind === "phase") {
         patch.phase = payload.phase;
+        if (payload.phase === "await_user") {
+          patch.awaitUserError = payload.error || "Could not find chat widget";
+        }
       } else if (payload.kind === "turn") {
         patch.phase = "running";
         patch.lastRound = payload.round;

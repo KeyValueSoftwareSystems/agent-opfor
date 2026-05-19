@@ -1,4 +1,4 @@
-import { state } from "./state.js";
+import { state, triggerRetryLocate } from "./state.js";
 import { getLlmProfile, assertLlmCfg } from "./config.js";
 import { loadAttackCatalog } from "./catalog.js";
 import { clearRunStatus } from "./storage.js";
@@ -215,8 +215,46 @@ function handleMainMessages(message, sendResponse) {
     try {
       state.uiRunAbortController?.abort();
     } catch {}
+    triggerRetryLocate();
     clearRunStatus().catch(() => {});
     sendResponse({ ok: true });
+    return true;
+  }
+
+  if (message?.type === "OPFOR_UI_RETRY_LOCATE") {
+    // If there's an active retry waiter, trigger it
+    if (state.retryLocateResolver) {
+      triggerRetryLocate();
+      sendResponse({ ok: true });
+      return true;
+    }
+    
+    // Otherwise, service worker may have restarted - restart the run from storage
+    (async () => {
+      try {
+        const { opforRunStatus } = await chrome.storage.local.get("opforRunStatus");
+        if (!opforRunStatus?.running || opforRunStatus?.phase !== "await_user") {
+          sendResponse({ ok: false, error: "No active await_user state to retry" });
+          return;
+        }
+        
+        // Restart the run with stored parameters
+        const restartMessage = {
+          type: "OPFOR_UI_RUN",
+          suiteId: opforRunStatus.suiteId,
+          evaluatorId: opforRunStatus.evaluatorId,
+          maxRounds: opforRunStatus.maxRounds,
+          waitMs: 10000,
+          attackObjective: opforRunStatus.attackObjective || "",
+          businessUseCase: opforRunStatus.businessUseCase || "",
+          judgeHint: opforRunStatus.judgeHint || "",
+        };
+        
+        await executeAdaptiveRedTeamRun(sendResponse, restartMessage, false);
+      } catch (e) {
+        sendResponse({ ok: false, error: e instanceof Error ? e.message : String(e) });
+      }
+    })();
     return true;
   }
 
@@ -316,6 +354,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (type === "OPFOR_AI_PICK_INPUT") return handleAiPickInput(message, sendResponse);
   if (
     type === "OPFOR_UI_STOP" ||
+    type === "OPFOR_UI_RETRY_LOCATE" ||
     type === "OPFOR_UI_DISCARD_PAUSED" ||
     type === "OPFOR_UI_RESUME" ||
     type === "OPFOR_RESET_CHAT" ||
