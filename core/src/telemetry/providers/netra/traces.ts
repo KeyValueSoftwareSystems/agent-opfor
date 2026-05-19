@@ -30,6 +30,53 @@ function apiKeyHeader(apiKey: string): Record<string, string> {
   return { "x-api-key": apiKey };
 }
 
+/**
+ * Netra spans repeat the full system prompt verbatim in every `Generation Pipeline`
+ * span (`metadata.gen_ai.system.content`). For multi-turn attacks that eats most of
+ * the judge's char budget. This walks the payload, finds any string ≥ minLen chars
+ * appearing more than once, and replaces duplicates with `<<see:_refN>>` pointers
+ * into a `_shared` dictionary placed at the top of the output.
+ */
+function dedupeRepeatedStrings(obj: unknown, minLen = 500): unknown {
+  const counts = new Map<string, number>();
+  const visit = (v: unknown): void => {
+    if (typeof v === "string") {
+      if (v.length >= minLen) counts.set(v, (counts.get(v) ?? 0) + 1);
+    } else if (Array.isArray(v)) {
+      v.forEach(visit);
+    } else if (v && typeof v === "object") {
+      Object.values(v as Record<string, unknown>).forEach(visit);
+    }
+  };
+  visit(obj);
+
+  const refs = new Map<string, string>();
+  const shared: Record<string, string> = {};
+  let n = 1;
+  for (const [str, c] of counts) {
+    if (c > 1) {
+      const key = `_ref${n++}`;
+      refs.set(str, key);
+      shared[key] = str;
+    }
+  }
+  if (refs.size === 0) return obj;
+
+  const replace = (v: unknown): unknown => {
+    if (typeof v === "string" && refs.has(v)) return `<<see:${refs.get(v)}>>`;
+    if (Array.isArray(v)) return v.map(replace);
+    if (v && typeof v === "object") {
+      const out: Record<string, unknown> = {};
+      for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+        out[k] = replace(val);
+      }
+      return out;
+    }
+    return v;
+  };
+  return { _shared: shared, ...(replace(obj) as Record<string, unknown>) };
+}
+
 function stringifyForJudge(value: unknown, maxChars: number): string {
   let s: string;
   try {
@@ -185,15 +232,16 @@ export async function fetchNetraSpansForTrace(
       const res = await fetch(url, {
         headers: { ...apiKeyHeader(creds.apiKey) },
       });
+      const rawText = await res.text();
       if (!res.ok) break;
-      const json = (await res.json()) as {
-        data?: unknown[];
-        pageInfo?: { hasNextPage?: boolean; nextCursor?: string };
+      const json = JSON.parse(rawText) as {
+        data?: { data?: unknown[]; pageInfo?: { hasNextPage?: boolean; nextCursor?: string } };
       };
-      const chunk = Array.isArray(json.data) ? json.data : [];
+      const inner = json.data ?? {};
+      const chunk = Array.isArray(inner.data) ? inner.data : [];
       out.push(...chunk);
-      if (!json.pageInfo?.hasNextPage) break;
-      cursor = (json.pageInfo as Record<string, unknown>).nextCursor as string | undefined;
+      if (!inner.pageInfo?.hasNextPage) break;
+      cursor = (inner.pageInfo as Record<string, unknown>).nextCursor as string | undefined;
       if (!cursor) break;
     } catch {
       break;
@@ -301,7 +349,9 @@ export async function fetchNetraTraceJsonForJudge(
   const result = await pollUntilResult<string>(
     async () => {
       const spans = await fetchNetraSpansForTrace(cfg, traceId);
-      return spans.length > 0 ? stringifyForJudge({ traceId, spans }, maxJsonChars) : null;
+      return spans.length > 0
+        ? stringifyForJudge(dedupeRepeatedStrings({ traceId, spans }), maxJsonChars)
+        : null;
     },
     { initialDelayMs, maxAttempts, retryDelayMs }
   );

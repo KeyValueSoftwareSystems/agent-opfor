@@ -264,8 +264,8 @@ export interface TelemetryConfig {
   /** Backoff between trace fetch attempts (ms). */
   traceFetchRetryDelayMs?: number;
   /**
-   * Max JSON characters of merged Langfuse trace (after observation hydration) passed to the judge
-   * when `enrichJudgeFromTrace` is true (default 14000).
+   * Max JSON characters of merged trace (after observation hydration) passed to the judge
+   * when `enrichJudgeFromTrace` is true (default 40000).
    */
   enrichJudgeTraceJsonMaxChars?: number;
   propagation?: TelemetryPropagationConfig;

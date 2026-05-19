@@ -9,7 +9,7 @@ export const POLL_DEFAULTS: PollOpts & { maxChars: number } = {
   initialDelayMs: 500,
   maxAttempts: 5,
   retryDelayMs: 400,
-  maxChars: 14_000,
+  maxChars: 40_000,
 };
 
 /**

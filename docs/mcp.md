@@ -142,6 +142,8 @@ When `use_langfuse=true`:
 - `target_description` can be omitted — the trace summary replaces it
 - After each attack, Opfor polls Langfuse for the target's internal trace and passes it to the judge for a more accurate PASS/FAIL verdict
 
+> **Ingestion delay:** Judge enrichment relies on the observability platform processing spans asynchronously. Depending on your platform's ingestion pipeline, the judge may receive a partial trace or none at all for multi-turn attacks. Grounded attack generation is not affected — it reads historic traces, not live ones.
+
 Required environment variables:
 
 ```bash

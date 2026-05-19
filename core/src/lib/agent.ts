@@ -67,6 +67,11 @@ export interface RunAgentConfigHttp extends RunAgentConfig {
   responsePath?: string;
   /** Custom HTTP headers to send with each request (from target.headers config). */
   targetHeaders?: Record<string, string>;
+  /**
+   * Pre-generated trace ID to use for this attack (instead of generating a fresh one per call).
+   * Set this in multi-turn loops so all turns share the same trace ID.
+   */
+  agentTraceId?: string;
 }
 
 /**
@@ -103,7 +108,8 @@ export async function callTargetHttp(
   if (hasPropagation && prop) {
     const strategy = prop.traceIdStrategy ?? "per-attack";
     const otelHex =
-      strategy === "per-run" && cfg.runTraceOtel ? cfg.runTraceOtel : newOtelTraceId();
+      cfg.agentTraceId ??
+      (strategy === "per-run" && cfg.runTraceOtel ? cfg.runTraceOtel : newOtelTraceId());
     propagationTraceId = otelHex;
 
     const extra = buildPropagatedHeaders(prop, {
@@ -427,7 +433,7 @@ export async function runAttackAgent(cfg: RunAgentConfig): Promise<AgentAttackRe
         initialDelayMs: tel.traceFetchInitialDelayMs ?? 500,
         maxAttempts: tel.traceFetchMaxAttempts ?? 5,
         retryDelayMs: tel.traceFetchRetryDelayMs ?? 400,
-        maxChars: tel.enrichJudgeTraceJsonMaxChars ?? 14_000,
+        maxChars: tel.enrichJudgeTraceJsonMaxChars ?? 40_000,
       })) ?? undefined;
   }
   const attackContext: AttackContext = { patternName: attack.patternName };
