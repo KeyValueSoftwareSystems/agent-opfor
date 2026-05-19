@@ -2,6 +2,7 @@
 export const state = {
   OPFOR_STOP: false,
   uiRunAbortController: null,
+  retryLocateResolver: null,
 };
 
 export function resetUiRunAbortController() {
@@ -18,4 +19,21 @@ export function beginUiRunAbortController() {
 
 export function endUiRunAbortController() {
   resetUiRunAbortController();
+}
+
+export function waitForRetryLocate() {
+  return new Promise((resolve) => {
+    state.retryLocateResolver = resolve;
+  });
+}
+
+export function triggerRetryLocate() {
+  if (state.retryLocateResolver) {
+    state.retryLocateResolver();
+    state.retryLocateResolver = null;
+  }
+}
+
+export function clearRetryLocate() {
+  state.retryLocateResolver = null;
 }

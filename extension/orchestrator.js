@@ -1,5 +1,5 @@
 import { sleep } from "./utils.js";
-import { state, beginUiRunAbortController, endUiRunAbortController } from "./state.js";
+import { state, beginUiRunAbortController, endUiRunAbortController, waitForRetryLocate, clearRetryLocate } from "./state.js";
 import { callLlm } from "./llm.js";
 import { getLlmProfile, assertLlmCfg } from "./config.js";
 import { loadAttackCatalog, evaluatorFromCatalog, assertEvaluatorInSuite } from "./catalog.js";
@@ -11,18 +11,16 @@ import {
   broadcastProgress,
 } from "./storage.js";
 import { pickChatFrame, pickChatFrameWithRetry } from "./frameDiscovery.js";
+import { locateChatWidget } from "./chatLocator.js";
 import {
-  preparePageForChat,
   actSendText,
   actVendorSendText,
   actClickSelector,
   actVerifyInputVisible,
-  injectShadowPatch,
 } from "./domActions.js";
 import { snapshotCurrentResponse, extractResponse } from "./responseExtractor.js";
 import {
   aiPickInputInFrame,
-  aiUiNextAction,
   llmShortenMessage,
   llmNextUserMessage,
   judgeConversationFinal,
@@ -189,36 +187,7 @@ export async function resetChatSession(tabId, readerCfg) {
       }
     }
 
-    // Fallback: scroll, re-run heuristic opener, re-locate.
-    await preparePageForChat(tabId);
-    try {
-      await chrome.scripting.executeScript({
-        target: { tabId, frameIds: [0] },
-        files: ["frame_open_chat.js"],
-      });
-    } catch {}
-    await sleep(3000);
-
-    const { frames: finalFrames } = await pickChatFrameWithRetry(tabId, {
-      maxRetries: 4,
-      intervalMs: 1200,
-    });
-    for (const nf of finalFrames.slice(0, 4)) {
-      const ai = await aiPickInputInFrame(readerCfg, nf).catch(() => null);
-      if (ai?.inputSelector) {
-        const vis = await actVerifyInputVisible(tabId, nf.frameId, ai.inputSelector);
-        if (vis) {
-          return {
-            ok: true,
-            plan: { inputSelector: ai.inputSelector, submit: ai.submit, confidence: ai.confidence },
-            best: nf,
-            siteSnapshot: finalFrames.find((x) => x.frameId === 0)?.snapshot || nf.snapshot,
-          };
-        }
-      }
-    }
-
-    return { ok: false };
+    return await locateChatWidget(tabId, readerCfg);
   } catch {
     return { ok: false };
   }
@@ -375,187 +344,72 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
       businessUseCase = String(message.businessUseCase || "").trim();
       judgeHint = String(message.judgeHint || "").trim();
 
-      // Phase 1: Prepare page — scroll to trigger lazy widgets.
-      await preparePageForChat(tab.id);
+      // Set preliminary run status so await_user phase can be persisted
+      await setRunStatus({
+        running: true,
+        tabId: tab.id,
+        siteUrl: tab.url || "",
+        suiteId,
+        evaluatorId: evaluatorSnapshot?.id,
+        evaluatorName: evaluatorSnapshot?.name,
+        maxRounds,
+        phase: "locating",
+        transcript: [],
+        startedAt: Date.now(),
+        attackObjective,
+        businessUseCase,
+        judgeHint,
+      });
 
-      // Phase 2: Heuristic open — try vendor JS APIs first, then DOM heuristics.
-      try {
-        await chrome.scripting.executeScript({
-          target: { tabId: tab.id, frameIds: [0] },
-          files: ["frame_vendor_open.js"],
-          world: "MAIN",
+      let located = await locateChatWidget(tab.id, readerCfg);
+      
+      const MAX_USER_RETRIES = 5;
+      let userRetryCount = 0;
+      
+      while (!located.ok && !state.OPFOR_STOP && userRetryCount < MAX_USER_RETRIES) {
+        broadcastProgress({
+          kind: "phase",
+          phase: "await_user",
+          error: located.error || "Could not find (or open) the chat input.",
+          suiteId,
+          evaluatorId: evaluatorSnapshot?.id,
+          evaluatorName: evaluatorSnapshot?.name,
+          maxRounds,
         });
-      } catch {}
-      try {
-        await chrome.scripting.executeScript({
-          target: { tabId: tab.id, frameIds: [0] },
-          files: ["frame_open_chat.js"],
+        
+        const retryPromise = waitForRetryLocate();
+        const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve("timeout"), 120_000));
+        
+        const result = await Promise.race([retryPromise, timeoutPromise]);
+        
+        if (state.OPFOR_STOP) {
+          clearRetryLocate();
+          throw new Error("Run stopped by user.");
+        }
+        
+        if (result === "timeout") {
+          clearRetryLocate();
+          throw new Error("Timed out waiting for user to open chat widget.");
+        }
+        
+        userRetryCount++;
+        broadcastProgress({
+          kind: "phase",
+          phase: "locating",
+          suiteId,
+          evaluatorId: evaluatorSnapshot?.id,
         });
-      } catch {}
-      await sleep(2500);
-
-      // Phase 3: AI agentic loop — scan frames, ask AI to find input or click launchers.
-      const clickedLaunchers = [];
-      let lastErr = "";
-      let clickedThisIteration = false;
-      for (let attempt = 0; attempt < 10; attempt++) {
-        const { frames, best: b } = clickedThisIteration
-          ? await pickChatFrameWithRetry(tab.id, { maxRetries: 4, intervalMs: 1200 })
-          : await (async () => {
-              await sleep(attempt === 0 ? 600 : 500);
-              return pickChatFrame(tab.id);
-            })();
-        best = b;
-        siteSnapshot = frames.find((f) => f.frameId === 0)?.snapshot || best.snapshot;
-
-        const decision = await aiUiNextAction(readerCfg, {
-          frameUrl: best.frameUrl,
-          snapshot: best.snapshot,
-          lastError: lastErr,
-          attempts: attempt,
-          clickedLaunchers,
-        });
-
-        if (decision?.action === "set_input" && decision?.inputSelector) {
-          const visible = await actVerifyInputVisible(tab.id, best.frameId, decision.inputSelector);
-          if (visible) {
-            plan = {
-              inputSelector: decision.inputSelector,
-              submit: decision.submit,
-              confidence: decision.confidence,
-            };
-            break;
-          }
-          for (const f of frames.filter((fr) => fr.frameId !== best.frameId)) {
-            const altAi = await aiPickInputInFrame(readerCfg, f).catch(() => null);
-            if (altAi?.inputSelector) {
-              const altVis = await actVerifyInputVisible(tab.id, f.frameId, altAi.inputSelector);
-              if (altVis) {
-                best = f;
-                plan = {
-                  inputSelector: altAi.inputSelector,
-                  submit: altAi.submit,
-                  confidence: altAi.confidence,
-                };
-                break;
-              }
-            }
-          }
-          if (plan) break;
-          lastErr = "AI picked input but it was not visible in any frame";
-          continue;
-        }
-
-        if (
-          decision?.action === "click_launcher" &&
-          typeof decision.launcherSelector === "string"
-        ) {
-          const sel = decision.launcherSelector;
-          let clickRes = await actClickSelector(tab.id, 0, sel);
-          if (!clickRes?.ok && best.frameId !== 0) {
-            clickRes = await actClickSelector(tab.id, best.frameId, sel);
-          }
-          if (!clickRes?.ok) {
-            lastErr = clickRes?.error || "click failed";
-            clickedThisIteration = false;
-          } else {
-            clickedLaunchers.push(sel);
-            clickedThisIteration = true;
-            await sleep(3000);
-          }
-          continue;
-        }
-
-        if (decision?.action === "wait") {
-          clickedThisIteration = false;
-          await sleep(Math.max(500, Math.min(5000, Number(decision.waitMs || 2500))));
-          continue;
-        }
-
-        if (decision?.action === "give_up") {
-          lastErr = String(decision?.notes || "AI gave up");
-          break;
-        }
-
-        clickedThisIteration = false;
-        lastErr = String(decision?.notes || "unexpected action");
+        
+        located = await locateChatWidget(tab.id, readerCfg);
       }
-
-      // Phase 4: Fallback — scan all frames with aiPickInputInFrame.
-      if (!plan?.inputSelector) {
-        try {
-          const { frames: fbFrames, best: fbBest } = await pickChatFrameWithRetry(tab.id, {
-            maxRetries: 3,
-            intervalMs: 1000,
-          });
-          const framesToTry = fbFrames
-            .filter((f) => (f.chatScore || 0) > 0 || f.inputCount > 0)
-            .slice(0, 6);
-          if (!framesToTry.length && fbBest) framesToTry.push(fbBest);
-
-          for (const f of framesToTry) {
-            const ai = await aiPickInputInFrame(readerCfg, f).catch(() => null);
-            if (ai?.inputSelector) {
-              const vis = await actVerifyInputVisible(tab.id, f.frameId, ai.inputSelector);
-              if (vis) {
-                best = f;
-                plan = {
-                  inputSelector: ai.inputSelector,
-                  submit: ai.submit,
-                  confidence: ai.confidence,
-                };
-                break;
-              }
-            }
-            if (ai?.launcherSelector && !clickedLaunchers.includes(ai.launcherSelector)) {
-              await actClickSelector(tab.id, 0, ai.launcherSelector);
-              clickedLaunchers.push(ai.launcherSelector);
-              await sleep(3000);
-              const { frames: postFrames } = await pickChatFrame(tab.id);
-              for (const pf of postFrames.filter((x) => (x.chatScore || 0) > 0).slice(0, 4)) {
-                const postAi = await aiPickInputInFrame(readerCfg, pf).catch(() => null);
-                if (postAi?.inputSelector) {
-                  const pv = await actVerifyInputVisible(tab.id, pf.frameId, postAi.inputSelector);
-                  if (pv) {
-                    best = pf;
-                    plan = {
-                      inputSelector: postAi.inputSelector,
-                      submit: postAi.submit,
-                      confidence: postAi.confidence,
-                    };
-                    break;
-                  }
-                }
-              }
-              if (plan) break;
-            }
-          }
-        } catch {}
+      
+      if (!located.ok) {
+        throw new Error(located.error || "Could not find (or open) the chat input.");
       }
-
-      // Phase 5: Vendor API fallback for widgets with closed shadow DOM.
-      if (!plan?.inputSelector) {
-        try {
-          await injectShadowPatch(tab.id);
-          await sleep(500);
-          const vendorResults = await chrome.scripting.executeScript({
-            target: { tabId: tab.id, frameIds: [0] },
-            files: ["frame_vendor_api.js"],
-            world: "MAIN",
-          });
-          const vendorResult = vendorResults?.[0]?.result;
-          if (vendorResult?.ok && vendorResult?.inputFound) {
-            plan = {
-              inputSelector: "__VENDOR_INPUT__",
-              submit: { method: "vendor" },
-              confidence: 0.8,
-              vendorMode: true,
-              vendor: vendorResult.vendor,
-            };
-          }
-        } catch {}
-      }
-      if (!plan?.inputSelector) throw new Error("AI could not find (or open) the chat input.");
+      
+      plan = located.plan;
+      best = located.best;
+      siteSnapshot = located.siteSnapshot || "";
     }
 
     await setRunStatus({
@@ -703,28 +557,21 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
         }
       }
 
-      // If send failed, re-discover the chat frame and input.
       if (!actResult?.ok && actResult?.error !== "message_too_long") {
-        try {
-          const { frames: rFrames, best: rBest } = await pickChatFrame(tab.id);
-          if (rBest) {
-            best = rBest;
-            siteSnapshot = rFrames.find((f) => f.frameId === 0)?.snapshot || rBest.snapshot;
-            const rAi = await aiPickInputInFrame(readerCfg, rBest);
-            if (rAi?.inputSelector) {
-              plan = {
-                inputSelector: rAi.inputSelector,
-                submit: rAi.submit,
-                confidence: rAi.confidence,
-              };
-              actResult = await actSendText(tab.id, best.frameId, {
-                inputSelector: plan.inputSelector,
-                submit: plan.submit,
-                text: userMessage,
-              });
-            }
-          }
-        } catch {}
+        const relocated = await locateChatWidget(tab.id, readerCfg, {
+          openWidget: false,
+          maxAiAttempts: 3,
+        });
+        if (relocated.ok && relocated.plan) {
+          plan = relocated.plan;
+          best = relocated.best;
+          siteSnapshot = relocated.siteSnapshot || siteSnapshot;
+          actResult = await actSendText(tab.id, best.frameId, {
+            inputSelector: plan.inputSelector,
+            submit: plan.submit,
+            text: userMessage,
+          });
+        }
       }
 
       transcript.push({ role: "user", content: userMessage });

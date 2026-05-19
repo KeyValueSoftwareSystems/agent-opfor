@@ -40,6 +40,7 @@ The service worker is split into focused ES modules loaded via native `import`:
 | `service_worker.js`    | Entry point — message routing only                                 |
 | `orchestrator.js`      | Main run loop: locate → attack → extract → judge                   |
 | `llmPlanner.js`        | All LLM prompts (frame selection, attack generation, judging)      |
+| `chatLocator.js`       | LLM-driven chat widget detection using accessibility tree snapshots |
 | `frameDiscovery.js`    | Frame collection, scoring, and chat-frame selection                |
 | `domActions.js`        | DOM interaction via `chrome.scripting.executeScript`               |
 | `responseExtractor.js` | Smart polling extractor for bot responses                          |
