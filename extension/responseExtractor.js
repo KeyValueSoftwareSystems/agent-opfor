@@ -1,252 +1,285 @@
 import { sleep } from "./utils.js";
 import { state } from "./state.js";
 
-export async function extractResponseOnce(tabId, frameId, lastUserText = "") {
-  try {
-    await chrome.scripting.executeScript({
-      target: { tabId, frameIds: [frameId] },
-      func: (t) => {
-        globalThis.__OPFOR_LAST_USER__ = String(t || "");
-      },
-      args: [lastUserText],
-    });
-  } catch {}
+// ── Timestamp normalization ───────────────────────────────────────────────────
+// Many widgets prepend a changing timestamp to each message element's
+// textContent ("Just now" → "1:04 am" → "Mon 3:45 PM"). Strip those before
+// comparing so a timestamp flip doesn't look like a brand-new node.
 
-  const res = await chrome.scripting.executeScript({
-    target: { tabId, frameIds: [frameId] },
-    files: ["frame_extract.js"],
-  });
-  return res?.[0]?.result;
+function stripLeadingTimestamp(text) {
+  return text
+    .replace(/^\d{1,2}:\d{2}\s*(?:[ap]m)?\s*/i, "")
+    .replace(/^(?:mon|tue|wed|thu|fri|sat|sun)\s+\d{1,2}:\d{2}.*?\s*/i, "")
+    .replace(/^(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s+\d{1,2}\s*/i, "")
+    .replace(/^yesterday\s*(?:at\s*)?\d{1,2}:\d{2}.*?\s*/i, "")
+    .replace(/^yesterday\s*/i, "")
+    .replace(/^today\s*(?:at\s*)?\d{1,2}:\d{2}.*?\s*/i, "")
+    .replace(/^just now\s*/i, "")
+    .replace(/^\d+\s*(?:second|minute|hour|day)s?\s*ago\s*/i, "")
+    .trim();
 }
 
-export async function snapshotCurrentResponse(tabId, frameId) {
+// ── Text-node diff ────────────────────────────────────────────────────────────
+
+function diffTextNodes(pre, post) {
+  const preNorm  = pre.map(stripLeadingTimestamp);
+  const postNorm = post.map(stripLeadingTimestamp);
+
+  let i = 0;
+  while (i < preNorm.length && i < postNorm.length && preNorm[i] === postNorm[i]) i++;
+
+  const candidates  = post.slice(i);
+  const preNormSet  = new Set(preNorm);
+  const filtered    = candidates.filter(t => !preNormSet.has(stripLeadingTimestamp(t)));
+  const result      = filtered.length > 0 ? filtered : candidates;
+
+  if (result.length > post.length * 0.8 && post.length > 5) {
+    const fullFiltered = post.filter(t => !preNormSet.has(stripLeadingTimestamp(t)));
+    return { text: fullFiltered.join("\n") };
+  }
+  return { text: result.join("\n") };
+}
+
+// ── Scan all frames, return the best container snapshot ───────────────────────
+
+async function scanBestFrame(tabId) {
+  const results = await chrome.scripting.executeScript({
+    target: { tabId, allFrames: true },
+    files: ["frame_snapshot.js"],
+  });
+
+  const hits = results
+    .filter(r => r.result?.ok)
+    .map(r => ({ frameId: r.frameId, ...r.result }))
+    .sort((a, b) => b.score - a.score);
+
+  // Chat containers almost always live in iframes — prefer them over main frame
+  const iframeHits = hits.filter(h => h.frameId !== 0);
+  return iframeHits.length > 0 ? iframeHits[0] : hits[0] || null;
+}
+
+// ── Public API ────────────────────────────────────────────────────────────────
+
+/**
+ * Take a pre-send snapshot of the chat container.
+ * Returns an object suitable for passing as prevSnapshot to extractResponse.
+ */
+export async function snapshotCurrentResponse(tabId, _frameId) {
   try {
-    const result = await extractResponseOnce(tabId, frameId, "");
+    const snap = await scanBestFrame(tabId);
+    if (!snap) return { text: "", messageCount: 0, botCount: 0, textNodes: [], nodeCount: 0, containerFrameId: null };
     return {
-      text: result?.ok ? (result.text || "").trim() : "",
-      messageCount: result?.counts?.total || 0,
-      botCount: result?.counts?.botCount || 0,
+      text            : snap.fullText || "",
+      messageCount    : snap.nodeCount,
+      botCount        : snap.nodeCount,
+      textNodes       : snap.textNodes,
+      nodeCount       : snap.nodeCount,
+      fullText        : snap.fullText,
+      lastNodeText    : snap.lastNodeText,
+      containerFrameId: snap.frameId,
+      containerSel    : snap.sel,
     };
   } catch {
-    return { text: "", messageCount: 0, botCount: 0 };
+    return { text: "", messageCount: 0, botCount: 0, textNodes: [], nodeCount: 0, containerFrameId: null };
   }
 }
 
 /**
- * Smart polling extractor that waits for a NEW, COMPLETE bot response.
+ * Poll until a new, complete bot response appears, then return it via text-node diff.
  *
- * Three-phase detection:
- *   Phase A — "New message appeared": messageCount increased or text differs from pre-send snapshot.
- *   Phase B — "Bot finished typing": no typing/streaming indicators visible.
- *   Phase C — "Response is stable": text unchanged for N consecutive polls.
+ * prevSnapshot should be the value returned by snapshotCurrentResponse.
+ * Falls back gracefully if prevSnapshot is a plain string or missing textNodes.
  */
 export async function extractResponse(tabId, frameId, lastUserText = "", prevSnapshot = "") {
-  const POLL_FAST = 800;
-  const POLL_SLOW = 1500;
-  const POLL_CONFIRM = 1200;
-  const BASE_MAX_POLLS = 50;
-  const TYPING_MAX_WAIT = 90_000;
-  const GROWTH_MAX_WAIT = 180_000;
+  const POLL_FAST        = 350;   // ms between polls while waiting / stabilising
+  const POLL_SLOW        = 600;   // ms while waiting for the first change
+  const GROWTH_COOLDOWN  = 3000;  // ms of no-growth required before accepting stable
+  const BASE_MAX_POLLS   = 60;
+  const GROWTH_MAX_WAIT  = 180_000;
 
-  const normalize = (s) => (s || "").toLowerCase().replace(/\s+/g, " ").trim();
-  const normUserMsg = normalize(lastUserText);
+  // Normalise prevSnapshot — accept both old string format and new object format
+  const prev = typeof prevSnapshot === "object" && prevSnapshot !== null
+    ? prevSnapshot
+    : { text: String(prevSnapshot || ""), textNodes: [], nodeCount: 0, containerFrameId: null };
 
-  function looksLikeOurMessage(text) {
-    if (!normUserMsg || !text) return false;
-    const n = normalize(text);
-    if (!n) return false;
-    if (n === normUserMsg) return true;
-    if (normUserMsg.length > 10 && n.includes(normUserMsg)) return true;
-    if (n.length > 10 && normUserMsg.includes(n)) return true;
-    if (normUserMsg.length > 15 && n.length > 15) {
-      const uWords = new Set(normUserMsg.split(/\s+/));
-      const tWords = n.split(/\s+/);
-      if (tWords.length >= 3) {
-        const overlap = tWords.filter((w) => uWords.has(w)).length;
-        if (overlap / tWords.length > 0.7) return true;
-      }
-    }
+  // Working baseline — advances past the user-echo stage once detected
+  let baseTextNodes = prev.textNodes    || [];
+  let baseFullText  = prev.fullText     || prev.text || "";
+  let baseNodeCount = prev.nodeCount    || 0;
+  let baseLastNode  = prev.lastNodeText || "";
+
+  const targetFrameId = prev.containerFrameId ?? frameId;
+
+  let lastSeenFullText   = baseFullText;
+  let stableCount        = 0;
+  let newMessageDetected = false;
+  let sawTextGrowth      = false;
+  let textGrowthStreak   = 0;   // consecutive polls where text grew — ≥2 = streaming
+  let lastGrowthAt       = 0;
+  let growthStartedAt    = 0;
+  let prevTextLen        = baseFullText.length;
+  let maxPolls           = BASE_MAX_POLLS;
+  let bestSnap           = null;
+
+  // Pre-set the cached container selector so every poll takes the fast path
+  // (skips walkDOM + scoring — just queries the known element directly).
+  if (prev.containerSel) {
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId, frameIds: [targetFrameId] },
+        func: (sel) => { globalThis.__OPFOR_CONTAINER_SEL__ = sel; },
+        args: [prev.containerSel],
+      });
+    } catch {}
+  }
+
+  // Returns true if `text` is a transient typing/thinking indicator, not a real reply.
+  function isTypingIndicator(text) {
+    if (!text) return false;
+    const t = text.trim();
+    const tl = t.toLowerCase();
+    if (t.length > 120) return false;
+    // Explicit "is typing" / "is thinking" patterns
+    if (/\bis\s+typing\b|\bare\s+typing\b/i.test(t)) return true;
+    // Short placeholder patterns
+    if (/^(typing|thinking|loading|generating|please wait|one moment|working on it)\.{0,3}$/i.test(tl)) return true;
+    // Dots / ellipsis only
+    if (/^[.…·•\s]+$/.test(t)) return true;
+    // Streaming cursor
+    if (/^▋?$/.test(t)) return true;
+    // "Agent/Assistant/Bot is typing…"
+    if (/\b(agent|assistant|bot|support|virtual assistant)\b.*\b(typing|thinking|responding|writing)\b/i.test(tl)) return true;
     return false;
   }
 
-  const prev =
-    typeof prevSnapshot === "object" && prevSnapshot !== null
-      ? prevSnapshot
-      : { text: String(prevSnapshot || ""), messageCount: 0, botCount: 0 };
-  const prevNorm = normalize(prev.text);
-  const prevMsgCount = prev.messageCount || 0;
-  const prevBotCount = prev.botCount || 0;
+  // Returns true if `text` looks like the user's own sent message echoed back.
+  function isUserEcho(text) {
+    if (!lastUserText || !text) return false;
+    const norm = s => s.toLowerCase().replace(/\s+/g, " ").trim();
+    const n = norm(text), u = norm(lastUserText);
+    if (!n || !u) return false;
+    if (n === u) return true;
+    if (u.length > 8 && n.includes(u)) return true;
+    if (n.length > 8 && u.includes(n)) return true;
+    return false;
+  }
 
-  let lastSeenText = "";
-  let stableCount = 0;
-  let newMessageDetected = false;
-  let typingStartedAt = 0;
-  let sawTypingIndicator = false;
-  let sawIntermediate = false;
-  let bestResult = null;
-  let lastTextChangeAt = 0;
-
-  // Text-growth tracking: implicit streaming detection for sites without CSS indicators.
-  let prevTextLen = 0;
-  let textGrowthStreak = 0;
-  let sawTextGrowth = false;
-  let lastGrowthAt = 0;
-  let growthStartedAt = 0;
-  let maxPolls = BASE_MAX_POLLS;
+  async function pollFrame() {
+    const results = await chrome.scripting.executeScript({
+      target: { tabId, frameIds: [targetFrameId] },
+      files: ["frame_snapshot.js"],
+    });
+    return results?.[0]?.result || null;
+  }
 
   for (let poll = 0; poll < maxPolls; poll++) {
     if (state.OPFOR_STOP) break;
 
-    const result = await extractResponseOnce(tabId, frameId, lastUserText);
-    const curCounts = result?.counts || {};
-    const curTotal = curCounts.total || 0;
-    const curBot = curCounts.botCount || 0;
-    const isTyping = !!(result?.typing || result?.error === "bot_still_typing");
-    const isIntermediate = !!result?.intermediate;
+    const snap = await pollFrame().catch(() => null);
+    if (!snap?.ok) {
+      await sleep(POLL_FAST);
+      continue;
+    }
 
-    if (isTyping) sawTypingIndicator = true;
-    if (isIntermediate) sawIntermediate = true;
+    const curFullText  = snap.fullText     || "";
+    const curNodeCount = snap.nodeCount    || 0;
+    const curLastNode  = snap.lastNodeText || "";
+    const curTextLen   = curFullText.length;
 
-    // --- Text growth detection ---
-    const curTextLen = result?.ok ? (result.text || "").length : 0;
+    // Text-growth tracking (implicit streaming detection).
+    // Require 2+ consecutive growing polls before marking as streaming —
+    // a single large jump is an atomic node appearing, not word-by-word streaming.
     if (curTextLen > prevTextLen + 5) {
       textGrowthStreak++;
       lastGrowthAt = Date.now();
       if (textGrowthStreak >= 2 && !sawTextGrowth) {
-        sawTextGrowth = true;
+        sawTextGrowth   = true;
         growthStartedAt = Date.now();
       }
       if (sawTextGrowth && poll >= maxPolls - 5) {
         const elapsed = Date.now() - growthStartedAt;
-        if (elapsed < GROWTH_MAX_WAIT) {
-          maxPolls = Math.min(maxPolls + 10, 200);
-        }
+        if (elapsed < GROWTH_MAX_WAIT) maxPolls = Math.min(maxPolls + 10, 200);
       }
-    } else if (curTextLen <= prevTextLen) {
+    } else {
       textGrowthStreak = 0;
     }
     prevTextLen = Math.max(prevTextLen, curTextLen);
 
-    // Echo guard: skip if extracted text is our own message.
-    if (result?.ok && result.text && looksLikeOurMessage(result.text)) {
-      await sleep(POLL_FAST);
-      continue;
-    }
-
-    // Phase A: Detect new message.
+    // Phase A: wait for any change from the current baseline
     if (!newMessageDetected) {
-      const botCountIncreased = prevBotCount > 0 && curBot > prevBotCount;
-      const totalIncreased = prevMsgCount > 0 && curTotal > prevMsgCount;
-      const curNorm = result?.ok ? normalize(result.text) : "";
-      const textChanged = curNorm && prevNorm && curNorm !== prevNorm;
-      const noPrev = !prevNorm && !prevMsgCount;
-
-      // Prefer bot count increase; total alone may just be the user's message appearing.
-      const countIncreased =
-        botCountIncreased || (totalIncreased && !looksLikeOurMessage(result?.text));
-
-      if (countIncreased || textChanged || (noPrev && result?.ok && result.text)) {
-        newMessageDetected = true;
-        lastTextChangeAt = Date.now();
-      } else {
-        if (isTyping || isIntermediate) {
-          if (!typingStartedAt) typingStartedAt = Date.now();
-          if (Date.now() - typingStartedAt > TYPING_MAX_WAIT) break;
-        }
-        await sleep(POLL_FAST);
+      const changed = curFullText  !== baseFullText  ||
+                      curNodeCount !== baseNodeCount ||
+                      curLastNode  !== baseLastNode;
+      if (!changed) {
+        await sleep(POLL_SLOW);
         continue;
       }
+      newMessageDetected = true;
     }
 
-    // Phase B: Wait for typing/streaming to finish.
-    if (isTyping || isIntermediate) {
-      if (!typingStartedAt) typingStartedAt = Date.now();
-      if (Date.now() - typingStartedAt > TYPING_MAX_WAIT) {
-        if (result?.ok && result.text && !isIntermediate) return result;
-        break;
-      }
-      stableCount = 0;
-      lastSeenText = result?.ok ? result.text : "";
-      bestResult = result?.ok && !isIntermediate ? result : bestResult;
-      if (result?.ok && result.text) lastTextChangeAt = Date.now();
-      await sleep(POLL_FAST);
-      continue;
-    }
-    typingStartedAt = 0;
-
-    if (!result?.ok || !result.text) {
+    // Respect streaming growth cooldown before declaring stable
+    if (sawTextGrowth && lastGrowthAt && Date.now() - lastGrowthAt < GROWTH_COOLDOWN) {
       stableCount = 0;
       await sleep(POLL_FAST);
       continue;
     }
 
-    bestResult = result;
-
-    // Phase C: Stability check.
-    const curNorm = normalize(result.text);
-    if (curNorm === normalize(lastSeenText)) {
+    // Phase C: stability check
+    if (curFullText === lastSeenFullText) {
       stableCount++;
     } else {
-      stableCount = 0;
-      lastSeenText = result.text;
-      lastTextChangeAt = Date.now();
+      stableCount      = 0;
+      lastSeenFullText = curFullText;
     }
 
-    // If text was recently growing, don't accept stability yet — the model
-    // may be pausing between sections or waiting on a tool call.
-    const growthCooldown = sawTextGrowth ? 8000 : 0;
-    if (sawTextGrowth && lastGrowthAt && Date.now() - lastGrowthAt < growthCooldown) {
-      stableCount = 0;
-      await sleep(POLL_FAST);
-      continue;
-    }
+    bestSnap = snap;
 
-    const neededStable = sawTextGrowth || sawIntermediate ? 3 : sawTypingIndicator ? 1 : 2;
-
+    // Streaming needs more confirmation; atomic node appearance needs just 1 stable poll
+    const neededStable = sawTextGrowth ? 2 : 1;
     if (stableCount >= neededStable) {
-      const sinceLast = Date.now() - lastTextChangeAt;
-      const confirmWait = sawTextGrowth ? 8000 : sawIntermediate ? 4000 : 3000;
-      if (sinceLast < confirmWait) {
-        await sleep(confirmWait - sinceLast);
-        const verify = await extractResponseOnce(tabId, frameId, lastUserText);
-        if (verify?.ok && normalize(verify.text) !== curNorm) {
-          stableCount = 0;
-          lastSeenText = verify.text;
-          lastTextChangeAt = Date.now();
-          bestResult = verify.intermediate ? bestResult : verify;
-          if (verify.typing || verify.intermediate) {
-            sawTypingIndicator = sawTypingIndicator || !!verify.typing;
-            sawIntermediate = sawIntermediate || !!verify.intermediate;
-          }
-          const verifyLen = (verify.text || "").length;
-          if (verifyLen > prevTextLen + 5) {
-            lastGrowthAt = Date.now();
-            prevTextLen = verifyLen;
-          }
-          continue;
-        }
-        if (verify?.typing || verify?.intermediate) {
-          stableCount = 0;
-          sawTypingIndicator = sawTypingIndicator || !!verify.typing;
-          sawIntermediate = sawIntermediate || !!verify.intermediate;
-          continue;
-        }
+      const { text: rawDiff } = diffTextNodes(baseTextNodes, snap.textNodes);
+      const diffLines = rawDiff.split("\n").filter(l => l.trim());
+      const botLines  = diffLines.filter(l => !isUserEcho(l) && !isTypingIndicator(l));
+
+      if (botLines.length > 0) {
+        return {
+          ok          : true,
+          text        : botLines.join("\n"),
+          typing      : false,
+          intermediate: false,
+          counts      : { total: curNodeCount, botCount: curNodeCount, userCount: 0 },
+        };
       }
-      if (!looksLikeOurMessage(result.text)) return result;
-      stableCount = 0;
+
+      // Diff contained only user echo and/or typing indicators — advance baseline
+      // past this transient state and keep polling for the real reply.
+      baseTextNodes = snap.textNodes;
+      baseFullText  = curFullText;
+      baseNodeCount = curNodeCount;
+      baseLastNode  = curLastNode;
+      lastSeenFullText   = curFullText;
+      stableCount        = 0;
+      newMessageDetected = false;
       await sleep(POLL_FAST);
       continue;
     }
 
-    await sleep(
-      sawTextGrowth || sawIntermediate ? POLL_CONFIRM : sawTypingIndicator ? POLL_FAST : POLL_SLOW
-    );
+    await sleep(sawTextGrowth ? POLL_FAST : POLL_SLOW);
   }
 
-  if (bestResult?.ok && bestResult.text && !looksLikeOurMessage(bestResult.text)) return bestResult;
-  const finalResult = await extractResponseOnce(tabId, frameId, lastUserText);
-  if (finalResult?.ok && looksLikeOurMessage(finalResult.text)) {
-    return { ok: false, error: "Only the user's own message was found.", text: "" };
+  // Timeout — return whatever diff we have (without echo-filtering so we don't
+  // silently drop content when lastUserText wasn't available or didn't match)
+  if (bestSnap) {
+    const { text } = diffTextNodes(baseTextNodes, bestSnap.textNodes);
+    if (text.trim()) {
+      return {
+        ok          : true,
+        text        : text.trim(),
+        typing      : false,
+        intermediate: false,
+        counts      : { total: bestSnap.nodeCount, botCount: bestSnap.nodeCount, userCount: 0 },
+      };
+    }
   }
-  return finalResult;
+  return { ok: false, error: "Timeout waiting for response", text: "" };
 }
