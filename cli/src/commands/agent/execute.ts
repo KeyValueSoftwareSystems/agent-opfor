@@ -245,7 +245,7 @@ export async function runAgentAttacksFromFile(opts: {
             retryDelayMs: tel.traceFetchRetryDelayMs ?? 400,
             maxChars: tel.enrichJudgeTraceJsonMaxChars ?? 40_000,
           })) ?? undefined;
-        const traceOk = obs.traceJson && !obs.traceJson.startsWith("[Netra");
+        const traceOk = obs.traceJson && !obs.traceJson.startsWith("[");
         log.log(`  → trace ${traceOk ? "fetched ✓" : "not found ✗"}`);
       }
       const judgeObs = Object.keys(obs).length > 0 ? obs : undefined;

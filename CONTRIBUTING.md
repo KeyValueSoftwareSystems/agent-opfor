@@ -199,7 +199,8 @@ Opfor can fetch recorded traces from an observability platform and give them to 
 
    ```typescript
    import type { TelemetryAdapter } from "../../adapter.js";
-   import { pollUntilResult, POLL_DEFAULTS } from "../../pollingUtils.js";
+   import { pollUntilResult } from "../../pollingUtils.js";
+   import { stringifyForJudge } from "../../judgePayload.js";
 
    export const myAdapter: TelemetryAdapter = {
      async fetchTraceList(telemetry) {
@@ -210,8 +211,8 @@ Opfor can fetch recorded traces from an observability platform and give them to 
      },
      async fetchTraceForJudge(telemetry, traceId, opts) {
        const result = await pollUntilResult(async () => {
-         const data = await myFetchTrace(traceId);
-         return data ? JSON.stringify(data).slice(0, opts.maxChars) : null;
+         const data = await myFetchTrace(telemetry, traceId);
+         return data ? stringifyForJudge(data, opts.maxChars) : null;
        }, opts);
        return result ?? `[<Name> trace not available after ${opts.maxAttempts} attempt(s).]`;
      },

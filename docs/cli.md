@@ -126,7 +126,7 @@ The CLI loads `.env` from the current working directory automatically. Add `.env
 **B — Config file field:**
 
 ```json
-{ "llm": { "provider": "groq", "apiKey": "gsk_your-key-here" } }
+{ "llm": { "provider": "openai", "apiKey": "sk-your-key-here" } }
 ```
 
 **C — CLI flag (overrides A and B):**

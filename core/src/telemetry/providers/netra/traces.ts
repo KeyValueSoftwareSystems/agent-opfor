@@ -4,6 +4,7 @@ import type {
   TelemetryConfig,
 } from "../../../config/types.js";
 import { pollUntilResult, POLL_DEFAULTS } from "../../pollingUtils.js";
+import { stringifyForJudge, JUDGE_PAYLOAD_DEFAULTS } from "../../judgePayload.js";
 
 const DEFAULT_LIST_LIMIT = 50;
 const DEFAULT_MAX_PAGES = 1;
@@ -75,19 +76,6 @@ function dedupeRepeatedStrings(obj: unknown, minLen = 500): unknown {
     return v;
   };
   return { _shared: shared, ...(replace(obj) as Record<string, unknown>) };
-}
-
-function stringifyForJudge(value: unknown, maxChars: number): string {
-  let s: string;
-  try {
-    s = JSON.stringify(value, null, 2);
-  } catch {
-    s = String(value);
-  }
-  if (s.length > maxChars) {
-    s = s.slice(0, maxChars) + "\n…[truncated]";
-  }
-  return s;
 }
 
 /**
@@ -344,7 +332,7 @@ export async function fetchNetraTraceJsonForJudge(
   const initialDelayMs = options?.initialDelayMs ?? POLL_DEFAULTS.initialDelayMs;
   const maxAttempts = options?.maxAttempts ?? POLL_DEFAULTS.maxAttempts;
   const retryDelayMs = options?.retryDelayMs ?? POLL_DEFAULTS.retryDelayMs;
-  const maxJsonChars = options?.maxJsonChars ?? POLL_DEFAULTS.maxChars;
+  const maxJsonChars = options?.maxJsonChars ?? JUDGE_PAYLOAD_DEFAULTS.maxChars;
 
   const result = await pollUntilResult<string>(
     async () => {

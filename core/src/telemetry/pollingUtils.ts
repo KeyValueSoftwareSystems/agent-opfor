@@ -5,11 +5,10 @@ export interface PollOpts {
 }
 
 /** Canonical defaults for judge trace polling — use these in new connectors. */
-export const POLL_DEFAULTS: PollOpts & { maxChars: number } = {
+export const POLL_DEFAULTS: PollOpts = {
   initialDelayMs: 500,
   maxAttempts: 5,
   retryDelayMs: 400,
-  maxChars: 40_000,
 };
 
 /**

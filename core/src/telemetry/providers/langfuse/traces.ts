@@ -4,6 +4,7 @@ import type {
   TelemetryConfig,
 } from "../../../config/types.js";
 import { pollUntilResult, POLL_DEFAULTS } from "../../pollingUtils.js";
+import { stringifyForJudge, JUDGE_PAYLOAD_DEFAULTS } from "../../judgePayload.js";
 
 const DEFAULT_LANGFUSE_ORIGIN = "https://cloud.langfuse.com";
 /** First page size when listing with no server-side filters (Langfuse still paginates). */
@@ -398,17 +399,6 @@ export async function logLangfuseTracesDuringSetup(telemetry: TelemetryConfig): 
   console.log(`--- Langfuse fetch done ---\n`);
 }
 
-function stringifyTraceForJudge(body: unknown, maxChars: number): string {
-  let s: string;
-  try {
-    s = JSON.stringify(body);
-  } catch {
-    s = String(body);
-  }
-  if (s.length <= maxChars) return s;
-  return `${s.slice(0, maxChars)}\n...[truncated, ${s.length} chars total]`;
-}
-
 export type FetchLangfuseTraceByIdOptions = {
   /** Langfuse `fields` query (e.g. core,io,observations,scores,metrics). */
   fields?: string;
@@ -570,7 +560,7 @@ export async function fetchLangfuseTraceJsonForJudge(
   const initialDelayMs = options?.initialDelayMs ?? POLL_DEFAULTS.initialDelayMs;
   const maxAttempts = options?.maxAttempts ?? POLL_DEFAULTS.maxAttempts;
   const retryDelayMs = options?.retryDelayMs ?? POLL_DEFAULTS.retryDelayMs;
-  const maxJsonChars = options?.maxJsonChars ?? POLL_DEFAULTS.maxChars;
+  const maxJsonChars = options?.maxJsonChars ?? JUDGE_PAYLOAD_DEFAULTS.maxChars;
 
   const traceFields = telemetry.langfuse?.traceDetailFields?.trim() || DEFAULT_TRACE_GET_FIELDS;
 
@@ -592,7 +582,7 @@ export async function fetchLangfuseTraceJsonForJudge(
           traceId,
           got.body as Record<string, unknown>
         );
-        return stringifyTraceForJudge(merged, maxJsonChars);
+        return stringifyForJudge(merged, maxJsonChars);
       }
       return null;
     },
@@ -601,6 +591,6 @@ export async function fetchLangfuseTraceJsonForJudge(
 
   if (result !== null) return result;
 
-  const errSnippet = stringifyTraceForJudge(lastBody, 600);
+  const errSnippet = stringifyForJudge(lastBody, 600);
   return `[Langfuse trace not available after ${maxAttempts} attempt(s). Last HTTP ${lastStatus}. Body (truncated): ${errSnippet}]`;
 }
