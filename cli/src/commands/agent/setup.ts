@@ -644,7 +644,7 @@ export async function generateAgentAttacksFromConfig(opts: {
 
   let langfuseTraceContext: string | undefined;
   if (telemetry && telemetry.provider !== "none") {
-    log.start("Fetching Langfuse traces...");
+    log.start(`Fetching ${telemetry.provider} traces...`);
     try {
       langfuseTraceContext = await runSetupTraceCuration({
         telemetry,

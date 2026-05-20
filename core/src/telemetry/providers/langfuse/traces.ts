@@ -3,6 +3,8 @@ import type {
   LangfuseTraceSelectionConfig,
   TelemetryConfig,
 } from "../../../config/types.js";
+import { pollUntilResult, POLL_DEFAULTS } from "../../pollingUtils.js";
+import { stringifyForJudge, JUDGE_PAYLOAD_DEFAULTS } from "../../judgePayload.js";
 
 const DEFAULT_LANGFUSE_ORIGIN = "https://cloud.langfuse.com";
 /** First page size when listing with no server-side filters (Langfuse still paginates). */
@@ -397,21 +399,6 @@ export async function logLangfuseTracesDuringSetup(telemetry: TelemetryConfig): 
   console.log(`--- Langfuse fetch done ---\n`);
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function stringifyTraceForJudge(body: unknown, maxChars: number): string {
-  let s: string;
-  try {
-    s = JSON.stringify(body);
-  } catch {
-    s = String(body);
-  }
-  if (s.length <= maxChars) return s;
-  return `${s.slice(0, maxChars)}\n...[truncated, ${s.length} chars total]`;
-}
-
 export type FetchLangfuseTraceByIdOptions = {
   /** Langfuse `fields` query (e.g. core,io,observations,scores,metrics). */
   fields?: string;
@@ -570,40 +557,40 @@ export async function fetchLangfuseTraceJsonForJudge(
   traceId: string,
   options?: FetchLangfuseTraceForJudgeOptions
 ): Promise<string> {
-  const initialDelayMs = options?.initialDelayMs ?? 500;
-  const maxAttempts = options?.maxAttempts ?? 5;
-  const retryDelayMs = options?.retryDelayMs ?? 400;
-  const maxJsonChars = options?.maxJsonChars ?? 14_000;
+  const initialDelayMs = options?.initialDelayMs ?? POLL_DEFAULTS.initialDelayMs;
+  const maxAttempts = options?.maxAttempts ?? POLL_DEFAULTS.maxAttempts;
+  const retryDelayMs = options?.retryDelayMs ?? POLL_DEFAULTS.retryDelayMs;
+  const maxJsonChars = options?.maxJsonChars ?? JUDGE_PAYLOAD_DEFAULTS.maxChars;
 
-  await sleep(Math.max(0, initialDelayMs));
+  const traceFields = telemetry.langfuse?.traceDetailFields?.trim() || DEFAULT_TRACE_GET_FIELDS;
 
   let lastStatus = 0;
   let lastBody: unknown;
 
-  const traceFields = telemetry.langfuse?.traceDetailFields?.trim() || DEFAULT_TRACE_GET_FIELDS;
+  const result = await pollUntilResult<string>(
+    async () => {
+      const got = await fetchLangfuseTraceById(telemetry, traceId, { fields: traceFields });
+      if (!got) {
+        return "[Langfuse trace fetch failed: credentials became unavailable.]";
+      }
+      lastStatus = got.status;
+      lastBody = got.body;
 
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    const got = await fetchLangfuseTraceById(telemetry, traceId, { fields: traceFields });
-    if (!got) {
-      return "[Langfuse trace fetch failed: credentials became unavailable.]";
-    }
-    lastStatus = got.status;
-    lastBody = got.body;
+      if (got.ok && got.body !== null && typeof got.body === "object") {
+        const merged = await mergeLangfuseObservationsIntoTraceObject(
+          telemetry,
+          traceId,
+          got.body as Record<string, unknown>
+        );
+        return stringifyForJudge(merged, maxJsonChars);
+      }
+      return null;
+    },
+    { initialDelayMs, maxAttempts, retryDelayMs }
+  );
 
-    if (got.ok && got.body !== null && typeof got.body === "object") {
-      const merged = await mergeLangfuseObservationsIntoTraceObject(
-        telemetry,
-        traceId,
-        got.body as Record<string, unknown>
-      );
-      return stringifyTraceForJudge(merged, maxJsonChars);
-    }
+  if (result !== null) return result;
 
-    if (attempt < maxAttempts - 1) {
-      await sleep(Math.max(0, retryDelayMs));
-    }
-  }
-
-  const errSnippet = stringifyTraceForJudge(lastBody, 600);
+  const errSnippet = stringifyForJudge(lastBody, 600);
   return `[Langfuse trace not available after ${maxAttempts} attempt(s). Last HTTP ${lastStatus}. Body (truncated): ${errSnippet}]`;
 }

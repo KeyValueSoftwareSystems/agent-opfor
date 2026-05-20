@@ -15,7 +15,8 @@ import {
   getEvaluatorIdSet,
 } from "../../../core/dist/config/loadSkillCatalog.js";
 import { resolveTelemetryEnv } from "../../../core/dist/config/resolveTelemetryEnv.js";
-import { runLangfuseSetupTraceCuration } from "../../../core/dist/telemetry/langfuseTraceCuration.js";
+import { runSetupTraceCuration } from "../../../core/dist/telemetry/curation.js";
+import { getAdapter } from "../../../core/dist/telemetry/adapter.js";
 import { PROVIDERS } from "../../../core/dist/config/types.js";
 import type {
   AttackEntry,
@@ -39,10 +40,10 @@ export interface SetupResult {
   totalAttacks: number;
   provider: string;
   model: string;
-  /** Whether Langfuse trace curation ran during setup. */
-  langfuseTraceCurationRan: boolean;
+  /** Whether trace curation ran during setup. */
+  traceCurationRan: boolean;
   /** Set when curation was attempted but failed — explains why attacks may be less targeted. */
-  langfuseCurationError?: string;
+  curationError?: string;
   /** Path to trace-summary.md when curation succeeded. */
   traceSummaryPath?: string;
 }
@@ -220,28 +221,28 @@ async function runSetupCore({
 }: CoreSetupParams): Promise<SetupResult> {
   await mkdir(resolvedOutputDir, { recursive: true });
 
-  let langfuseTraceContext: string | undefined;
-  let langfuseTraceCurationRan = false;
-  let langfuseCurationError: string | undefined;
+  let traceContext: string | undefined;
+  let traceCurationRan = false;
+  let curationError: string | undefined;
   let traceSummaryPath: string | undefined;
 
-  if (telemetry?.provider === "langfuse") {
-    langfuseTraceCurationRan = true;
+  if (telemetry && getAdapter(telemetry.provider)) {
+    traceCurationRan = true;
     try {
-      langfuseTraceContext = await runLangfuseSetupTraceCuration({
+      traceContext = await runSetupTraceCuration({
         telemetry,
         model,
         targetName: target.name,
-        targetDescription: target.description,
+        targetDescription: target.description ?? "",
         outputDir: resolvedOutputDir,
       });
-      if (langfuseTraceContext?.trim()) {
+      if (traceContext?.trim()) {
         traceSummaryPath = path.join(resolvedOutputDir, "trace-summary.md");
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      langfuseCurationError = msg;
-      console.warn(`[Langfuse] Trace curation failed (continuing setup): ${msg}`);
+      curationError = msg;
+      console.warn(`[telemetry] Trace curation failed (continuing setup): ${msg}`);
     }
   }
 
@@ -263,7 +264,7 @@ async function runSetupCore({
         : target.description;
 
     const attacks = await generateAttackPrompts(evaluator, targetDescription, model, {
-      traceContext: langfuseTraceContext,
+      traceContext,
     });
 
     for (const attack of attacks) {
@@ -297,7 +298,7 @@ async function runSetupCore({
     target,
     attacks: allAttacks,
     telemetry,
-    ...(langfuseTraceContext?.trim() ? { traceSummaryFilename: "trace-summary.md" } : {}),
+    ...(traceContext?.trim() ? { traceSummaryFilename: "trace-summary.md" } : {}),
   };
 
   await writeFile(outputPath, JSON.stringify(promptsFile, null, 2), "utf8");
@@ -308,8 +309,8 @@ async function runSetupCore({
     totalAttacks: allAttacks.length,
     provider: attackLlm.provider,
     model: attackLlm.model,
-    langfuseTraceCurationRan,
-    langfuseCurationError,
+    traceCurationRan,
+    curationError,
     traceSummaryPath,
   };
 }

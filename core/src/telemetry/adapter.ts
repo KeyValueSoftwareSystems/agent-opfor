@@ -47,7 +47,7 @@ import { netraAdapter } from "./providers/netra/adapter.js";
 
 /**
  * Return the adapter for the given provider, or null for "none" / unknown providers.
- * Adding a new provider = implement `TelemetryAdapter` + one line here.
+ * Adding a new provider: see "Adding a telemetry provider" in CONTRIBUTING.md.
  */
 export function getAdapter(provider: TelemetryProviderId): TelemetryAdapter | null {
   if (provider === "langfuse") return langfuseAdapter;

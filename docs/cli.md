@@ -126,7 +126,7 @@ The CLI loads `.env` from the current working directory automatically. Add `.env
 **B — Config file field:**
 
 ```json
-{ "llm": { "provider": "groq", "apiKey": "gsk_your-key-here" } }
+{ "llm": { "provider": "openai", "apiKey": "sk-your-key-here" } }
 ```
 
 **C — CLI flag (overrides A and B):**
@@ -235,12 +235,15 @@ Multi-turn requires your target to maintain conversation history across requests
 
 ---
 
-## Telemetry (optional)
+## Trace-aware testing (agent mode only)
 
 When a telemetry provider is configured, opfor does two things:
 
-1. **Setup** — fetches real production traces and uses them to ground attack prompts in actual user language and flows, producing more targeted attacks.
-2. **Run** — optionally injects a trace ID into each target request (`propagation.traceIdBodyField`) so the recorded trace can be fetched after the attack and passed to the LLM judge, giving it visibility into internal tool calls, retrieved data, and intermediate reasoning — not just the final response.
+1. **Grounded attack generation** — fetches real production traces before generating attack prompts. The attacker LLM sees actual user flows, tool call patterns, and data the agent handles, producing attacks that reflect how the system is really used rather than generic templates.
+
+2. **Judge enrichment** — injects a trace ID into each target request so the recorded trace can be fetched after the attack and passed to the LLM judge. The judge sees every tool call, retrieved value, and intermediate reasoning step — not just the final response. This catches issues that output-only testing misses: PII that leaks into a tool call but never reaches the user, scope escalations that don't change the response text, agents that retrieve unauthorized data but render a clean reply.
+
+   > **Ingestion delay:** Observability platforms process spans asynchronously. Opfor polls for the trace after all turns of an attack complete, but depending on your platform's ingestion pipeline, some or all spans may not have arrived yet — for multi-turn attacks this means the judge may receive a partial trace or none at all. You can tune the polling budget with `traceFetchInitialDelayMs`, `traceFetchMaxAttempts`, and `traceFetchRetryDelayMs` in the telemetry config, at the cost of a longer scan time. Grounded attack generation is not affected by this — it reads historic traces, not live ones.
 
 ### Langfuse
 

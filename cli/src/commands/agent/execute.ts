@@ -5,7 +5,12 @@ import { randomUUID } from "node:crypto";
 import { log } from "../../../../core/dist/lib/logger.js";
 import { createModel } from "../../../../core/dist/providers/factory.js";
 import { judgeResponse, errorJudge } from "../../../../core/dist/evaluators/judge.js";
-import type { ConversationTurn, JudgeResult } from "../../../../core/dist/evaluators/judge.js";
+import type {
+  ConversationTurn,
+  JudgeResult,
+  JudgeObservabilityContext,
+} from "../../../../core/dist/evaluators/judge.js";
+import { getAdapter } from "../../../../core/dist/telemetry/adapter.js";
 import { generateReport } from "../../../../core/dist/report/agentReport.js";
 import type {
   EvaluatorReport,
@@ -161,6 +166,13 @@ export async function runAgentAttacksFromFile(opts: {
       const conversationHistory: ConversationTurn[] = [];
       const turnResults: TurnRecord[] = [];
 
+      // Pre-generate one trace ID for all turns of this attack so they share a single trace.
+      const hasPropagation =
+        Boolean(propagation?.headers && Object.keys(propagation.headers).length > 0) ||
+        Boolean(propagation?.traceIdBodyField?.trim());
+      const attackTraceId =
+        hasPropagation && propagationStrategy === "per-attack" ? newOtelTraceId() : undefined;
+
       const agentCfg: RunAgentConfigHttp = {
         attack,
         targetApiKey: target.targetApiKey,
@@ -177,6 +189,7 @@ export async function runAgentAttacksFromFile(opts: {
         promptPath: target.promptPath,
         responsePath: target.responsePath,
         targetHeaders: target.headers,
+        agentTraceId: attackTraceId,
       };
 
       for (let t = 1; t <= numTurns; t++) {
@@ -211,6 +224,32 @@ export async function runAgentAttacksFromFile(opts: {
       }
 
       const finalTurn = turnResults[turnResults.length - 1];
+
+      // Fetch trace for judge enrichment if configured.
+      const tel = promptsFile.telemetry;
+      const traceIdForJudge = attackTraceId ?? runTraceOtel;
+      const obs: JudgeObservabilityContext = {};
+      if (traceIdForJudge) obs.propagatedTraceId = traceIdForJudge;
+      const adapter = tel ? getAdapter(tel.provider) : null;
+      if (
+        adapter &&
+        tel?.enrichJudgeFromTrace &&
+        traceIdForJudge &&
+        !isTargetError(finalTurn?.response ?? "")
+      ) {
+        log.log(`  → fetching ${tel.provider} trace for judge...`);
+        obs.traceJson =
+          (await adapter.fetchTraceForJudge(tel, traceIdForJudge, {
+            initialDelayMs: tel.traceFetchInitialDelayMs ?? 500,
+            maxAttempts: tel.traceFetchMaxAttempts ?? 5,
+            retryDelayMs: tel.traceFetchRetryDelayMs ?? 400,
+            maxChars: tel.enrichJudgeTraceJsonMaxChars ?? 40_000,
+          })) ?? undefined;
+        const traceOk = obs.traceJson && !obs.traceJson.startsWith("[");
+        log.log(`  → trace ${traceOk ? "fetched ✓" : "not found ✗"}`);
+      }
+      const judgeObs = Object.keys(obs).length > 0 ? obs : undefined;
+
       const finalJudge: JudgeResult = !finalTurn
         ? {
             verdict: "FAIL" as const,
@@ -226,7 +265,7 @@ export async function runAgentAttacksFromFile(opts: {
               finalTurn.prompt,
               finalTurn.response,
               judgeModel,
-              undefined,
+              judgeObs,
               isMultiTurn ? conversationHistory : undefined,
               { patternName: attack.patternName }
             );
