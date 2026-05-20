@@ -114,6 +114,8 @@ const state = {
   running: false,
   cancelRequested: false,
   pauseRequested: false,
+  targetTabId: /** @type {number|null} */ (null),
+  keepAlivePort: /** @type {chrome.runtime.Port|null} */ (null),
 };
 
 // ── Screen / status ────────────────────────────────────────────
@@ -1995,6 +1997,7 @@ async function runOneEvaluator(ev, { resume = false } = {}) {
         attackObjective: state.attackObjective || "",
         businessUseCase: state.businessUseCase || "",
         judgeHint: state.judgeHint || "",
+        tabId: state.targetTabId || undefined,
       };
   setPhase("locating");
 
@@ -2221,6 +2224,25 @@ async function startRun({ resume = false } = {}) {
     } catch {}
   }
 
+  // Keep the service worker alive for the entire run duration.
+  if (!state.keepAlivePort) {
+    try {
+      state.keepAlivePort = chrome.runtime.connect({ name: "opfor-keepalive" });
+      state.keepAlivePort.onDisconnect.addListener(() => {
+        state.keepAlivePort = null;
+      });
+    } catch {}
+  }
+
+  // Capture the target tab once so subsequent evaluators don't fail
+  // when chrome.tabs.query can't resolve the active tab mid-run.
+  if (!state.targetTabId) {
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (tab?.id) state.targetTabId = tab.id;
+    } catch {}
+  }
+
   setScreen("running");
   renderRunningHeader();
   renderRunStrip();
@@ -2241,6 +2263,10 @@ async function startRun({ resume = false } = {}) {
 
     if (state.pauseRequested || out.paused) {
       state.running = false;
+      try {
+        state.keepAlivePort?.disconnect();
+      } catch {}
+      state.keepAlivePort = null;
       stopCosmeticTicker();
       await clearPopupRunQueue();
       $("pausedSuite").textContent = state.suiteId;
@@ -2328,13 +2354,21 @@ async function startRun({ resume = false } = {}) {
       $("runEvalName").textContent = "Resetting chat session";
       $("runPhaseText").textContent = "Starting fresh conversation for next evaluator";
       try {
-        await chrome.runtime.sendMessage({ type: "OPFOR_RESET_CHAT" });
+        await chrome.runtime.sendMessage({
+          type: "OPFOR_RESET_CHAT",
+          tabId: state.targetTabId || undefined,
+        });
       } catch {}
       await new Promise((r) => setTimeout(r, 1000));
     }
   }
 
   state.running = false;
+  state.targetTabId = null;
+  try {
+    state.keepAlivePort?.disconnect();
+  } catch {}
+  state.keepAlivePort = null;
   stopCosmeticTicker();
   stopRunStatusPoller();
   await clearPopupRunQueue();

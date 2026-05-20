@@ -340,8 +340,12 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
       evaluatorSnapshot = evaluatorFromCatalog(catalog, evaluatorId);
       if (!evaluatorSnapshot) throw new Error(`Unknown evaluator: ${evaluatorId}`);
 
-      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-      tab = tabs[0];
+      if (message.tabId) {
+        tab = await chrome.tabs.get(message.tabId);
+      } else {
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        tab = tabs[0];
+      }
       if (!tab?.id) throw new Error("No active tab found.");
 
       maxRounds = Math.max(1, Math.min(20, Number(message.maxRounds ?? message.turns ?? 10)));

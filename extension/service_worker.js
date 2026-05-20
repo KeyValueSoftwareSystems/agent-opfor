@@ -273,14 +273,18 @@ function handleMainMessages(message, sendResponse) {
   if (message?.type === "OPFOR_RESET_CHAT") {
     (async () => {
       try {
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        if (!tab?.id) {
+        let tabId = message.tabId;
+        if (!tabId) {
+          const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+          tabId = tab?.id;
+        }
+        if (!tabId) {
           sendResponse({ ok: false, error: "No active tab" });
           return;
         }
         const cfg = await getLlmProfile("reader");
         assertLlmCfg(cfg, { kind: "HTML reader" });
-        const result = await resetChatSession(tab.id, cfg);
+        const result = await resetChatSession(tabId, cfg);
         sendResponse({ ok: result.ok });
       } catch (e) {
         sendResponse({ ok: false, error: e instanceof Error ? e.message : String(e) });
@@ -346,6 +350,15 @@ function handleMainMessages(message, sendResponse) {
 
   return true;
 }
+
+// ── Keep-alive port ──────────────────────────────────────────────────────────
+// The popup holds this port open during a run to prevent Chrome from killing
+// the service worker mid-operation (MV3 30s idle timeout).
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name === "opfor-keepalive") {
+    port.onDisconnect.addListener(() => {});
+  }
+});
 
 // ── Single consolidated message listener ─────────────────────────────────────
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
