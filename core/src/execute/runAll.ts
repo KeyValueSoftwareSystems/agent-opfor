@@ -6,18 +6,16 @@ import type {
   AttackResult,
   EvaluatorResult,
   UnifiedRunReport,
-  AgentTurnRecord,
   McpTurnRecord,
 } from "./types.js";
 import { generateAttacks, type ToolInfo } from "../generate/generateAttacks.js";
-import { generateNextAdaptiveTurn, generateNextMcpTurn } from "../generate/generateNextTurn.js";
-import type { AttackPattern } from "../evaluators/parseEvaluator.js";
-import { createAgentTarget, isTargetError } from "../targets/agentTarget.js";
+import { generateNextMcpTurn } from "../generate/generateNextTurn.js";
+import { createAgentTarget } from "../targets/agentTarget.js";
+import type { AgentTarget } from "../targets/agentTarget.js";
 import { createMcpTarget } from "../targets/mcpTarget.js";
 import { loadBuiltinEvaluator } from "../evaluators/parseEvaluator.js";
 import { loadSkillCatalog, resolveSuiteEvaluatorIds } from "../config/loadSkillCatalog.js";
-import { judgeResponse, errorJudge } from "../evaluators/judge.js";
-import type { JudgeObservabilityContext } from "../evaluators/judge.js";
+import { runAgentAttack } from "./runAgentLoop.js";
 import {
   judgeToolResponse,
   sanitizeJudgeResult,
@@ -27,12 +25,13 @@ import { createModel } from "../providers/factory.js";
 import type { LlmConfig } from "../config/types.js";
 import { getAdapter } from "../telemetry/adapter.js";
 import { runSetupTraceCuration } from "../telemetry/curation.js";
-import { newOtelTraceId } from "../lib/tracePropagation.js";
 import { log } from "../lib/logger.js";
 
 export interface RunAllOptions {
   onProgress?: (event: ProgressEvent) => void;
   outputDir?: string;
+  /** Pre-built agent target. When omitted, createAgentTarget is called using config.target. */
+  agentTarget?: AgentTarget;
 }
 
 export type ProgressEvent =
@@ -55,7 +54,7 @@ export async function runAll(
   const attackModel = resolveModel(config.attackLlm);
   const judgeModel = resolveModel(config.judgeLlm ?? config.attackLlm);
 
-  const evaluatorIds = await resolveEvaluatorIds(config.selection);
+  const evaluators = await resolveEvaluators(config.selection);
   const isMcp = config.target.kind === "mcp";
 
   // For MCP targets, connect once and discover tools
@@ -75,15 +74,9 @@ export async function runAll(
   const evaluatorResults: EvaluatorResult[] = [];
 
   try {
-    for (const evaluatorId of evaluatorIds) {
-      const evaluator = await loadBuiltinEvaluator(evaluatorId).catch(() => null);
-      if (!evaluator) {
-        log.warn(`Evaluator "${evaluatorId}" not found — skipping`);
-        continue;
-      }
-
-      notify({ type: "evaluator_start", evaluatorId, evaluatorName: evaluator.name });
-      log.info(`\n▶ ${evaluator.name} (${evaluatorId})`);
+    for (const evaluator of evaluators) {
+      notify({ type: "evaluator_start", evaluatorId: evaluator.id, evaluatorName: evaluator.name });
+      log.info(`\n▶ ${evaluator.name} (${evaluator.id})`);
 
       const attacks = await generateAttacks({
         evaluator,
@@ -106,11 +99,13 @@ export async function runAll(
           ? await runMcpAttack(attack, mcpTarget!, judgeModel, config)
           : await runAgentAttack(
               attack,
-              config,
               attackModel,
               judgeModel,
               attack.id,
-              evaluator.patterns
+              evaluator.patterns,
+              options?.agentTarget ??
+                createAgentTarget(config.target as import("./types.js").AgentTargetConfig),
+              { targetConfig: config.target, telemetry: config.telemetry }
             );
 
         attackResults.push(result);
@@ -126,10 +121,10 @@ export async function runAll(
       const failed = attackResults.filter((r) => r.judge.verdict === "FAIL").length;
       const errors = attackResults.filter((r) => r.judge.verdict === "ERROR").length;
 
-      notify({ type: "evaluator_done", evaluatorId, passed, failed, errors });
+      notify({ type: "evaluator_done", evaluatorId: evaluator.id, passed, failed, errors });
 
       evaluatorResults.push({
-        evaluatorId,
+        evaluatorId: evaluator.id,
         evaluatorName: evaluator.name,
         ref: evaluator.ref,
         severity: evaluator.severity,
@@ -146,108 +141,6 @@ export async function runAll(
   }
 
   return buildReport(config, evaluatorResults);
-}
-
-// ---------------------------------------------------------------------------
-// Agent attack runner
-// ---------------------------------------------------------------------------
-
-async function runAgentAttack(
-  attack: AttackSpec,
-  config: RunConfig,
-  attackModel: LanguageModel,
-  judgeModel: LanguageModel,
-  attackIndex: string,
-  patterns: AttackPattern[]
-): Promise<AttackResult> {
-  const target = createAgentTarget(config.target as import("./types.js").AgentTargetConfig);
-  const turns: AgentTurnRecord[] = [];
-  const history: { role: "user" | "assistant"; content: string }[] = [];
-  let finalPrompt = attack.prompt ?? "";
-  let finalResponse = "";
-
-  const propagation = config.telemetry?.propagation;
-  const hasPropagation =
-    Boolean(propagation?.headers && Object.keys(propagation.headers).length > 0) ||
-    Boolean(propagation?.traceIdBodyField?.trim());
-  // Share one trace id across every turn of this attack so observability
-  // backends group them into a single trace.
-  const attackTraceId =
-    hasPropagation && (propagation?.traceIdStrategy ?? "per-attack") === "per-attack"
-      ? newOtelTraceId()
-      : undefined;
-
-  for (let t = 1; t <= attack.turns; t++) {
-    // Adaptive mode leaves attack.prompt empty so even turn 1 is generated by
-    // the escalation prompt (it sees an empty history and produces a smart
-    // opener). Comprehensive mode seeds turn 1 from the pattern template and
-    // hands off to the same adaptive generator for follow-ups.
-    const prompt =
-      t === 1 && attack.prompt
-        ? finalPrompt
-        : await generateNextAdaptiveTurn({
-            history,
-            attack,
-            patterns,
-            target: config.target,
-            model: attackModel,
-          });
-
-    const response = await target.send(prompt, {
-      propagation,
-      attackTraceId,
-      attackIndex: Number.isFinite(Number(attackIndex)) ? Number(attackIndex) : undefined,
-    });
-
-    history.push({ role: "user", content: prompt });
-    history.push({ role: "assistant", content: response });
-
-    finalPrompt = prompt;
-    finalResponse = response;
-    turns.push({ kind: "agent", turnIndex: t, prompt, response });
-
-    if (isTargetError(response)) break;
-  }
-
-  await target.close();
-
-  // Judge the full conversation once after all turns (matches the
-  // post-loop behaviour established by master c355551 #38 — the per-target
-  // execute files that carried that fix were consolidated into this runner,
-  // and the post-loop call shape goes here).
-  const finalJudge =
-    turns.length === 0
-      ? errorJudge("no turns completed")
-      : isTargetError(finalResponse)
-        ? errorJudge(finalResponse)
-        : await judgeResponse(
-            {
-              id: attack.evaluatorId,
-              name: attack.evaluatorName,
-              severity: attack.severity,
-              ref: attack.ref,
-              description: attack.description ?? "",
-              passCriteria: attack.passCriteria,
-              failCriteria: attack.failCriteria,
-              patterns: [],
-            },
-            finalPrompt,
-            finalResponse,
-            judgeModel,
-            await buildJudgeObservability(config, attackTraceId, finalResponse),
-            history.length > 2 ? history : undefined,
-            { patternName: attack.patternName, judgeHint: attack.judgeHint }
-          );
-
-  return {
-    attackId: attack.id,
-    evaluatorId: attack.evaluatorId,
-    patternName: attack.patternName,
-    prompt: finalPrompt,
-    response: finalResponse,
-    judge: finalJudge,
-    turns: turns.length > 1 ? turns : undefined,
-  };
 }
 
 // ---------------------------------------------------------------------------
@@ -351,15 +244,31 @@ async function runMcpAttack(
 // Helpers
 // ---------------------------------------------------------------------------
 
-async function resolveEvaluatorIds(selection: RunConfig["selection"]): Promise<string[]> {
-  if (selection.mode === "evaluators") return selection.evaluators;
-  try {
-    const catalog = await loadSkillCatalog();
-    return resolveSuiteEvaluatorIds(selection.suite, catalog.suites);
-  } catch {
-    log.warn(`Suite "${selection.suite}" not found — falling back to empty list`);
-    return [];
+async function resolveEvaluators(
+  selection: RunConfig["selection"]
+): Promise<import("../evaluators/parseEvaluator.js").EvaluatorSpec[]> {
+  if (selection.mode === "preloaded") return selection.evaluators;
+
+  let ids: string[];
+  if (selection.mode === "evaluators") {
+    ids = selection.evaluators;
+  } else {
+    try {
+      const catalog = await loadSkillCatalog();
+      ids = resolveSuiteEvaluatorIds(selection.suite, catalog.suites);
+    } catch {
+      log.warn(`Suite "${selection.suite}" not found — falling back to empty list`);
+      return [];
+    }
   }
+
+  const specs = await Promise.all(ids.map((id) => loadBuiltinEvaluator(id).catch(() => null)));
+  const valid = specs.filter(
+    (s): s is import("../evaluators/parseEvaluator.js").EvaluatorSpec => s !== null
+  );
+  const skipped = ids.length - valid.length;
+  if (skipped > 0) log.warn(`${skipped} evaluator(s) not found — skipped`);
+  return valid;
 }
 
 function resolveModel(cfg: LlmConfig): LanguageModel {
@@ -389,31 +298,6 @@ async function curateTracesIfConfigured(
     log.warn(`Trace curation failed (continuing without grounding): ${msg}`);
     return undefined;
   }
-}
-
-async function buildJudgeObservability(
-  config: RunConfig,
-  attackTraceId: string | undefined,
-  finalResponse: string
-): Promise<JudgeObservabilityContext | undefined> {
-  const tel = config.telemetry;
-  if (!tel || !attackTraceId) return undefined;
-  const obs: JudgeObservabilityContext = { propagatedTraceId: attackTraceId };
-  const adapter = getAdapter(tel.provider);
-  if (adapter && tel.enrichJudgeFromTrace && !isTargetError(finalResponse)) {
-    log.info(`  → fetching ${tel.provider} trace for judge...`);
-    const traceJson =
-      (await adapter.fetchTraceForJudge(tel, attackTraceId, {
-        initialDelayMs: tel.traceFetchInitialDelayMs ?? 500,
-        maxAttempts: tel.traceFetchMaxAttempts ?? 5,
-        retryDelayMs: tel.traceFetchRetryDelayMs ?? 400,
-        maxChars: tel.enrichJudgeTraceJsonMaxChars ?? 40_000,
-      })) ?? undefined;
-    if (traceJson) obs.traceJson = traceJson;
-    const ok = traceJson && !traceJson.startsWith("[");
-    log.info(`  → trace ${ok ? "fetched ✓" : "not found ✗"}`);
-  }
-  return obs;
 }
 
 function resolveModelConfig(cfg: LlmConfig): import("../config/schema.js").ModelConfig {

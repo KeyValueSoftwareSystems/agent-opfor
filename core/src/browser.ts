@@ -26,6 +26,16 @@ export type {
   Effort,
 } from "./execute/types.js";
 
+export { runAllBrowser } from "./execute/runAllBrowser.js";
+export type {
+  BrowserRunConfig,
+  BrowserProgressEvent,
+  BrowserRunAllOptions,
+} from "./execute/runAllBrowser.js";
+
+export type { EvaluatorSpec, AttackPattern } from "./evaluators/parseEvaluator.js";
+export type { AgentTarget } from "./targets/agentTarget.js";
+
 export { judgeResponse, errorJudge } from "./evaluators/judge.js";
 export type {
   JudgeResult,

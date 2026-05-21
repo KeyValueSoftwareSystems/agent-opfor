@@ -43,7 +43,8 @@ export type UnifiedTargetConfig = AgentTargetConfig | McpTargetConfig;
 
 export type EvaluatorSelection =
   | { mode: "suite"; suite: string }
-  | { mode: "evaluators"; evaluators: string[] };
+  | { mode: "evaluators"; evaluators: string[] }
+  | { mode: "preloaded"; evaluators: import("../evaluators/parseEvaluator.js").EvaluatorSpec[] };
 
 export interface RunConfig {
   target: UnifiedTargetConfig;

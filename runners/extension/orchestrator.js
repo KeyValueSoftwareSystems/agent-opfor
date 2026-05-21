@@ -7,13 +7,14 @@ import {
   clearRetryLocate,
 } from "./state.js";
 import {
-  generateNextAdaptiveTurn,
   judgeResponse,
   createModel,
   setEnvProvider,
   PROVIDER_ENV_VARS,
   generateJsonObject,
+  runAllBrowser,
 } from "./dist/core.bundle.js";
+import { createDomTarget } from "./domTarget.js";
 import { getLlmProfile, assertLlmCfg } from "./config.js";
 import { loadAttackCatalog, evaluatorFromCatalog, assertEvaluatorInSuite } from "./catalog.js";
 import {
@@ -25,13 +26,8 @@ import {
 } from "./storage.js";
 import { pickChatFrame, pickChatFrameWithRetry } from "./frameDiscovery.js";
 import { locateChatWidget } from "./chatLocator.js";
-import {
-  actSendText,
-  actVendorSendText,
-  actClickSelector,
-  actVerifyInputVisible,
-} from "./domActions.js";
-import { snapshotCurrentResponse, extractResponse } from "./responseExtractor.js";
+import { actClickSelector, actVerifyInputVisible } from "./domActions.js";
+import { extractResponse } from "./responseExtractor.js";
 import { aiPickInputInFrame, llmShortenMessage } from "./llmUiActions.js";
 
 export async function sleepInterruptible(ms) {
@@ -281,7 +277,7 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
   let turnLog = [];
   let plan;
   let best;
-  let siteSnapshot = "";
+  let siteSnapshot;
   let suiteId = "";
   let attackObjective = "";
   let businessUseCase;
@@ -471,392 +467,123 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
     const suiteRec = catalog.suites.find((s) => s.id === suiteId);
     const suiteLabel = suiteRec ? `${suiteRec.name} (${suiteRec.id})` : suiteId;
 
-    let consecutiveFailures = 0;
-    const MAX_CONSECUTIVE_FAILURES = 2;
-    let knownMaxLength = undefined;
-    let round = Math.floor(transcript.length / 2);
-
-    for (; round < maxRounds; round++) {
-      if (state.OPFOR_STOP) {
-        await persistPartialResult({
-          ok: true,
-          partial: true,
-          stopped: true,
-          stopReason: "user_stop",
-          siteUrl: tab.url || "",
-          architecture: "evaluator_adaptive_multi_turn",
+    // Build DomTarget adapter — handles send/extract/pause/stop/recovery
+    const domTarget = createDomTarget(tab.id, best.frameId, plan, readerCfg, {
+      waitMs,
+      onTurnDone: async (turnData) => {
+        const { transcript: newT, turns: newTL } = domTarget.getCollectedData();
+        const liveTrans = [...transcript, ...newT];
+        broadcastProgress({
+          kind: "turn",
+          round: turnData.round,
+          role: "user",
+          content: turnData.userMessage,
           suiteId,
           evaluatorId: evaluatorSnapshot?.id,
-          evaluatorName: evaluatorSnapshot?.name,
-          maxRounds,
-          frame: { frameId: best.frameId, frameUrl: best.frameUrl },
-          transcript,
-          turns: turnLog,
         });
-        await persistPausedAdaptiveRun({
-          tabId: tab.id,
-          siteUrl: tab.url || "",
-          maxRounds,
-          waitMs,
-          transcript,
-          turnLog,
-          plan,
-          frameId: best.frameId,
-          frameUrl: best.frameUrl,
-          siteSnapshot,
-          suiteId,
-          evaluatorSnapshot,
-        });
-        sendResponse({ ok: false, error: "Run stopped.", paused: true });
-        await clearRunStatus();
-        return;
-      }
-
-      let detectedMaxLength = knownMaxLength || undefined;
-      let userMessage = await generateNextAdaptiveTurn({
-        history: transcript,
-        attack: {
-          id: evaluatorSnapshot.id,
-          evaluatorId: evaluatorSnapshot.id,
-          evaluatorName: evaluatorSnapshot.name,
-          severity: evaluatorSnapshot.severity || "medium",
-          ref: evaluatorSnapshot.ref || "",
-          description: evaluatorSnapshot.description || "",
-          passCriteria: evaluatorSnapshot.passCriteria || "",
-          failCriteria: evaluatorSnapshot.failCriteria || "",
-          patternName: evaluatorSnapshot.name,
-          turns: maxRounds,
-        },
-        patterns: evaluatorSnapshot.patterns || [],
-        target: {
-          name: tab.url || siteUrl || "target",
-          description: tab.url || siteUrl || "target",
-        },
-        model: attackerModel,
-        maxLength: detectedMaxLength,
-      });
-
-      if (state.OPFOR_STOP) {
-        await persistPartialResult({
-          ok: true,
-          partial: true,
-          stopped: true,
-          stopReason: "user_stop",
-          siteUrl: tab.url || "",
-          architecture: "evaluator_adaptive_multi_turn",
+        broadcastProgress({
+          kind: "turn",
+          round: turnData.round,
+          role: "assistant",
+          content: turnData.assistantPreview,
           suiteId,
           evaluatorId: evaluatorSnapshot?.id,
-          evaluatorName: evaluatorSnapshot?.name,
-          maxRounds,
-          frame: { frameId: best.frameId, frameUrl: best.frameUrl },
-          transcript,
-          turns: turnLog,
         });
-        await persistPausedAdaptiveRun({
-          tabId: tab.id,
-          siteUrl: tab.url || "",
-          maxRounds,
-          waitMs,
-          transcript,
-          turnLog,
-          plan,
-          frameId: best.frameId,
-          frameUrl: best.frameUrl,
-          siteSnapshot,
-          suiteId,
-          evaluatorSnapshot,
-        });
-        sendResponse({ ok: false, error: "Run stopped.", paused: true });
-        await clearRunStatus();
-        return;
-      }
-
-      const preSendSnapshot = await snapshotCurrentResponse(tab.id, best.frameId);
-
-      let actResult;
-      if (plan.vendorMode) {
-        actResult = await actVendorSendText(tab.id, userMessage);
-      } else {
-        actResult = await actSendText(tab.id, best.frameId, {
-          inputSelector: plan.inputSelector,
-          submit: plan.submit,
-          text: userMessage,
-        });
-      }
-
-      // Handle message-too-long: shorten and retry (up to 3 times).
-      if (actResult?.error === "message_too_long") {
-        const limit = actResult.maxLength || Math.floor(userMessage.length * 0.6);
-        detectedMaxLength = limit;
-        knownMaxLength = limit;
-        for (let shortenAttempt = 0; shortenAttempt < 3; shortenAttempt++) {
-          try {
-            userMessage = await llmShortenMessage(attackerCfg, userMessage, limit);
-          } catch {
-            userMessage = userMessage.slice(0, Math.floor(limit * 0.85));
-          }
-          actResult = await actSendText(tab.id, best.frameId, {
-            inputSelector: plan.inputSelector,
-            submit: plan.submit,
-            text: userMessage,
+        try {
+          await chrome.storage.local.set({
+            opforLiveTranscript: {
+              v: 1,
+              savedAt: Date.now(),
+              suiteId,
+              evaluatorId: evaluatorSnapshot?.id,
+              evaluatorName: evaluatorSnapshot?.name,
+              severity: evaluatorSnapshot?.severity,
+              siteUrl: tab.url || "",
+              transcript: liveTrans,
+              turns: [...turnLog, ...newTL],
+              round: liveTrans.length / 2,
+              maxRounds,
+              completed: false,
+            },
           });
-          if (actResult?.ok || actResult?.error !== "message_too_long") break;
-        }
-      }
-
-      if (!actResult?.ok && actResult?.error !== "message_too_long") {
-        const relocated = await locateChatWidget(tab.id, readerCfg, {
-          openWidget: false,
-          maxAiAttempts: 3,
-        });
-        if (relocated.ok && relocated.plan) {
-          plan = relocated.plan;
-          best = relocated.best;
-          siteSnapshot = relocated.siteSnapshot || siteSnapshot;
-          actResult = await actSendText(tab.id, best.frameId, {
-            inputSelector: plan.inputSelector,
-            submit: plan.submit,
-            text: userMessage,
-          });
-        }
-      }
-
-      transcript.push({ role: "user", content: userMessage });
-      broadcastProgress({
-        kind: "turn",
-        round: round + 1,
-        role: "user",
-        content: userMessage,
-        suiteId,
-        evaluatorId: evaluatorSnapshot?.id,
-      });
-
-      await sleepInterruptible(Math.min(waitMs, 1000));
-
-      if (state.OPFOR_STOP) {
-        await persistPartialResult({
-          ok: true,
-          partial: true,
-          stopped: true,
-          stopReason: "user_stop",
-          siteUrl: tab.url || "",
-          architecture: "evaluator_adaptive_multi_turn",
-          suiteId,
-          evaluatorId: evaluatorSnapshot?.id,
-          evaluatorName: evaluatorSnapshot?.name,
-          maxRounds,
-          frame: { frameId: best.frameId, frameUrl: best.frameUrl },
-          transcript,
-          turns: turnLog,
-        });
-        await persistPausedAdaptiveRun({
-          tabId: tab.id,
-          siteUrl: tab.url || "",
-          maxRounds,
-          waitMs,
-          transcript,
-          turnLog,
-          plan,
-          frameId: best.frameId,
-          frameUrl: best.frameUrl,
-          siteSnapshot,
-          suiteId,
-          evaluatorSnapshot,
-        });
-        sendResponse({ ok: false, error: "Run stopped.", paused: true });
-        await clearRunStatus();
-        return;
-      }
-
-      const extracted = await extractResponse(tab.id, best.frameId, userMessage, preSendSnapshot);
-      const assistantText = extracted?.ok ? String(extracted.text || "").trim() : "";
-
-      const sendOrExtractFailed = !actResult?.ok || !assistantText;
-      if (sendOrExtractFailed) {
-        consecutiveFailures++;
-      } else {
-        consecutiveFailures = 0;
-      }
-
-      if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES && round < maxRounds - 1) {
+        } catch {}
+      },
+      onRecovery: async () => {
         broadcastProgress({
           kind: "phase",
           phase: "locating",
           suiteId,
           evaluatorId: evaluatorSnapshot?.id,
         });
-        const resetResult = await resetChatSession(tab.id, readerCfg);
-        if (resetResult?.ok && resetResult.plan) {
-          plan = resetResult.plan;
-          best = resetResult.best;
-          siteSnapshot = resetResult.siteSnapshot || siteSnapshot;
-          consecutiveFailures = 0;
+        const result = await resetChatSession(tab.id, readerCfg).catch(() => null);
+        if (result?.ok && result.plan) {
           broadcastProgress({
             kind: "phase",
             phase: "running",
             suiteId,
             evaluatorId: evaluatorSnapshot?.id,
           });
-
-          const retryPreSnapshot = await snapshotCurrentResponse(tab.id, best.frameId);
-          actResult = await actSendText(tab.id, best.frameId, {
-            inputSelector: plan.inputSelector,
-            submit: plan.submit,
-            text: userMessage,
-          });
-          if (actResult?.ok) {
-            await sleepInterruptible(Math.min(waitMs, 1000));
-            const retryExtracted = await extractResponse(
-              tab.id,
-              best.frameId,
-              userMessage,
-              retryPreSnapshot
-            );
-            const retryText = retryExtracted?.ok ? String(retryExtracted.text || "").trim() : "";
-            transcript.push({ role: "user", content: userMessage });
-            transcript.push({
-              role: "assistant",
-              content: retryText || "(Could not extract assistant reply from the page.)",
-            });
-            broadcastProgress({
-              kind: "turn",
-              round: round + 1,
-              role: "user",
-              content: userMessage,
-              suiteId,
-              evaluatorId: evaluatorSnapshot?.id,
-            });
-            broadcastProgress({
-              kind: "turn",
-              round: round + 1,
-              role: "assistant",
-              content: retryText || "(Could not extract)",
-              suiteId,
-              evaluatorId: evaluatorSnapshot?.id,
-            });
-            turnLog.push({
-              round: round + 1,
-              userMessage,
-              sentOk: true,
-              extractedOk: !!retryText,
-              assistantPreview: (retryText || "").slice(0, 10_000),
-              chatReset: true,
-            });
-            continue;
-          }
+          return result;
         }
-        broadcastProgress({
-          kind: "phase",
-          phase: "running",
-          suiteId,
-          evaluatorId: evaluatorSnapshot?.id,
-        });
-      }
+        return null;
+      },
+    });
 
-      transcript.push({
-        role: "assistant",
-        content: assistantText || "(Could not extract assistant reply from the page.)",
-      });
-      broadcastProgress({
-        kind: "turn",
-        round: round + 1,
-        role: "assistant",
-        content: assistantText || "(Could not extract assistant reply from the page.)",
-        suiteId,
-        evaluatorId: evaluatorSnapshot?.id,
-      });
-      turnLog.push({
-        round: round + 1,
-        userMessage,
-        sentOk: !!actResult?.ok,
-        extractedOk: !!extracted?.ok,
-        assistantPreview: (assistantText || "").slice(0, 10_000),
-      });
+    let report = null;
+    let runError = null;
+    const combinedHint = [
+      attackObjective ? `Attack objective: ${attackObjective}` : "",
+      judgeHint || "",
+    ]
+      .filter(Boolean)
+      .join("\n");
+    // Store judgeHint on evaluatorSnapshot so runAllBrowser passes it through
+    const evalWithHint = combinedHint
+      ? { ...evaluatorSnapshot, judgeHint: combinedHint }
+      : evaluatorSnapshot;
 
-      // Persist transcript after every turn so no data is lost if the service worker crashes.
-      try {
-        await chrome.storage.local.set({
-          opforLiveTranscript: {
-            v: 1,
-            savedAt: Date.now(),
-            suiteId,
-            evaluatorId: evaluatorSnapshot?.id,
-            evaluatorName: evaluatorSnapshot?.name,
-            severity: evaluatorSnapshot?.severity,
-            siteUrl: tab.url || "",
-            transcript,
-            turns: turnLog,
-            round: round + 1,
-            maxRounds,
-            completed: false,
-          },
-        });
-      } catch {}
-    }
-
-    if (transcript.length >= 2) {
-      broadcastProgress({
-        kind: "phase",
-        phase: "judging",
-        suiteId,
-        evaluatorId: evaluatorSnapshot?.id,
-      });
-    }
-
-    let judgment;
-    if (transcript.length >= 2) {
-      try {
-        const lastUser = [...transcript].reverse().find((t) => t.role === "user")?.content || "";
-        const lastAssistant =
-          [...transcript].reverse().find((t) => t.role === "assistant")?.content || "";
-        const combinedHint = [
-          attackObjective ? `Attack objective: ${attackObjective}` : "",
-          judgeHint || "",
-        ]
-          .filter(Boolean)
-          .join("\n");
-        judgment = adaptJudgeResult(
-          await judgeResponse(
-            evaluatorSnapshot,
-            lastUser,
-            lastAssistant,
-            judgeModel,
-            undefined,
-            transcript,
-            {
-              patternName: evaluatorSnapshot?.name,
-              judgeHint: combinedHint || undefined,
+    try {
+      report = await runAllBrowser(
+        [evalWithHint],
+        {
+          attackLlm: attackerCfg,
+          judgeLlm: judgeCfg,
+          effort: "adaptive",
+          turns: maxRounds,
+          targetName: tab.url || siteUrl || "target",
+        },
+        domTarget,
+        {
+          initialHistory: transcript.length > 0 ? transcript : undefined,
+          onProgress: (event) => {
+            if (event.type === "evaluator_start") {
+              broadcastProgress({
+                kind: "phase",
+                phase: "judging",
+                suiteId,
+                evaluatorId: evaluatorSnapshot?.id,
+              });
             }
-          )
-        );
-      } catch (judgeErr) {
-        const errMsg = judgeErr instanceof Error ? judgeErr.message : String(judgeErr);
-        if (errMsg === "Run stopped." || state.OPFOR_STOP) throw judgeErr;
-        judgment = {
-          verdict: "UNKNOWN",
-          summary: `Judge LLM call failed: ${errMsg.slice(0, 200)}`,
-          findings: [
-            "Judgment could not be completed — transcript may be too long or LLM timed out.",
-          ],
-        };
-      }
-    } else {
-      judgment = { verdict: "UNKNOWN", summary: "No complete turns.", findings: [] };
+          },
+        }
+      );
+    } catch (e) {
+      runError = e;
     }
 
-    if (state.OPFOR_STOP) {
-      let stoppedJudgment = judgment;
-      if (!stoppedJudgment && transcript.length >= 2 && judgeCfg?.enabled) {
+    const { transcript: newTranscript, turns: newTurnLog } = domTarget.getCollectedData();
+    const fullTranscript = [...transcript, ...newTranscript];
+    const fullTurnLog = [...turnLog, ...newTurnLog];
+
+    // ── STOPPED path ────────────────────────────────────────────────────────
+    if (runError?.code === "OPFOR_STOP" || state.OPFOR_STOP) {
+      let stoppedJudgment;
+      if (fullTranscript.length >= 2) {
         try {
-          const lastUser = [...transcript].reverse().find((t) => t.role === "user")?.content || "";
+          const lastUser =
+            [...fullTranscript].reverse().find((t) => t.role === "user")?.content || "";
           const lastAssistant =
-            [...transcript].reverse().find((t) => t.role === "assistant")?.content || "";
-          const combinedHint = [
-            attackObjective ? `Attack objective: ${attackObjective}` : "",
-            judgeHint || "",
-          ]
-            .filter(Boolean)
-            .join("\n");
+            [...fullTranscript].reverse().find((t) => t.role === "assistant")?.content || "";
           stoppedJudgment = adaptJudgeResult(
             await judgeResponse(
               evaluatorSnapshot,
@@ -864,7 +591,7 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
               lastAssistant,
               judgeModel,
               undefined,
-              transcript,
+              fullTranscript,
               {
                 patternName: evaluatorSnapshot?.name,
                 judgeHint: combinedHint || undefined,
@@ -875,7 +602,7 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
           stoppedJudgment = {
             verdict: "UNKNOWN",
             summary: "Run stopped before judgment could complete.",
-            findings: ["Run stopped by user; partial transcript was collected."],
+            findings: [{ text: "Run stopped by user; partial transcript was collected." }],
           };
         }
       }
@@ -892,29 +619,86 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
         severity: evaluatorSnapshot?.severity,
         maxRounds,
         frame: { frameId: best.frameId, frameUrl: best.frameUrl },
-        transcript,
-        turns: turnLog,
+        transcript: fullTranscript,
+        turns: fullTurnLog,
         judgment: stoppedJudgment || undefined,
       };
       await persistPartialResult(stoppedResult);
-      await persistPausedAdaptiveRun({
-        tabId: tab.id,
-        siteUrl: tab.url || "",
-        maxRounds,
-        waitMs,
-        transcript,
-        turnLog,
-        plan,
-        frameId: best.frameId,
-        frameUrl: best.frameUrl,
-        siteSnapshot,
-        suiteId,
-        evaluatorSnapshot,
-      });
-      sendResponse({ ok: false, error: "Run stopped before judge.", paused: true });
+      if (plan?.inputSelector && tab?.id && best?.frameId != null) {
+        await persistPausedAdaptiveRun({
+          tabId: tab.id,
+          siteUrl: tab.url || "",
+          maxRounds,
+          waitMs,
+          transcript: fullTranscript,
+          turnLog: fullTurnLog,
+          plan,
+          frameId: best.frameId,
+          frameUrl: best.frameUrl,
+          siteSnapshot,
+          suiteId,
+          evaluatorSnapshot,
+        }).catch(() => {});
+      }
+      sendResponse({ ok: false, error: "Run stopped.", paused: true });
       await clearRunStatus();
       return;
     }
+
+    // ── ERROR path ───────────────────────────────────────────────────────────
+    if (runError) {
+      const runMsg = runError instanceof Error ? runError.message : String(runError);
+      const attack = report?.evaluators?.[0]?.attacks?.[0];
+      const errorJudgment = attack ? adaptJudgeResult(attack.judge) : null;
+      if (errorJudgment && fullTranscript.length >= 2) {
+        const partialResult = {
+          ok: true,
+          partial: true,
+          stopped: false,
+          stopReason: "error",
+          errorMessage: runMsg,
+          siteUrl: tab.url || "",
+          architecture: "evaluator_adaptive_multi_turn",
+          suiteId,
+          evaluatorId: evaluatorSnapshot?.id,
+          evaluatorName: evaluatorSnapshot?.name,
+          severity: evaluatorSnapshot?.severity,
+          maxRounds,
+          frame: { frameId: best.frameId, frameUrl: best.frameUrl },
+          transcript: fullTranscript,
+          turns: fullTurnLog,
+          judgment: errorJudgment,
+        };
+        await persistPartialResult(partialResult);
+        try {
+          sendResponse(partialResult);
+        } catch {}
+      } else {
+        await persistPartialResult({
+          ok: false,
+          partial: true,
+          stopped: false,
+          stopReason: "error",
+          errorMessage: runMsg,
+          siteUrl: tab.url || "",
+          suiteId,
+          evaluatorId: evaluatorSnapshot?.id,
+          evaluatorName: evaluatorSnapshot?.name,
+          severity: evaluatorSnapshot?.severity,
+          transcript: fullTranscript,
+          turns: fullTurnLog,
+        }).catch(() => {});
+        sendResponse({ ok: false, error: runMsg });
+      }
+      await clearRunStatus();
+      return;
+    }
+
+    // ── SUCCESS path ─────────────────────────────────────────────────────────
+    const attack = report.evaluators?.[0]?.attacks?.[0];
+    const judgment = attack
+      ? adaptJudgeResult(attack.judge)
+      : { verdict: "UNKNOWN", summary: "No complete turns.", findings: [] };
 
     await chrome.storage.local.remove("opforPausedRun");
     await clearRunStatus();
@@ -932,8 +716,8 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
       severity: evaluatorSnapshot?.severity,
       maxRounds,
       frame: { frameId: best.frameId, frameUrl: best.frameUrl },
-      transcript,
-      turns: turnLog,
+      transcript: fullTranscript,
+      turns: fullTurnLog,
       judgment,
     };
     await persistPartialResult(finalResult);
@@ -946,158 +730,28 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
       // Message channel may have closed if popup was closed; data is safe in storage.
     }
   } catch (e) {
+    // Setup errors: LLM config failures, locate failures, resume load failures, etc.
     const msg = e instanceof Error ? e.message : String(e);
-    if (msg === "Run stopped." || state.OPFOR_STOP) {
-      let stoppedJudgment;
-      if (transcript?.length >= 2 && evaluatorSnapshot && judgeCfg?.enabled) {
-        try {
-          const lastUser = [...transcript].reverse().find((t) => t.role === "user")?.content || "";
-          const lastAssistant =
-            [...transcript].reverse().find((t) => t.role === "assistant")?.content || "";
-          const combinedHint = [
-            attackObjective ? `Attack objective: ${attackObjective}` : "",
-            judgeHint || "",
-          ]
-            .filter(Boolean)
-            .join("\n");
-          stoppedJudgment = adaptJudgeResult(
-            await judgeResponse(
-              evaluatorSnapshot,
-              lastUser,
-              lastAssistant,
-              judgeModel,
-              undefined,
-              transcript,
-              {
-                patternName: evaluatorSnapshot?.name,
-                judgeHint: combinedHint || undefined,
-              }
-            )
-          );
-        } catch {
-          stoppedJudgment = {
-            verdict: "UNKNOWN",
-            summary: "Run was stopped; judgment could not be completed.",
-            findings: ["Run stopped by user before all turns completed."],
-          };
-        }
-      }
-      try {
-        await persistPartialResult({
-          ok: true,
-          partial: true,
-          stopped: true,
-          stopReason: "user_stop",
-          siteUrl: tab?.url || "",
-          architecture: "evaluator_adaptive_multi_turn",
-          suiteId,
-          evaluatorId: evaluatorSnapshot?.id,
-          evaluatorName: evaluatorSnapshot?.name,
-          severity: evaluatorSnapshot?.severity,
-          maxRounds,
-          frame: best ? { frameId: best.frameId, frameUrl: best.frameUrl } : undefined,
-          transcript,
-          turns: turnLog,
-          judgment: stoppedJudgment || undefined,
-        });
-      } catch {}
-      if (plan?.inputSelector && tab?.id && best?.frameId != null) {
-        try {
-          await persistPausedAdaptiveRun({
-            tabId: tab.id,
-            siteUrl: tab.url || "",
-            maxRounds,
-            waitMs,
-            transcript,
-            turnLog,
-            plan,
-            frameId: best.frameId,
-            frameUrl: best.frameUrl,
-            siteSnapshot,
-            suiteId,
-            evaluatorSnapshot,
-          });
-        } catch {}
-      }
-      sendResponse({ ok: false, error: "Run stopped.", paused: true });
-      await clearRunStatus();
-    } else {
-      let errorJudgment;
-      if (transcript?.length >= 2 && evaluatorSnapshot && judgeCfg?.enabled) {
-        try {
-          const lastUser = [...transcript].reverse().find((t) => t.role === "user")?.content || "";
-          const lastAssistant =
-            [...transcript].reverse().find((t) => t.role === "assistant")?.content || "";
-          const combinedHint = [
-            attackObjective ? `Attack objective: ${attackObjective}` : "",
-            judgeHint || "",
-          ]
-            .filter(Boolean)
-            .join("\n");
-          errorJudgment = adaptJudgeResult(
-            await judgeResponse(
-              evaluatorSnapshot,
-              lastUser,
-              lastAssistant,
-              judgeModel,
-              undefined,
-              transcript,
-              {
-                patternName: evaluatorSnapshot?.name,
-                judgeHint: combinedHint || undefined,
-              }
-            )
-          );
-        } catch {}
-      }
-      if (errorJudgment && transcript?.length >= 2) {
-        const partialResult = {
-          ok: true,
-          partial: true,
-          stopped: false,
-          stopReason: "error",
-          errorMessage: msg,
-          siteUrl: tab?.url || "",
-          architecture: "evaluator_adaptive_multi_turn",
-          suiteId,
-          evaluatorId: evaluatorSnapshot?.id,
-          evaluatorName: evaluatorSnapshot?.name,
-          severity: evaluatorSnapshot?.severity,
-          maxRounds,
-          frame: best ? { frameId: best.frameId, frameUrl: best.frameUrl } : undefined,
-          transcript,
-          turns: turnLog,
-          judgment: errorJudgment,
-        };
-        await persistPartialResult(partialResult);
-        try {
-          sendResponse(partialResult);
-        } catch {}
-      } else {
-        try {
-          await persistPartialResult({
-            ok: false,
-            partial: true,
-            stopped: false,
-            stopReason: "error",
-            errorMessage: msg,
-            siteUrl: tab?.url || "",
-            suiteId,
-            evaluatorId: evaluatorSnapshot?.id,
-            evaluatorName: evaluatorSnapshot?.name,
-            severity: evaluatorSnapshot?.severity,
-            transcript: transcript || [],
-            turns: turnLog || [],
-          });
-        } catch {}
-        sendResponse({
-          ok: false,
-          error: msg,
-          debug: { note: "Enable AI in Options; open the site chat if needed." },
-        });
-      }
-      await clearRunStatus();
-    }
+    await persistPartialResult({
+      ok: false,
+      partial: true,
+      stopped: false,
+      stopReason: "error",
+      errorMessage: msg,
+      siteUrl: tab?.url || "",
+      suiteId,
+      evaluatorId: evaluatorSnapshot?.id,
+      evaluatorName: evaluatorSnapshot?.name,
+      severity: evaluatorSnapshot?.severity,
+      transcript: transcript || [],
+      turns: turnLog || [],
+    }).catch(() => {});
+    sendResponse({
+      ok: false,
+      error: msg,
+      debug: { note: "Enable AI in Options; open the site chat if needed." },
+    });
+    await clearRunStatus();
   } finally {
     endUiRunAbortController();
   }
