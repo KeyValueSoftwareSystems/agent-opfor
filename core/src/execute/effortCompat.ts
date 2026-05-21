@@ -1,13 +1,10 @@
 import type { Effort } from "./types.js";
 
 /**
- * Accept legacy "medium"/"hard" alongside the new "adaptive"/"comprehensive"
- * names. Existing opfor.config.json files written before the rename still
- * load — we map them to the new names on read.
+ * Defensive coerce for effort read from config files (which could be
+ * hand-edited with anything). Returns "adaptive" for anything other than
+ * "comprehensive".
  */
 export function normalizeEffort(raw: unknown): Effort {
-  if (raw === "adaptive" || raw === "comprehensive") return raw;
-  if (raw === "medium") return "adaptive";
-  if (raw === "hard") return "comprehensive";
-  return "adaptive";
+  return raw === "comprehensive" ? "comprehensive" : "adaptive";
 }

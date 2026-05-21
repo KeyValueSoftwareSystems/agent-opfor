@@ -79,6 +79,12 @@ export interface AttackSpec {
   turns: number;
   turnMode?: "single" | "multi";
   judgeHint?: string;
+  // Operator-intent signals (DOM-driven runners). Optional everywhere — CLI/MCP
+  // don't populate these; extension threads them through from the popup.
+  attackObjective?: string;
+  businessUseCase?: string;
+  siteSnapshot?: string;
+  maxMessageLength?: number;
   // agent target
   prompt?: string;
   // mcp target

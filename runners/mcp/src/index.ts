@@ -134,13 +134,11 @@ server.tool(
 
     // Run settings
     effort: z
-      .enum(["adaptive", "comprehensive", "medium", "hard"])
+      .enum(["adaptive", "comprehensive"])
       .default("adaptive")
-      .transform(normalizeEffort)
       .describe(
         "adaptive: one sustained chat per evaluator, attacker picks tactics on the fly. " +
-          "comprehensive: one fresh multi-turn attack per named pattern in each evaluator. " +
-          "Legacy 'medium'/'hard' are accepted for back-compat."
+          "comprehensive: one fresh multi-turn attack per named pattern in each evaluator."
       ),
     turns: z
       .number()
@@ -208,12 +206,9 @@ server.tool(
     config_path: z.string().describe("Path to opfor.config.json written by opfor_setup"),
     output_dir: z.string().optional().describe("Directory to write report files (default: .)"),
     effort_override: z
-      .enum(["adaptive", "comprehensive", "medium", "hard"])
+      .enum(["adaptive", "comprehensive"])
       .optional()
-      .transform((v) => (v === undefined ? undefined : normalizeEffort(v)))
-      .describe(
-        "Override the effort level from config. Accepts adaptive/comprehensive or legacy medium/hard."
-      ),
+      .describe("Override the effort level from config."),
     turns_override: z
       .number()
       .int()
@@ -227,10 +222,9 @@ server.tool(
       const raw = await readFile(path.resolve(args.config_path), "utf8");
       let config = JSON.parse(raw) as RunConfig;
 
-      // effort_override has already been normalised by the Zod transform.
       if (args.effort_override) config = { ...config, effort: args.effort_override };
       if (args.turns_override) config = { ...config, turns: args.turns_override };
-      // Normalise the config's stored effort too (legacy "medium"/"hard" on disk).
+      // Defensive coerce in case the config file has an unexpected value.
       config = { ...config, effort: normalizeEffort(config.effort as unknown) };
 
       const lines: string[] = [

@@ -562,6 +562,11 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
           effort: "adaptive",
           turns: maxRounds,
           targetName: tab.url || "target",
+          attackObjective: attackObjective || undefined,
+          businessUseCase: businessUseCase || undefined,
+          siteSnapshot: siteSnapshot || undefined,
+          // maxMessageLength is reactively learned by domTarget on overflow;
+          // proactive detection during locate is a follow-up.
         },
         domTarget,
         {

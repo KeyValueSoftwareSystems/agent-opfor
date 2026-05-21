@@ -68,6 +68,10 @@ export async function runAgentAttack(
               type: "http-endpoint",
             },
             model: attackModel,
+            attackObjective: attack.attackObjective,
+            businessUseCase: attack.businessUseCase,
+            siteSnapshot: attack.siteSnapshot,
+            maxLength: attack.maxMessageLength,
           });
 
     const response = await target.send(prompt, {

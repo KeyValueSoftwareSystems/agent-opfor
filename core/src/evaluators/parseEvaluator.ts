@@ -18,6 +18,8 @@ export interface EvaluatorSpec {
   passCriteria: string;
   failCriteria: string;
   patterns: AttackPattern[];
+  /** Optional operator hint that sharpens the judge for this evaluator. */
+  judgeHint?: string;
 }
 
 function str(doc: Record<string, unknown>, key: string): string {

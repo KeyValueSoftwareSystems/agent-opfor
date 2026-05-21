@@ -19,6 +19,14 @@ export interface BrowserRunConfig {
   turnMode?: "single" | "multi";
   turns: number;
   targetName?: string;
+  /** Operator's primary attack objective from the popup. */
+  attackObjective?: string;
+  /** Operator's business-use-case context from the popup. */
+  businessUseCase?: string;
+  /** Sanitized DOM snapshot from the chat-locate phase (verbatim labels). */
+  siteSnapshot?: string;
+  /** Per-widget char cap detected during locate; bounds attacker output. */
+  maxMessageLength?: number;
 }
 
 export type BrowserProgressEvent =
@@ -56,7 +64,7 @@ export async function runAllBrowser(
     const turnMode: "single" | "multi" = config.turnMode ?? (config.turns > 1 ? "multi" : "single");
     const effectiveTurns = turnMode === "single" ? 1 : config.turns;
 
-    const attacks = await generateAttacks({
+    const generated = await generateAttacks({
       evaluator,
       target: {
         kind: "agent",
@@ -69,6 +77,16 @@ export async function runAllBrowser(
       turns: effectiveTurns,
       turnMode,
     });
+
+    // Attach extension-only operator-intent fields to each attack so they
+    // reach generateNextAdaptiveTurn via the AttackSpec.
+    const attacks = generated.map((a) => ({
+      ...a,
+      attackObjective: config.attackObjective,
+      businessUseCase: config.businessUseCase,
+      siteSnapshot: config.siteSnapshot,
+      maxMessageLength: config.maxMessageLength,
+    }));
 
     log.info(`  ${attacks.length} attack(s) generated [effort: ${config.effort}]`);
 

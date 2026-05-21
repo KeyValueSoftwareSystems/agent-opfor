@@ -48,15 +48,14 @@ export function registerExecuteCommand(program: Command): void {
         // CLI overrides
         if (opts.effort) {
           const raw = opts.effort.trim().toLowerCase();
-          const accepted = ["adaptive", "comprehensive", "medium", "hard"];
-          if (!accepted.includes(raw)) {
+          if (raw !== "adaptive" && raw !== "comprehensive") {
             log.error("--effort must be 'adaptive' or 'comprehensive'");
             process.exitCode = 1;
             return;
           }
-          runConfig = { ...runConfig, effort: normalizeEffort(raw) };
+          runConfig = { ...runConfig, effort: raw };
         }
-        // Normalise effort coming from config (legacy "medium"/"hard" → new names).
+        // Defensive coerce in case the config file has an unexpected value.
         runConfig = { ...runConfig, effort: normalizeEffort(runConfig.effort as unknown) };
         if (opts.turns) {
           const n = parseInt(opts.turns, 10);
