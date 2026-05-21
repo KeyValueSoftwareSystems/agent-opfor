@@ -90,8 +90,6 @@ export interface McpToolTurn {
   toolArguments: Record<string, unknown>;
   response: string;
   toolError?: string;
-  judgeVerdict?: "PASS" | "FAIL" | "ERROR";
-  judgeReasoning?: string;
 }
 
 export interface McpNextTurnResult {
@@ -146,10 +144,7 @@ export async function generateNextMcpTurn(
       const response = t.toolError
         ? `ERROR: ${t.toolError}`
         : t.response.slice(0, 800) + (t.response.length > 800 ? "\n…(truncated)" : "");
-      const judgeInfo = t.judgeVerdict
-        ? `\n→ judge: ${t.judgeVerdict}${t.judgeReasoning ? ` — ${t.judgeReasoning}` : ""}`
-        : "";
-      return `Turn ${i + 1}: called ${t.toolName} with\n${args}\n→ response: ${response}${judgeInfo}`;
+      return `Turn ${i + 1}: called ${t.toolName} with\n${args}\n→ response: ${response}`;
     })
     .join("\n\n");
 

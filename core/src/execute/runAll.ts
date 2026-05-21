@@ -202,55 +202,50 @@ async function runAgentAttack(
     history.push({ role: "user", content: prompt });
     history.push({ role: "assistant", content: response });
 
-    if (t === attack.turns || isTargetError(response)) {
-      finalPrompt = prompt;
-      finalResponse = response;
-    }
-
-    const isFinalTurn = t === attack.turns || isTargetError(response);
-    const judgeObs = isFinalTurn
-      ? await buildJudgeObservability(config, attackTraceId, response)
-      : undefined;
-
-    const judge = await (async () => {
-      if (isTargetError(response)) {
-        return errorJudge(response);
-      }
-      return judgeResponse(
-        {
-          id: attack.evaluatorId,
-          name: attack.evaluatorName,
-          severity: attack.severity,
-          ref: attack.ref,
-          description: attack.description ?? "",
-          passCriteria: attack.passCriteria,
-          failCriteria: attack.failCriteria,
-          patterns: [],
-        },
-        prompt,
-        response,
-        judgeModel,
-        judgeObs,
-        history.length > 2 ? history : undefined,
-        { patternName: attack.patternName, judgeHint: attack.judgeHint }
-      );
-    })();
-
-    turns.push({ kind: "agent", turnIndex: t, prompt, response, judge });
+    finalPrompt = prompt;
+    finalResponse = response;
+    turns.push({ kind: "agent", turnIndex: t, prompt, response });
 
     if (isTargetError(response)) break;
   }
 
   await target.close();
 
-  const lastTurn = turns[turns.length - 1];
+  // Judge the full conversation once after all turns (matches the
+  // post-loop behaviour established by master c355551 #38 — the per-target
+  // execute files that carried that fix were consolidated into this runner,
+  // and the post-loop call shape goes here).
+  const finalJudge =
+    turns.length === 0
+      ? errorJudge("no turns completed")
+      : isTargetError(finalResponse)
+        ? errorJudge(finalResponse)
+        : await judgeResponse(
+            {
+              id: attack.evaluatorId,
+              name: attack.evaluatorName,
+              severity: attack.severity,
+              ref: attack.ref,
+              description: attack.description ?? "",
+              passCriteria: attack.passCriteria,
+              failCriteria: attack.failCriteria,
+              patterns: [],
+            },
+            finalPrompt,
+            finalResponse,
+            judgeModel,
+            await buildJudgeObservability(config, attackTraceId, finalResponse),
+            history.length > 2 ? history : undefined,
+            { patternName: attack.patternName, judgeHint: attack.judgeHint }
+          );
+
   return {
     attackId: attack.id,
     evaluatorId: attack.evaluatorId,
     patternName: attack.patternName,
     prompt: finalPrompt,
     response: finalResponse,
-    judge: lastTurn?.judge ?? errorJudge("no turns completed"),
+    judge: finalJudge,
     turns: turns.length > 1 ? turns : undefined,
   };
 }
@@ -283,9 +278,10 @@ async function runMcpAttack(
     };
   }
 
+  let judgeHint = attack.judgeHint;
+
   for (let t = 1; t <= attack.turns; t++) {
     let toolArguments: Record<string, unknown>;
-    let judgeHint = attack.judgeHint;
 
     if (t === 1) {
       toolArguments = attack.toolArguments ?? {};
@@ -303,45 +299,41 @@ async function runMcpAttack(
 
     const { response, toolError } = await target.callTool(toolName, toolArguments);
 
-    const judge = await judgeToolResponse({
-      model: resolveModelConfig(config.judgeLlm ?? config.attackLlm),
-      evaluator: {
-        id: attack.evaluatorId,
-        name: attack.evaluatorName,
-        ref: attack.ref,
-        severity: attack.severity,
-        passCriteria: attack.passCriteria,
-        failCriteria: attack.failCriteria,
-      },
-      attackSummary: attack.patternName,
-      toolName,
-      toolArguments,
-      toolResponse: response,
-      toolError,
-      judgeHint,
-      priorTurns: mcpHistory.length > 0 ? mcpHistory : undefined,
-    }).then((r) =>
-      sanitizeJudgeResult(r, {
-        attackSummary: attack.patternName,
-        toolArguments,
-        toolResponse: response,
-        toolError,
-      })
-    );
-
-    mcpHistory.push({
-      toolName,
-      toolArguments,
-      response,
-      toolError,
-      judgeVerdict: judge.verdict,
-      judgeReasoning: judge.reasoning,
-    });
-
-    turns.push({ kind: "mcp", turnIndex: t, toolName, toolArguments, response, toolError, judge });
+    mcpHistory.push({ toolName, toolArguments, response, toolError });
+    turns.push({ kind: "mcp", turnIndex: t, toolName, toolArguments, response, toolError });
   }
 
+  // Judge the full tool-call sequence once after all turns (matches the
+  // post-loop behaviour established by master c355551 #38).
   const lastTurn = turns[turns.length - 1];
+  const finalJudge = !lastTurn
+    ? mcpErrorJudge("no turns completed")
+    : await judgeToolResponse({
+        model: resolveModelConfig(config.judgeLlm ?? config.attackLlm),
+        evaluator: {
+          id: attack.evaluatorId,
+          name: attack.evaluatorName,
+          ref: attack.ref,
+          severity: attack.severity,
+          passCriteria: attack.passCriteria,
+          failCriteria: attack.failCriteria,
+        },
+        attackSummary: attack.patternName,
+        toolName: lastTurn.toolName,
+        toolArguments: lastTurn.toolArguments,
+        toolResponse: lastTurn.response,
+        toolError: lastTurn.toolError,
+        judgeHint,
+        priorTurns: mcpHistory.length > 1 ? mcpHistory.slice(0, -1) : undefined,
+      }).then((r) =>
+        sanitizeJudgeResult(r, {
+          attackSummary: attack.patternName,
+          toolArguments: lastTurn.toolArguments,
+          toolResponse: lastTurn.response,
+          toolError: lastTurn.toolError,
+        })
+      );
+
   return {
     attackId: attack.id,
     evaluatorId: attack.evaluatorId,
@@ -350,7 +342,7 @@ async function runMcpAttack(
     toolArguments: lastTurn?.toolArguments ?? attack.toolArguments,
     toolResponse: lastTurn?.response,
     toolError: lastTurn?.toolError,
-    judge: lastTurn?.judge ?? mcpErrorJudge("no turns completed"),
+    judge: finalJudge,
     turns: turns.length > 1 ? turns : undefined,
   };
 }

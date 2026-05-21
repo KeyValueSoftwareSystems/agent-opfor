@@ -222,6 +222,8 @@ function renderAttackRow(a: AttackResult): string {
 }
 
 function renderTurnRow(t: TurnRecord): string {
+  // Per-turn judge rendering removed — judging happens once per attack after
+  // all turns. The attack-level verdict is shown above the turn list.
   if (t.kind === "agent") {
     return `
 <div class="turn">
@@ -230,7 +232,6 @@ function renderTurnRow(t: TurnRecord): string {
   <div class="code-block">${esc(t.prompt)}</div>
   <div class="field-label" style="margin-top:0.5rem">Response</div>
   <div class="code-block">${esc(t.response)}</div>
-  ${t.judge ? `<div class="field-label" style="margin-top:0.5rem">Judge: <strong>${t.judge.verdict}</strong> — ${esc(t.judge.reasoning)}</div>` : ""}
 </div>`;
   }
   return `
@@ -240,7 +241,6 @@ function renderTurnRow(t: TurnRecord): string {
   <div class="code-block">${esc(JSON.stringify(t.toolArguments, null, 2))}</div>
   <div class="field-label" style="margin-top:0.5rem">Response</div>
   <div class="code-block">${esc(t.toolError ? `ERROR: ${t.toolError}` : t.response)}</div>
-  ${t.judge ? `<div class="field-label" style="margin-top:0.5rem">Judge: <strong>${t.judge.verdict}</strong> — ${esc(t.judge.reasoning)}</div>` : ""}
 </div>`;
 }
 
