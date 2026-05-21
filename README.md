@@ -211,17 +211,38 @@ To report a vulnerability in opfor itself, see [SECURITY.md](SECURITY.md). Email
 
 _OPFOR is short for Opposition Force — a military term for the dedicated unit that plays the enemy in training, so the rest of the army learns what real attacks feel like before they come. We named the tool after that idea: to defend AI agents better, you have to attack them first._
 
+<br/>
+<br/>
+
 ---
 
+<br/>
+
 <p align="center">
-  <strong>Built by <a href="https://keyvalue.systems">KeyValue</a></strong><br/>
+  <a href="https://keyvalue.systems">
+    <img src="assets/keyvalue-logo.svg" alt="KeyValue" height="40" />
+  </a>
+</p>
+
+<p align="center">
+  <strong>Built by KeyValue</strong><br/>
   130 products · 10 years · From India
 </p>
 
 <br/>
 
 <p align="center">
-  Also from our team: <a href="https://getnetra.ai/"><strong>Netra</strong></a> — AI observability, tracing, and simulation.<br/>
+  Also from our team:
+</p>
+
+<p align="center">
+  <a href="https://getnetra.ai/">
+    <img src="assets/netra-logo.avif" alt="Netra" height="32" />
+  </a>
+</p>
+
+<p align="center">
+  <a href="https://getnetra.ai/"><strong>Netra</strong></a> — AI observability, tracing, and simulation.<br/>
   <a href="docs/cli.md#trace-aware-testing-agent-mode-only">Integrates with opfor for trace-aware testing.</a>
 </p>
 
