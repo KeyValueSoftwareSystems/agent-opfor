@@ -29,7 +29,7 @@ export function createDomTarget(tabId, frameId, plan, readerCfg, options = {}) {
   const turns = [];
 
   return {
-    async send(prompt) {
+    async send(prompt, _options) {
       // Honor pause: block until unpaused or stopped
       while (state.pauseRequested && !state.OPFOR_STOP) {
         await sleep(PAUSE_POLL_MS);
@@ -124,7 +124,7 @@ export function createDomTarget(tabId, frameId, plan, readerCfg, options = {}) {
       return assistantText || "(Could not extract assistant reply from the page.)";
     },
 
-    close() {
+    async close() {
       // No-op: DOM session has no persistent connection to close
     },
 

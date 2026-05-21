@@ -550,7 +550,7 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
           judgeLlm: judgeCfg,
           effort: "adaptive",
           turns: maxRounds,
-          targetName: tab.url || siteUrl || "target",
+          targetName: tab.url || "target",
         },
         domTarget,
         {
