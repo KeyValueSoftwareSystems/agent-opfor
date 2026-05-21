@@ -1,7 +1,7 @@
 import type { LlmConfig, TelemetryConfig } from "../config/types.js";
 import type { JudgeResult } from "../run/types.js";
 
-export type Effort = "medium" | "hard";
+export type Effort = "adaptive" | "comprehensive";
 
 // ---------------------------------------------------------------------------
 // Target configs

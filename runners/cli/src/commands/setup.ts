@@ -80,12 +80,12 @@ async function runSetupWizard(): Promise<RunConfig> {
     message: "\nEffort level",
     choices: [
       {
-        name: "Medium — 1 generic attack per evaluator (fast, broad coverage)",
-        value: "medium",
+        name: "Adaptive      — one sustained chat per evaluator, attacker picks tactics on the fly",
+        value: "adaptive",
       },
       {
-        name: "Hard   — 1 attack per named test pattern per evaluator (thorough)",
-        value: "hard",
+        name: "Comprehensive — one fresh multi-turn attack per named pattern in each evaluator",
+        value: "comprehensive",
       },
     ],
   });

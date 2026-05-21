@@ -69,7 +69,7 @@ async function generateAgentAttacks(params: {
     "description" in target && target.description ? target.description : target.name;
   const traceContext = options?.traceContext?.trim();
 
-  if (effort === "medium") {
+  if (effort === "adaptive") {
     const prompt = await generateSingleAgentAttack(evaluator, targetDesc, model, traceContext);
     return [
       {
@@ -199,7 +199,7 @@ async function generateMcpAttacks(params: {
     ];
   }
 
-  if (effort === "medium") {
+  if (effort === "adaptive") {
     const attack = await generateSingleMcpAttack(evaluator, tools, model);
     return [
       {

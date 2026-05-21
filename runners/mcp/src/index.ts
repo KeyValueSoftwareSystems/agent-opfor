@@ -14,7 +14,8 @@ import { loadSkillCatalog } from "@opfor/core/config/loadSkillCatalog.js";
 import { runAll } from "@opfor/core/execute/runAll.js";
 import { writeReport } from "@opfor/core/report/buildReport.js";
 import { PROVIDERS, type ProviderName } from "@opfor/core/config/types.js";
-import type { RunConfig, Effort } from "@opfor/core/execute/types.js";
+import type { RunConfig } from "@opfor/core/execute/types.js";
+import { normalizeEffort } from "@opfor/core/execute/effortCompat.js";
 
 const server = new McpServer({ name: "opfor", version: "0.1.0" });
 
@@ -133,9 +134,14 @@ server.tool(
 
     // Run settings
     effort: z
-      .enum(["medium", "hard"])
-      .default("medium")
-      .describe("medium: 1 generic attack per evaluator. hard: 1 attack per named test pattern."),
+      .enum(["adaptive", "comprehensive", "medium", "hard"])
+      .default("adaptive")
+      .transform(normalizeEffort)
+      .describe(
+        "adaptive: one sustained chat per evaluator, attacker picks tactics on the fly. " +
+          "comprehensive: one fresh multi-turn attack per named pattern in each evaluator. " +
+          "Legacy 'medium'/'hard' are accepted for back-compat."
+      ),
     turns: z
       .number()
       .int()
@@ -202,9 +208,12 @@ server.tool(
     config_path: z.string().describe("Path to opfor.config.json written by opfor_setup"),
     output_dir: z.string().optional().describe("Directory to write report files (default: .)"),
     effort_override: z
-      .enum(["medium", "hard"])
+      .enum(["adaptive", "comprehensive", "medium", "hard"])
       .optional()
-      .describe("Override the effort level from config"),
+      .transform((v) => (v === undefined ? undefined : normalizeEffort(v)))
+      .describe(
+        "Override the effort level from config. Accepts adaptive/comprehensive or legacy medium/hard."
+      ),
     turns_override: z
       .number()
       .int()
@@ -218,8 +227,11 @@ server.tool(
       const raw = await readFile(path.resolve(args.config_path), "utf8");
       let config = JSON.parse(raw) as RunConfig;
 
-      if (args.effort_override) config = { ...config, effort: args.effort_override as Effort };
+      // effort_override has already been normalised by the Zod transform.
+      if (args.effort_override) config = { ...config, effort: args.effort_override };
       if (args.turns_override) config = { ...config, turns: args.turns_override };
+      // Normalise the config's stored effort too (legacy "medium"/"hard" on disk).
+      config = { ...config, effort: normalizeEffort(config.effort as unknown) };
 
       const lines: string[] = [
         `🔴 Opfor Execute`,
@@ -343,7 +355,7 @@ function buildRunConfig(args: Record<string, unknown>): RunConfig {
     selection,
     attackLlm,
     judgeLlm,
-    effort: (args.effort as Effort) ?? "medium",
+    effort: normalizeEffort(args.effort),
     turns: (args.turns as number) ?? 1,
   };
 }

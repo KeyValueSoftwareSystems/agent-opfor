@@ -4,7 +4,8 @@ import { readFile } from "node:fs/promises";
 import { log } from "@opfor/core/lib/logger.js";
 import { runAll } from "@opfor/core/execute/runAll.js";
 import { writeReport } from "@opfor/core/report/buildReport.js";
-import type { RunConfig, Effort } from "@opfor/core/execute/types.js";
+import type { RunConfig } from "@opfor/core/execute/types.js";
+import { normalizeEffort } from "@opfor/core/execute/effortCompat.js";
 import { DEFAULT_CONFIG_PATH } from "./setup.js";
 
 export function registerExecuteCommand(program: Command): void {
@@ -14,7 +15,7 @@ export function registerExecuteCommand(program: Command): void {
       "Generate attacks and run them against the configured target (requires setup first)"
     )
     .option("--config <path>", "Path to opfor.config.json", DEFAULT_CONFIG_PATH)
-    .option("--effort <level>", "Override effort level: medium | hard")
+    .option("--effort <level>", "Override effort level: adaptive | comprehensive")
     .option("--turns <n>", "Override turns per attack (1 = single turn)")
     .option("--output <dir>", "Directory for HTML + JSON reports", ".")
     .option("--env <path>", "Path to .env file to load")
@@ -45,14 +46,17 @@ export function registerExecuteCommand(program: Command): void {
 
         // CLI overrides
         if (opts.effort) {
-          const eff = opts.effort.trim().toLowerCase() as Effort;
-          if (eff !== "medium" && eff !== "hard") {
-            log.error("--effort must be 'medium' or 'hard'");
+          const raw = opts.effort.trim().toLowerCase();
+          const accepted = ["adaptive", "comprehensive", "medium", "hard"];
+          if (!accepted.includes(raw)) {
+            log.error("--effort must be 'adaptive' or 'comprehensive'");
             process.exitCode = 1;
             return;
           }
-          runConfig = { ...runConfig, effort: eff };
+          runConfig = { ...runConfig, effort: normalizeEffort(raw) };
         }
+        // Normalise effort coming from config (legacy "medium"/"hard" → new names).
+        runConfig = { ...runConfig, effort: normalizeEffort(runConfig.effort as unknown) };
         if (opts.turns) {
           const n = parseInt(opts.turns, 10);
           if (!Number.isFinite(n) || n < 1) {
