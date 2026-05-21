@@ -30,9 +30,10 @@ export async function generateAttacks(params: {
   effort: Effort;
   model: LanguageModel;
   turns: number;
+  turnMode?: "single" | "multi";
   options?: GenerateAttacksOptions;
 }): Promise<AttackSpec[]> {
-  const { evaluator, target, effort, model, turns, options } = params;
+  const { evaluator, target, effort, model, turns, turnMode, options } = params;
   const isMcp = target.kind === "mcp";
 
   const base = {
@@ -44,6 +45,7 @@ export async function generateAttacks(params: {
     passCriteria: evaluator.passCriteria,
     failCriteria: evaluator.failCriteria,
     turns,
+    turnMode,
   };
 
   if (isMcp) {

@@ -7,6 +7,7 @@ import { writeReport } from "@opfor/core/report/buildReport.js";
 import type { RunConfig } from "@opfor/core/execute/types.js";
 import { normalizeEffort } from "@opfor/core/execute/effortCompat.js";
 import { DEFAULT_CONFIG_PATH } from "./setup.js";
+import { ensureOpforDirs, OPFOR_REPORTS_DIR } from "../lib/artifacts.js";
 
 export function registerExecuteCommand(program: Command): void {
   program
@@ -17,14 +18,14 @@ export function registerExecuteCommand(program: Command): void {
     .option("--config <path>", "Path to opfor.config.json", DEFAULT_CONFIG_PATH)
     .option("--effort <level>", "Override effort level: adaptive | comprehensive")
     .option("--turns <n>", "Override turns per attack (1 = single turn)")
-    .option("--output <dir>", "Directory for HTML + JSON reports", ".")
+    .option("--output <dir>", "Directory for HTML + JSON reports (default: .opfor/reports/)")
     .option("--env <path>", "Path to .env file to load")
     .action(
       async (opts: {
         config: string;
         effort?: string;
         turns?: string;
-        output: string;
+        output?: string;
         env?: string;
       }) => {
         if (opts.env) {
@@ -89,7 +90,8 @@ export function registerExecuteCommand(program: Command): void {
         });
 
         log.info("\n\nWriting report...");
-        const outputDir = path.resolve(opts.output);
+        await ensureOpforDirs();
+        const outputDir = path.resolve(opts.output ?? OPFOR_REPORTS_DIR);
         const { html, json } = await writeReport(report, outputDir);
 
         const { summary } = report;

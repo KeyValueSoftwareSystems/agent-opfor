@@ -78,12 +78,17 @@ export async function runAll(
       notify({ type: "evaluator_start", evaluatorId: evaluator.id, evaluatorName: evaluator.name });
       log.info(`\n▶ ${evaluator.name} (${evaluator.id})`);
 
+      const turnMode: "single" | "multi" =
+        config.turnMode ?? (config.turns > 1 ? "multi" : "single");
+      const effectiveTurns = turnMode === "single" ? 1 : config.turns;
+
       const attacks = await generateAttacks({
         evaluator,
         target: config.target,
         effort: config.effort,
         model: attackModel,
-        turns: config.turns,
+        turns: effectiveTurns,
+        turnMode,
         options: { tools, traceContext },
       });
 

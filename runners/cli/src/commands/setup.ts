@@ -9,6 +9,9 @@ import {
   PROVIDER_CHOICES,
   type LlmConfig,
   type ProviderName,
+  type TelemetryConfig,
+  type NetraTelemetryConfig,
+  type LangfuseTelemetryConfig,
 } from "@opfor/core/config/types.js";
 import { PROVIDER_DEFAULTS, PROVIDER_ENV_VARS } from "@opfor/core/providers/factory.js";
 import type {
@@ -19,6 +22,7 @@ import type {
   EvaluatorSelection,
   Effort,
 } from "@opfor/core/execute/types.js";
+import { ensureOpforDirs, newConfigPath } from "../lib/artifacts.js";
 
 export const DEFAULT_CONFIG_PATH = "opfor.config.json";
 
@@ -26,33 +30,94 @@ export function registerSetupCommand(program: Command): void {
   program
     .command("setup")
     .description(
-      "Interactive wizard — configure target, evaluators, and effort level; writes opfor.config.json"
+      "Interactive wizard — configure target, evaluators, and effort level; writes opfor.config.json\n" +
+        "  Use --agent/--mcp to skip the mode prompt, or --empty to write a minimal sample config."
     )
-    .option("--config <path>", "Path to write config", DEFAULT_CONFIG_PATH)
+    .option("--config <path>", "Path to write config (default: .opfor/configs/<timestamped>.json)")
     .option("--env <path>", "Path to .env file to load")
-    .action(async (opts: { config: string; env?: string }) => {
-      if (opts.env) {
-        const { config: loadDotenv } = await import("dotenv");
-        loadDotenv({ path: path.resolve(opts.env) });
+    .option("--agent", "Target is an AI agent / HTTP endpoint (skips mode prompt)")
+    .option("--mcp", "Target is an MCP server (skips mode prompt)")
+    .option("--empty", "Write a minimal sample config without running the full wizard")
+    .action(
+      async (opts: {
+        config?: string;
+        env?: string;
+        agent?: boolean;
+        mcp?: boolean;
+        empty?: boolean;
+      }) => {
+        if (opts.env) {
+          const { config: loadDotenv } = await import("dotenv");
+          loadDotenv({ path: path.resolve(opts.env) });
+        }
+
+        log.info("\nOpfor Setup — configure your red team run");
+        log.info("─".repeat(50));
+
+        const hint: "agent" | "mcp" | undefined = opts.agent
+          ? "agent"
+          : opts.mcp
+            ? "mcp"
+            : undefined;
+
+        const config = opts.empty ? await buildEmptyConfig(hint) : await runSetupWizard(hint);
+
+        // Write to .opfor/configs/<timestamped>.json unless an explicit path was given
+        await ensureOpforDirs();
+        const outPath = path.resolve(opts.config ?? newConfigPath());
+        await writeFile(outPath, JSON.stringify(config, null, 2), "utf8");
+
+        log.success(`\nConfig written → ${outPath}`);
+        log.info(`Next: opfor execute --config ${outPath}`);
       }
-
-      log.info("\nOpfor Setup — configure your red team run");
-      log.info("─".repeat(50));
-
-      const config = await runSetupWizard();
-      const outPath = path.resolve(opts.config);
-      await writeFile(outPath, JSON.stringify(config, null, 2), "utf8");
-
-      log.success(`\nConfig written → ${outPath}`);
-      log.info(`Next: opfor execute --config ${outPath}`);
-    });
+    );
 }
 
 // ---------------------------------------------------------------------------
 // Wizard
 // ---------------------------------------------------------------------------
 
-async function runSetupWizard(): Promise<RunConfig> {
+async function buildEmptyConfig(hint?: "agent" | "mcp"): Promise<RunConfig> {
+  const kind =
+    hint ??
+    (await select<"agent" | "mcp">({
+      message: "What do you want to test?",
+      choices: [
+        { name: "AI agent / chatbot  (HTTP endpoint or local script)", value: "agent" },
+        { name: "MCP server  (stdio or HTTP/SSE transport)", value: "mcp" },
+      ],
+    }));
+
+  const target: UnifiedTargetConfig =
+    kind === "agent"
+      ? {
+          kind: "agent",
+          name: "My AI Agent",
+          description:
+            "Describe your AI system here — what it does, who uses it, sensitive data it handles, actions it can perform.",
+          type: "http-endpoint",
+          endpoint: "http://localhost:4000/chat",
+          requestFormat: "openai",
+        }
+      : {
+          kind: "mcp",
+          name: "My MCP Server",
+          transport: "stdio",
+          command: "node",
+          args: ["dist/index.js"],
+        };
+
+  return {
+    target,
+    selection: { mode: "suite", suite: "owasp-llm-top10" },
+    attackLlm: { provider: "openai", model: "gpt-4o-mini", apiKeyEnv: "OPENAI_API_KEY" },
+    effort: "adaptive",
+    turnMode: kind === "agent" ? "multi" : "single",
+    turns: kind === "agent" ? 3 : 1,
+  };
+}
+
+async function runSetupWizard(targetKindHint?: "agent" | "mcp"): Promise<RunConfig> {
   const attackLlm = await collectLlmConfig("Attack LLM (generates attacks)");
 
   const separateJudge = await confirm({
@@ -63,13 +128,15 @@ async function runSetupWizard(): Promise<RunConfig> {
     ? await collectLlmConfig("Judge LLM (scores responses)")
     : undefined;
 
-  const targetKind = await select<"agent" | "mcp">({
-    message: "\nTarget type",
-    choices: [
-      { name: "AI agent / chatbot  (HTTP endpoint or local script)", value: "agent" },
-      { name: "MCP server  (stdio or HTTP/SSE transport)", value: "mcp" },
-    ],
-  });
+  const targetKind =
+    targetKindHint ??
+    (await select<"agent" | "mcp">({
+      message: "\nTarget type",
+      choices: [
+        { name: "AI agent / chatbot  (HTTP endpoint or local script)", value: "agent" },
+        { name: "MCP server  (stdio or HTTP/SSE transport)", value: "mcp" },
+      ],
+    }));
 
   const target: UnifiedTargetConfig =
     targetKind === "agent" ? await collectAgentTarget() : await collectMcpTarget();
@@ -90,12 +157,16 @@ async function runSetupWizard(): Promise<RunConfig> {
     ],
   });
 
-  const multiTurn = await confirm({
-    message: "Enable multi-turn? (each attack gets follow-up escalation turns)",
-    default: false,
+  const turnMode = await select<"single" | "multi">({
+    message: "\nAttack turn mode",
+    choices: [
+      { name: "single — one prompt, one response per attack", value: "single" },
+      { name: "multi  — each attack gets follow-up escalation turns", value: "multi" },
+    ],
   });
+
   let turns = 1;
-  if (multiTurn) {
+  if (turnMode === "multi") {
     const raw = await input({
       message: "Turns per attack (2–10)",
       default: "3",
@@ -107,7 +178,9 @@ async function runSetupWizard(): Promise<RunConfig> {
     turns = parseInt(raw, 10);
   }
 
-  return { target, selection, attackLlm, judgeLlm, effort, turns };
+  const telemetry = await collectTelemetryConfig();
+
+  return { target, selection, attackLlm, judgeLlm, effort, turnMode, turns, telemetry };
 }
 
 // ---------------------------------------------------------------------------
@@ -339,4 +412,161 @@ async function collectEvaluatorSelection(): Promise<EvaluatorSelection> {
   });
 
   return { mode: "evaluators", evaluators: ids };
+}
+
+// ---------------------------------------------------------------------------
+// Telemetry
+// ---------------------------------------------------------------------------
+
+async function collectTelemetryConfig(): Promise<TelemetryConfig | undefined> {
+  const enable = await confirm({
+    message: "\nEnable telemetry / observability? (Netra or Langfuse)",
+    default: false,
+  });
+  if (!enable) return undefined;
+
+  const provider = await select<"netra" | "langfuse">({
+    message: "Telemetry provider",
+    choices: [
+      { name: "Netra", value: "netra" },
+      { name: "Langfuse", value: "langfuse" },
+    ],
+  });
+
+  const providerConfig =
+    provider === "netra" ? await collectNetraTelemetry() : await collectLangfuseTelemetry();
+
+  const enrichJudgeFromTrace = await confirm({
+    message: "Enrich judge with trace data after each attack?",
+    default: true,
+  });
+
+  const traceIdStrategy = await select<"per-attack" | "per-run">({
+    message: "Trace ID strategy",
+    choices: [
+      { name: "per-attack — fresh trace ID for every attack", value: "per-attack" },
+      { name: "per-run    — single trace ID across the whole run", value: "per-run" },
+    ],
+  });
+
+  const propagateHeader = await confirm({
+    message: "Propagate trace ID via HTTP header to the target?",
+    default: true,
+  });
+
+  const propagation: TelemetryConfig["propagation"] = { traceIdStrategy };
+  if (propagateHeader) {
+    const headerName = await input({
+      message: "Header name",
+      default: "X-Trace-Id",
+      validate: (v) => (v.trim() ? true : "Required"),
+    });
+    const headerValue = await input({
+      message: "Header value template (placeholders: {{traceId}}, {{runId}}, {{attackIndex}})",
+      default: "{{traceId}}",
+      validate: (v) => (v.trim() ? true : "Required"),
+    });
+    propagation.headers = { [headerName.trim()]: headerValue.trim() };
+  }
+
+  return {
+    provider,
+    ...(provider === "netra"
+      ? { netra: providerConfig as NetraTelemetryConfig }
+      : { langfuse: providerConfig as LangfuseTelemetryConfig }),
+    enrichJudgeFromTrace,
+    propagation,
+  };
+}
+
+async function collectNetraTelemetry(): Promise<NetraTelemetryConfig> {
+  log.info("\nNetra telemetry");
+
+  const baseUrl = await input({
+    message: "Base URL",
+    default: "http://localhost:3000",
+    validate: (v) => {
+      try {
+        new URL(v.trim());
+        return true;
+      } catch {
+        return "Enter a valid URL";
+      }
+    },
+  });
+
+  const apiKeyEnv = await input({
+    message: "API key env var name",
+    default: "NETRA_API_KEY",
+    validate: (v) => (v.trim() ? true : "Required"),
+  });
+
+  const lookbackRaw = await input({
+    message: "Lookback hours for trace context",
+    default: "24",
+    validate: (v) => {
+      const n = parseInt(v, 10);
+      return Number.isFinite(n) && n > 0 ? true : "Enter a positive integer";
+    },
+  });
+
+  const environment = await input({
+    message: "Environment filter (blank to skip)",
+    default: "",
+  });
+
+  return {
+    baseUrl: baseUrl.trim(),
+    apiKeyEnv: apiKeyEnv.trim(),
+    traceSelection: {
+      lookbackHours: parseInt(lookbackRaw, 10),
+      ...(environment.trim() ? { environment: environment.trim() } : {}),
+    },
+  };
+}
+
+async function collectLangfuseTelemetry(): Promise<LangfuseTelemetryConfig> {
+  log.info("\nLangfuse telemetry");
+
+  const baseUrl = await input({
+    message: "Base URL (blank to use SDK default https://cloud.langfuse.com)",
+    default: "",
+  });
+
+  const publicKeyEnv = await input({
+    message: "Public key env var name",
+    default: "LANGFUSE_PUBLIC_KEY",
+    validate: (v) => (v.trim() ? true : "Required"),
+  });
+
+  const secretKeyEnv = await input({
+    message: "Secret key env var name",
+    default: "LANGFUSE_SECRET_KEY",
+    validate: (v) => (v.trim() ? true : "Required"),
+  });
+
+  const lookbackRaw = await input({
+    message: "Lookback hours for trace context",
+    default: "24",
+    validate: (v) => {
+      const n = parseInt(v, 10);
+      return Number.isFinite(n) && n > 0 ? true : "Enter a positive integer";
+    },
+  });
+
+  const environment = await input({
+    message: "Environment filter (blank to skip)",
+    default: "",
+  });
+
+  const cfg: LangfuseTelemetryConfig = {
+    publicKeyEnv: publicKeyEnv.trim(),
+    secretKeyEnv: secretKeyEnv.trim(),
+    traceSelection: {
+      lookbackHours: parseInt(lookbackRaw, 10),
+      ...(environment.trim() ? { environment: environment.trim() } : {}),
+    },
+  };
+  if (baseUrl.trim()) cfg.baseUrl = baseUrl.trim();
+  return cfg;
 }

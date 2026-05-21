@@ -52,6 +52,12 @@ export interface RunConfig {
   attackLlm: LlmConfig;
   judgeLlm?: LlmConfig;
   effort: Effort;
+  /**
+   * User intent for conversation shape. When "single", the engine forces 1 turn
+   * regardless of `turns`. When "multi" (or omitted), `turns` is honored.
+   * Optional for back-compat — when absent, behavior is inferred from `turns`.
+   */
+  turnMode?: "single" | "multi";
   turns: number;
   telemetry?: TelemetryConfig;
 }
@@ -71,6 +77,7 @@ export interface AttackSpec {
   passCriteria: string;
   failCriteria: string;
   turns: number;
+  turnMode?: "single" | "multi";
   judgeHint?: string;
   // agent target
   prompt?: string;

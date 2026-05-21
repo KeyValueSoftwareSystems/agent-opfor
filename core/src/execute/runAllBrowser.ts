@@ -16,6 +16,7 @@ export interface BrowserRunConfig {
   attackLlm: LlmConfig;
   judgeLlm?: LlmConfig;
   effort: Effort;
+  turnMode?: "single" | "multi";
   turns: number;
   targetName?: string;
 }
@@ -52,6 +53,9 @@ export async function runAllBrowser(
     notify({ type: "evaluator_start", evaluatorId: evaluator.id, evaluatorName: evaluator.name });
     log.info(`\n▶ ${evaluator.name} (${evaluator.id})`);
 
+    const turnMode: "single" | "multi" = config.turnMode ?? (config.turns > 1 ? "multi" : "single");
+    const effectiveTurns = turnMode === "single" ? 1 : config.turns;
+
     const attacks = await generateAttacks({
       evaluator,
       target: {
@@ -62,7 +66,8 @@ export async function runAllBrowser(
       },
       effort: config.effort,
       model: attackModel,
-      turns: config.turns,
+      turns: effectiveTurns,
+      turnMode,
     });
 
     log.info(`  ${attacks.length} attack(s) generated [effort: ${config.effort}]`);
