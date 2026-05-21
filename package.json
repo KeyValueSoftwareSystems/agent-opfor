@@ -22,7 +22,8 @@
     "node": ">=18.0.0"
   },
   "scripts": {
-    "build": "tsc -b core runners/cli runners/mcp && npm run extension:catalog",
+    "build": "tsc -b core runners/cli runners/mcp && npm run extension:catalog && npm run build:core --workspace=@opfor/extension",
+    "test": "npm test --workspace=core",
     "typecheck": "tsc -b core runners/cli runners/mcp",
     "extension:catalog": "npm run build:catalog --workspace=@opfor/extension",
     "lint": "eslint .",

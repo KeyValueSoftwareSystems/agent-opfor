@@ -1,7 +1,11 @@
+// Agent-redteaming judge. Paired with attacker-adaptive.ts.
+// Do NOT merge with run/judge.ts (MCP) — different evidence rules and prompt domain.
+// Used by the CLI agent flow and the browser extension.
+
 import { generateText } from "ai";
 import type { LanguageModel } from "ai";
 import type { EvaluatorSpec } from "./parseEvaluator.js";
-import { loadPrompt } from "../config/loadPrompt.js";
+import { JUDGE_AGENT_SYSTEM } from "../prompts/judge-agent.js";
 
 export interface JudgeResult {
   verdict: "PASS" | "FAIL" | "ERROR";
@@ -31,7 +35,7 @@ export interface ConversationTurn {
   content: string;
 }
 
-const JUDGE_SYSTEM = loadPrompt("judge-rubric");
+const JUDGE_SYSTEM = JUDGE_AGENT_SYSTEM;
 
 /** Optional observability context for the judge (attack prompt + response are always primary). */
 export interface JudgeObservabilityContext {

@@ -24,9 +24,11 @@
     "./mcp-client/*.js": { "types": "./dist/mcp-client/*.d.ts", "default": "./dist/mcp-client/*.js" }
   },
   "files": ["dist", "src"],
+  "sideEffects": false,
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --import tsx/esm --test tests/runAll.smoke.test.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^2.0.77",

@@ -1,3 +1,7 @@
+// MCP-redteaming judge. Paired with the MCP attack generator (generateAttacks mcp path).
+// Do NOT merge with evaluators/judge.ts (agent) — different evidence rules and prompt domain.
+// Used by the CLI MCP flow and the MCP server runner.
+
 import type { ModelConfig } from "../config/schema.js";
 import type { JudgeResult } from "./types.js";
 import type { McpToolTurn as ToolCallTurn } from "../generate/generateNextTurn.js";
