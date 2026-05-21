@@ -564,7 +564,14 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
         {
           initialHistory: transcript.length > 0 ? transcript : undefined,
           onProgress: (event) => {
-            if (event.type === "evaluator_start") {
+            if (event.type === "attack_start") {
+              broadcastProgress({
+                kind: "phase",
+                phase: "running",
+                suiteId,
+                evaluatorId: evaluatorSnapshot?.id,
+              });
+            } else if (event.type === "attack_done") {
               broadcastProgress({
                 kind: "phase",
                 phase: "judging",
