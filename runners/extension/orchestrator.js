@@ -41,15 +41,19 @@ export async function sleepInterruptible(ms) {
 }
 
 /** Build a core LanguageModel from an extension LLM profile. */
-function buildModelFromProfile(profile) {
+function profileToLlmConfig(profile) {
   const envVar = PROVIDER_ENV_VARS[profile.provider] ?? "OPFOR_API_KEY";
   setEnvProvider((name) => (name === envVar ? profile.apiKey : undefined));
-  return createModel({
+  return {
     provider: profile.provider,
     model: profile.model,
     apiKeyEnv: envVar,
     baseURL: profile.baseUrl || undefined,
-  });
+  };
+}
+
+function buildModelFromProfile(profile) {
+  return createModel(profileToLlmConfig(profile));
 }
 
 /** Map core JudgeResult to the extension's judgment schema. */
@@ -242,6 +246,8 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
   let attackerCfg;
   let judgeCfg;
   let readerCfg;
+  let attackerLlmConfig;
+  let judgeLlmConfig;
   let attackerModel;
   let judgeModel;
   try {
@@ -251,8 +257,10 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
     assertLlmCfg(attackerCfg, { kind: "Attacker" });
     assertLlmCfg(judgeCfg, { kind: "Judge" });
     assertLlmCfg(readerCfg, { kind: "HTML reader" });
-    attackerModel = buildModelFromProfile(attackerCfg);
-    judgeModel = buildModelFromProfile(judgeCfg);
+    attackerLlmConfig = profileToLlmConfig(attackerCfg);
+    judgeLlmConfig = profileToLlmConfig(judgeCfg);
+    attackerModel = createModel(attackerLlmConfig);
+    judgeModel = createModel(judgeLlmConfig);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     try {
@@ -546,8 +554,8 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
       report = await runAllBrowser(
         [evalWithHint],
         {
-          attackLlm: attackerCfg,
-          judgeLlm: judgeCfg,
+          attackLlm: attackerLlmConfig,
+          judgeLlm: judgeLlmConfig,
           effort: "adaptive",
           turns: maxRounds,
           targetName: tab.url || "target",
