@@ -39,6 +39,9 @@ export { isTargetError, RATE_LIMITED_SENTINEL } from "./targets/agentTarget.js";
 export { generateNextAdaptiveTurn, generateNextMcpTurn } from "./generate/generateNextTurn.js";
 export { generateAttacks } from "./generate/generateAttacks.js";
 
+export { generateJsonObject } from "./lib/generateJsonObject.js";
+export type { JsonLlmMessage } from "./lib/generateJsonObject.js";
+
 export { setEnvProvider, getEnv } from "./lib/env.js";
 export { randomUUID, randomTraceHex } from "./lib/random.js";
 export { newOtelTraceId } from "./lib/tracePropagation.js";

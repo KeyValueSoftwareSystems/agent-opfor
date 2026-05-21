@@ -46,7 +46,6 @@ The service worker is split into focused ES modules loaded via native `import`:
 | `frameDiscovery.js`    | Frame collection, scoring, and chat-frame selection                       |
 | `domActions.js`        | DOM interaction via `chrome.scripting.executeScript`                      |
 | `responseExtractor.js` | Smart polling extractor for bot responses                                 |
-| `llm.js`               | OpenAI-compatible HTTP client (`callOpenAiCompat`)                        |
 | `storage.js`           | `chrome.storage.local` read/write helpers                                 |
 | `catalog.js`           | `catalog.json` loading and evaluator/suite lookups                        |
 | `config.js`            | LLM profile loading from Options storage                                  |

@@ -61,7 +61,6 @@ opfor/
 │   ├── frameDiscovery.js        # Frame collection, scoring, and chat-frame selection
 │   ├── domActions.js            # chrome.scripting wrappers (send, click, verify, vendor APIs)
 │   ├── responseExtractor.js     # Smart three-phase polling extractor for bot responses
-│   ├── llm.js                   # callOpenAiCompat — OpenAI-compatible HTTP client
 │   ├── storage.js               # chrome.storage.local helpers (run status, results, paused run)
 │   ├── catalog.js               # catalog.json loading and evaluator/suite lookups
 │   ├── config.js                # getLlmProfile / assertLlmCfg — reads Options storage

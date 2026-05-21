@@ -4,12 +4,12 @@ import { loadAttackCatalog } from "./catalog.js";
 import { clearRunStatus } from "./storage.js";
 import { pickChatFrameWithRetry, embeddedChatBoost } from "./frameDiscovery.js";
 import { preparePageForChat, actSendText } from "./domActions.js";
-import { callLlm } from "./llm.js";
 import {
   judgeResponse,
   createModel,
   setEnvProvider,
   PROVIDER_ENV_VARS,
+  generateJsonObject,
 } from "./dist/core.bundle.js";
 import { resetChatSession, executeAdaptiveRedTeamRun } from "./orchestrator.js";
 import { persistPartialResult } from "./storage.js";
@@ -110,16 +110,10 @@ function handleInjectSendHi(message, sendResponse) {
           String(f.snapshot).slice(0, 60_000),
         ].join("\n");
 
-        const ai = await callLlm({
-          provider: cfg.provider,
-          baseUrl: cfg.baseUrl,
-          apiKey: cfg.apiKey,
-          model: cfg.model,
-          messages: [
-            { role: "system", content: system },
-            { role: "user", content: user },
-          ],
-        });
+        const ai = await generateJsonObject(buildModelFromProfile(cfg), [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ]);
         lastAi = { frameId: f.frameId, frameUrl: f.frameUrl, ...ai };
 
         if (!ai?.inputSelector || typeof ai.inputSelector !== "string") continue;
@@ -214,16 +208,10 @@ function handleAiPickInput(message, sendResponse) {
         "\n"
       );
 
-      const out = await callLlm({
-        provider: cfg.provider,
-        baseUrl: cfg.baseUrl,
-        apiKey: cfg.apiKey,
-        model: cfg.model,
-        messages: [
-          { role: "system", content: system },
-          { role: "user", content: user },
-        ],
-      });
+      const out = await generateJsonObject(buildModelFromProfile(cfg), [
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ]);
 
       sendResponse({ ok: true, ...out });
     } catch (err) {

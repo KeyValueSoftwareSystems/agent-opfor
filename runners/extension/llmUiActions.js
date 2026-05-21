@@ -1,4 +1,27 @@
-import { callLlm } from "./llm.js";
+import {
+  generateJsonObject,
+  createModel,
+  setEnvProvider,
+  PROVIDER_ENV_VARS,
+} from "./dist/core.bundle.js";
+import { state } from "./state.js";
+
+function buildModel(cfg) {
+  const envVar = PROVIDER_ENV_VARS[cfg.provider] ?? "OPFOR_API_KEY";
+  setEnvProvider((name) => (name === envVar ? cfg.apiKey : undefined));
+  return createModel({
+    provider: cfg.provider,
+    model: cfg.model,
+    apiKeyEnv: envVar,
+    baseURL: cfg.baseUrl || undefined,
+  });
+}
+
+function callJsonLlm(cfg, messages) {
+  const model = buildModel(cfg);
+  const signal = state.uiRunAbortController?.signal;
+  return generateJsonObject(model, messages, signal ? { abortSignal: signal } : undefined);
+}
 
 export async function aiPickInputInFrame(cfg, frame) {
   const system = [
@@ -28,16 +51,10 @@ export async function aiPickInputInFrame(cfg, frame) {
     String(frame.snapshot).slice(0, 60_000),
   ].join("\n");
 
-  return await callLlm({
-    provider: cfg.provider,
-    baseUrl: cfg.baseUrl,
-    apiKey: cfg.apiKey,
-    model: cfg.model,
-    messages: [
-      { role: "system", content: system },
-      { role: "user", content: user },
-    ],
-  });
+  return await callJsonLlm(cfg, [
+    { role: "system", content: system },
+    { role: "user", content: user },
+  ]);
 }
 
 export async function aiUiNextAction(
@@ -90,41 +107,29 @@ export async function aiUiNextAction(
     .filter(Boolean)
     .join("\n");
 
-  return await callLlm({
-    provider: readerCfg.provider,
-    baseUrl: readerCfg.baseUrl,
-    apiKey: readerCfg.apiKey,
-    model: readerCfg.model,
-    messages: [
-      { role: "system", content: system },
-      { role: "user", content: user },
-    ],
-  });
+  return await callJsonLlm(readerCfg, [
+    { role: "system", content: system },
+    { role: "user", content: user },
+  ]);
 }
 
 export async function llmShortenMessage(cfg, originalMessage, maxLength) {
   const targetLen = maxLength ? Math.floor(maxLength * 0.85) : 200;
-  const out = await callLlm({
-    provider: cfg.provider,
-    baseUrl: cfg.baseUrl,
-    apiKey: cfg.apiKey,
-    model: cfg.model,
-    messages: [
-      {
-        role: "system",
-        content: [
-          "You are helping shorten a chat message to fit within a character limit.",
-          `The message MUST be at most ${targetLen} characters.`,
-          "Preserve the core meaning and intent. Keep it natural and conversational.",
-          'Return ONLY JSON: { "message": string }',
-        ].join("\n"),
-      },
-      {
-        role: "user",
-        content: `Shorten this message to fit within ${targetLen} characters:\n\n${originalMessage}`,
-      },
-    ],
-  });
+  const out = await callJsonLlm(cfg, [
+    {
+      role: "system",
+      content: [
+        "You are helping shorten a chat message to fit within a character limit.",
+        `The message MUST be at most ${targetLen} characters.`,
+        "Preserve the core meaning and intent. Keep it natural and conversational.",
+        'Return ONLY JSON: { "message": string }',
+      ].join("\n"),
+    },
+    {
+      role: "user",
+      content: `Shorten this message to fit within ${targetLen} characters:\n\n${originalMessage}`,
+    },
+  ]);
   const msg = typeof out?.message === "string" ? out.message.trim() : "";
   if (!msg) return originalMessage.slice(0, targetLen);
   return msg.length > (maxLength || 300) ? msg.slice(0, targetLen) : msg;
