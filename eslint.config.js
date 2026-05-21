@@ -11,10 +11,9 @@ export default tseslint.config(
       "dist/",
       "node_modules/",
       "core/dist/",
-      "cli/dist/",
-      "mcp/dist/",
+      "runners/*/dist/",
       "src/agent/**/dist/",
-      "extension/catalog.json",
+      "runners/extension/catalog.json",
       ".opfor/",
     ],
   },
@@ -25,7 +24,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ["extension/scripts/**/*.mjs"],
+    files: ["runners/extension/scripts/**/*.mjs"],
     languageOptions: {
       globals: {
         console: "readonly",
@@ -36,7 +35,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ["extension/**/*.js"],
+    files: ["runners/extension/**/*.js"],
     languageOptions: {
       globals: {
         window: "readonly",

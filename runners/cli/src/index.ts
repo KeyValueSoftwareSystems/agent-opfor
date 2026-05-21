@@ -1,0 +1,36 @@
+#!/usr/bin/env node
+
+import { readFileSync } from "node:fs";
+import { config as loadDotenv } from "dotenv";
+import { Command } from "commander";
+import { registerSetupCommand } from "./commands/setup.js";
+import { registerExecuteCommand } from "./commands/execute.js";
+
+loadDotenv();
+
+function readVersion(): string {
+  const pkgUrl = new URL("../package.json", import.meta.url);
+  const pkg = JSON.parse(readFileSync(pkgUrl, "utf8")) as { version?: string };
+  return pkg.version ?? "0.0.0";
+}
+
+const program = new Command();
+
+program
+  .name("opfor")
+  .description("Opfor — security testing for AI agents and MCP servers")
+  .version(readVersion(), "-v, --version", "Print version");
+
+registerSetupCommand(program);
+registerExecuteCommand(program);
+
+main().catch((err: unknown) => {
+  if (err instanceof Error && err.name === "ExitPromptError") process.exit(0);
+  const message = err instanceof Error ? (err.stack ?? err.message) : String(err);
+  console.error(message);
+  process.exitCode = 1;
+});
+
+async function main(): Promise<void> {
+  await program.parseAsync(process.argv);
+}

@@ -6,9 +6,9 @@
   "private": true,
   "type": "module",
   "workspaces": [
-    "cli",
-    "mcp",
-    "extension",
+    "runners/cli",
+    "runners/mcp",
+    "runners/extension",
     "tests/e2e/agents/vanilla-chat",
     "tests/e2e/agents/customer-support"
   ],
@@ -21,8 +21,8 @@
     "node": ">=18.0.0"
   },
   "scripts": {
-    "build": "tsc -b core cli mcp && npm run extension:catalog",
-    "typecheck": "tsc -b core cli mcp",
+    "build": "tsc -b core runners/cli runners/mcp && npm run extension:catalog",
+    "typecheck": "tsc -b core runners/cli runners/mcp",
     "extension:catalog": "npm run build:catalog --workspace=@opfor/extension",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

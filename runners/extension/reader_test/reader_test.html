@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Reader Test · Opfor</title>
+    <style>
+      :root {
+        --bg: #0a0d14;
+        --bg-2: #0f131d;
+        --bg-3: #141927;
+        --line: #161c2b;
+        --line-2: #1f2638;
+        --line-3: #2a3247;
+        --text: #eaeef7;
+        --text-2: #c8cfe0;
+        --muted: #9ba3b8;
+        --muted-2: #6a7491;
+        --muted-3: #5a6478;
+        --accent: #f5ad5c;
+        --accent-soft: rgba(245, 173, 92, 0.12);
+        --accent-ring: rgba(245, 173, 92, 0.22);
+        --pass: #34d399;
+        --fail: #ff5a6e;
+        --fail-soft: #ff8295;
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      html,
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font-family: system-ui, sans-serif;
+        font-size: 13px;
+        line-height: 1.5;
+        width: 420px;
+        min-height: 560px;
+      }
+      .page {
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      .header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .title {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--text);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .badge {
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        background: var(--accent-soft);
+        border: 1px solid var(--accent-ring);
+        color: var(--accent);
+        padding: 2px 7px;
+        border-radius: 4px;
+      }
+      .url-pill {
+        font-size: 11px;
+        color: var(--muted-3);
+        font-family: monospace;
+        background: var(--bg-2);
+        border: 1px solid var(--line-2);
+        padding: 3px 8px;
+        border-radius: 4px;
+        max-width: 400px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .snap-status {
+        background: var(--bg-2);
+        border: 1px solid var(--line-2);
+        border-radius: 10px;
+        padding: 12px 14px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .snap-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--line-3);
+        flex-shrink: 0;
+        transition: background 0.2s;
+      }
+      .snap-dot.ready {
+        background: var(--pass);
+        box-shadow: 0 0 6px var(--pass);
+      }
+      .snap-info {
+        flex: 1;
+        min-width: 0;
+      }
+      .snap-label {
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--muted-2);
+      }
+      .snap-detail {
+        font-size: 11px;
+        color: var(--muted-3);
+        font-family: monospace;
+        margin-top: 2px;
+      }
+
+      .btn-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+      .btn {
+        padding: 12px 16px;
+        border-radius: 10px;
+        border: none;
+        font-size: 13px;
+        font-weight: 600;
+        font-family: inherit;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        transition:
+          opacity 0.15s,
+          transform 0.08s;
+      }
+      .btn:active {
+        transform: translateY(1px);
+      }
+      .btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+      .btn-snap {
+        background: var(--bg-3);
+        border: 1px solid var(--line-3);
+        color: var(--text);
+      }
+      .btn-snap:hover:not(:disabled) {
+        border-color: var(--muted-3);
+      }
+      .btn-extract {
+        background: var(--accent);
+        color: var(--bg);
+        box-shadow:
+          0 4px 14px rgba(245, 173, 92, 0.25),
+          inset 0 1px 0 rgba(255, 255, 255, 0.2);
+      }
+      .btn-extract:hover:not(:disabled) {
+        opacity: 0.9;
+      }
+
+      .log-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-bottom: 1px solid var(--line);
+        padding-bottom: 8px;
+      }
+      .log-title {
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--muted-2);
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+      .log-clear {
+        background: none;
+        border: none;
+        color: var(--muted-3);
+        font-size: 11px;
+        cursor: pointer;
+        font-family: inherit;
+      }
+      .log-clear:hover {
+        color: var(--text);
+      }
+
+      #log {
+        background: var(--bg-2);
+        border: 1px solid var(--line-2);
+        border-radius: 10px;
+        padding: 12px;
+        font-family: monospace;
+        font-size: 12px;
+        line-height: 1.6;
+        min-height: 300px;
+        max-height: 60vh;
+        overflow-y: auto;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .log-line {
+        display: block;
+      }
+      .log-line .ts {
+        color: var(--muted-3);
+        user-select: none;
+      }
+      .log-line.info .msg {
+        color: var(--text-2);
+      }
+      .log-line.ok .msg {
+        color: var(--pass);
+      }
+      .log-line.warn .msg {
+        color: #fbbf24;
+      }
+      .log-line.err .msg {
+        color: var(--fail-soft);
+      }
+      .log-line.data .msg {
+        color: var(--muted);
+      }
+      .log-line.head .msg {
+        color: var(--accent);
+        font-weight: 600;
+      }
+      .log-line.result {
+        display: block;
+        background: rgba(245, 173, 92, 0.06);
+        border: 1px solid var(--accent-ring);
+        border-radius: 6px;
+        padding: 8px 10px;
+        margin: 4px 0;
+      }
+      .log-line.result .msg {
+        color: var(--text);
+        white-space: pre-wrap;
+      }
+      .empty-hint {
+        color: var(--muted-3);
+        font-style: italic;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="header">
+        <div class="title">
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path
+              d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"
+            />
+          </svg>
+          Reader Test
+          <span class="badge">DEV</span>
+        </div>
+        <span id="tabUrl" class="url-pill">—</span>
+      </div>
+
+      <div class="snap-status">
+        <div id="snapDot" class="snap-dot"></div>
+        <div class="snap-info">
+          <div class="snap-label" id="snapLabel">No snapshot taken</div>
+          <div class="snap-detail" id="snapDetail">
+            Click "Take Snapshot" before sending a message in the chat widget
+          </div>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button id="btnSnap" class="btn btn-snap">
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <circle cx="12" cy="12" r="3" />
+            <path d="M20.9 12.9A8.9 8.9 0 1 1 12 3" />
+          </svg>
+          Take Snapshot
+        </button>
+        <button id="btnExtract" class="btn btn-extract" disabled>
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+          </svg>
+          Extract Reply
+        </button>
+      </div>
+
+      <div>
+        <div class="log-header">
+          <span class="log-title">Log</span>
+          <button class="log-clear" id="btnClearLog">clear</button>
+        </div>
+        <div id="log"><span class="empty-hint">Waiting for first action…</span></div>
+      </div>
+    </div>
+
+    <script type="module" src="reader_test.js"></script>
+  </body>
+</html>
