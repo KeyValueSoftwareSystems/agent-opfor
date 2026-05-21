@@ -9,6 +9,7 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+    "./browser": { "types": "./dist/browser.d.ts", "default": "./dist/browser.js" },
     "./execute/*.js": { "types": "./dist/execute/*.d.ts", "default": "./dist/execute/*.js" },
     "./generate/*.js": { "types": "./dist/generate/*.d.ts", "default": "./dist/generate/*.js" },
     "./targets/*.js": { "types": "./dist/targets/*.d.ts", "default": "./dist/targets/*.js" },

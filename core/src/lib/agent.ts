@@ -1,6 +1,7 @@
 import { generateText, tool } from "ai";
 import { z } from "zod";
 import type { LanguageModel } from "ai";
+import { getEnv } from "./env.js";
 import { judgeResponse } from "../evaluators/judge.js";
 import type {
   AttackContext,
@@ -87,9 +88,9 @@ export async function callTargetHttp(
 ): Promise<string> {
   const resolvedApiKey =
     cfg.targetApiKey ||
-    process.env.TARGET_API_KEY ||
-    process.env.OPENAI_API_KEY ||
-    process.env.LLM_API_KEY;
+    getEnv("TARGET_API_KEY") ||
+    getEnv("OPENAI_API_KEY") ||
+    getEnv("LLM_API_KEY");
 
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (resolvedApiKey) headers["Authorization"] = `Bearer ${resolvedApiKey}`;
@@ -276,9 +277,9 @@ export async function runAttackAgent(cfg: RunAgentConfig): Promise<AgentAttackRe
 
   const resolvedApiKey =
     cfg.targetApiKey ||
-    process.env.TARGET_API_KEY ||
-    process.env.OPENAI_API_KEY ||
-    process.env.LLM_API_KEY;
+    getEnv("TARGET_API_KEY") ||
+    getEnv("OPENAI_API_KEY") ||
+    getEnv("LLM_API_KEY");
 
   const callEndpointInputSchema = z.object({
     prompt: z.string().describe("The exact attack prompt to send"),

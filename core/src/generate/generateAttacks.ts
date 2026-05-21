@@ -1,6 +1,6 @@
 import { generateText } from "ai";
 import type { LanguageModel } from "ai";
-import { randomUUID } from "node:crypto";
+import { randomUUID } from "../lib/random.js";
 import type { EvaluatorSpec } from "../evaluators/parseEvaluator.js";
 import type { AttackSpec, Effort, UnifiedTargetConfig } from "../execute/types.js";
 

@@ -1,9 +1,9 @@
-import { randomBytes } from "node:crypto";
+import { randomTraceHex } from "./random.js";
 import type { TelemetryPropagationConfig } from "../config/types.js";
 
 /** OpenTelemetry-style 128-bit trace id: 32 lowercase hex chars (Langfuse-compatible). */
 export function newOtelTraceId(): string {
-  return randomBytes(16).toString("hex");
+  return randomTraceHex(16);
 }
 
 export interface PropagationPlaceholders {

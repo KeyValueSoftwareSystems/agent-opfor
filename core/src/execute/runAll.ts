@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomUUID } from "../lib/random.js";
 import type { LanguageModel } from "ai";
 import type {
   RunConfig,

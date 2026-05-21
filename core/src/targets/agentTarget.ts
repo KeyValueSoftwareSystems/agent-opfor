@@ -1,4 +1,5 @@
 import type { AgentTargetConfig } from "../execute/types.js";
+import { getEnv } from "../lib/env.js";
 import { invokeLocalTargetScript } from "../lib/localScriptTarget.js";
 import {
   buildPropagatedHeaders,
@@ -69,9 +70,9 @@ async function callHttp(
 ): Promise<string> {
   const resolvedApiKey =
     config.targetApiKey ||
-    process.env.TARGET_API_KEY ||
-    process.env.OPENAI_API_KEY ||
-    process.env.LLM_API_KEY;
+    getEnv("TARGET_API_KEY") ||
+    getEnv("OPENAI_API_KEY") ||
+    getEnv("LLM_API_KEY");
 
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (resolvedApiKey) headers["Authorization"] = `Bearer ${resolvedApiKey}`;
