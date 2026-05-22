@@ -7,7 +7,9 @@
   "type": "module",
   "scripts": {
     "build:catalog": "node scripts/build-catalog.mjs",
-    "build:core": "node scripts/bundle-core.mjs"
+    "build:core": "node scripts/bundle-core.mjs",
+    "ensure:core": "node scripts/ensure-core-bundle.mjs",
+    "prebuild:core": "node scripts/ensure-core-bundle.mjs"
   },
   "dependencies": {
     "yaml": "^2.8.3"

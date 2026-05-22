@@ -77,14 +77,6 @@ export async function actClickSelector(tabId, frameId, selector) {
   return res?.[0]?.result;
 }
 
-export async function actReloadTopFrame(tabId) {
-  const res = await chrome.scripting.executeScript({
-    target: { tabId, frameIds: [0] },
-    files: ["frame_reload.js"],
-  });
-  return res?.[0]?.result;
-}
-
 /**
  * Check if a selector matches a visible element inside the target frame.
  */

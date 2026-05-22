@@ -21,9 +21,6 @@ import { aiUiNextAction } from "./llmUiActions.js";
 export async function locateChatWidget(tabId, readerCfg, options = {}) {
   const openWidget = options.openWidget !== false;
   const maxAiAttempts = Math.max(2, Math.min(12, Number(options.maxAiAttempts ?? 8)));
-  // const debug = options.debug === true;
-  const debug = true;
-
   if (state.OPFOR_STOP) return { ok: false, error: "Run stopped." };
 
   if (openWidget) {
@@ -315,12 +312,6 @@ export async function locateChatWidget(tabId, readerCfg, options = {}) {
           String(f.frameUrl || "").includes("ada.support/embed/button/")
         );
         if (adaButton) {
-          if (debug) {
-            console.log(
-              "[locateChatWidget] ada vendor open via postMessage frameId=",
-              adaButton.frameId
-            );
-          }
           await chrome.scripting.executeScript({
             target: { tabId, frameIds: [adaButton.frameId] },
             func: () => {
@@ -368,33 +359,10 @@ export async function locateChatWidget(tabId, readerCfg, options = {}) {
       clickedLaunchers,
     });
 
-    if (debug) {
-      try {
-        console.log(
-          "[locateChatWidget] attempt=",
-          attempt,
-          "frameCount=",
-          frames.length,
-          "lastErr=",
-          lastErr
-        );
-        console.log("[locateChatWidget] decision=", {
-          action: decision?.action,
-          inputSelector: decision?.inputSelector,
-          launcherSelector: decision?.launcherSelector,
-          waitMs: decision?.waitMs,
-          confidence: decision?.confidence,
-          notes: decision?.notes,
-        });
-      } catch {}
-    }
-
     if (decision?.action === "set_input" && typeof decision.inputSelector === "string") {
       // We don't know which frame the selector belongs to; verify across frames.
-      let visibleIn = [];
       for (const f of frames) {
         const visible = await actVerifyInputVisible(tabId, f.frameId, decision.inputSelector);
-        if (visible) visibleIn.push(f.frameId);
         if (visible) {
           chosen = {
             frameId: f.frameId,
@@ -405,11 +373,6 @@ export async function locateChatWidget(tabId, readerCfg, options = {}) {
           };
           break;
         }
-      }
-      if (debug) {
-        try {
-          console.log("[locateChatWidget] set_input verify visibleIn=", visibleIn);
-        } catch {}
       }
       if (chosen) break;
       lastErr = "LLM picked input but it was not visible in any frame.";
@@ -433,9 +396,6 @@ export async function locateChatWidget(tabId, readerCfg, options = {}) {
           sel.includes('aria-label="Chat with us"') ||
           sel.includes("Chat with us");
         if (adaButton && looksLikeAda) {
-          if (debug) {
-            console.log("[locateChatWidget] ada launcher selected; using postMessage open");
-          }
           await chrome.scripting.executeScript({
             target: { tabId, frameIds: [adaButton.frameId] },
             func: () => {
@@ -457,7 +417,6 @@ export async function locateChatWidget(tabId, readerCfg, options = {}) {
       } catch {}
 
       let clicked = false;
-      let clickedFrameId = null;
       const ordered = [
         ...frames.filter((f) => f.frameId === 0),
         ...frames.filter((f) => f.frameId !== 0),
@@ -466,20 +425,9 @@ export async function locateChatWidget(tabId, readerCfg, options = {}) {
         const res = await actClickSelector(tabId, f.frameId, decision.launcherSelector);
         if (res?.ok) {
           clicked = true;
-          clickedFrameId = f.frameId;
           clickedLaunchers.push(decision.launcherSelector);
           break;
         }
-      }
-      if (debug) {
-        try {
-          console.log(
-            "[locateChatWidget] click_launcher clicked=",
-            clicked,
-            "clickedFrameId=",
-            clickedFrameId
-          );
-        } catch {}
       }
       if (!clicked) {
         lastErr = "LLM picked launcher but click failed in all frames.";

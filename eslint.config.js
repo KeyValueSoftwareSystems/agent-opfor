@@ -7,15 +7,7 @@ export default tseslint.config(
   ...tseslint.configs.recommended,
   prettierConfig,
   {
-    ignores: [
-      "dist/",
-      "node_modules/",
-      "core/dist/",
-      "runners/*/dist/",
-      "src/agent/**/dist/",
-      "runners/extension/catalog.json",
-      ".opfor/",
-    ],
+    ignores: ["**/dist/**", "node_modules/", "runners/extension/catalog.json", ".opfor/"],
   },
   {
     rules: {

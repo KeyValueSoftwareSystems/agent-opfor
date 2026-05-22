@@ -101,6 +101,7 @@ const state = {
   agentDescription: "",
   maxTurns: 10,
   waitSec: 10,
+  messageCharLimit: 500,
   attackObjective: "",
   businessUseCase: "",
   judgeHint: "",
@@ -462,6 +463,7 @@ async function loadSettings() {
     agentDescription: s.agentDescription ?? "",
     maxTurns: clamp(Number(s.maxTurns) || 10, 1, 20),
     waitSec: clamp(Number(s.waitSec) || 10, 3, 30),
+    messageCharLimit: clamp(Math.round((Number(s.messageCharLimit) || 500) / 50) * 50, 100, 1500),
     attackObjective: s.attackObjective ?? "",
     businessUseCase: s.businessUseCase ?? "",
     judgeHint: s.judgeHint ?? "",
@@ -486,6 +488,7 @@ async function saveSettings() {
       agentDescription: state.agentDescription,
       maxTurns: state.maxTurns,
       waitSec: state.waitSec,
+      messageCharLimit: state.messageCharLimit,
       attackObjective: state.attackObjective,
       businessUseCase: state.businessUseCase,
       judgeHint: state.judgeHint,
@@ -768,6 +771,10 @@ function handleProgress(message) {
     if (message.phase === "locating") {
       resetBubbles();
       setTurnProgress(0);
+      if (message.locateMessage) {
+        const locateText = $("runLocateText");
+        if (locateText) locateText.textContent = message.locateMessage;
+      }
     }
   } else if (message.kind === "turn") {
     setPhase("running");
@@ -1469,6 +1476,7 @@ function generateHtmlReport(report) {
         <div class="scope-row"><span class="scope-k">Attacker model</span><span class="scope-v mono">${escapeHtml(target.model)}</span></div>
         <div class="scope-row"><span class="scope-k">Max turns / evaluator</span><span class="scope-v">${state.maxTurns}</span></div>
         <div class="scope-row"><span class="scope-k">Wait between turns</span><span class="scope-v">${state.waitSec}s</span></div>
+        <div class="scope-row"><span class="scope-k">Message length limit</span><span class="scope-v">${state.messageCharLimit} chars</span></div>
       </div>
       ${
         state.businessUseCase
@@ -1989,13 +1997,24 @@ async function runOneEvaluator(ev, { resume = false } = {}) {
   progressActive = false;
   startCosmeticTicker();
   const payload = resume
-    ? { type: "OPFOR_UI_RESUME" }
+    ? {
+        type: "OPFOR_UI_RESUME",
+        messageCharLimit: state.messageCharLimit,
+        scrapeFromSite: state.scrapeFromSite,
+        agentDescription: state.agentDescription || "",
+        businessUseCase: state.businessUseCase || "",
+        attackObjective: state.attackObjective || "",
+        judgeHint: state.judgeHint || "",
+      }
     : {
         type: "OPFOR_UI_RUN",
         suiteId: state.suiteId,
         evaluatorId: ev.id,
         maxRounds: state.maxTurns,
         waitMs: state.waitSec * 1000,
+        messageCharLimit: state.messageCharLimit,
+        scrapeFromSite: state.scrapeFromSite,
+        agentDescription: state.agentDescription || "",
         attackObjective: state.attackObjective || "",
         businessUseCase: state.businessUseCase || "",
         judgeHint: state.judgeHint || "",
@@ -2658,6 +2677,7 @@ function wire() {
     state.provider = v;
     applyProvider({ resetModel: true });
     saveModelAndKey();
+    updateRunButton();
   });
 
   modelDD = buildDropdown(
@@ -2799,6 +2819,7 @@ function wire() {
   // Steppers
   bindStepper("maxTurns", "maxTurnsValue", "maxTurns", 1, 20);
   bindStepper("waitSec", "waitSecValue", "waitSec", 3, 30);
+  bindStepper("messageCharLimit", "messageCharLimitValue", "messageCharLimit", 100, 1500);
 
   // Advanced text fields
   $("attackObjective").addEventListener("input", (e) => {
@@ -3059,6 +3080,7 @@ async function init() {
   $("apiKey").value = state.apiKey;
   $("apiKeyCard").value = state.apiKey;
   applyProvider();
+  updateRunButton();
   $("agentDescription").value = state.agentDescription;
   $("attackObjective").value = state.attackObjective;
   $("businessUseCase").value = state.businessUseCase;
@@ -3068,6 +3090,8 @@ async function init() {
   $("maxTurnsValue").textContent = String(state.maxTurns);
   $("waitSec").value = String(state.waitSec);
   $("waitSecValue").textContent = String(state.waitSec);
+  $("messageCharLimit").value = String(state.messageCharLimit);
+  $("messageCharLimitValue").textContent = String(state.messageCharLimit);
 
   refreshScrapeMeta();
 
