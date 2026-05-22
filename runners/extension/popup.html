@@ -2475,6 +2475,31 @@
             </div>
           </div>
           <div>
+            <div class="stepper-head">
+              <div class="label">Message length limit</div>
+              <div class="value"><span id="messageCharLimitValue">500</span> chars</div>
+            </div>
+            <div class="stepper-help">
+              Max characters per attack message sent to the chat widget.
+            </div>
+            <div class="stepper-row">
+              <button class="step-btn" data-step="-50" data-target="messageCharLimit" type="button">
+                −
+              </button>
+              <input
+                id="messageCharLimit"
+                type="range"
+                min="100"
+                max="1500"
+                step="50"
+                value="500"
+              />
+              <button class="step-btn" data-step="50" data-target="messageCharLimit" type="button">
+                +
+              </button>
+            </div>
+          </div>
+          <div>
             <div class="adv-field-label">Attack objective</div>
             <div class="adv-field-help">
               Focus the attacker on a specific goal. Leave blank for broad coverage.
@@ -2488,7 +2513,8 @@
           <div>
             <div class="adv-field-label">Business use case</div>
             <div class="adv-field-help">
-              Helps the attacker model craft realistic, in-context probes.
+              Optional extra context appended to the homepage agent summary (auto) or manual
+              description.
             </div>
             <textarea
               id="businessUseCase"

@@ -310,7 +310,7 @@ function findFloatingWidgetCandidates() {
   } catch {}
 
   // NOTE: Vendor-specific JS API calls (GorgiasChat.open(), zE(), Intercom(), etc.)
-  // are handled separately via frame_vendor_open.js in MAIN world.
+  // Vendor-specific opens (Salesforce, Zendesk, etc.) are handled in frame_open_chat.js heuristics.
   // This script (ISOLATED world) can only do DOM-based detection.
 
   const launchers = findLikelyChatLauncherButtons();

@@ -42,5 +42,7 @@ export function assertLlmCfg(cfg, { kind }) {
     throw new Error(`${kind} LLM missing baseUrl in Options.`);
   }
   if (!cfg.model) throw new Error(`${kind} LLM missing model in Options.`);
-  if (!cfg.apiKey) throw new Error(`${kind} LLM missing apiKey in Options.`);
+  if (!cfg.apiKey && cfg.provider !== PROVIDERS.OPENAI_COMPATIBLE) {
+    throw new Error(`${kind} LLM missing apiKey in Options.`);
+  }
 }

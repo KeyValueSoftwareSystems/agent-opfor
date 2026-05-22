@@ -11,9 +11,9 @@ import {
   createModel,
   setEnvProvider,
   PROVIDER_ENV_VARS,
-  generateJsonObject,
   runAllBrowser,
 } from "./dist/core.bundle.js";
+import { callLlm } from "./llm.js";
 import { createDomTarget } from "./domTarget.js";
 import { getLlmProfile, assertLlmCfg } from "./config.js";
 import { loadAttackCatalog, evaluatorFromCatalog, assertEvaluatorInSuite } from "./catalog.js";
@@ -29,6 +29,7 @@ import { locateChatWidget } from "./chatLocator.js";
 import { actClickSelector, actVerifyInputVisible } from "./domActions.js";
 import { extractResponse } from "./responseExtractor.js";
 import { aiPickInputInFrame, llmShortenMessage } from "./llmUiActions.js";
+import { resolveAgentBusinessContext } from "./agentContext.js";
 
 export async function sleepInterruptible(ms) {
   const step = 250;
@@ -50,10 +51,6 @@ function profileToLlmConfig(profile) {
     apiKeyEnv: envVar,
     baseURL: profile.baseUrl || undefined,
   };
-}
-
-function buildModelFromProfile(profile) {
-  return createModel(profileToLlmConfig(profile));
 }
 
 /** Map core JudgeResult to the extension's judgment schema. */
@@ -101,10 +98,16 @@ export async function resetChatSession(tabId, readerCfg) {
       String(snapshot || "").slice(0, 60_000),
     ].join("\n");
 
-    return await generateJsonObject(buildModelFromProfile(readerCfg), [
-      { role: "system", content: system },
-      { role: "user", content: user },
-    ]);
+    return await callLlm({
+      provider: readerCfg.provider,
+      baseUrl: readerCfg.baseUrl,
+      apiKey: readerCfg.apiKey,
+      model: readerCfg.model,
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ],
+    });
   };
 
   try {
@@ -287,9 +290,12 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
   let best;
   let siteSnapshot;
   let suiteId = "";
-  let attackObjective = "";
+  let attackObjective;
   let businessUseCase;
-  let judgeHint = "";
+  let scrapeFromSite;
+  let agentDescription;
+  let judgeHint;
+  let messageCharLimit = 500;
   /** @type {Record<string, unknown> | null} */
   let evaluatorSnapshot = null;
 
@@ -316,11 +322,30 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
 
       maxRounds = paused.maxRounds;
       waitMs = paused.waitMs;
+      messageCharLimit = Math.max(
+        100,
+        Math.min(1500, Math.round(Number(message.messageCharLimit ?? 500) / 50) * 50)
+      );
       transcript = Array.isArray(paused.transcript) ? paused.transcript : [];
       turnLog = Array.isArray(paused.turnLog) ? paused.turnLog : [];
       plan = paused.plan;
       best = { frameId: paused.frameId, frameUrl: paused.frameUrl };
       siteSnapshot = paused.siteSnapshot || "";
+      attackObjective = String(message.attackObjective || paused.attackObjective || "").trim();
+      judgeHint = String(message.judgeHint || paused.judgeHint || "").trim();
+      scrapeFromSite = message.scrapeFromSite !== false;
+      agentDescription = String(message.agentDescription || paused.agentDescription || "").trim();
+      businessUseCase = String(paused.businessUseCase || "").trim();
+      if (!businessUseCase) {
+        businessUseCase = await resolveAgentBusinessContext({
+          scrapeFromSite,
+          agentDescription,
+          extraBusinessUseCase: String(message.businessUseCase || "").trim(),
+          tabId: tab.id,
+          siteUrl: tab.url || "",
+          readerCfg,
+        });
+      }
 
       if (transcript.length % 2 === 1) {
         await sleepInterruptible(Math.min(waitMs, 1000));
@@ -338,6 +363,11 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
             siteSnapshot,
             suiteId,
             evaluatorSnapshot,
+            attackObjective,
+            businessUseCase,
+            scrapeFromSite,
+            agentDescription,
+            judgeHint,
           });
           sendResponse({ ok: false, error: "Run stopped.", paused: true });
           return;
@@ -378,8 +408,14 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
       maxRounds = Math.max(1, Math.min(20, Number(message.maxRounds ?? message.turns ?? 10)));
       waitMs = Math.max(3000, Math.min(30000, Number(message.waitMs || 10000)));
       attackObjective = String(message.attackObjective || "").trim();
-      businessUseCase = String(message.businessUseCase || "").trim();
+      scrapeFromSite = message.scrapeFromSite !== false;
+      agentDescription = String(message.agentDescription || "").trim();
+      const advancedBusinessUseCase = String(message.businessUseCase || "").trim();
       judgeHint = String(message.judgeHint || "").trim();
+      const messageCharLimit = Math.max(
+        100,
+        Math.min(1500, Math.round(Number(message.messageCharLimit ?? 500) / 50) * 50)
+      );
 
       // Set preliminary run status so await_user phase can be persisted
       await setRunStatus({
@@ -394,8 +430,55 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
         transcript: [],
         startedAt: Date.now(),
         attackObjective,
-        businessUseCase,
+        businessUseCase: advancedBusinessUseCase,
+        scrapeFromSite,
+        agentDescription,
         judgeHint,
+      });
+
+      broadcastProgress({
+        kind: "phase",
+        phase: "locating",
+        locateMessage: scrapeFromSite
+          ? "Analyzing page for agent context…"
+          : "Using manual agent description…",
+        suiteId,
+        evaluatorId: evaluatorSnapshot?.id,
+      });
+
+      businessUseCase = await resolveAgentBusinessContext({
+        scrapeFromSite,
+        agentDescription,
+        extraBusinessUseCase: advancedBusinessUseCase,
+        tabId: tab.id,
+        siteUrl: tab.url || "",
+        readerCfg,
+      });
+
+      await setRunStatus({
+        running: true,
+        tabId: tab.id,
+        siteUrl: tab.url || "",
+        suiteId,
+        evaluatorId: evaluatorSnapshot?.id,
+        evaluatorName: evaluatorSnapshot?.name,
+        maxRounds,
+        phase: "locating",
+        transcript: [],
+        startedAt: Date.now(),
+        attackObjective,
+        businessUseCase,
+        scrapeFromSite,
+        agentDescription,
+        judgeHint,
+      });
+
+      broadcastProgress({
+        kind: "phase",
+        phase: "locating",
+        locateMessage: "Detecting chat widget…",
+        suiteId,
+        evaluatorId: evaluatorSnapshot?.id,
       });
 
       let located = await locateChatWidget(tab.id, readerCfg);
@@ -565,8 +648,7 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
           attackObjective: attackObjective || undefined,
           businessUseCase: businessUseCase || undefined,
           siteSnapshot: siteSnapshot || undefined,
-          // maxMessageLength is reactively learned by domTarget on overflow;
-          // proactive detection during locate is a follow-up.
+          maxMessageLength: messageCharLimit,
         },
         domTarget,
         {
@@ -661,6 +743,11 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
           siteSnapshot,
           suiteId,
           evaluatorSnapshot,
+          attackObjective,
+          businessUseCase,
+          scrapeFromSite,
+          agentDescription,
+          judgeHint,
         }).catch(() => {});
       }
       sendResponse({ ok: false, error: "Run stopped.", paused: true });
