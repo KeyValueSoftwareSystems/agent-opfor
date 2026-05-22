@@ -26,6 +26,14 @@ export async function createMcpTarget(config: McpTargetConfig): Promise<McpTarge
   return new ConnectedMcpTarget(conn);
 }
 
+function expandEnvInHeaders(headers: Record<string, string>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(headers)) {
+    out[k] = v.replace(/\$\{([^}]+)\}/g, (_, name) => process.env[name.trim()] ?? "");
+  }
+  return out;
+}
+
 function buildServerConfig(config: McpTargetConfig): Parameters<typeof connectMcpClient>[0] {
   if (config.transport === "stdio") {
     if (!config.command) throw new Error("MCP stdio target requires command");
@@ -40,7 +48,7 @@ function buildServerConfig(config: McpTargetConfig): Parameters<typeof connectMc
   return {
     transport: "url",
     url: config.url,
-    headers: config.urlHeaders ?? {},
+    headers: expandEnvInHeaders(config.urlHeaders ?? {}),
   };
 }
 
