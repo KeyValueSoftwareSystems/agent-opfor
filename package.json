@@ -1,14 +1,15 @@
 {
-  "name": "opfor-monorepo",
+  "name": "opfor",
   "version": "0.1.0",
   "description": "Opfor — security testing for AI agents and MCP servers (workspace root)",
   "license": "Apache-2.0",
   "private": true,
   "type": "module",
   "workspaces": [
-    "cli",
-    "mcp",
-    "extension",
+    "core",
+    "runners/cli",
+    "runners/mcp",
+    "runners/extension",
     "tests/e2e/agents/vanilla-chat",
     "tests/e2e/agents/customer-support"
   ],
@@ -21,8 +22,11 @@
     "node": ">=18.0.0"
   },
   "scripts": {
-    "build": "tsc -b core cli mcp && npm run extension:catalog",
-    "typecheck": "tsc -b core cli mcp",
+    "build": "tsc -b core runners/cli runners/mcp && npm run extension:catalog && npm run build:core --workspace=@opfor/extension",
+    "clean": "rm -rf core/dist runners/*/dist core/*.tsbuildinfo runners/*/*.tsbuildinfo",
+    "install:cli": "npm run build && npm install -g ./runners/cli",
+    "test": "npm test --workspace=core",
+    "typecheck": "tsc -b core runners/cli runners/mcp",
     "extension:catalog": "npm run build:catalog --workspace=@opfor/extension",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -33,7 +37,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@types/node": "^24.0.0",
+    "@types/node": "^24.12.4",
     "eslint": "^10.3.0",
     "eslint-config-prettier": "^10.1.8",
     "husky": "^9.1.7",

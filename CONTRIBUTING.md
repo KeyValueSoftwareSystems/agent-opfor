@@ -68,6 +68,8 @@ npm install   # also installs Husky pre-commit hooks
 npm run build
 ```
 
+Want the `opfor` command globally available while developing? Use `npm run install:cli` instead of `npm run build` — it builds and `npm install -g`s the CLI in one step.
+
 The pre-commit hook runs typechecking, linting, formatting, and **secret scanning via [gitleaks](https://github.com/gitleaks/gitleaks)**. It is required — commits will be blocked until it is installed:
 
 See the [official install guide](https://github.com/gitleaks/gitleaks#installing) for your OS.
@@ -85,11 +87,13 @@ cp .env.example .env
 
 ## Adding an evaluator
 
-Evaluators live in `skills/opfor-setup/evaluators/` as Markdown files with YAML frontmatter. No TypeScript changes are needed — the engine loads them automatically.
+Evaluators live in `skills/*/opfor-setup/evaluators/` as Markdown files with YAML frontmatter. No TypeScript changes are needed — the engine loads them automatically.
+
+Pick `agent-redteaming` for chat/HTTP-target evaluators, `mcp-redteaming` for evaluators that fire `tools/call` against an MCP server.
 
 ### File format
 
-Create `skills/opfor-setup/evaluators/<your-id>.md`:
+Create `skills/*/opfor-setup/evaluators/<your-id>.md`:
 
 ```markdown
 ---
@@ -139,19 +143,23 @@ patterns:
 ### Test your evaluator
 
 ```bash
-# 1. Start the echo test server
-# (fixture removed — use any local MCP server you have)
+# 1. Start any local MCP server you want to test against
+#    (or use tests/e2e/mcp/vulnerable-server for a known-buggy fixture)
 
-# 3. Inspect the generated attack plan — your evaluator should appear
-# 4. Run the attacks and check the report
-opfor execute --attacks .opfor/attacks/opfor-attacks-*.json
+# 2. Write a config selecting your new evaluator
+opfor setup --mcp --empty   # or --agent --empty
+#    Then edit the generated .opfor/configs/opfor-config-*.json:
+#    set `selection.evaluators: ["<your-evaluator-id>"]`
+
+# 3. Run it and inspect the report
+opfor execute --config .opfor/configs/opfor-config-*.json
 ```
 
 ---
 
 ## Adding a suite
 
-Suites are also Markdown files with YAML frontmatter, in `skills/opfor-setup/suites/`.
+Suites are also Markdown files with YAML frontmatter, in `skills/*/opfor-setup/suites/`.
 
 ```markdown
 ---
@@ -167,7 +175,7 @@ evaluators:
 ---
 ```
 
-Reference only evaluator IDs that exist in `skills/opfor-setup/evaluators/`. The engine validates this at load time.
+Reference only evaluator IDs that exist in `skills/*/opfor-setup/evaluators/`. The engine validates this at load time.
 
 ---
 
@@ -179,7 +187,7 @@ When adding a new transport:
 
 - Implement the same interface as `createClient.ts` — expose a `connectMcpClient()` function that returns `{ client, close }`.
 - Add a new discriminated union branch to `McpServerConfigSchema` in `core/src/config/schema.ts`.
-- Update the CLI setup wizard (`cli/src/commands/`) to offer the new transport as an option.
+- Update the CLI setup wizard (`runners/cli/src/commands/`) to offer the new transport as an option.
 - Add a fixture config so others can test it.
 
 ---
@@ -269,32 +277,31 @@ tests/e2e/agents/<agent-name>/
 
 ```json
 {
-  "configId": "your-agent-name",
-  "createdAt": "2026-01-01T00:00:00.000Z",
-  "mode": "agent",
-  "agent": {
-    "attackLlm": {
-      "provider": "groq",
-      "model": "llama-3.3-70b-versatile",
-      "apiKeyEnv": "GROQ_API_KEY"
-    },
-    "target": {
-      "name": "Your Agent Name",
-      "description": "What the agent does and what sensitive data it holds.",
-      "type": "http-endpoint",
-      "endpoint": "http://localhost:4000/chat",
-      "requestFormat": "json"
-    },
-    "selection": {
-      "mode": "suite",
-      "suite": "owasp-llm-top10"
-    }
-  }
+  "target": {
+    "kind": "agent",
+    "name": "Your Agent Name",
+    "description": "What the agent does and what sensitive data it holds.",
+    "type": "http-endpoint",
+    "endpoint": "http://localhost:4000/chat",
+    "requestFormat": "json"
+  },
+  "selection": {
+    "mode": "suite",
+    "suite": "owasp-llm-top10"
+  },
+  "attackLlm": {
+    "provider": "groq",
+    "model": "llama-3.3-70b-versatile",
+    "apiKeyEnv": "GROQ_API_KEY"
+  },
+  "effort": "adaptive",
+  "turnMode": "multi",
+  "turns": 3
 }
 ```
 
-- Include an `opfor.config.json` that points at `http://localhost:<port>/chat` and selects a relevant evaluator suite. It must use the **unified config format** — not a flat config. The required top-level fields are `configId`, `createdAt`, `mode: "agent"`, and an `agent` block. The `apiKeyEnv` field inside `agent.attackLlm` takes the env var **name** (e.g. `"GROQ_API_KEY"`), never the key value itself.
-- For agents with session memory (multi-turn capable), add `"sessionIdField": "sessionId"` to the target block and `"turnMode": "multi"` + `"turns": 3` at the `agent` level. Opfor will generate a UUID per attack, inject it into every request body, and escalate across turns.
+- Include an `opfor.config.json` that points at `http://localhost:<port>/chat` and selects a relevant evaluator suite. It must use the current **flat schema** — `target.kind: "agent"` at top level, with `attackLlm`, `selection`, `effort`, `turnMode`, `turns` as siblings (not the legacy nested `{ mode, agent: {} }` shape used pre-refactor). `apiKeyEnv` takes the env var **name** (e.g. `"GROQ_API_KEY"`), never the key value itself.
+- For agents with session memory (multi-turn capable), add `"sessionIdField": "sessionId"` to the `target` block. With `turnMode: "multi"` opfor generates a UUID per attack, injects it into every request body, and escalates across turns.
 
 ---
 
@@ -319,30 +326,42 @@ Only submit findings for systems you are authorized to test, or where you have c
 ### Project structure
 
 ```
-src/
-  mcp/
-    commands/     ← CLI entrypoints (init, setup, run)
-    attacks/      ← attack plan generation
-    config/       ← Zod config schemas
-    llm/          ← OpenAI-compatible LLM provider
-    mcp/          ← MCP client (stdio + HTTP/SSE)
-    run/          ← attack execution + LLM judge
-    report/       ← HTML + JSON report generation
-  agent/
-    core/         ← @opfor/core shared engine (npm workspace)
-    cli/          ← opfor-cli (npm workspace)
-    mcp/          ← @opfor/agent-mcp-server (npm workspace)
+core/                       ← @opfor/core — shared engine (npm workspace)
+  src/
+    config/                 ← Zod schemas + LLM/telemetry config types
+    evaluators/             ← evaluator markdown parsing
+    execute/                ← runAll, runAgentLoop, run orchestration
+    generate/               ← attack prompt generation (attacker LLM)
+    providers/              ← LLM provider factory (Vercel AI SDK)
+    targets/                ← agent + MCP target adapters
+    telemetry/              ← Langfuse + Netra adapters
+    report/                 ← HTML + JSON report renderer
+    mcp-client/             ← MCP client (stdio + HTTP/SSE transports)
+runners/
+  cli/                      ← @opfor/cli — `opfor setup` + `opfor execute`
+  mcp/                      ← @opfor/mcp — opfor as an MCP server
+  extension/                ← Chrome MV3 browser extension
 skills/
-  opfor-setup/
-    evaluators/   ← evaluator markdown files (single source of truth)
-    suites/       ← suite definitions
+  agent-redteaming/
+    opfor-setup/{evaluators,suites,targets}/
+    opfor-execute/
+  mcp-redteaming/
+    opfor-setup/{evaluators,suites}/
+    opfor-execute/
+tests/e2e/
+  agents/
+    vanilla-chat/           ← plain chatbot — LLM-level vulnerabilities
+    customer-support/       ← tool-calling agent + Postgres — BOLA, BFLA, PII
+  mcp/
+    vulnerable-server/      ← intentionally vulnerable MCP server
 ```
 
 ### Build and type-check
 
 ```bash
-npm run build       # compiles TypeScript to dist/
-npx tsc --noEmit    # type-check without emitting
+npm run build         # compiles TypeScript + bundles the extension
+npm run typecheck     # type-check across the monorepo without emitting
+npm run install:cli   # build + install `opfor` globally (handy during dev)
 ```
 
 ### Coding style
@@ -357,7 +376,7 @@ npx tsc --noEmit    # type-check without emitting
 ## Pull request checklist
 
 - [ ] `npm run build` passes with no errors
-- [ ] `npx tsc --noEmit` passes
-- [ ] For new evaluators: tested against the echo fixture server
+- [ ] `npm run typecheck` passes
+- [ ] For new evaluators: tested against a local MCP server (or `tests/e2e/mcp/vulnerable-server`)
 - [ ] No secrets, `.env` files, or `.opfor/` artifacts committed (`gitleaks protect --staged` must pass)
 - [ ] PR description explains _what_ changed and _why_

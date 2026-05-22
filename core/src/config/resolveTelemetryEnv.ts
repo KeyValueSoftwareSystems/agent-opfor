@@ -1,4 +1,5 @@
 import type { LangfuseTelemetryConfig, NetraTelemetryConfig, TelemetryConfig } from "./types.js";
+import { getEnv } from "../lib/env.js";
 
 /**
  * Apply env-based overrides for telemetry (e.g. host from LANGFUSE_BASE_URL or NETRA_BASE_URL).
@@ -15,7 +16,7 @@ export function resolveTelemetryEnv(
     const lf: LangfuseTelemetryConfig = { ...telemetry.langfuse };
     const envKey = lf.baseUrlEnv?.trim();
     if (envKey) {
-      const fromEnv = process.env[envKey]?.trim();
+      const fromEnv = getEnv(envKey)?.trim();
       if (fromEnv) lf.baseUrl = fromEnv;
     }
     out.langfuse = lf;
@@ -25,7 +26,7 @@ export function resolveTelemetryEnv(
     const nt: NetraTelemetryConfig = { ...telemetry.netra };
     const envKey = nt.baseUrlEnv?.trim();
     if (envKey) {
-      const fromEnv = process.env[envKey]?.trim();
+      const fromEnv = getEnv(envKey)?.trim();
       if (fromEnv) nt.baseUrl = fromEnv;
     }
     out.netra = nt;

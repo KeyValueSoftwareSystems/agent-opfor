@@ -1,0 +1,37 @@
+{
+  "name": "@opfor/agent-mcp-server",
+  "version": "0.1.0",
+  "description": "Opfor MCP server — expose red team tools to any MCP-compatible AI agent",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "opfor-agent-mcp": "./dist/index.js"
+  },
+  "files": [
+    "dist/"
+  ],
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "prepare": "echo 'run npm run build from the repo root'",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@opfor/core": "*",
+    "@ai-sdk/anthropic": "^2.0.77",
+    "@ai-sdk/google": "^2.0.70",
+    "@ai-sdk/openai": "^2.0.103",
+    "@ai-sdk/openai-compatible": "^1.0.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "ai": "^6.0.0",
+    "consola": "^3.4.2",
+    "dotenv": "^17.4.2",
+    "yaml": "^2.8.3",
+    "zod": "^3.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.8.3"
+  }
+}

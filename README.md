@@ -107,7 +107,7 @@ When you run a scan, opfor:
 4. **Evaluates with a judge** — an LLM judge classifies each response with pass/fail + reasoning
 5. **Generates a report** — HTML for browsing, JSON for CI/CD, all artifacts logged for reproducibility
 
-Reports land in `.opfor/reports/report-<timestamp>/`.
+Each run lands in its own subfolder under `.opfor/reports/opfor-report-<compactTs>-<slug>-<shortId>/` containing `<slug>-report.html` + `<slug>-report.json`.
 
 ---
 
@@ -153,7 +153,7 @@ Plug opfor into your observability stack and the LLM judge sees not just the fin
 
 This catches what input/output testing misses — PII that leaks into a tool call but never reaches the user, scope escalations in MCP that don't change the response text, agents that retrieve unauthorized data but render a clean reply.
 
-→ [Trace-aware testing guide](docs/cli.md#trace-aware-testing-agent-mode-only)
+→ [Trace-aware testing guide](docs/cli.md#trace-aware-testing-agent-only)
 
 ---
 
@@ -186,7 +186,7 @@ This catches what input/output testing misses — PII that leaks into a tool cal
 
 Highest-impact ways to contribute:
 
-1. **New evaluators** — add a `.md` file under `skills/*/evaluators/` with attack templates and pass/fail criteria. The engine auto-discovers it. No TypeScript needed.
+1. **New evaluators** — add a `.md` file under `skills/*/opfor-setup/evaluators/` with attack templates and pass/fail criteria. The engine auto-discovers it. No TypeScript needed.
 2. **New target adapters** — extend `core/src/mcp-client/` to support new agent frameworks.
 3. **Findings** — run opfor against a public agent or MCP server and PR your writeup to `findings/`.
 4. **Bug reports** — open an [issue](https://github.com/KeyValueSoftwareSystems/opfor/issues).
@@ -243,7 +243,7 @@ _OPFOR is short for Opposition Force — a military term for the dedicated unit 
 
 <p align="center">
   <a href="https://getnetra.ai/"><strong>Netra</strong></a> — AI observability, tracing, and simulation.<br/>
-  <a href="docs/cli.md#trace-aware-testing-agent-mode-only">Integrates with opfor for trace-aware testing.</a>
+  <a href="docs/cli.md#trace-aware-testing-agent-only">Integrates with opfor for trace-aware testing.</a>
 </p>
 
 <br/>

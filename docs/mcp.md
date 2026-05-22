@@ -9,17 +9,17 @@ The MCP server exposes Opfor as tools that any MCP-compatible AI agent (Cursor, 
 The agent calls three tools in sequence:
 
 1. **`opfor_list_evaluators`** — discover available evaluator IDs and suites
-2. **`opfor_setup`** — generate targeted attack prompts (inline parameters or config file)
-3. **`opfor_execute`** — fire attacks, judge responses, write HTML + JSON reports
+2. **`opfor_setup`** — configure a target and write `opfor.config.json`
+3. **`opfor_execute`** — generate attacks on-the-fly, run them, judge responses, write HTML + JSON reports
 
-No config file is required. The agent can pass all parameters inline based on what it finds in your repo.
+No pre-generated attack file is required. The agent passes target and LLM configuration to `opfor_setup`, then `opfor_execute` handles attack generation, execution, and reporting in one shot.
 
 ---
 
 ## Installation
 
 ```bash
-git clone https://github.com/yourusername/opfor.git
+git clone https://github.com/KeyValueSoftwareSystems/OPFOR.git
 cd opfor
 npm install
 npm run build
@@ -36,11 +36,13 @@ Add to `~/.cursor/mcp.json` (global — works in all projects):
   "mcpServers": {
     "opfor": {
       "command": "node",
-      "args": ["/absolute/path/to/opfor/mcp/dist/index.js"]
+      "args": ["/absolute/path/to/opfor/runners/mcp/dist/index.js"]
     }
   }
 }
 ```
+
+Or add to `.cursor/mcp.json` in a specific project for project-scoped access.
 
 ## Configure in Claude Desktop
 
@@ -51,7 +53,7 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
   "mcpServers": {
     "opfor": {
       "command": "node",
-      "args": ["/absolute/path/to/opfor/mcp/dist/index.js"]
+      "args": ["/absolute/path/to/opfor/runners/mcp/dist/index.js"]
     }
   }
 }
@@ -83,74 +85,95 @@ No parameters. Returns every evaluator ID, severity, standard reference tag (`re
 
 ### `opfor_setup`
 
-Generates attack prompts. Accepts **inline parameters** (preferred) or a **config file path**.
+Configures a red team run and writes `opfor.config.json`. Returns the config file path — pass it to `opfor_execute`.
 
-#### Inline parameters
+#### Target parameters
 
-| Parameter                 | Type                              | Required           | Description                                                                                                     |
-| ------------------------- | --------------------------------- | ------------------ | --------------------------------------------------------------------------------------------------------------- |
-| `target_name`             | string                            | Yes (inline)       | Name of the AI app (e.g. `"Support Bot"`)                                                                       |
-| `target_endpoint`         | string                            | For HTTP           | URL to attack (e.g. `http://localhost:4000/chat`)                                                               |
-| `target_type`             | `http-endpoint` \| `local-script` | No                 | Defaults to `http-endpoint`                                                                                     |
-| `target_description`      | string                            | No                 | What the app does, sensitive data, dangerous ops. Optional when `use_langfuse=true`                             |
-| `target_request_format`   | `auto` \| `openai` \| `json`      | No                 | Request shape. Defaults to `auto`                                                                               |
-| `target_api_key`          | string                            | No                 | Auth token for the target endpoint                                                                              |
-| `target_headers`          | object                            | No                 | Custom HTTP headers sent with every request (e.g. `{"X-Api-Key": "secret", "X-Custom": "value"}`)               |
-| `target_script_path`      | string                            | For `local-script` | Path to the local script                                                                                        |
-| `suite`                   | string                            | One of these       | Suite ID (e.g. `owasp-llm-top10`). Mutually exclusive with `evaluator_ids`                                      |
-| `evaluator_ids`           | string[]                          | One of these       | Specific evaluator IDs. Mutually exclusive with `suite`                                                         |
-| `llm_provider`            | string                            | No                 | `groq`, `openai`, `anthropic`, `google`. Defaults to `groq`                                                     |
-| `llm_model`               | string                            | No                 | Model name. Uses provider default if omitted                                                                    |
-| `llm_api_key`             | string                            | No                 | Overrides `GROQ_API_KEY` etc. from environment                                                                  |
-| `use_langfuse`            | boolean                           | No                 | Fetch production traces to ground attack prompts. Requires `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` in env |
-| `langfuse_lookback_hours` | number                            | No                 | How many hours back to fetch traces when `use_langfuse=true`. Default: 24                                       |
-| `langfuse_trace_ids`      | string[]                          | No                 | Explicit trace IDs to use instead of a lookback window                                                          |
-| `output_dir`              | string                            | No                 | Where to write `opfor-prompts-*.json`. Defaults to `.`                                                          |
+| Parameter     | Type             | Required | Description                                             |
+| ------------- | ---------------- | -------- | ------------------------------------------------------- |
+| `target_name` | string           | Yes      | Human-readable name for the target system               |
+| `target_kind` | `agent` \| `mcp` | Yes      | `agent` for HTTP/chatbot targets, `mcp` for MCP servers |
 
-#### Config file (backward-compatible)
+#### Agent target parameters (when `target_kind = "agent"`)
 
-| Parameter     | Type   | Description                                                                                                                              |
-| ------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `config_path` | string | Path to an existing `opfor.config.json` / `.yml`. If the config has an `mcp` section, MCP server red-teaming mode is used automatically. |
-| `llm_api_key` | string | Optional override for the key in the config                                                                                              |
-| `output_dir`  | string | Output directory. Defaults to `.`                                                                                                        |
+| Parameter              | Type                         | Required    | Description                                       |
+| ---------------------- | ---------------------------- | ----------- | ------------------------------------------------- |
+| `agent_endpoint`       | string                       | For HTTP    | URL to attack (e.g. `http://localhost:4000/chat`) |
+| `agent_request_format` | `auto` \| `openai` \| `json` | No          | Request body format. Defaults to `auto`           |
+| `agent_target_api_key` | string                       | No          | Auth token for the target endpoint                |
+| `agent_script_path`    | string                       | For scripts | Path to a local script (.js/.py)                  |
+| `agent_description`    | string                       | No          | What the agent does (used in attack generation)   |
+
+#### MCP target parameters (when `target_kind = "mcp"`)
+
+| Parameter       | Type             | Required  | Description                                  |
+| --------------- | ---------------- | --------- | -------------------------------------------- |
+| `mcp_transport` | `stdio` \| `url` | No        | Transport type. Defaults to `stdio`          |
+| `mcp_command`   | string           | For stdio | Command to start the MCP server              |
+| `mcp_args`      | string[]         | No        | Arguments for the server command             |
+| `mcp_env`       | object           | No        | Environment variables for the server process |
+| `mcp_url`       | string           | For url   | MCP server URL (SSE/Streamable HTTP)         |
+
+#### Evaluator selection
+
+| Parameter       | Type     | Required     | Description                                                                |
+| --------------- | -------- | ------------ | -------------------------------------------------------------------------- |
+| `suite_id`      | string   | One of these | Suite ID (e.g. `owasp-mcp-top10`). Mutually exclusive with `evaluator_ids` |
+| `evaluator_ids` | string[] | One of these | Specific evaluator IDs. Mutually exclusive with `suite_id`                 |
+
+#### LLM configuration
+
+| Parameter    | Type   | Required | Description                                          |
+| ------------ | ------ | -------- | ---------------------------------------------------- |
+| `attack_llm` | object | Yes      | LLM for generating attacks (see schema below)        |
+| `judge_llm`  | object | No       | LLM for judging responses (defaults to `attack_llm`) |
+
+LLM object schema:
+
+```json
+{
+  "provider": "openai | anthropic | groq | google | deepseek | azure | openai-compatible",
+  "model": "model-name",
+  "api_key_env": "ENV_VAR_NAME",
+  "base_url": "https://custom-endpoint/v1" // optional, for openai-compatible
+}
+```
+
+#### Run settings
+
+| Parameter     | Type                          | Required | Description                                                              |
+| ------------- | ----------------------------- | -------- | ------------------------------------------------------------------------ |
+| `effort`      | `adaptive` \| `comprehensive` | No       | Defaults to `adaptive`. Comprehensive runs one attack per named pattern. |
+| `turns`       | number (1–10)                 | No       | Turns per attack. 1 = single-turn. Defaults to 1.                        |
+| `output_dir`  | string                        | No       | Directory to write `opfor.config.json`. Defaults to `.`                  |
+| `config_path` | string                        | No       | Full path for config file (overrides `output_dir`)                       |
 
 ---
 
 ### `opfor_execute`
 
-Fires attacks and generates reports. Auto-detects the plan type from the file:
+Runs the full red team evaluation from a config file produced by `opfor_setup`. Generates attacks on-the-fly, runs them against the target, judges responses, and writes an HTML + JSON report.
 
-- **Agent/chatbot plan** (`opfor-attacks-*.json` from `opfor_setup`) — sends prompts to the target endpoint, judges responses, writes HTML + JSON reports.
-- **MCP server plan** (plan file containing `server` + `toolsDigest`) — calls MCP tools, scans resources, detects rug-pull mutations, writes HTML + JSON reports.
-
-| Parameter    | Type   | Required | Description                                            |
-| ------------ | ------ | -------- | ------------------------------------------------------ |
-| `input_path` | string | Yes      | Path to the attack plan file produced by `opfor_setup` |
-| `api_key`    | string | No       | Override the LLM key stored in the plan file           |
-| `output_dir` | string | No       | Report directory. Defaults to `.opfor/reports`         |
+| Parameter         | Type                          | Required | Description                                          |
+| ----------------- | ----------------------------- | -------- | ---------------------------------------------------- |
+| `config_path`     | string                        | Yes      | Path to `opfor.config.json` written by `opfor_setup` |
+| `output_dir`      | string                        | No       | Report directory. Defaults to config file directory  |
+| `effort_override` | `adaptive` \| `comprehensive` | No       | Override the effort level from config                |
+| `turns_override`  | number (1–10)                 | No       | Override turns per attack from config                |
 
 ---
 
-## Langfuse trace integration
+## Supported providers
 
-When `use_langfuse=true`:
-
-- Opfor fetches the last N hours of Langfuse traces (or explicit IDs via `langfuse_trace_ids`)
-- A Curator LLM picks the most relevant traces and a Summarizer LLM writes `trace-summary.md`
-- Attack prompts are grounded in real user language and real tool/error patterns from production
-- `target_description` can be omitted — the trace summary replaces it
-- After each attack, Opfor polls Langfuse for the target's internal trace and passes it to the judge for a more accurate PASS/FAIL verdict
-
-> **Ingestion delay:** Judge enrichment relies on the observability platform processing spans asynchronously. Depending on your platform's ingestion pipeline, the judge may receive a partial trace or none at all for multi-turn attacks. Grounded attack generation is not affected — it reads historic traces, not live ones.
-
-Required environment variables:
-
-```bash
-LANGFUSE_PUBLIC_KEY=pk-lf-...
-LANGFUSE_SECRET_KEY=sk-lf-...
-LANGFUSE_BASE_URL=https://cloud.langfuse.com   # optional; required for self-hosted
-```
+| Provider           | Value               | API key env var                      |
+| ------------------ | ------------------- | ------------------------------------ |
+| OpenAI             | `openai`            | `OPENAI_API_KEY`                     |
+| Anthropic (Claude) | `anthropic`         | `ANTHROPIC_API_KEY`                  |
+| Groq               | `groq`              | `GROQ_API_KEY`                       |
+| Google (Gemini)    | `google`            | `GOOGLE_GENERATIVE_AI_API_KEY`       |
+| DeepSeek           | `deepseek`          | `DEEPSEEK_API_KEY`                   |
+| Azure OpenAI       | `azure`             | `AZURE_API_KEY`                      |
+| OpenAI-compatible  | `openai-compatible` | (set via `api_key_env` + `base_url`) |
 
 ---
 
@@ -158,9 +181,8 @@ LANGFUSE_BASE_URL=https://cloud.langfuse.com   # optional; required for self-hos
 
 The MCP server resolves API keys in this order:
 
-1. `llm_api_key` passed directly in the tool call
-2. `llm.apiKey` in the config file (when using `config_path`)
-3. Provider env var (`GROQ_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY`)
+1. The env var named in the LLM config's `api_key_env` field
+2. Provider default env var (e.g. `OPENAI_API_KEY` for `openai` provider)
 
 The server loads `.env` from the current working directory automatically — no need to add keys to the MCP config JSON.
 

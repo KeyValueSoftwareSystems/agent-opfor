@@ -1,7 +1,8 @@
 dist/
 node_modules/
 core/dist/
-cli/dist/
-mcp/dist/
+runners/cli/dist/
+runners/mcp/dist/
+runners/extension/catalog.json
 .opfor/
 *.json

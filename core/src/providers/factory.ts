@@ -6,6 +6,7 @@ import { createDeepSeek } from "@ai-sdk/deepseek";
 import { createAzure } from "@ai-sdk/azure";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { PROVIDERS, type LlmConfig, type ProviderName } from "../config/types.js";
+import { getEnv } from "../lib/env.js";
 
 export const PROVIDER_DEFAULTS: Record<ProviderName, string> = {
   [PROVIDERS.OPENAI]: "gpt-4o-mini",
@@ -50,13 +51,13 @@ export function validateLlmConfig(llm: LlmConfig): string | null {
   if (PROVIDER_CAPABILITIES[llm.provider]?.requiresBaseURL && !llm.baseURL) {
     return `baseURL is required for provider '${llm.provider}'`;
   }
-  const apiKey = process.env[llm.apiKeyEnv]?.trim();
+  const apiKey = getEnv(llm.apiKeyEnv)?.trim();
   if (!apiKey) return `env var '${llm.apiKeyEnv}' is not set`;
   return null;
 }
 
 export function createModel(llm: LlmConfig): LanguageModel {
-  const apiKey = process.env[llm.apiKeyEnv]?.trim();
+  const apiKey = getEnv(llm.apiKeyEnv)?.trim();
   if (!apiKey) throw new Error(`Missing env var: ${llm.apiKeyEnv}`);
   const { provider, model, baseURL } = llm;
 

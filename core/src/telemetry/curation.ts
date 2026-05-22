@@ -207,7 +207,8 @@ export async function runSetupTraceCuration(opts: {
 
   const fetched = await adapter.fetchTraceList(telemetry);
   if (!fetched) {
-    console.log(`\n[${telemetry.provider}] Skip trace curation: missing credentials or config.\n`);
+    const missing = diagnoseMissingCredentials(telemetry);
+    console.log(`\n[${telemetry.provider}] Skip trace curation: ${missing}\n`);
     return undefined;
   }
 
@@ -363,4 +364,21 @@ export async function runSetupTraceCuration(opts: {
   console.log(`--- ${providerLabel} curation done ---\n`);
 
   return traceSummaryForAttacks;
+}
+
+function diagnoseMissingCredentials(telemetry: TelemetryConfig): string {
+  const missing: string[] = [];
+  if (telemetry.provider === "langfuse") {
+    const lf = telemetry.langfuse;
+    const pubEnv = lf?.publicKeyEnv?.trim() || "LANGFUSE_PUBLIC_KEY";
+    const secEnv = lf?.secretKeyEnv?.trim() || "LANGFUSE_SECRET_KEY";
+    if (!process.env[pubEnv]?.trim()) missing.push(`${pubEnv} (public key)`);
+    if (!process.env[secEnv]?.trim()) missing.push(`${secEnv} (secret key)`);
+  } else if (telemetry.provider === "netra") {
+    const n = telemetry.netra;
+    const keyEnv = n?.apiKeyEnv?.trim() || "NETRA_API_KEY";
+    if (!process.env[keyEnv]?.trim()) missing.push(`${keyEnv}`);
+    if (!n?.baseUrl?.trim()) missing.push(`netra.baseUrl`);
+  }
+  return missing.length > 0 ? `missing: ${missing.join(", ")}` : "missing credentials or config";
 }

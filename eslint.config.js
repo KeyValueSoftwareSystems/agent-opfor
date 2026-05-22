@@ -7,16 +7,7 @@ export default tseslint.config(
   ...tseslint.configs.recommended,
   prettierConfig,
   {
-    ignores: [
-      "dist/",
-      "node_modules/",
-      "core/dist/",
-      "cli/dist/",
-      "mcp/dist/",
-      "src/agent/**/dist/",
-      "extension/catalog.json",
-      ".opfor/",
-    ],
+    ignores: ["**/dist/**", "node_modules/", "runners/extension/catalog.json", ".opfor/"],
   },
   {
     rules: {
@@ -25,7 +16,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ["extension/scripts/**/*.mjs"],
+    files: ["runners/extension/scripts/**/*.mjs"],
     languageOptions: {
       globals: {
         console: "readonly",
@@ -36,7 +27,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ["extension/**/*.js"],
+    files: ["runners/extension/**/*.js"],
     languageOptions: {
       globals: {
         window: "readonly",

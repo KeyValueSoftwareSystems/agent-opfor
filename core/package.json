@@ -1,0 +1,50 @@
+{
+  "name": "@opfor/core",
+  "version": "0.1.0",
+  "description": "Opfor core engine — attacker prompt generation, judge, and execution shared by all runners",
+  "license": "Apache-2.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+    "./browser": { "types": "./dist/browser.d.ts", "default": "./dist/browser.js" },
+    "./execute/*.js": { "types": "./dist/execute/*.d.ts", "default": "./dist/execute/*.js" },
+    "./generate/*.js": { "types": "./dist/generate/*.d.ts", "default": "./dist/generate/*.js" },
+    "./targets/*.js": { "types": "./dist/targets/*.d.ts", "default": "./dist/targets/*.js" },
+    "./report/*.js": { "types": "./dist/report/*.d.ts", "default": "./dist/report/*.js" },
+    "./config/*.js": { "types": "./dist/config/*.d.ts", "default": "./dist/config/*.js" },
+    "./providers/*.js": { "types": "./dist/providers/*.d.ts", "default": "./dist/providers/*.js" },
+    "./evaluators/*.js": { "types": "./dist/evaluators/*.d.ts", "default": "./dist/evaluators/*.js" },
+    "./catalog/*.js": { "types": "./dist/catalog/*.d.ts", "default": "./dist/catalog/*.js" },
+    "./run/*.js": { "types": "./dist/run/*.d.ts", "default": "./dist/run/*.js" },
+    "./lib/*.js": { "types": "./dist/lib/*.d.ts", "default": "./dist/lib/*.js" },
+    "./telemetry/*.js": { "types": "./dist/telemetry/*.d.ts", "default": "./dist/telemetry/*.js" },
+    "./mcp-client/*.js": { "types": "./dist/mcp-client/*.d.ts", "default": "./dist/mcp-client/*.js" }
+  },
+  "files": ["dist", "src"],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --import tsx/esm --test tests/runAll.smoke.test.ts"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "^2.0.77",
+    "@ai-sdk/azure": "^3.0.65",
+    "@ai-sdk/deepseek": "^2.0.35",
+    "@ai-sdk/google": "^2.0.70",
+    "@ai-sdk/openai": "^2.0.103",
+    "@ai-sdk/openai-compatible": "^1.0.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "ai": "^6.0.0",
+    "consola": "^3.4.2",
+    "yaml": "^2.8.3",
+    "zod": "^3.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.8.3"
+  }
+}
