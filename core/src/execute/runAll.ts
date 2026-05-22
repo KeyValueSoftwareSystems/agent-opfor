@@ -51,8 +51,8 @@ export async function runAll(
 ): Promise<UnifiedRunReport> {
   const notify = options?.onProgress ?? (() => {});
 
-  const attackModel = resolveModel(config.attackLlm);
-  const judgeModel = resolveModel(config.judgeLlm ?? config.attackLlm);
+  const attackModel = resolveModel(config.attackerLlm);
+  const judgeModel = resolveModel(config.judgeLlm ?? config.attackerLlm);
 
   const evaluators = await resolveEvaluators(config.selection);
   const isMcp = config.target.kind === "mcp";
@@ -158,7 +158,7 @@ async function runMcpAttack(
   judgeModel: LanguageModel,
   config: RunConfig
 ): Promise<AttackResult> {
-  const attackModel = resolveModel(config.attackLlm);
+  const attackModel = resolveModel(config.attackerLlm);
   const toolName = attack.toolName ?? "";
   const turns: McpTurnRecord[] = [];
   const mcpHistory: import("../generate/generateNextTurn.js").McpToolTurn[] = [];
@@ -207,7 +207,7 @@ async function runMcpAttack(
   const finalJudge = !lastTurn
     ? mcpErrorJudge("no turns completed")
     : await judgeToolResponse({
-        model: resolveModelConfig(config.judgeLlm ?? config.attackLlm),
+        model: resolveModelConfig(config.judgeLlm ?? config.attackerLlm),
         evaluator: {
           id: attack.evaluatorId,
           name: attack.evaluatorName,
@@ -323,7 +323,7 @@ function buildReport(config: RunConfig, evaluators: EvaluatorResult[]): UnifiedR
   const safetyScore = total > 0 ? Math.round((passed / total) * 100) : 100;
   const attackSuccessRate = total > 0 ? Math.round((failed / total) * 100) : 0;
 
-  const attackModel = `${config.attackLlm.provider}/${config.attackLlm.model}`;
+  const attackModel = `${config.attackerLlm.provider}/${config.attackerLlm.model}`;
   const judgeModel = config.judgeLlm
     ? `${config.judgeLlm.provider}/${config.judgeLlm.model}`
     : attackModel;

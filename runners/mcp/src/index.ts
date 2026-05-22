@@ -178,7 +178,7 @@ server.tool(
               `Effort : ${config.effort}`,
               `Turns  : ${config.turns}`,
               `Evaluators: ${evalCount}`,
-              `Attack LLM: ${config.attackLlm.provider}/${config.attackLlm.model}`,
+              `Attacker : ${config.attackerLlm.provider}/${config.attackerLlm.model}`,
               ``,
               `Next: call opfor_execute with config_path="${outputPath}"`,
             ].join("\n"),
@@ -326,7 +326,7 @@ function buildRunConfig(args: Record<string, unknown>): RunConfig {
     api_key_env: string;
     base_url?: string;
   };
-  const attackLlm = {
+  const attackerLlm = {
     provider: rawAttackLlm.provider,
     model: rawAttackLlm.model,
     apiKeyEnv: rawAttackLlm.api_key_env,
@@ -347,7 +347,7 @@ function buildRunConfig(args: Record<string, unknown>): RunConfig {
   return {
     target,
     selection,
-    attackLlm,
+    attackerLlm,
     judgeLlm,
     effort: normalizeEffort(args.effort),
     turns: (args.turns as number) ?? 1,

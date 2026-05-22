@@ -30,8 +30,7 @@ export function registerSetupCommand(program: Command): void {
   program
     .command("setup")
     .description(
-      "Interactive wizard — configure target, evaluators, and effort level; writes opfor.config.json\n" +
-        "  Use --agent/--mcp to skip the mode prompt, or --empty to write a minimal sample config."
+      "Interactive wizard — configure target, evaluators, and effort level; writes opfor.config.json"
     )
     .option("--config <path>", "Path to write config (default: .opfor/configs/<timestamped>.json)")
     .option("--env <path>", "Path to .env file to load")
@@ -48,7 +47,7 @@ export function registerSetupCommand(program: Command): void {
       }) => {
         if (opts.env) {
           const { config: loadDotenv } = await import("dotenv");
-          loadDotenv({ path: path.resolve(opts.env) });
+          loadDotenv({ path: path.resolve(opts.env), override: true });
         }
 
         log.info("\nOpfor Setup — configure your red team run");
@@ -110,7 +109,7 @@ async function buildEmptyConfig(hint?: "agent" | "mcp"): Promise<RunConfig> {
   return {
     target,
     selection: { mode: "suite", suite: "owasp-llm-top10" },
-    attackLlm: { provider: "openai", model: "gpt-4o-mini", apiKeyEnv: "OPENAI_API_KEY" },
+    attackerLlm: { provider: "openai", model: "gpt-4o-mini", apiKeyEnv: "OPENAI_API_KEY" },
     effort: "adaptive",
     turnMode: kind === "agent" ? "multi" : "single",
     turns: kind === "agent" ? 3 : 1,
@@ -118,7 +117,7 @@ async function buildEmptyConfig(hint?: "agent" | "mcp"): Promise<RunConfig> {
 }
 
 async function runSetupWizard(targetKindHint?: "agent" | "mcp"): Promise<RunConfig> {
-  const attackLlm = await collectLlmConfig("Attack LLM (generates attacks)");
+  const attackerLlm = await collectLlmConfig("Attack LLM (generates attacks)");
 
   const separateJudge = await confirm({
     message: "Use a separate LLM for judging? (default: reuse attack LLM)",
@@ -180,7 +179,7 @@ async function runSetupWizard(targetKindHint?: "agent" | "mcp"): Promise<RunConf
 
   const telemetry = await collectTelemetryConfig();
 
-  return { target, selection, attackLlm, judgeLlm, effort, turnMode, turns, telemetry };
+  return { target, selection, attackerLlm, judgeLlm, effort, turnMode, turns, telemetry };
 }
 
 // ---------------------------------------------------------------------------

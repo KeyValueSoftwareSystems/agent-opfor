@@ -38,7 +38,10 @@ function resolveCredentials(lf: LangfuseTelemetryConfig): {
   const secretKey = process.env[secName]?.trim() ?? "";
   if (!publicKey || !secretKey) return null;
 
-  const raw = lf.baseUrl?.trim() || DEFAULT_LANGFUSE_ORIGIN;
+  const raw =
+    (lf.baseUrlEnv ? process.env[lf.baseUrlEnv.trim()]?.trim() : undefined) ||
+    lf.baseUrl?.trim() ||
+    DEFAULT_LANGFUSE_ORIGIN;
   return { baseUrl: normalizeBaseUrl(raw), publicKey, secretKey };
 }
 
