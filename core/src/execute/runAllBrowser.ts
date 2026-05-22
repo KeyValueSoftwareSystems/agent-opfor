@@ -13,7 +13,7 @@ import { log } from "../lib/logger.js";
 import type { AttackResult, EvaluatorResult, UnifiedRunReport, Effort } from "./types.js";
 
 export interface BrowserRunConfig {
-  attackLlm: LlmConfig;
+  attackerLlm: LlmConfig;
   judgeLlm?: LlmConfig;
   effort: Effort;
   turnMode?: "single" | "multi";
@@ -53,8 +53,8 @@ export async function runAllBrowser(
   options?: BrowserRunAllOptions
 ): Promise<UnifiedRunReport> {
   const notify = options?.onProgress ?? (() => {});
-  const attackModel = createModel(config.attackLlm);
-  const judgeModel = createModel(config.judgeLlm ?? config.attackLlm);
+  const attackModel = createModel(config.attackerLlm);
+  const judgeModel = createModel(config.judgeLlm ?? config.attackerLlm);
   const evaluatorResults: EvaluatorResult[] = [];
 
   for (const evaluator of evaluators) {
@@ -150,7 +150,7 @@ function buildBrowserReport(
   const safetyScore = total > 0 ? Math.round((passed / total) * 100) : 100;
   const attackSuccessRate = total > 0 ? Math.round((failed / total) * 100) : 0;
 
-  const attackModel = `${config.attackLlm.provider}/${config.attackLlm.model}`;
+  const attackModel = `${config.attackerLlm.provider}/${config.attackerLlm.model}`;
   const judgeModel = config.judgeLlm
     ? `${config.judgeLlm.provider}/${config.judgeLlm.model}`
     : attackModel;

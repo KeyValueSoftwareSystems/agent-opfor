@@ -1,9 +1,13 @@
 import { randomTraceHex } from "./random.js";
 import type { TelemetryPropagationConfig } from "../config/types.js";
 
-/** OpenTelemetry-style 128-bit trace id: 32 lowercase hex chars (Langfuse-compatible). */
+const OPFOR_TRACE_PREFIX = "0bf04";
+
+/** OpenTelemetry-style 128-bit trace id: 32 lowercase hex chars (Langfuse-compatible).
+ *  Always starts with OPFOR_TRACE_PREFIX so test traces are identifiable in Netra. */
 export function newOtelTraceId(): string {
-  return randomTraceHex(16);
+  const hex = randomTraceHex(16);
+  return (OPFOR_TRACE_PREFIX + hex.slice(OPFOR_TRACE_PREFIX.length)).slice(0, 32);
 }
 
 export interface PropagationPlaceholders {

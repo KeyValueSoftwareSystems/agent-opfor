@@ -1,10 +1,25 @@
 import { spawn } from "node:child_process";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 
 const TIMEOUT_MS = 30_000;
 
-/** Picks `node` or `python3` from the file extension — no separate "language" setting. */
-function interpreterCommandForPath(absPath: string): "node" | "python3" | null {
+/** Reads the shebang line of a file, returns the interpreter path or null. */
+function readShebang(absPath: string): string | null {
+  try {
+    const head = readFileSync(absPath, { encoding: "utf8" }).slice(0, 256);
+    const firstLine = head.split("\n")[0];
+    if (firstLine.startsWith("#!")) return firstLine.slice(2).trim();
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+/** Picks interpreter from shebang first, then falls back to file extension. */
+function interpreterCommandForPath(absPath: string): string | null {
+  const shebang = readShebang(absPath);
+  if (shebang) return shebang;
   const ext = path.extname(absPath).toLowerCase();
   if (ext === ".py" || ext === ".pyw") return "python3";
   if (ext === ".js" || ext === ".mjs" || ext === ".cjs") return "node";

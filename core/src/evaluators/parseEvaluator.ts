@@ -3,6 +3,7 @@ import path from "node:path";
 import { parse as parseYaml } from "yaml";
 import { splitYamlFrontmatter } from "../util/yamlFrontmatter.js";
 import { getOpforSetupRoot } from "../config/skillsLayout.js";
+import { getCatalogRoot } from "../catalog/loadCatalog.js";
 
 export interface AttackPattern {
   name: string;
@@ -84,9 +85,15 @@ export async function parseEvaluator(mdPath: string): Promise<EvaluatorSpec> {
   };
 }
 
-const evaluatorsDir = path.join(getOpforSetupRoot(), "evaluators");
+export function getEvaluatorsDir(targetKind: "agent" | "mcp"): string {
+  return targetKind === "mcp"
+    ? path.join(getCatalogRoot(), "evaluators")
+    : path.join(getOpforSetupRoot(), "evaluators");
+}
 
-export async function loadBuiltinEvaluator(id: string): Promise<EvaluatorSpec> {
-  const mdPath = path.join(evaluatorsDir, `${id}.md`);
-  return parseEvaluator(mdPath);
+export async function loadBuiltinEvaluator(
+  id: string,
+  targetKind: "agent" | "mcp" = "agent"
+): Promise<EvaluatorSpec> {
+  return parseEvaluator(path.join(getEvaluatorsDir(targetKind), `${id}.md`));
 }

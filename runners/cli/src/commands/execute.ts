@@ -7,7 +7,7 @@ import { writeReport } from "@opfor/core/report/buildReport.js";
 import type { RunConfig } from "@opfor/core/execute/types.js";
 import { normalizeEffort } from "@opfor/core/execute/effortCompat.js";
 import { DEFAULT_CONFIG_PATH } from "./setup.js";
-import { ensureOpforDirs, OPFOR_REPORTS_DIR } from "../lib/artifacts.js";
+import { ensureOpforDirs, OPFOR_DIR, OPFOR_REPORTS_DIR } from "../lib/artifacts.js";
 
 export function registerExecuteCommand(program: Command): void {
   program
@@ -30,7 +30,7 @@ export function registerExecuteCommand(program: Command): void {
       }) => {
         if (opts.env) {
           const { config: loadDotenv } = await import("dotenv");
-          loadDotenv({ path: path.resolve(opts.env) });
+          loadDotenv({ path: path.resolve(opts.env), override: true });
         }
 
         const configPath = path.resolve(opts.config);
@@ -71,13 +71,15 @@ export function registerExecuteCommand(program: Command): void {
         log.info(`  Target : ${runConfig.target.name} (${runConfig.target.kind})`);
         log.info(`  Effort : ${runConfig.effort}`);
         log.info(`  Turns  : ${runConfig.turns}`);
-        log.info(`  Attack : ${runConfig.attackLlm.provider}/${runConfig.attackLlm.model}`);
+        log.info(`  Attacker : ${runConfig.attackerLlm.provider}/${runConfig.attackerLlm.model}`);
         if (runConfig.judgeLlm) {
           log.info(`  Judge  : ${runConfig.judgeLlm.provider}/${runConfig.judgeLlm.model}`);
         }
         log.info("");
 
+        await ensureOpforDirs();
         const report = await runAll(runConfig, {
+          outputDir: path.resolve(OPFOR_DIR),
           onProgress: (event) => {
             if (event.type === "evaluator_start") {
               log.info(`\n▶ ${event.evaluatorName}`);
@@ -89,7 +91,6 @@ export function registerExecuteCommand(program: Command): void {
         });
 
         log.info("\n\nWriting report...");
-        await ensureOpforDirs();
         const outputDir = path.resolve(opts.output ?? OPFOR_REPORTS_DIR);
         const { html, json } = await writeReport(report, outputDir);
 

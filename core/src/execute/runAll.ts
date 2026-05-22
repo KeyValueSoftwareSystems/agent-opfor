@@ -15,6 +15,7 @@ import type { AgentTarget } from "../targets/agentTarget.js";
 import { createMcpTarget } from "../targets/mcpTarget.js";
 import { loadBuiltinEvaluator } from "../evaluators/parseEvaluator.js";
 import { loadSkillCatalog, resolveSuiteEvaluatorIds } from "../config/loadSkillCatalog.js";
+import { loadCatalog } from "../catalog/loadCatalog.js";
 import { runAgentAttack } from "./runAgentLoop.js";
 import {
   judgeToolResponse,
@@ -51,11 +52,11 @@ export async function runAll(
 ): Promise<UnifiedRunReport> {
   const notify = options?.onProgress ?? (() => {});
 
-  const attackModel = resolveModel(config.attackLlm);
-  const judgeModel = resolveModel(config.judgeLlm ?? config.attackLlm);
+  const attackModel = resolveModel(config.attackerLlm);
+  const judgeModel = resolveModel(config.judgeLlm ?? config.attackerLlm);
 
-  const evaluators = await resolveEvaluators(config.selection);
   const isMcp = config.target.kind === "mcp";
+  const evaluators = await resolveEvaluators(config.selection, isMcp ? "mcp" : "agent");
 
   // For MCP targets, connect once and discover tools
   let mcpTarget: Awaited<ReturnType<typeof createMcpTarget>> | null = null;
@@ -158,7 +159,7 @@ async function runMcpAttack(
   judgeModel: LanguageModel,
   config: RunConfig
 ): Promise<AttackResult> {
-  const attackModel = resolveModel(config.attackLlm);
+  const attackModel = resolveModel(config.attackerLlm);
   const toolName = attack.toolName ?? "";
   const turns: McpTurnRecord[] = [];
   const mcpHistory: import("../generate/generateNextTurn.js").McpToolTurn[] = [];
@@ -207,7 +208,7 @@ async function runMcpAttack(
   const finalJudge = !lastTurn
     ? mcpErrorJudge("no turns completed")
     : await judgeToolResponse({
-        model: resolveModelConfig(config.judgeLlm ?? config.attackLlm),
+        model: resolveModelConfig(config.judgeLlm ?? config.attackerLlm),
         evaluator: {
           id: attack.evaluatorId,
           name: attack.evaluatorName,
@@ -250,7 +251,8 @@ async function runMcpAttack(
 // ---------------------------------------------------------------------------
 
 async function resolveEvaluators(
-  selection: RunConfig["selection"]
+  selection: RunConfig["selection"],
+  targetKind: "agent" | "mcp"
 ): Promise<import("../evaluators/parseEvaluator.js").EvaluatorSpec[]> {
   if (selection.mode === "preloaded") return selection.evaluators;
 
@@ -259,7 +261,7 @@ async function resolveEvaluators(
     ids = selection.evaluators;
   } else {
     try {
-      const catalog = await loadSkillCatalog();
+      const catalog = targetKind === "mcp" ? await loadCatalog() : await loadSkillCatalog();
       ids = resolveSuiteEvaluatorIds(selection.suite, catalog.suites);
     } catch {
       log.warn(`Suite "${selection.suite}" not found — falling back to empty list`);
@@ -267,7 +269,9 @@ async function resolveEvaluators(
     }
   }
 
-  const specs = await Promise.all(ids.map((id) => loadBuiltinEvaluator(id).catch(() => null)));
+  const specs = await Promise.all(
+    ids.map((id) => loadBuiltinEvaluator(id, targetKind).catch(() => null))
+  );
   const valid = specs.filter(
     (s): s is import("../evaluators/parseEvaluator.js").EvaluatorSpec => s !== null
   );
@@ -323,7 +327,7 @@ function buildReport(config: RunConfig, evaluators: EvaluatorResult[]): UnifiedR
   const safetyScore = total > 0 ? Math.round((passed / total) * 100) : 100;
   const attackSuccessRate = total > 0 ? Math.round((failed / total) * 100) : 0;
 
-  const attackModel = `${config.attackLlm.provider}/${config.attackLlm.model}`;
+  const attackModel = `${config.attackerLlm.provider}/${config.attackerLlm.model}`;
   const judgeModel = config.judgeLlm
     ? `${config.judgeLlm.provider}/${config.judgeLlm.model}`
     : attackModel;

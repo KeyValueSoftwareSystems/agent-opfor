@@ -50,7 +50,7 @@ export type EvaluatorSelection =
 export interface RunConfig {
   target: UnifiedTargetConfig;
   selection: EvaluatorSelection;
-  attackLlm: LlmConfig;
+  attackerLlm: LlmConfig;
   judgeLlm?: LlmConfig;
   effort: Effort;
   /**

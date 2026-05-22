@@ -367,8 +367,8 @@ export interface AttackEntry {
 export interface PromptsFile {
   generatedAt: string;
   /** Model config for the attack generation phase. */
-  attackLlm: LlmConfig;
-  /** Separate model config for the judge phase. Falls back to `attackLlm` when absent. */
+  attackerLlm: LlmConfig;
+  /** Separate model config for the judge phase. Falls back to `attackerLlm` when absent. */
   judgeLlm?: LlmConfig;
   target: TargetConfig;
   attacks: AttackEntry[];
@@ -401,8 +401,8 @@ export interface InlineSetupConfig {
   };
   selection: { mode: "suite"; suite: string } | { mode: "evaluators"; evaluators: string[] };
   /** Model config for the attack generation phase. */
-  attackLlm?: LlmConfigInput;
-  /** Separate model config for the judge phase. Falls back to `attackLlm` when absent. */
+  attackerLlm?: LlmConfigInput;
+  /** Separate model config for the judge phase. Falls back to `attackerLlm` when absent. */
   judgeLlm?: LlmConfigInput;
   /**
    * When true and Langfuse credentials are present in the environment
@@ -426,8 +426,8 @@ export interface InlineSetupConfig {
 // Shape of the optional config file passed to `opfor setup --config`
 export interface SetupConfigFile {
   /** Model config for the attack generation phase. */
-  attackLlm?: LlmConfigInput;
-  /** Separate model config for the judge phase. Falls back to `attackLlm` when absent. */
+  attackerLlm?: LlmConfigInput;
+  /** Separate model config for the judge phase. Falls back to `attackerLlm` when absent. */
   judgeLlm?: LlmConfigInput;
   target: {
     name: string;
