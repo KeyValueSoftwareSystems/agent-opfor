@@ -640,7 +640,7 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
       report = await runAllBrowser(
         [evalWithHint],
         {
-          attackLlm: attackerLlmConfig,
+          attackerLlm: attackerLlmConfig,
           judgeLlm: judgeLlmConfig,
           effort: "adaptive",
           turns: maxRounds,
