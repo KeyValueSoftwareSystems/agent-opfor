@@ -179,7 +179,13 @@ function bindToggle(btnId, getter, setter) {
 }
 
 // ── Custom dropdown ────────────────────────────────────────────
-function buildDropdown(rootId, options, value, onChange, { onOpen, searchable = false } = {}) {
+function buildDropdown(
+  rootId,
+  options,
+  value,
+  onChange,
+  { onOpen, searchable = false, inlineSearch = false } = {}
+) {
   const root = $(rootId);
   const button = root.querySelector(".dd-button");
   const labelEl = button.querySelector(".label");
@@ -192,7 +198,12 @@ function buildDropdown(rootId, options, value, onChange, { onOpen, searchable = 
   const SEARCH_THRESHOLD = 10;
 
   function shouldShowSearch() {
-    return searchable || options.length > SEARCH_THRESHOLD;
+    return !inlineSearch && (searchable || options.length > SEARCH_THRESHOLD);
+  }
+
+  function setLabel(text) {
+    if (inlineSearch) labelEl.value = text;
+    else labelEl.textContent = text;
   }
 
   function renderOptions(filtered) {
@@ -241,7 +252,7 @@ function buildDropdown(rootId, options, value, onChange, { onOpen, searchable = 
 
   function render() {
     const cur = options.find((o) => o.value === value);
-    labelEl.textContent = cur ? cur.label : "Select model";
+    setLabel(cur ? cur.label : "");
     menu.innerHTML = "";
     filterText = "";
 
@@ -268,21 +279,47 @@ function buildDropdown(rootId, options, value, onChange, { onOpen, searchable = 
     renderOptions(options);
   }
 
-  button.addEventListener("click", (e) => {
-    e.stopPropagation();
-    if (button.disabled) return;
-    const opening = root.dataset.open !== "true";
-    root.dataset.open = opening ? "true" : "false";
-    if (opening) {
-      if (onOpen) onOpen();
-      setTimeout(() => {
-        if (searchInput && shouldShowSearch()) searchInput.focus();
-      }, 0);
-    }
-  });
+  if (inlineSearch) {
+    labelEl.addEventListener("input", () => {
+      filterText = labelEl.value;
+      if (root.dataset.open !== "true") root.dataset.open = "true";
+      renderOptions(getFiltered());
+    });
+    button.addEventListener("click", () => {
+      if (labelEl.disabled) return;
+      if (root.dataset.open !== "true") {
+        root.dataset.open = "true";
+        scrollBodyToBottom();
+        if (onOpen) onOpen();
+        setTimeout(() => labelEl.select(), 0);
+      }
+    });
+  } else {
+    button.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (button.disabled) return;
+      const opening = root.dataset.open !== "true";
+      root.dataset.open = opening ? "true" : "false";
+      if (opening) scrollBodyToBottom();
+      if (opening) {
+        if (onOpen) onOpen();
+        setTimeout(() => {
+          if (searchInput && shouldShowSearch()) searchInput.focus();
+        }, 0);
+      }
+    });
+  }
 
   document.addEventListener("mousedown", (e) => {
-    if (!root.contains(e.target)) root.dataset.open = "false";
+    if (!root.contains(e.target)) {
+      if (inlineSearch && root.dataset.open === "true") {
+        const cur = options.find((o) => o.value === value);
+        setLabel(cur ? cur.label : "");
+        filterText = "";
+        renderOptions(options);
+      }
+      root.dataset.open = "false";
+    }
   });
 
   render();
@@ -296,11 +333,12 @@ function buildDropdown(rootId, options, value, onChange, { onOpen, searchable = 
       render();
     },
     setLoading(isLoading) {
-      button.disabled = isLoading;
+      if (inlineSearch) labelEl.disabled = isLoading;
+      else button.disabled = isLoading;
       if (spinnerEl) spinnerEl.style.display = isLoading ? "" : "none";
       if (chevEl) chevEl.style.display = isLoading ? "none" : "";
       if (isLoading) {
-        labelEl.textContent = "Loading models…";
+        setLabel("Loading models…");
         root.dataset.open = "false";
       } else {
         render();
@@ -2537,26 +2575,61 @@ function modelsForProvider(provider) {
   return list.map((m) => ({ value: m, label: m }));
 }
 
+function scrollBodyToBottom() {
+  const el = document.querySelector(".body");
+  if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+}
+
+function clearFetchError() {
+  const el = $("fetchModelsError");
+  if (el) {
+    el.textContent = "";
+    el.style.display = "none";
+  }
+}
+
+function showFetchError(msg) {
+  const el = $("fetchModelsError");
+  if (!el) return;
+  el.textContent = msg;
+  el.style.color = "var(--fail)";
+  el.style.display = "";
+}
+
 function applyProvider({ resetModel = false } = {}) {
   const isCompatible = state.provider === PROVIDERS.OPENAI_COMPATIBLE;
   const needsBaseUrl = PROVIDERS_NEEDING_BASE_URL.has(state.provider);
   const isSimple = !!SIMPLE_PROVIDER_FETCH_CONFIG[state.provider];
 
-  // Endpoint card (Azure + OpenAI-compatible)
+  // Reparent modelSection: inside endpointCardBody for custom, outside for others
+  const modelSec = $("modelSection");
+  const cardBody = $("endpointCardBody");
+  const standaloneKey = $("standaloneApiKey");
+  if (isCompatible) {
+    if (modelSec.parentElement !== cardBody) cardBody.appendChild(modelSec);
+  } else {
+    if (modelSec.previousElementSibling !== standaloneKey) {
+      standaloneKey.insertAdjacentElement("afterend", modelSec);
+    }
+  }
+
+  // Endpoint card — only Azure + OpenAI-compatible
   $("endpointSection").style.display = needsBaseUrl ? "" : "none";
   const compatOnly = isCompatible ? "" : "none";
-  $("endpointUrlHint").style.display = compatOnly;
   $("endpointDivider1").style.display = compatOnly;
-  $("endpointKeyHint").style.display = compatOnly;
+  $("endpointKeyHint").style.display = isCompatible ? "inline-flex" : "none";
   $("endpointKeyOptional").style.display = compatOnly;
   $("endpointStepLoad").style.display = compatOnly;
+  $("refreshModelsBtn").style.display = compatOnly;
 
-  // Standalone API key (simple providers only)
+  // Standalone API key — simple providers only
   $("standaloneApiKey").style.display = isSimple ? "" : "none";
 
   if (isCompatible) {
     $("endpointCardBody").dataset.open = "true";
     $("modelSection").style.display = "none";
+    $("modelDropdown").style.display = "";
+    clearFetchError();
     setFetchStatus("", "");
   } else if (isSimple) {
     $("modelSection").style.display = "";
@@ -2588,9 +2661,13 @@ function setEndpointChevron(open) {
 async function fetchModelsFromBaseUrl() {
   const baseUrl = state.baseUrl?.trim().replace(/\/$/, "");
   if (!baseUrl) {
-    setFetchStatus("Enter a base URL first.", "error");
+    showFetchError("Enter a base URL first.");
     return;
   }
+  clearFetchError();
+  const isRefresh = $("modelSection").style.display !== "none";
+  $("modelSection").style.display = "";
+  $("modelDropdown").style.display = "none";
   setFetchStatus("Loading…", "loading");
   try {
     const headers = { "Content-Type": "application/json" };
@@ -2605,7 +2682,16 @@ async function fetchModelsFromBaseUrl() {
     const json = await res.json();
     const ids = (json.data ?? json.models ?? []).map((m) => m.id ?? m).filter(Boolean);
     if (!ids.length) {
-      setFetchStatus("No models returned by the server.", "error");
+      const errMsg = "No models returned by the server.";
+      if (!isRefresh) {
+        $("modelSection").style.display = "none";
+        $("modelDropdown").style.display = "";
+        $("endpointStepLoad").style.display = "";
+        showFetchError(errMsg);
+      } else {
+        $("modelDropdown").style.display = "";
+        setFetchStatus(errMsg, "error");
+      }
       return;
     }
     const options = ids.map((id) => ({ value: id, label: id }));
@@ -2613,13 +2699,22 @@ async function fetchModelsFromBaseUrl() {
     state.model = ids[0];
     modelDD?.setValue(ids[0]);
     saveModelAndKey();
-    $("modelSection").style.display = "";
+    $("modelDropdown").style.display = "";
+    $("endpointStepLoad").style.display = "none";
+    $("refreshModelsBtn").style.display = "";
     setFetchStatus(`${ids.length} model${ids.length > 1 ? "s" : ""} loaded.`, "ok");
   } catch (e) {
     const msg =
       e instanceof TypeError ? "Could not reach the server — check the base URL." : e.message;
-    setFetchStatus(msg, "error");
-    $("modelSection").style.display = "none";
+    if (!isRefresh) {
+      $("modelSection").style.display = "none";
+      $("modelDropdown").style.display = "";
+      $("endpointStepLoad").style.display = "";
+      showFetchError(msg);
+    } else {
+      $("modelDropdown").style.display = "";
+      setFetchStatus(msg, "error");
+    }
   }
 }
 
@@ -2721,7 +2816,7 @@ function wire() {
       saveModelAndKey();
     },
     {
-      searchable: true,
+      inlineSearch: true,
       onOpen: () => {
         if (SIMPLE_PROVIDER_FETCH_CONFIG[state.provider]) fetchModelsForSimpleProvider();
       },
@@ -2765,8 +2860,9 @@ function wire() {
     updateRunButton();
   });
 
-  // Load models button (OpenAI-compatible)
+  // Load / refresh models (OpenAI-compatible)
   $("fetchModelsBtn").addEventListener("click", () => fetchModelsFromBaseUrl());
+  $("refreshModelsBtn").addEventListener("click", () => fetchModelsFromBaseUrl());
 
   // Base URL (Azure + OpenAI-compatible)
   $("baseUrl").addEventListener("input", (e) => {
@@ -2774,7 +2870,11 @@ function wire() {
     saveModelAndKey();
     if (state.provider === PROVIDERS.OPENAI_COMPATIBLE) {
       $("modelSection").style.display = "none";
+      $("modelDropdown").style.display = "";
+      $("endpointStepLoad").style.display = "";
+      $("refreshModelsBtn").style.display = "none";
       setFetchStatus("", "");
+      clearFetchError();
     }
   });
 

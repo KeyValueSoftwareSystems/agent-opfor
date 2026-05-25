@@ -483,11 +483,7 @@
         min-height: 60px;
         max-height: 140px;
       }
-      input:focus,
-      textarea:focus {
-        border-color: var(--accent);
-        box-shadow: 0 0 0 3px var(--accent-ring);
-      }
+
       .api-key-wrap {
         position: relative;
         margin-top: 8px;
@@ -577,6 +573,41 @@
         background: var(--line-2);
         border-radius: 4px;
       }
+      .info-tip {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        cursor: default;
+        color: var(--muted-3);
+      }
+      .info-tip:hover {
+        color: var(--muted-2);
+      }
+      .info-tip::after {
+        content: attr(data-tooltip);
+        position: absolute;
+        left: 50%;
+        transform: translateX(-50%);
+        top: calc(100% + 6px);
+        background: var(--bg-2, #1a1d26);
+        border: 1px solid var(--line-3);
+        border-radius: 6px;
+        padding: 6px 9px;
+        font-size: 11px;
+        font-weight: 400;
+        color: var(--text);
+        white-space: normal;
+        width: 210px;
+        line-height: 1.5;
+        z-index: 100;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.15s;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+      }
+      .info-tip:hover::after {
+        opacity: 1;
+      }
       .endpoint-divider {
         height: 1px;
         background: var(--line-2);
@@ -626,6 +657,26 @@
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+      }
+      .dd-combo .label {
+        background: transparent;
+        border: none;
+        outline: none;
+        color: inherit;
+        font-size: inherit;
+        font-family: inherit;
+        flex: 1;
+        min-width: 0;
+        padding: 0;
+        cursor: pointer;
+      }
+      .dd-combo .label:focus,
+      .dd-combo .label:focus-visible {
+        outline: none;
+        cursor: text;
+      }
+      .dd-combo .label::placeholder {
+        color: var(--muted-2);
       }
       .dd-button .chev {
         color: var(--muted-2);
@@ -709,7 +760,9 @@
         outline: none;
         transition: border-color 0.15s;
       }
-      .dd-search:focus {
+      .dd-search:focus,
+      .dd-search:focus-visible {
+        outline: none;
         border-color: var(--accent);
       }
       .dd-search::placeholder {
@@ -1986,7 +2039,7 @@
             </div>
             <div id="suiteDescription" class="dd-desc"></div>
 
-            <div id="evals" class="evals" data-open="true">
+            <div id="evals" class="evals" data-open="false">
               <button class="evals-head" type="button" id="evalsHead">
                 <span class="left">
                   <div
@@ -2063,7 +2116,28 @@
               <div id="endpointCardBody" class="endpoint-card-body" data-open="true">
                 <!-- Step 1: Base URL -->
                 <div class="endpoint-step">
-                  <div class="endpoint-step-label">Base URL</div>
+                  <div class="endpoint-step-label">
+                    Base URL
+                    <span
+                      class="info-tip"
+                      data-tooltip="Root URL of your OpenAI-compatible server, e.g. http://localhost:11434/v1"
+                    >
+                      <svg
+                        width="12"
+                        height="12"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="12" y1="8" x2="12" y2="12" />
+                        <line x1="12" y1="16" x2="12.01" y2="16" />
+                      </svg>
+                    </span>
+                  </div>
                   <input
                     id="baseUrl"
                     type="text"
@@ -2071,12 +2145,6 @@
                     autocomplete="off"
                     spellcheck="false"
                   />
-                  <div id="endpointUrlHint" class="endpoint-step-hint" style="display: none">
-                    Root URL of your OpenAI-compatible server, e.g.
-                    <code style="font-size: 10px; color: var(--muted)"
-                      >http://localhost:11434/v1</code
-                    >
-                  </div>
                 </div>
                 <div id="endpointDivider1" class="endpoint-divider" style="display: none"></div>
                 <!-- Step 2: API Key -->
@@ -2086,6 +2154,27 @@
                     <span id="endpointKeyOptional" class="endpoint-optional" style="display: none"
                       >optional for local servers</span
                     >
+                    <span
+                      id="endpointKeyHint"
+                      class="info-tip"
+                      style="display: none"
+                      data-tooltip="Leave empty if your server doesn't require authentication."
+                    >
+                      <svg
+                        width="12"
+                        height="12"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="12" y1="8" x2="12" y2="12" />
+                        <line x1="12" y1="16" x2="12.01" y2="16" />
+                      </svg>
+                    </span>
                   </div>
                   <div class="api-key-wrap" style="margin-top: 0">
                     <input id="apiKeyCard" type="password" placeholder="sk-…" autocomplete="off" />
@@ -2104,24 +2193,22 @@
                       </svg>
                     </button>
                   </div>
-                  <div id="endpointKeyHint" class="endpoint-step-hint" style="display: none">
-                    Leave empty if your server doesn't require authentication.
-                  </div>
                 </div>
                 <!-- Step 3: Load models (openai-compatible only) -->
                 <div id="endpointStepLoad" style="display: none">
                   <div class="endpoint-divider" style="margin-bottom: 8px"></div>
-                  <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap">
-                    <button
-                      id="fetchModelsBtn"
-                      class="btn-ghost"
-                      type="button"
-                      style="padding: 7px 14px; font-size: 12px; flex-shrink: 0"
-                    >
-                      Load models
-                    </button>
-                    <span id="fetchModelsStatus" style="font-size: 12px"></span>
-                  </div>
+                  <button
+                    id="fetchModelsBtn"
+                    class="btn-ghost"
+                    type="button"
+                    style="padding: 7px 14px; font-size: 12px"
+                  >
+                    Load models
+                  </button>
+                  <div
+                    id="fetchModelsError"
+                    style="font-size: 11px; margin-top: 5px; display: none"
+                  ></div>
                 </div>
               </div>
             </div>
@@ -2146,12 +2233,42 @@
                 </button>
               </div>
             </div>
-
-            <!-- Model dropdown (hidden for openai-compatible until fetch succeeds) -->
+            <!-- Model dropdown (outside endpoint card for non-compatible providers) -->
             <div id="modelSection">
+              <div class="endpoint-step-label" style="margin-bottom: 6px">
+                Model
+                <button
+                  id="refreshModelsBtn"
+                  class="icon-btn"
+                  type="button"
+                  title="Reload models"
+                  style="display: none; padding: 2px"
+                >
+                  <svg
+                    width="13"
+                    height="13"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M23 4v6h-6" />
+                    <path d="M1 20v-6h6" />
+                    <path d="M3.51 9a9 9 0 0114.36-3.36L23 10M1 14l5.13 4.36A9 9 0 0020.49 15" />
+                  </svg>
+                </button>
+              </div>
               <div id="modelDropdown" class="dd" data-open="false">
-                <button class="dd-button" type="button">
-                  <span class="label">Select model</span>
+                <div class="dd-button dd-combo">
+                  <input
+                    class="label"
+                    type="text"
+                    placeholder="Select model"
+                    autocomplete="off"
+                    spellcheck="false"
+                  />
                   <span class="dd-loading-spinner" style="display: none"></span>
                   <span class="chev">
                     <svg width="12" height="12" viewBox="0 0 24 24">
@@ -2165,9 +2282,10 @@
                       />
                     </svg>
                   </span>
-                </button>
+                </div>
                 <div class="dd-menu" role="listbox"></div>
               </div>
+              <div id="fetchModelsStatus" style="font-size: 11px; margin-top: 5px"></div>
               <div
                 id="modelFetchHint"
                 style="font-size: 11px; margin-top: 5px; display: none"
