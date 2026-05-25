@@ -2544,7 +2544,6 @@ function applyProvider({ resetModel = false } = {}) {
 
   // Endpoint card (Azure + OpenAI-compatible)
   $("endpointSection").style.display = needsBaseUrl ? "" : "none";
-  $("endpointCardHead").style.display = isCompatible ? "" : "none";
   const compatOnly = isCompatible ? "" : "none";
   $("endpointUrlHint").style.display = compatOnly;
   $("endpointDivider1").style.display = compatOnly;
@@ -2557,7 +2556,6 @@ function applyProvider({ resetModel = false } = {}) {
 
   if (isCompatible) {
     $("endpointCardBody").dataset.open = "true";
-    setEndpointChevron(true);
     $("modelSection").style.display = "none";
     setFetchStatus("", "");
   } else if (isSimple) {
@@ -2735,7 +2733,7 @@ function wire() {
     const evs = $("evals");
     evs.dataset.open = evs.dataset.open === "true" ? "false" : "true";
   });
-  $("evalsToggleAll").addEventListener("click", (e) => {
+  function toggleAllEvaluators(e) {
     e.stopPropagation();
     const suite = state.catalog?.suites.find((s) => s.id === state.suiteId);
     if (!suite) return;
@@ -2745,7 +2743,9 @@ function wire() {
     renderEvaluatorList();
     updateRunButton();
     saveSettings();
-  });
+  }
+  $("evalsToggleAll").addEventListener("click", toggleAllEvaluators);
+  $("evalsSelectAll").addEventListener("click", toggleAllEvaluators);
 
   // Scrape toggle
   bindToggle(
@@ -2763,14 +2763,6 @@ function wire() {
     autoSizeTextarea(e.target);
     saveSettings();
     updateRunButton();
-  });
-
-  // Endpoint card accordion
-  $("endpointCardHead").addEventListener("click", () => {
-    const body = $("endpointCardBody");
-    const willOpen = body.dataset.open !== "true";
-    body.dataset.open = willOpen ? "true" : "false";
-    setEndpointChevron(willOpen);
   });
 
   // Load models button (OpenAI-compatible)
