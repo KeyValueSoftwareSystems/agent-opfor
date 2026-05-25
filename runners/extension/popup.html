@@ -6,26 +6,26 @@
     <title>Opfor · Red-team</title>
     <style>
       @font-face {
-        font-family: "Geist";
-        src: url("fonts/Geist-Regular.ttf") format("truetype");
+        font-family: "Google Sans";
+        src: url("fonts/GoogleSans-Regular.ttf") format("truetype");
         font-weight: 400;
         font-style: normal;
       }
       @font-face {
-        font-family: "Geist";
-        src: url("fonts/Geist-Medium.ttf") format("truetype");
+        font-family: "Google Sans";
+        src: url("fonts/GoogleSans-Medium.ttf") format("truetype");
         font-weight: 500;
         font-style: normal;
       }
       @font-face {
-        font-family: "Geist";
-        src: url("fonts/Geist-SemiBold.ttf") format("truetype");
+        font-family: "Google Sans";
+        src: url("fonts/GoogleSans-SemiBold.ttf") format("truetype");
         font-weight: 600;
         font-style: normal;
       }
       @font-face {
-        font-family: "Geist";
-        src: url("fonts/Geist-Bold.ttf") format("truetype");
+        font-family: "Google Sans";
+        src: url("fonts/GoogleSans-Bold.ttf") format("truetype");
         font-weight: 700;
         font-style: normal;
       }
@@ -88,7 +88,7 @@
         padding: 0;
         background: var(--bg);
         color: var(--text);
-        font-family: "Geist", system-ui, sans-serif;
+        font-family: "Google Sans", system-ui, sans-serif;
         font-size: 13px;
         line-height: 16px;
         font-weight: var(--font-weight-normal);
@@ -435,7 +435,7 @@
         width: 100%;
         padding: 10px 12px;
         font-size: 13px;
-        font-family: "Geist", system-ui, sans-serif;
+        font-family: "Google Sans", system-ui, sans-serif;
         color: #ffffff;
         background: var(--bg-2);
         border: 1px solid var(--line-2);
@@ -495,7 +495,7 @@
         color: var(--text);
         font-size: 13px;
         font-weight: 500;
-        font-family: "Geist", system-ui, sans-serif;
+        font-family: "Google Sans", system-ui, sans-serif;
         cursor: pointer;
         margin-bottom: 4px;
         text-align: left;
@@ -580,7 +580,7 @@
         border-radius: 8px;
         color: var(--text);
         font-size: 13px;
-        font-family: "Geist", system-ui, sans-serif;
+        font-family: "Google Sans", system-ui, sans-serif;
         text-align: left;
         cursor: pointer;
         display: flex;
@@ -634,7 +634,7 @@
         border-left: 2px solid transparent;
         color: var(--text);
         font-size: 13px;
-        font-family: "Geist", system-ui, sans-serif;
+        font-family: "Google Sans", system-ui, sans-serif;
         text-align: left;
         cursor: pointer;
         display: flex;
@@ -713,7 +713,7 @@
         border: none;
         color: var(--text);
         font-size: 13.5px;
-        font-family: "Geist", system-ui, sans-serif;
+        font-family: "Google Sans", system-ui, sans-serif;
         cursor: pointer;
         display: flex;
         align-items: center;
@@ -847,7 +847,7 @@
         border-radius: 10px;
         font-size: 13px;
         font-weight: 600;
-        font-family: "Geist", system-ui, sans-serif;
+        font-family: "Google Sans", system-ui, sans-serif;
         cursor: pointer;
         display: flex;
         align-items: center;
@@ -878,7 +878,7 @@
         color: var(--text);
         font-size: 13px;
         font-weight: 500;
-        font-family: "Geist", system-ui, sans-serif;
+        font-family: "Google Sans", system-ui, sans-serif;
         cursor: pointer;
         display: flex;
         align-items: center;
@@ -893,7 +893,7 @@
         color: var(--fail-soft);
         font-size: 13px;
         font-weight: 500;
-        font-family: "Geist", system-ui, sans-serif;
+        font-family: "Google Sans", system-ui, sans-serif;
         cursor: pointer;
         display: flex;
         align-items: center;
@@ -1445,7 +1445,7 @@
         color: var(--fail-soft);
         font-size: 13px;
         font-weight: 600;
-        font-family: "Geist", system-ui, sans-serif;
+        font-family: "Google Sans", system-ui, sans-serif;
         cursor: pointer;
         display: flex;
         align-items: center;
@@ -1585,7 +1585,7 @@
         border-radius: 8px;
         font-size: 12.5px;
         font-weight: 500;
-        font-family: "Geist", system-ui, sans-serif;
+        font-family: "Google Sans", system-ui, sans-serif;
         cursor: pointer;
         display: flex;
         align-items: center;
@@ -1693,7 +1693,7 @@
         color: var(--text);
         font-size: 13px;
         font-weight: 500;
-        font-family: "Geist", system-ui, sans-serif;
+        font-family: "Google Sans", system-ui, sans-serif;
         cursor: pointer;
       }
 
@@ -1734,7 +1734,7 @@
         color: var(--text);
         font-size: 14px;
         cursor: pointer;
-        font-family: "Geist", system-ui, sans-serif;
+        font-family: "Google Sans", system-ui, sans-serif;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -1816,47 +1816,13 @@
       <!-- ── Header ──────────────────────────────────── -->
       <div class="header">
         <div class="wordmark">
-          <svg width="28" height="28" viewBox="0 0 32 32">
-            <defs>
-              <linearGradient id="opforGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stop-color="#f5ad5c" stop-opacity="1" />
-                <stop offset="100%" stop-color="#f5ad5c" stop-opacity="0.65" />
-              </linearGradient>
-            </defs>
-            <path
-              d="M16 2 L27.2 8 L27.2 24 L16 30 L4.8 24 L4.8 8 Z"
-              fill="url(#opforGrad)"
-              stroke="#f5ad5c"
-              stroke-width="1.2"
-              stroke-linejoin="round"
-            />
-            <path
-              d="M16 5.5 L24.3 10 L24.3 22 L16 26.5 L7.7 22 L7.7 10 Z"
-              fill="none"
-              stroke="#0A0D14"
-              stroke-width="0.9"
-              opacity="0.55"
-              stroke-linejoin="round"
-            />
-            <path
-              d="M9.5 12.5 L16 17 L22.5 12.5 M9.5 16 L16 20.5 L22.5 16"
-              fill="none"
-              stroke="#0A0D14"
-              stroke-width="2.2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-            <rect x="14.5" y="3.5" width="3" height="1.2" rx="0.4" fill="#0A0D14" opacity="0.5" />
-          </svg>
-          <div class="wordmark-text">
-            <div class="wordmark-title-row">
-              <span class="name">OPFOR</span>
-              <!-- <span class="tag">red-team</span> -->
-            </div>
-            <span class="subtitle">The opposing force for AI agents.</span>
-          </div>
+          <img src="icons/logo.png" width="118" height="36" alt="OPFOR" />
         </div>
         <div class="header-right">
+          <div id="statusPill" class="status-pill" data-screen="idle">
+            <div class="dot"></div>
+            <span id="statusPillText">Ready</span>
+          </div>
           <button id="historyBtn" class="icon-btn" title="Past runs" aria-label="Past runs">
             <svg
               width="15"

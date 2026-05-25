@@ -121,6 +121,22 @@ const state = {
 
 // ── Screen / status ────────────────────────────────────────────
 
+const PILL_LABELS = {
+  idle: "Ready",
+  running: "Running",
+  paused: "Paused",
+  done: "Done",
+  awaitUser: "Action needed",
+  history: "History",
+};
+
+/** Map screen names to status-pill data-screen tokens (CSS variants). */
+function pillScreenToken(name) {
+  if (name === "awaitUser") return "paused";
+  if (name === "history") return "idle";
+  return name;
+}
+
 function syncNav() {
   const historyBtn = $("historyBtn");
   if (historyBtn) {
@@ -136,11 +152,19 @@ function setScreen(name) {
     const el = $(elId);
     if (el) el.hidden = s !== name;
   }
+  const pill = $("statusPill");
+  if (pill) {
+    pill.dataset.screen = pillScreenToken(name);
+    const pillText = $("statusPillText");
+    if (pillText) pillText.textContent = PILL_LABELS[name] || "Ready";
+  }
   $("footer").dataset.screen = name;
   // Gear icon only useful on idle
   $("advancedBtn").style.display = name === "idle" ? "" : "none";
   const runBar = $("runBtnWrap");
   if (runBar) runBar.hidden = name !== "idle";
+  const bodyEl = document.querySelector(".body");
+  if (bodyEl) bodyEl.style.overflowY = name === "running" ? "hidden" : "";
   syncNav();
 }
 

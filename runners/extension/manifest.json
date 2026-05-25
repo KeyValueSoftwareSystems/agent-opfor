@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "OPFOR",
   "version": "0.0.1",
-  "description": "Dev helper: find a chat input on the current page and send a 'hi' message.",
+  "description": "Red-team embedded chat agents: locate the widget, run adaptive attacks, and judge transcripts.",
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",
@@ -10,7 +10,7 @@
     "128": "icons/icon128.png"
   },
   "action": {
-    "default_title": "Opfor Injector",
+    "default_title": "OPFOR Red-team",
     "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/icon16.png",
