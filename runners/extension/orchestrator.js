@@ -609,15 +609,43 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
           suiteId,
           evaluatorId: evaluatorSnapshot?.id,
         });
-        const result = await resetChatSession(tab.id, readerCfg).catch(() => null);
-        if (result?.ok && result.plan) {
+        // c036b5e: re-locate via accessibility-tree snapshots without re-opening launchers.
+        const relocated = await locateChatWidget(tab.id, readerCfg, {
+          openWidget: false,
+          maxAiAttempts: 3,
+        }).catch(() => null);
+        if (relocated?.ok && relocated.plan) {
+          plan = relocated.plan;
+          best = relocated.best;
+          siteSnapshot = relocated.siteSnapshot || siteSnapshot;
           broadcastProgress({
             kind: "phase",
             phase: "running",
             suiteId,
             evaluatorId: evaluatorSnapshot?.id,
           });
-          return result;
+          return {
+            plan: relocated.plan,
+            frameId: relocated.best?.frameId ?? best?.frameId ?? 0,
+            siteSnapshot: relocated.siteSnapshot,
+          };
+        }
+        const result = await resetChatSession(tab.id, readerCfg).catch(() => null);
+        if (result?.ok && result.plan) {
+          plan = result.plan;
+          best = result.best;
+          siteSnapshot = result.siteSnapshot || siteSnapshot;
+          broadcastProgress({
+            kind: "phase",
+            phase: "running",
+            suiteId,
+            evaluatorId: evaluatorSnapshot?.id,
+          });
+          return {
+            plan: result.plan,
+            frameId: result.best?.frameId ?? 0,
+            siteSnapshot: result.siteSnapshot,
+          };
         }
         return null;
       },

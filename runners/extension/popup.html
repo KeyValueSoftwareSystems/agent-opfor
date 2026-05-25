@@ -332,14 +332,45 @@
       /* ── Body / screens ─────────────────────────────────────── */
       .body {
         flex: 1;
+        min-height: 0;
         overflow-y: auto;
+        overflow-x: hidden;
         padding: 14px;
         position: relative;
+        display: flex;
+        flex-direction: column;
       }
       .screen {
         display: flex;
         flex-direction: column;
         gap: 12px;
+        flex-shrink: 0;
+      }
+      #screenRunning {
+        flex: 1;
+        min-height: 0;
+        flex-shrink: 1;
+        gap: 8px;
+        padding-bottom: 0;
+      }
+      #screenRunning > .grid-2,
+      #screenRunning > .hint-line {
+        flex-shrink: 0;
+      }
+      #screenRunning > .grid-2 {
+        margin-top: 0;
+        gap: 6px;
+      }
+      #screenRunning > .grid-2 .btn-ghost,
+      #screenRunning > .grid-2 .btn-danger {
+        padding: 9px 10px;
+      }
+      #screenRunning > .hint-line {
+        font-size: 10px;
+        line-height: 1.25;
+        margin: 0;
+        padding: 0;
+        letter-spacing: 0.03em;
       }
       .screen[hidden] {
         display: none;
@@ -947,6 +978,13 @@
         padding: 14px;
         position: relative;
         overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+      }
+      #screenRunning .status-card {
+        flex: 1 1 auto;
+        min-height: 0;
       }
       .status-card .glow {
         position: absolute;
@@ -1029,6 +1067,17 @@
         flex-direction: column;
         gap: 8px;
         position: relative;
+        max-height: 200px;
+        overflow-x: hidden;
+        overflow-y: auto;
+        scroll-behavior: smooth;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
+      }
+      #screenRunning .bubbles {
+        flex: 1 1 auto;
+        min-height: 0;
+        max-height: none;
       }
       .bubble {
         display: flex;

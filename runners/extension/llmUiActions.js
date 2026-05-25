@@ -40,15 +40,48 @@ export async function aiPickInputInFrame(cfg, frame) {
   });
 }
 
-export async function aiUiNextAction(
-  readerCfg,
-  { frameUrl, snapshot, lastError, attempts, clickedLaunchers }
-) {
-  const clickedNote = clickedLaunchers?.length
-    ? `\nLaunchers already clicked (DO NOT click these again): ${clickedLaunchers.join(", ")}`
-    : "";
+function isAccessibilitySnapshot(snapshot) {
+  return String(snapshot || "").includes("ACCESSIBILITY_TREE_SNAPSHOT");
+}
 
-  const system = [
+function axTreePlannerSystem() {
+  return [
+    "You are a UI automation planner for a browser extension that needs to find and interact with a chat/support widget on a webpage.",
+    "You receive an ACCESSIBILITY_TREE_SNAPSHOT: multiple FRAME sections listing visible interactive nodes as lines:",
+    '- role=<role> name="<label>" selector="<css>" [href="..."] [nav=true] [disabled=true]',
+    "Selectors may use shadow(host) >> child syntax for shadow DOM. Use them verbatim.",
+    "",
+    "Return ONLY valid JSON with this schema (no markdown, no extra keys):",
+    `{ "action": "set_input" | "click_launcher" | "wait" | "give_up", "inputSelector"?: string, "submit"?: { "method": "enter" | "click", "buttonSelector"?: string }, "launcherSelector"?: string, "waitMs"?: number, "confidence": number, "notes"?: string }`,
+    "",
+    "## Decision rules — apply strictly in this order:",
+    "",
+    "1. LOOK FOR A CHAT INPUT FIRST. Scan all frames for role=textbox or role=combobox (also contenteditable surfaced as textbox).",
+    "   - Prefer nodes whose name/placeholder suggests messaging: chat, message, ask, type, send, support, help, assistant.",
+    "   - SKIP role=searchbox and names suggesting site search / help-center article search.",
+    "   - SKIP huge container nodes (body, main, #root) — pick the actual composer control.",
+    "   - If found → action=set_input with its selector. submit.method='enter' unless you see a nearby role=button named Send/Submit.",
+    "",
+    "2. NO USABLE INPUT? Find a launcher to open the widget: role=button or role=link (NOT nav=true) with chat/support/contact/message/virtual assistant semantics.",
+    "   - Bottom-corner floating bubbles are often launchers — prefer buttons over generic nav links.",
+    "   - NEVER click nodes with nav=true (they leave the page).",
+    "   - NEVER re-click launchers listed under 'Launchers already clicked'.",
+    "   - NEVER click disabled=true nodes.",
+    "   → action=click_launcher with launcherSelector from the snapshot line.",
+    "",
+    "3. IF nothing to click AND attempts > 0 → action=wait with waitMs=1500–2500 (widget may still be loading).",
+    "",
+    "4. ONLY action=give_up if attempts >= 6 AND nothing resembles a chat widget or launcher.",
+    "",
+    "## Hard rules:",
+    "- NEVER use action=reload.",
+    "- NEVER pick attach/plus/microphone/paperclip as submit.",
+    '- Copy selector="..." values exactly from the snapshot.',
+  ].join("\n");
+}
+
+function domSnapshotPlannerSystem() {
+  return [
     "You are a UI automation planner for a browser extension that needs to find and interact with a chat/support widget on a webpage.",
     "You receive a SANITIZED DOM snapshot containing: CANDIDATE_INPUTS, CANDIDATE_BUTTONS, LIKELY_CHAT_LAUNCHERS, FLOATING_WIDGET_CANDIDATES, and optional CHAT_SIGNALS.",
     "",
@@ -77,6 +110,18 @@ export async function aiUiNextAction(
     "- NEVER pick plus/attach/microphone/paperclip buttons as submit.",
     '- Prefer selectors verbatim from selector="..." in the snapshot.',
   ].join("\n");
+}
+
+export async function aiUiNextAction(
+  readerCfg,
+  { frameUrl, snapshot, lastError, attempts, clickedLaunchers }
+) {
+  const clickedNote = clickedLaunchers?.length
+    ? `\nLaunchers already clicked (DO NOT click these again): ${clickedLaunchers.join(", ")}`
+    : "";
+
+  const axMode = isAccessibilitySnapshot(snapshot);
+  const system = axMode ? axTreePlannerSystem() : domSnapshotPlannerSystem();
 
   const user = [
     `Frame URL: ${String(frameUrl || "")}`,
@@ -84,7 +129,7 @@ export async function aiUiNextAction(
     lastError ? `Last error: ${lastError}` : "",
     clickedNote,
     "",
-    "Sanitized DOM snapshot:",
+    axMode ? "Accessibility tree snapshot:" : "Sanitized DOM snapshot:",
     String(snapshot || "").slice(0, 60_000),
   ]
     .filter(Boolean)

@@ -734,6 +734,15 @@ function setTurnProgress(turn) {
 // Latest in-flight turn pair, populated by progress events. Reset per evaluator.
 let latestTurn = { round: 0, user: "", assistant: "" };
 
+/** Scroll the adversarial-turn transcript pane to show the latest content. */
+function scrollBubblesToLatest(box) {
+  if (!box || box.hidden) return;
+  const scroll = () => {
+    box.scrollTop = box.scrollHeight;
+  };
+  requestAnimationFrame(() => requestAnimationFrame(scroll));
+}
+
 function renderBubbles() {
   const box = $("runBubbles");
   box.innerHTML = "";
@@ -762,6 +771,7 @@ function renderBubbles() {
     body.dataset.pending = "true";
   }
   box.appendChild(g);
+  scrollBubblesToLatest(box);
 }
 
 function resetBubbles() {
