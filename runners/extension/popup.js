@@ -2616,7 +2616,7 @@ function applyProvider({ resetModel = false } = {}) {
   // Endpoint card — only Azure + OpenAI-compatible
   $("endpointSection").style.display = needsBaseUrl ? "" : "none";
   const compatOnly = isCompatible ? "" : "none";
-  $("endpointDivider1").style.display = compatOnly;
+  // $("endpointDivider1").style.display = compatOnly;
   $("endpointKeyHint").style.display = isCompatible ? "inline-flex" : "none";
   $("endpointKeyOptional").style.display = compatOnly;
   $("endpointStepLoad").style.display = compatOnly;
@@ -2625,19 +2625,25 @@ function applyProvider({ resetModel = false } = {}) {
   // Standalone API key — simple providers only
   $("standaloneApiKey").style.display = isSimple ? "" : "none";
 
+  clearFetchError();
+  setFetchStatus("", "");
+  setModelHint("");
+
   if (isCompatible) {
     $("endpointCardBody").dataset.open = "true";
     $("modelSection").style.display = "none";
     $("modelDropdown").style.display = "";
-    clearFetchError();
-    setFetchStatus("", "");
   } else if (isSimple) {
     $("modelSection").style.display = "";
     if (resetModel) {
       modelDD?.setOptions([]);
       modelDD?.setValue("");
       state.model = "";
-      setModelHint("Enter your API key to load models.");
+      if (state.apiKey.trim()) {
+        fetchModelsForSimpleProvider();
+      } else {
+        setModelHint("Enter your API key to load models.");
+      }
     }
   } else {
     // Azure
@@ -2675,7 +2681,11 @@ async function fetchModelsFromBaseUrl() {
     const res = await fetch(`${baseUrl}/models`, { headers });
     if (!res.ok) {
       if (res.status === 401 || res.status === 403)
-        throw new Error("Invalid API key — authentication failed.");
+        throw new Error(
+          state.apiKey
+            ? "Invalid API key — authentication failed."
+            : "Server requires authentication — enter an API key."
+        );
       if (res.status === 404) throw new Error("Server doesn't expose a /models endpoint.");
       throw new Error(`Server returned HTTP ${res.status}.`);
     }
@@ -2868,6 +2878,7 @@ function wire() {
   $("baseUrl").addEventListener("input", (e) => {
     state.baseUrl = e.target.value;
     saveModelAndKey();
+    setModelHint("");
     if (state.provider === PROVIDERS.OPENAI_COMPATIBLE) {
       $("modelSection").style.display = "none";
       $("modelDropdown").style.display = "";
@@ -2884,6 +2895,9 @@ function wire() {
     $("apiKeyCard").value = e.target.value;
     saveModelAndKey();
     updateRunButton();
+    setModelHint("");
+    setFetchStatus("", "");
+    clearFetchError();
   });
 
   function wireEyeBtn(btnId, iconId, inputId) {
@@ -2911,6 +2925,9 @@ function wire() {
     $("apiKey").value = e.target.value;
     saveModelAndKey();
     updateRunButton();
+    setModelHint("");
+    setFetchStatus("", "");
+    clearFetchError();
   });
   wireEyeBtn("apiKeyCardEye", "eyeIconCard", "apiKeyCard");
 
