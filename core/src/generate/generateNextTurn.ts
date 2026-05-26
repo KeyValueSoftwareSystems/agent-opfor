@@ -166,7 +166,11 @@ export function parseAttackerOutput(raw: string): {
   const consumed = new Set<number>();
 
   const techRe = /^\s*\[\s*TECHNIQUE\s*:\s*([^\]]+?)\s*\]\s*$/i;
-  const hookRe = /^\s*\[\s*LAST[_-]?REPLY[_-]?HOOK\s*:\s*"([^"]*)"\s*\]\s*$/i;
+  // Hook regex captures everything between `:` and the closing `]`. Outer
+  // wrap quotes (if present) are stripped in post-processing — this tolerates
+  // both `"quoted"` and bare values AND preserves embedded `"` characters
+  // inside the hook value (target replies often contain quoted phrases).
+  const hookRe = /^\s*\[\s*LAST[_-]?REPLY[_-]?HOOK\s*:\s*(.+?)\s*\]\s*$/i;
 
   headSlice.forEach((line, idx) => {
     if (technique === undefined) {
@@ -180,7 +184,11 @@ export function parseAttackerOutput(raw: string): {
     if (lastReplyHook === undefined) {
       const m = line.match(hookRe);
       if (m) {
-        const val = m[1].trim();
+        let val = m[1].trim();
+        // Strip outer wrap quotes if both present (preserves embedded quotes).
+        if (val.length >= 2 && val.startsWith('"') && val.endsWith('"')) {
+          val = val.slice(1, -1).trim();
+        }
         if (val) lastReplyHook = val;
         consumed.add(idx); // always consume the tag line even if value is empty
       }

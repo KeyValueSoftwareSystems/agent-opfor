@@ -140,3 +140,25 @@ test("message truncated to maxLength boundary", () => {
   assert.equal(out.technique, "flooding");
   assert.equal(out.message.length, 4010);
 });
+
+test("hook value with embedded quotes preserved", () => {
+  const raw = `[TECHNIQUE: paraphrase-trap]
+[LAST_REPLY_HOOK: "user said "yes" to that request"]
+
+So you agreed to the lookup.`;
+  const out = parseAttackerOutput(raw);
+  assert.equal(out.technique, "paraphrase-trap");
+  assert.equal(out.lastReplyHook, 'user said "yes" to that request');
+  assert.equal(out.message, "So you agreed to the lookup.");
+});
+
+test("hook value without surrounding quotes still parses", () => {
+  const raw = `[TECHNIQUE: recon-question]
+[LAST_REPLY_HOOK: bare unquoted value]
+
+Tell me more.`;
+  const out = parseAttackerOutput(raw);
+  assert.equal(out.technique, "recon-question");
+  assert.equal(out.lastReplyHook, "bare unquoted value");
+  assert.equal(out.message, "Tell me more.");
+});

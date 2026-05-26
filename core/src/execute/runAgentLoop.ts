@@ -36,6 +36,12 @@ export async function runAgentAttack(
   ];
   // Parallel meta channel for attacker tag output (not sent to target).
   // Used to thread PREVIOUS_TECHNIQUE into the next turn's user-block.
+  // Resume limitation: on resumed runs (initialHistory non-empty), this
+  // array starts empty even when startTurn > 1, so the first resumed turn
+  // has no PREVIOUS_TECHNIQUE and the refusal-pivot rule (STEP 5) skips.
+  // Subsequent turns within the resumed session populate and work normally.
+  // To eliminate: persist meta alongside history in the resume context
+  // (Phase 2 alongside AgentTurnRecord.technique field).
   const attackerMeta: Array<{ technique?: string; lastReplyHook?: string }> = [];
   let finalPrompt = attack.prompt ?? "";
   let finalResponse = "";
@@ -58,8 +64,14 @@ export async function runAgentAttack(
   const startTurn = Math.floor(history.length / 2) + 1;
   for (let t = startTurn; t <= attack.turns; t++) {
     let prompt: string;
+    // Mode discriminator. Comprehensive mode seeds `attack.prompt` from the
+    // pattern template via generateAttacks → turn 1 uses that seed verbatim.
+    // Adaptive mode sets `attack.prompt = ""` (sentinel) → falls through to
+    // generateNextAdaptiveTurn for turn 1, letting the OPENING-variant prompt
+    // pick the opening angle dynamically.
     if (t === 1 && attack.prompt) {
       prompt = finalPrompt;
+      // Push empty meta so attackerMeta indices stay aligned with turn numbers.
       attackerMeta.push({});
     } else {
       const result = await generateNextAdaptiveTurn({
