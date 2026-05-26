@@ -1968,7 +1968,14 @@
         <div id="screenIdle" class="screen">
           <!-- Target Agent -->
           <div>
-            <div class="section-label">Target Agent</div>
+            <div id="agentDescWrap" hidden style="margin-bottom: 8px">
+              <div class="agent-desc-label">Agent description</div>
+              <textarea
+                id="agentDescription"
+                placeholder="Describe the agent — its role, the tools it can call, and any guardrails you've already configured…"
+              ></textarea>
+            </div>
+            <div class="section-label agent-desc-label">Target Agent</div>
             <div class="field-row">
               <div class="left">
                 <div class="icon-wrap">
@@ -2001,24 +2008,17 @@
                 id="scrapeToggle"
                 class="toggle"
                 role="switch"
-                aria-checked="true"
+                aria-checked="false"
                 aria-label="Auto detect agent"
               >
                 <div class="knob"></div>
               </button>
             </div>
-            <div id="agentDescWrap" hidden style="margin-top: 8px">
-              <div class="agent-desc-label">Agent description</div>
-              <textarea
-                id="agentDescription"
-                placeholder="Describe the agent — its role, the tools it can call, and any guardrails you've already configured…"
-              ></textarea>
-            </div>
           </div>
 
           <!-- Security Suite -->
           <div>
-            <div class="section-label">Security Suite</div>
+            <div class="section-label agent-desc-label">Security Suite</div>
             <div id="suiteDropdown" class="dd" data-open="false">
               <button class="dd-button" type="button">
                 <span class="label">Loading…</span>
@@ -2071,7 +2071,7 @@
 
           <!-- Model -->
           <div>
-            <div class="section-label">Model</div>
+            <div class="section-label agent-desc-label">Model</div>
             <div id="providerDropdown" class="dd" data-open="false" style="margin-bottom: 8px">
               <button class="dd-button" type="button">
                 <span class="label">OpenAI</span>

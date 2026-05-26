@@ -97,7 +97,7 @@ const state = {
   baseUrl: "https://api.openai.com/v1",
   model: "gpt-4o-mini",
   apiKey: "",
-  scrapeFromSite: true,
+  scrapeFromSite: false,
   agentDescription: "",
   maxTurns: 10,
   waitSec: 10,
@@ -289,7 +289,7 @@ function buildDropdown(
       if (labelEl.disabled) return;
       if (root.dataset.open !== "true") {
         root.dataset.open = "true";
-        scrollBodyToBottom();
+        scrollDropdownIntoView(root);
         if (onOpen) onOpen();
         setTimeout(() => labelEl.select(), 0);
       }
@@ -300,7 +300,7 @@ function buildDropdown(
       if (button.disabled) return;
       const opening = root.dataset.open !== "true";
       root.dataset.open = opening ? "true" : "false";
-      if (opening) scrollBodyToBottom();
+      if (opening) scrollDropdownIntoView(root);
       if (opening) {
         if (onOpen) onOpen();
         setTimeout(() => {
@@ -521,7 +521,7 @@ async function loadSettings() {
   const stored = await chrome.storage.local.get([POPUP_SETTINGS_KEY, "opforLlmProfiles"]);
   const s = stored[POPUP_SETTINGS_KEY] || {};
   Object.assign(state, {
-    scrapeFromSite: s.scrapeFromSite ?? true,
+    scrapeFromSite: s.scrapeFromSite ?? false,
     agentDescription: s.agentDescription ?? "",
     maxTurns: clamp(Number(s.maxTurns) || 10, 1, 20),
     waitSec: clamp(Number(s.waitSec) || 10, 3, 30),
@@ -2575,9 +2575,19 @@ function modelsForProvider(provider) {
   return list.map((m) => ({ value: m, label: m }));
 }
 
-function scrollBodyToBottom() {
-  const el = document.querySelector(".body");
-  if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+function scrollDropdownIntoView(root) {
+  requestAnimationFrame(() => {
+    const menu = root?.querySelector(".dd-menu");
+    if (!menu) return;
+    const body = document.querySelector(".body");
+    if (!body) return;
+    const bodyRect = body.getBoundingClientRect();
+    const menuRect = menu.getBoundingClientRect();
+    const overflow = menuRect.bottom - bodyRect.bottom;
+    if (overflow > 0) {
+      body.scrollBy({ top: overflow + 8, behavior: "smooth" });
+    }
+  });
 }
 
 function clearFetchError() {
@@ -2836,7 +2846,23 @@ function wire() {
   // Evals collapse
   $("evalsHead").addEventListener("click", () => {
     const evs = $("evals");
-    evs.dataset.open = evs.dataset.open === "true" ? "false" : "true";
+    const opening = evs.dataset.open !== "true";
+    evs.dataset.open = opening ? "true" : "false";
+    if (opening) {
+      requestAnimationFrame(() => {
+        const list = $("evalsList");
+        const body = document.querySelector(".body");
+        if (!list || !body) return;
+        const overflow = list.getBoundingClientRect().bottom - body.getBoundingClientRect().bottom;
+        if (overflow > 0) body.scrollBy({ top: overflow + 8, behavior: "smooth" });
+      });
+    }
+  });
+  document.addEventListener("mousedown", (e) => {
+    const evs = $("evals");
+    if (evs?.dataset.open === "true" && !evs.contains(e.target)) {
+      evs.dataset.open = "false";
+    }
   });
   function toggleAllEvaluators(e) {
     e.stopPropagation();
