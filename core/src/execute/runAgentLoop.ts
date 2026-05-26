@@ -34,6 +34,9 @@ export async function runAgentAttack(
   const history: { role: "user" | "assistant"; content: string }[] = [
     ...(context?.initialHistory ?? []),
   ];
+  // Parallel meta channel for attacker tag output (not sent to target).
+  // Used to thread PREVIOUS_TECHNIQUE into the next turn's user-block.
+  const attackerMeta: Array<{ technique?: string; lastReplyHook?: string }> = [];
   let finalPrompt = attack.prompt ?? "";
   let finalResponse = "";
 
@@ -54,25 +57,38 @@ export async function runAgentAttack(
 
   const startTurn = Math.floor(history.length / 2) + 1;
   for (let t = startTurn; t <= attack.turns; t++) {
-    const prompt =
-      t === 1 && attack.prompt
-        ? finalPrompt
-        : await generateNextAdaptiveTurn({
-            history,
-            attack,
-            patterns,
-            target: context?.targetConfig ?? {
-              kind: "agent",
-              name: "",
-              description: "",
-              type: "http-endpoint",
-            },
-            model: attackModel,
-            attackObjective: attack.attackObjective,
-            businessUseCase: attack.businessUseCase,
-            siteSnapshot: attack.siteSnapshot,
-            maxLength: attack.maxMessageLength,
-          });
+    let prompt: string;
+    if (t === 1 && attack.prompt) {
+      prompt = finalPrompt;
+      attackerMeta.push({});
+    } else {
+      const result = await generateNextAdaptiveTurn({
+        history,
+        attack,
+        patterns,
+        target: context?.targetConfig ?? {
+          kind: "agent",
+          name: "",
+          description: "",
+          type: "http-endpoint",
+        },
+        model: attackModel,
+        currentTurn: t,
+        maxTurns: attack.turns,
+        attackObjective: attack.attackObjective,
+        businessUseCase: attack.businessUseCase,
+        siteSnapshot: attack.siteSnapshot,
+        maxLength: attack.maxMessageLength,
+        previousTechnique: attackerMeta[attackerMeta.length - 1]?.technique,
+      });
+      prompt = result.message;
+      attackerMeta.push({ technique: result.technique, lastReplyHook: result.lastReplyHook });
+      log.dim(
+        `[attacker] turn=${t}/${attack.turns} technique=${result.technique ?? "unknown"} hook=${
+          result.lastReplyHook?.slice(0, 60) ?? "-"
+        }`
+      );
+    }
 
     const response = await target.send(prompt, {
       propagation,
