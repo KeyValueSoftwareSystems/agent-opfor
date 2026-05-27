@@ -112,14 +112,12 @@ export async function resolveAgentBusinessContext({
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     if (msg === "Run stopped.") throw e;
-    const host = (() => {
-      try {
-        return new URL(siteUrl).host;
-      } catch {
-        return siteUrl || "unknown site";
-      }
-    })();
-    const fallback = `Auto-detect could not build a full agent summary (${msg}). Target appears to be ${host}. Probe the visible chat UI to infer role and capabilities.`;
-    return mergeBusinessContext(fallback, extra);
+    // If the user pre-filled an Agent description in Advanced settings, use it
+    // silently as a fallback instead of blocking the run.
+    if (manual) return mergeBusinessContext(manual, extra);
+    // Otherwise surface the failure so the orchestrator can pause for user input.
+    const err = new Error(`Could not auto-detect agent: ${msg}`);
+    err.needsAgentDescription = true;
+    throw err;
   }
 }

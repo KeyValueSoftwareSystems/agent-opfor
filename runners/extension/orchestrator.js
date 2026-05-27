@@ -29,7 +29,7 @@ import { locateChatWidget } from "./chatLocator.js";
 import { actClickSelector, actVerifyInputVisible } from "./domActions.js";
 import { extractResponse } from "./responseExtractor.js";
 import { aiPickInputInFrame, llmShortenMessage } from "./llmUiActions.js";
-import { resolveAgentBusinessContext } from "./agentContext.js";
+import { resolveAgentBusinessContext, mergeBusinessContext } from "./agentContext.js";
 
 export async function sleepInterruptible(ms) {
   const step = 250;
@@ -446,14 +446,70 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
         evaluatorId: evaluatorSnapshot?.id,
       });
 
-      businessUseCase = await resolveAgentBusinessContext({
-        scrapeFromSite,
-        agentDescription,
-        extraBusinessUseCase: advancedBusinessUseCase,
-        tabId: tab.id,
-        siteUrl: tab.url || "",
-        readerCfg,
-      });
+      try {
+        businessUseCase = await resolveAgentBusinessContext({
+          scrapeFromSite,
+          agentDescription,
+          extraBusinessUseCase: advancedBusinessUseCase,
+          tabId: tab.id,
+          siteUrl: tab.url || "",
+          readerCfg,
+        });
+      } catch (detectErr) {
+        if (!detectErr?.needsAgentDescription || state.OPFOR_STOP) throw detectErr;
+
+        // Auto-detect failed — ask the user to describe the agent manually.
+        broadcastProgress({
+          kind: "phase",
+          phase: "await_user",
+          needsAgentDescription: true,
+          error: detectErr.message,
+          suiteId,
+          evaluatorId: evaluatorSnapshot?.id,
+          evaluatorName: evaluatorSnapshot?.name,
+          maxRounds,
+        });
+        await setRunStatus({
+          running: true,
+          tabId: tab.id,
+          siteUrl: tab.url || "",
+          suiteId,
+          evaluatorId: evaluatorSnapshot?.id,
+          evaluatorName: evaluatorSnapshot?.name,
+          maxRounds,
+          phase: "await_user",
+          transcript: [],
+          startedAt: Date.now(),
+          attackObjective,
+          businessUseCase: "",
+          scrapeFromSite,
+          agentDescription,
+          judgeHint,
+          needsAgentDescription: true,
+          awaitUserError: detectErr.message,
+        });
+
+        const retryPromise = waitForRetryLocate();
+        let descTimeoutId;
+        const timeoutPromise = new Promise((resolve) => {
+          descTimeoutId = setTimeout(() => resolve("timeout"), 120_000);
+        });
+        const retryResult = await Promise.race([retryPromise, timeoutPromise]);
+        clearTimeout(descTimeoutId);
+
+        if (state.OPFOR_STOP || retryResult === "timeout") {
+          clearRetryLocate();
+          throw new Error(
+            state.OPFOR_STOP ? "Run stopped by user." : "Timed out waiting for agent description.",
+            { cause: detectErr }
+          );
+        }
+
+        const manualDesc = String(retryResult?.agentDescription || "").trim();
+        if (!manualDesc) throw new Error("No agent description provided.", { cause: detectErr });
+        agentDescription = manualDesc;
+        businessUseCase = mergeBusinessContext(manualDesc, advancedBusinessUseCase);
+      }
 
       await setRunStatus({
         running: true,
@@ -498,20 +554,21 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
         });
 
         const retryPromise = waitForRetryLocate();
-        const timeoutPromise = new Promise((resolve) =>
-          setTimeout(() => resolve("timeout"), 120_000)
-        );
+        let locateTimeoutId;
+        const timeoutPromise = new Promise((resolve) => {
+          locateTimeoutId = setTimeout(() => resolve("timeout"), 120_000);
+        });
 
         const result = await Promise.race([retryPromise, timeoutPromise]);
+        clearTimeout(locateTimeoutId);
 
-        if (state.OPFOR_STOP) {
+        if (state.OPFOR_STOP || result === "timeout") {
           clearRetryLocate();
-          throw new Error("Run stopped by user.");
-        }
-
-        if (result === "timeout") {
-          clearRetryLocate();
-          throw new Error("Timed out waiting for user to open chat widget.");
+          throw new Error(
+            state.OPFOR_STOP
+              ? "Run stopped by user."
+              : "Timed out waiting for user to open chat widget."
+          );
         }
 
         userRetryCount++;

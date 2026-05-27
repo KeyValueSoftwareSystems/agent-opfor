@@ -27,9 +27,9 @@ export function waitForRetryLocate() {
   });
 }
 
-export function triggerRetryLocate() {
+export function triggerRetryLocate(data) {
   if (state.retryLocateResolver) {
-    state.retryLocateResolver();
+    state.retryLocateResolver(data);
     state.retryLocateResolver = null;
   }
 }
