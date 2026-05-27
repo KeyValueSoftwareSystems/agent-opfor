@@ -208,8 +208,7 @@ See [cli.md → Config fields reference](cli.md#config-fields-reference) and [mc
 1. Drop a `.md` file under the correct tree:
    - Agent: `skills/agent-redteaming/opfor-setup/evaluators/<id>.md`
    - MCP: `skills/mcp-redteaming/opfor-setup/evaluators/<id>.md`
-2. Required frontmatter: `id`, `name`, `severity`, `owasp` (or other standard tag), `description`, plus attack patterns and pass/fail criteria.
-3. Engine auto-discovers — no TypeScript change needed.
+2. Required frontmatter: `id`, `name`, `severity`, `description`, `patterns`, pass/fail criteria; `standards` recommended. See [evaluator-schema.md](evaluator-schema.md).
+3. Engine auto-discovers — no TypeScript change needed for declarative evaluators.
 4. To include it in a suite, add the evaluator ID to that suite's `evaluators:` list in its `.md` file.
-
-Full frontmatter schema and contract: [Agents.md](Agents.md).
+5. Run `npm run validate:skills` before opening a PR.

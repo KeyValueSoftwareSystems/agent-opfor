@@ -40,7 +40,7 @@ export interface ResultViewModel {
 export interface EvaluatorViewModel {
   evaluatorId: string;
   evaluatorName: string;
-  ref: string;
+  standards?: Record<string, string>;
   severity: string;
   total: number;
   passed: number;

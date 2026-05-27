@@ -124,7 +124,7 @@ export async function runAllBrowser(
     evaluatorResults.push({
       evaluatorId: evaluator.id,
       evaluatorName: evaluator.name,
-      ref: evaluator.ref,
+      standards: evaluator.standards,
       severity: evaluator.severity,
       total,
       passed,

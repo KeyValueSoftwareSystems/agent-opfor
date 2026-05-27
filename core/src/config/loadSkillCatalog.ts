@@ -3,12 +3,14 @@ import path from "node:path";
 import { parse as parseYaml } from "yaml";
 import { splitYamlFrontmatter } from "../util/yamlFrontmatter.js";
 import { getOpforSetupRoot } from "./skillsLayout.js";
+import { resolveStandardsFromFrontmatter } from "../evaluators/standards.js";
+import type { StandardsMap } from "../evaluators/schema.js";
 
 export interface EvaluatorMeta {
   id: string;
   name: string;
   severity: "critical" | "high" | "medium" | "low";
-  ref: string;
+  standards?: StandardsMap;
 }
 
 export interface SuiteMeta {
@@ -66,10 +68,11 @@ export async function loadSkillCatalog(): Promise<{
     const doc = parseYaml(sp.yaml) as Record<string, unknown>;
     const id =
       typeof doc.id === "string" && doc.id.trim() ? doc.id.trim() : f.replace(/\.md$/i, "");
+    const standards = resolveStandardsFromFrontmatter(doc);
     evaluators.push({
       id,
       name: typeof doc.name === "string" ? doc.name : id,
-      ref: typeof doc.ref === "string" ? doc.ref : "",
+      ...(standards ? { standards } : {}),
       severity: normalizeSeverity(typeof doc.severity === "string" ? doc.severity : "high"),
     });
   }

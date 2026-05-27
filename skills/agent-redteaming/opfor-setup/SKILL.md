@@ -271,7 +271,9 @@ For each file, read the **YAML frontmatter** and extract:
 - `id` — evaluator ID (e.g., "prompt-injection")
 - `name` — display name (e.g., "Prompt Injection")
 - `severity` — critical, high, medium, low
-- `owasp` — mapping label (e.g. LLM01, ASI03)
+- `standards` — map of taxonomy → ID (e.g. `owasp-llm: LLM01`, `atlas: AML.T0056`)
+- `surfaces` — optional: agent, browser, mcp
+- `turn_mode` — optional: single or multi
 - `description` — what it tests
 - `patterns` — array of `{ name, template }` used to generate attacks (same source the CLI reads)
 - `pass_criteria` / `fail_criteria` — strings used when judging (may be multi-line)

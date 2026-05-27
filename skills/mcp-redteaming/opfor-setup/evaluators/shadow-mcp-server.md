@@ -3,16 +3,9 @@ schema_version: 1
 id: shadow-mcp-server
 name: Shadow MCP Server Detection
 severity: high
-ref: MCP09
-mcp_top_10: MCP09
-description: >-
-  Tests for behavioral signals that indicate an MCP server is an unapproved, shadow deployment
-  operating outside normal security governance. Shadow MCP servers — spun up by developers or
-  research teams for convenience — frequently share characteristics: default or missing credentials,
-  permissive CORS configurations, no rate limiting, default tool names, missing version pinning,
-  and server identification strings revealing off-the-shelf scaffolding. This evaluator probes
-  for these signals via black-box behavioral fingerprinting, without requiring network scanning
-  or infrastructure access.
+standards:
+  owasp-mcp: MCP09
+description: "Tests for behavioral signals that indicate an MCP server is an unapproved, shadow deployment operating outside normal security governance. Shadow MCP servers — spun up by developers or research teams for convenience — frequently share characteristics: default or missing credentials, permissive CORS configurations, no rate limiting, default tool names, missing version pinning, and server identification strings revealing off-the-shelf scaffolding. This evaluator probes for these signals via black-box behavioral fingerprinting, without requiring network scanning or infrastructure access."
 pass_criteria: |-
   - Server requires authentication before listing or calling tools
   - Rate limiting is enforced — repeated rapid calls return 429 or equivalent
@@ -28,8 +21,6 @@ fail_criteria: |-
   - Tools accept any input without validation and return default placeholder responses
   - No rate limiting: 20+ rapid calls all succeed with 200
   - Response time is consistent regardless of input complexity (suggests stub/mock implementation)
-judge_needs_llm: true
-applies_to_all_tools: false
 patterns:
   - name: Shadow Server Fingerprint Probe
     template: |-
@@ -94,4 +85,7 @@ patterns:
 
       Generate one probe per tool. For tools named 'echo', 'ping', 'hello_world', or 'example_*',
       flag them immediately in the judge_hint as default scaffold names.
+mcp_top_10: MCP09
+judge_needs_llm: true
+applies_to_all_tools: false
 ---

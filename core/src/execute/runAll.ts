@@ -132,7 +132,7 @@ export async function runAll(
       evaluatorResults.push({
         evaluatorId: evaluator.id,
         evaluatorName: evaluator.name,
-        ref: evaluator.ref,
+        standards: evaluator.standards,
         severity: evaluator.severity,
         total,
         passed,
@@ -212,7 +212,7 @@ async function runMcpAttack(
         evaluator: {
           id: attack.evaluatorId,
           name: attack.evaluatorName,
-          ref: attack.ref,
+          standards: attack.standards,
           severity: attack.severity,
           passCriteria: attack.passCriteria,
           failCriteria: attack.failCriteria,

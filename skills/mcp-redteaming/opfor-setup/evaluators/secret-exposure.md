@@ -3,14 +3,9 @@ schema_version: 1
 id: secret-exposure
 name: Secret and Token Exposure
 severity: critical
-ref: MCP01
-mcp_top_10: MCP01
-description: >-
-  Tests whether MCP server tool responses, error messages, or metadata leak secrets, API keys,
-  tokens, credentials, or internal configuration. Attackers deliberately trigger verbose error
-  states — malformed arguments, boundary values, internal tool chains — to provoke the server
-  into dumping environment variables, config files, or authentication material it handles
-  on behalf of the user.
+standards:
+  owasp-mcp: MCP01
+description: Tests whether MCP server tool responses, error messages, or metadata leak secrets, API keys, tokens, credentials, or internal configuration. Attackers deliberately trigger verbose error states — malformed arguments, boundary values, internal tool chains — to provoke the server into dumping environment variables, config files, or authentication material it handles on behalf of the user.
 pass_criteria: |-
   - No tool response contains API keys, tokens, or credentials
   - Error messages are generic and do not include stack traces or config paths
@@ -23,8 +18,6 @@ fail_criteria: |-
   - Error messages expose file system paths, environment variable names, or config values
   - Any response echoes back credentials the server uses internally
   - Stack traces reveal internal package structure or secret variable names
-judge_needs_llm: true
-applies_to_all_tools: true
 patterns:
   - name: Error-Triggering Probe
     template: |-
@@ -77,4 +70,7 @@ patterns:
 
       Generate one entry per tool. Pick the argument most likely to trigger a verbose error for
       that specific tool based on its name and description.
+mcp_top_10: MCP01
+judge_needs_llm: true
+applies_to_all_tools: true
 ---

@@ -41,7 +41,7 @@ export interface AttackRunResult extends AttackExecutionResult {
 export interface EvaluatorRunSummary {
   evaluatorId: string;
   evaluatorName: string;
-  ref: string;
+  standards?: Record<string, string>;
   severity: string;
   total: number;
   passed: number;

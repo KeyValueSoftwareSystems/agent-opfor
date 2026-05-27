@@ -983,6 +983,24 @@ function evidenceFor(record) {
   return text.length > 200 ? text.slice(0, 200) + "…" : text;
 }
 
+function standardsForEvaluatorId(evaluatorId) {
+  const ev = state.catalog?.evaluators?.find((e) => e.id === evaluatorId);
+  const s = ev?.standards;
+  if (!s || typeof s !== "object" || Array.isArray(s)) return undefined;
+  const entries = Object.entries(s).filter(
+    ([k, v]) => typeof k === "string" && k.trim() && typeof v === "string" && v.trim()
+  );
+  return entries.length ? Object.fromEntries(entries) : undefined;
+}
+
+function formatStandardsLabel(standards) {
+  if (!standards || !Object.keys(standards).length) return "";
+  return Object.entries(standards)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([k, v]) => `${k}: ${v}`)
+    .join(", ");
+}
+
 function buildReport() {
   const total = state.results.length;
   const passed = state.results.filter((r) => r.verdict === "PASS").length;
@@ -993,9 +1011,11 @@ function buildReport() {
   const evaluatorResults = state.results.map((r) => {
     const score = scoreFor(r);
     const sev = severityFull(r.sev);
+    const standards = standardsForEvaluatorId(r.id);
     return {
       id: r.id,
       name: r.name,
+      standards,
       severity: sev,
       totalTests: 1,
       passed: r.verdict === "PASS" ? 1 : 0,
@@ -1169,6 +1189,7 @@ function generateHtmlReport(report) {
       const tr = e.testResults[0] || {};
       const sevColor = SEV_HEX[e.severity] || "#64748B";
       const verdictPass = tr.verdict === "PASS";
+      const standardsLabel = formatStandardsLabel(e.standards);
       const transcript = turns.length
         ? `<div class="transcript">
               <div class="transcript-header">Conversation Transcript <span class="tc-count">${turns.length} turn${turns.length === 1 ? "" : "s"}</span></div>
@@ -1197,6 +1218,7 @@ function generateHtmlReport(report) {
               <div class="eval-summary-info">
                 <span class="eval-summary-name">${escapeHtml(e.name)}</span>
                 <span class="sev-tag" style="background:${sevColor}18;color:${sevColor};border-color:${sevColor}44">${escapeHtml(e.severity)}</span>
+                ${standardsLabel ? `<span class="standards-tag">${escapeHtml(standardsLabel)}</span>` : ""}
               </div>
             </div>
             <div class="eval-summary-right">
@@ -1211,6 +1233,11 @@ function generateHtmlReport(report) {
               <div class="meta-item"><div class="meta-k">Risk Score</div><div class="meta-v">${tr.score ?? "—"} / 10</div></div>
               <div class="meta-item"><div class="meta-k">Confidence</div><div class="meta-v">${tr.confidence != null ? tr.confidence + "%" : "—"}</div></div>
               <div class="meta-item"><div class="meta-k">Severity</div><div class="meta-v"><span class="sev-tag" style="background:${sevColor}18;color:${sevColor};border-color:${sevColor}44">${escapeHtml(e.severity)}</span></div></div>
+              ${
+                standardsLabel
+                  ? `<div class="meta-item meta-item-wide"><div class="meta-k">Standards</div><div class="meta-v standards-meta">${escapeHtml(standardsLabel)}</div></div>`
+                  : ""
+              }
             </div>
             ${
               tr.evidence && tr.evidence !== "N/A"
@@ -1255,10 +1282,11 @@ function generateHtmlReport(report) {
     .map((e, idx) => {
       const sevColor = SEV_HEX[e.severity] || "#64748B";
       const pass = e.passed > 0 && e.failed === 0;
+      const standardsLabel = formatStandardsLabel(e.standards);
       return `
         <tr>
           <td class="td-num">${String(idx + 1).padStart(2, "0")}</td>
-          <td><a href="#eval-${idx}" class="eval-link">${escapeHtml(e.name)}</a></td>
+          <td><a href="#eval-${idx}" class="eval-link">${escapeHtml(e.name)}</a>${standardsLabel ? `<br><span class="standards-tag">${escapeHtml(standardsLabel)}</span>` : ""}</td>
           <td><span class="sev-tag" style="background:${sevColor}18;color:${sevColor};border-color:${sevColor}44">${escapeHtml(e.severity)}</span></td>
           <td><span class="verdict-tag ${pass ? "verdict-pass" : "verdict-fail"}">${pass ? "PASS" : "FAIL"}</span></td>
           <td class="td-score">${e.avgScore.toFixed(1)}<span style="color:#94A3B8">/10</span></td>
@@ -1378,6 +1406,9 @@ function generateHtmlReport(report) {
 
   /* ── Badges ── */
   .sev-tag{display:inline-block;padding:2px 8px;border:1px solid;border-radius:4px;font-size:11px;font-weight:600;letter-spacing:0.03em;white-space:nowrap}
+  .standards-tag{font-size:11px;color:var(--muted);font-weight:500}
+  .standards-meta{font-weight:500;font-size:12px;color:var(--text-2)}
+  .meta-item-wide{grid-column:1/-1}
   .verdict-tag{display:inline-block;padding:2px 9px;border-radius:4px;font-size:11px;font-weight:700;letter-spacing:0.04em}
   .verdict-pass{background:var(--pass-bg);color:var(--pass);border:1px solid var(--pass-border)}
   .verdict-fail{background:var(--fail-bg);color:var(--fail);border:1px solid var(--fail-border)}

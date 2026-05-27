@@ -91,6 +91,8 @@ Evaluators live in `skills/*/opfor-setup/evaluators/` as Markdown files with YAM
 
 Pick `agent-redteaming` for chat/HTTP-target evaluators, `mcp-redteaming` for evaluators that fire `tools/call` against an MCP server.
 
+Full frontmatter contract: [docs/evaluator-schema.md](docs/evaluator-schema.md). Run `npm run validate:skills` before opening a PR.
+
 ### File format
 
 Create `skills/*/opfor-setup/evaluators/<your-id>.md`:
@@ -101,8 +103,8 @@ schema_version: 1
 id: your-evaluator-id # kebab-case, unique across all evaluators
 name: Human Readable Name
 severity: critical # critical | high | medium | low
-owasp: MCP01 # OWASP mapping (MCP01–MCP10, LLM01–LLM10, etc.)
-mcp_top_10: MCP01 # optional, if directly mapped
+standards:
+  owasp-mcp: MCP01
 description: >-
   One or two sentences describing what this evaluator tests and why it matters.
 pass_criteria: |-
@@ -139,6 +141,7 @@ patterns:
 - **`{{tool_list_json}}`** is replaced at generation time with the JSON-serialized `tools/list` response from the target MCP server.
 - Include a citation (CVE, OWASP reference, or paper) in the description when one exists.
 - One pattern per evaluator is enough to start. Add more patterns only if they probe a meaningfully different attack surface.
+- **Agent-redteaming patterns** use prose templates with `{{placeholders}}` (no JSON wrapper — the MCP example above is for MCP evaluators only). The attacker LLM fills in placeholders and adapts the pattern across turns.
 
 ### Test your evaluator
 

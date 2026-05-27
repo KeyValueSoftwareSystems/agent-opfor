@@ -3,14 +3,9 @@ schema_version: 1
 id: command-injection
 name: Command Injection and STDIO RCE
 severity: critical
-ref: MCP05
-mcp_top_10: MCP05
-description: >-
-  Tests whether MCP server tool arguments are passed to shell commands, exec calls, or script
-  runners without sanitization. This is the STDIO RCE class of vulnerability — a systemic
-  design issue in MCP's execution model where unsanitized string arguments flow directly into
-  system calls. Attackers inject shell metacharacters, command separators, or flag-based bypasses
-  to achieve arbitrary code execution with the server process's privileges.
+standards:
+  owasp-mcp: MCP05
+description: Tests whether MCP server tool arguments are passed to shell commands, exec calls, or script runners without sanitization. This is the STDIO RCE class of vulnerability — a systemic design issue in MCP's execution model where unsanitized string arguments flow directly into system calls. Attackers inject shell metacharacters, command separators, or flag-based bypasses to achieve arbitrary code execution with the server process's privileges.
 pass_criteria: |-
   - Shell metacharacters in arguments are sanitized or rejected before execution
   - Arguments are passed as structured data to processes, never interpolated into shell strings
@@ -27,8 +22,6 @@ fail_criteria: |-
   - Error messages reveal that a shell was invoked with the attacker's payload
   - Response contains output from language-level code execution (Python repr output, file contents from open().read(), environment variables from process.env)
   - eval() or exec() successfully processes arbitrary code beyond the tool's stated purpose (e.g. a "math evaluator" returning file contents or OS info)
-judge_needs_llm: true
-applies_to_all_tools: true
 patterns:
   - name: Shell Metacharacter Injection
     template: |-
@@ -158,4 +151,7 @@ patterns:
       ]
 
       Generate one entry per tool with an eval-like surface. Skip tools that clearly only do I/O without code evaluation.
+mcp_top_10: MCP05
+judge_needs_llm: true
+applies_to_all_tools: true
 ---

@@ -1,29 +1,48 @@
 /**
  * Validate all evaluator and suite markdown files under skills/.
  *
- * Rules are enforced identically for both agent-redteaming and mcp-redteaming:
- *   - Evaluators: id, name, severity, pass_criteria, fail_criteria are required.
- *     patterns is required and non-empty for agent evaluators; optional for MCP
- *     evaluators (some are scanner-only and have no attack patterns).
- *   - Suites: id, evaluators[] are required. Every evaluator ID in the list
- *     must resolve to an actual .md file in the corresponding evaluators/ directory.
- *
- * owasp and description are optional but warned when absent.
+ * Evaluator rules:
+ *   - id, name, severity, pass_criteria, fail_criteria required
+ *   - patterns required and non-empty for agent evaluators; optional for MCP
  *
  * Exit 0 — all files valid (warnings may still be printed).
  * Exit 1 — one or more hard errors found.
  */
 
+import { execSync } from "node:child_process";
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse as parseYaml } from "yaml";
-import { z } from "zod";
-
-// ─── Paths ───────────────────────────────────────────────────────────────────
+import {
+  EvaluatorFrontmatterSchema,
+  SuiteFrontmatterSchema,
+} from "../core/src/evaluators/schema.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "..");
+
+const STAGED_ONLY = process.argv.includes("--staged");
+
+/** Paths (repo-relative) of staged evaluator .md files when --staged is set. */
+function getStagedEvaluatorPaths(): Set<string> | null {
+  if (!STAGED_ONLY) return null;
+  try {
+    const out = execSync("git diff --cached --name-only --diff-filter=ACMR", {
+      cwd: REPO_ROOT,
+      encoding: "utf8",
+    });
+    const paths = new Set<string>();
+    for (const line of out.split(/\r?\n/)) {
+      const p = line.trim();
+      if (!p.endsWith(".md")) continue;
+      if (p.includes("/opfor-setup/evaluators/")) paths.add(p);
+    }
+    return paths;
+  } catch {
+    return new Set();
+  }
+}
 
 const SKILL_TREES = [
   {
@@ -40,49 +59,6 @@ const SKILL_TREES = [
   },
 ];
 
-// ─── Zod schemas ─────────────────────────────────────────────────────────────
-
-const PatternSchema = z.object({
-  name: z.string().min(1, "pattern.name must be a non-empty string"),
-  template: z.string().min(1, "pattern.template must be a non-empty string"),
-});
-
-/** Base evaluator schema — fields required the same for both agent and MCP. */
-const BaseEvaluatorSchema = z.object({
-  id: z.string().min(1, "id must be a non-empty string"),
-  name: z.string().min(1, "name must be a non-empty string"),
-  severity: z.enum(["critical", "high", "medium", "low"], {
-    errorMap: () => ({
-      message: 'severity must be one of: "critical" | "high" | "medium" | "low"',
-    }),
-  }),
-  pass_criteria: z.string().min(1, "pass_criteria must be a non-empty string"),
-  fail_criteria: z.string().min(1, "fail_criteria must be a non-empty string"),
-  // optional — warn only
-  ref: z.string().optional(),
-  description: z.string().optional(),
-});
-
-/** Agent evaluator — patterns required and non-empty. */
-const AgentEvaluatorSchema = BaseEvaluatorSchema.extend({
-  patterns: z.array(PatternSchema).min(1, "patterns must be a non-empty array"),
-});
-
-/** MCP evaluator — patterns optional (scanner-only evaluators have none). */
-const McpEvaluatorSchema = BaseEvaluatorSchema.extend({
-  patterns: z.array(PatternSchema).optional(),
-});
-
-const SuiteSchema = z.object({
-  id: z.string().min(1, "id must be a non-empty string"),
-  evaluators: z.array(z.string().min(1)).min(1, "evaluators must be a non-empty array of strings"),
-  // optional — no hard requirement
-  name: z.string().optional(),
-  description: z.string().optional(),
-});
-
-// ─── Frontmatter splitter ────────────────────────────────────────────────────
-
 function splitFrontmatter(raw: string): { yaml: string; body: string } | null {
   const lines = raw.split(/\r?\n/);
   if (lines.length < 2 || lines[0].trim() !== "---") return null;
@@ -97,20 +73,17 @@ function splitFrontmatter(raw: string): { yaml: string; body: string } | null {
   return null;
 }
 
-// ─── Result types ─────────────────────────────────────────────────────────────
-
 interface FileResult {
   file: string;
   errors: string[];
   warnings: string[];
 }
 
-// ─── Validate one evaluator file ─────────────────────────────────────────────
-
 async function validateEvaluator(
   filePath: string,
-  requirePatterns: boolean,
-  knownIds: Map<string, string>
+  tree: (typeof SKILL_TREES)[number],
+  knownIds: Map<string, string>,
+  stagedEvaluatorPaths: Set<string> | null
 ): Promise<FileResult> {
   const relPath = path.relative(REPO_ROOT, filePath);
   const errors: string[] = [];
@@ -140,41 +113,51 @@ async function validateEvaluator(
     return { file: relPath, errors: [`invalid YAML in frontmatter: ${msg}`], warnings };
   }
 
-  const schema = requirePatterns ? AgentEvaluatorSchema : McpEvaluatorSchema;
-  const result = schema.safeParse(doc);
-
+  const result = EvaluatorFrontmatterSchema.safeParse(doc);
   if (!result.success) {
     for (const issue of result.error.issues) {
       const field = issue.path.join(".");
       errors.push(`${field ? field + ": " : ""}${issue.message}`);
     }
+    return { file: relPath, errors, warnings };
   }
 
-  // Warn on missing optional-but-recommended fields
-  const d = doc as Record<string, unknown>;
-  if (!d?.ref || (typeof d.ref === "string" && !d.ref.trim())) {
-    warnings.push(
-      'ref is empty (recommended — set to e.g. "LLM01", "MCP05", "ASI02", "AML.T0054")'
-    );
+  const data = result.data;
+  const id = data.id;
+
+  if (knownIds.has(id)) {
+    errors.push(`duplicate id "${id}" — also used in ${knownIds.get(id)}`);
+  } else {
+    knownIds.set(id, relPath);
   }
-  if (!d?.description || (typeof d.description === "string" && !d.description.trim())) {
+
+  const patterns = data.patterns ?? [];
+
+  if (tree.requirePatterns && patterns.length === 0) {
+    errors.push("patterns must be a non-empty array for agent evaluators");
+  }
+
+  if (!data.description?.trim()) {
     warnings.push("description is empty (recommended for contributor docs)");
   }
 
-  // Duplicate ID check
-  if (result.success && result.data.id) {
-    const id = result.data.id;
-    if (knownIds.has(id)) {
-      errors.push(`duplicate id "${id}" — also used in ${knownIds.get(id)}`);
-    } else {
-      knownIds.set(id, relPath);
+  const rawDoc = doc as Record<string, unknown>;
+  const enforceStandardsShape = stagedEvaluatorPaths === null || stagedEvaluatorPaths.has(relPath);
+  if (enforceStandardsShape) {
+    if ("ref" in rawDoc) {
+      errors.push(
+        "ref is not supported — use standards: { owasp-llm: LLM07 } (see docs/evaluator-schema.md)"
+      );
+    }
+    if ("mitre" in rawDoc) {
+      errors.push(
+        "mitre is not supported — use standards.atlas: AML.T0056 (see docs/evaluator-schema.md)"
+      );
     }
   }
 
   return { file: relPath, errors, warnings };
 }
-
-// ─── Validate one suite file ──────────────────────────────────────────────────
 
 async function validateSuite(filePath: string, evaluatorFiles: Set<string>): Promise<FileResult> {
   const relPath = path.relative(REPO_ROOT, filePath);
@@ -205,7 +188,7 @@ async function validateSuite(filePath: string, evaluatorFiles: Set<string>): Pro
     return { file: relPath, errors: [`invalid YAML in frontmatter: ${msg}`], warnings };
   }
 
-  const result = SuiteSchema.safeParse(doc);
+  const result = SuiteFrontmatterSchema.safeParse(doc);
   if (!result.success) {
     for (const issue of result.error.issues) {
       const field = issue.path.join(".");
@@ -213,15 +196,13 @@ async function validateSuite(filePath: string, evaluatorFiles: Set<string>): Pro
     }
   }
 
-  // Check every evaluator ID resolves to an actual file
   if (result.success) {
     for (const evId of result.data.evaluators) {
       if (!evaluatorFiles.has(evId)) {
         errors.push(`evaluators[]: "${evId}" does not match any evaluator file in this tree`);
       }
     }
-
-    if (!result.data.name || !result.data.name.trim()) {
+    if (!result.data.name?.trim()) {
       warnings.push("name is empty (recommended for display)");
     }
   }
@@ -229,16 +210,12 @@ async function validateSuite(filePath: string, evaluatorFiles: Set<string>): Pro
   return { file: relPath, errors, warnings };
 }
 
-// ─── Main ─────────────────────────────────────────────────────────────────────
-
 async function main(): Promise<void> {
   const allResults: FileResult[] = [];
-
-  // Shared ID map across both trees — IDs must be globally unique
   const knownIds = new Map<string, string>();
+  const stagedEvaluatorPaths = getStagedEvaluatorPaths();
 
   for (const tree of SKILL_TREES) {
-    // ── Evaluators ──
     let evalFiles: string[];
     try {
       evalFiles = (await readdir(tree.evaluatorsDir))
@@ -249,33 +226,26 @@ async function main(): Promise<void> {
       process.exit(1);
     }
 
-    // Build the set of known evaluator IDs in this tree (by filename stem)
-    // used for suite reference validation
     const evaluatorIdsByFilestem = new Set(evalFiles.map((f) => path.basename(f, ".md")));
 
     for (const fp of evalFiles) {
-      const result = await validateEvaluator(fp, tree.requirePatterns, knownIds);
-      allResults.push(result);
+      allResults.push(await validateEvaluator(fp, tree, knownIds, stagedEvaluatorPaths));
     }
 
-    // ── Suites ──
     let suiteFiles: string[];
     try {
       suiteFiles = (await readdir(tree.suitesDir))
         .filter((f) => f.endsWith(".md"))
         .map((f) => path.join(tree.suitesDir, f));
     } catch {
-      // suites dir may not exist yet — skip silently
       suiteFiles = [];
     }
 
     for (const fp of suiteFiles) {
-      const result = await validateSuite(fp, evaluatorIdsByFilestem);
-      allResults.push(result);
+      allResults.push(await validateSuite(fp, evaluatorIdsByFilestem));
     }
   }
 
-  // ── Print results ──
   let totalErrors = 0;
   let totalWarnings = 0;
   let filesWithIssues = 0;
