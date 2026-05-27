@@ -180,7 +180,7 @@ function baseConfig(turns: number) {
       // Real evaluator loaded from skills/agent-redteaming/opfor-setup/evaluators/
       evaluators: ["agent-goal-hijack"],
     },
-    attackLlm: {
+    attackerLlm: {
       provider: "openai-compatible" as const,
       model: "smoke-model",
       apiKeyEnv: "SMOKE_FAKE_API_KEY",
