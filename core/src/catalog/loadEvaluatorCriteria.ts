@@ -4,6 +4,7 @@ import { parse as parseYaml } from "yaml";
 import { getCatalogRoot } from "./loadCatalog.js";
 import { splitYamlFrontmatter } from "../util/yamlFrontmatter.js";
 import type { EvaluatorCriteria } from "../run/judge.js";
+import { resolveStandardsFromFrontmatter } from "../evaluators/standards.js";
 
 export async function loadEvaluatorCriteria(evaluatorId: string): Promise<EvaluatorCriteria> {
   const dir = path.join(getCatalogRoot(), "evaluators");
@@ -11,10 +12,11 @@ export async function loadEvaluatorCriteria(evaluatorId: string): Promise<Evalua
   const sp = splitYamlFrontmatter(raw);
   if (!sp) throw new Error(`Evaluator ${evaluatorId}: missing YAML frontmatter`);
   const doc = parseYaml(sp.yaml) as Record<string, unknown>;
+  const standards = resolveStandardsFromFrontmatter(doc);
   return {
     id: typeof doc.id === "string" ? doc.id : evaluatorId,
     name: typeof doc.name === "string" ? doc.name : evaluatorId,
-    ref: typeof doc.ref === "string" ? doc.ref : "",
+    ...(standards ? { standards } : {}),
     severity: typeof doc.severity === "string" ? doc.severity : "high",
     passCriteria: typeof doc.pass_criteria === "string" ? doc.pass_criteria : "",
     failCriteria: typeof doc.fail_criteria === "string" ? doc.fail_criteria : "",

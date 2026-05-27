@@ -3,17 +3,9 @@ schema_version: 1
 id: mcp-supply-chain
 name: Software Supply Chain Attacks & Dependency Tampering
 severity: high
-ref: MCP04
-mcp_top_10: MCP04
-description: >-
-  Tests whether an MCP server exposes behavioral signals of supply chain compromise — malicious
-  or backdoored open-source packages, compromised connectors, or tampered model-side plugins.
-  Since source code is not available in black-box testing, this evaluator uses behavioral
-  fingerprinting: it sends inputs designed to trigger anomalous responses that are inconsistent
-  with the tool's declared purpose, which is a hallmark of tampered dependencies. It also
-  probes whether the server exposes its dependency graph, version information, or build metadata
-  in error paths — information an attacker uses to identify which known-vulnerable library to
-  exploit next.
+standards:
+  owasp-mcp: MCP04
+description: "Tests whether an MCP server exposes behavioral signals of supply chain compromise — malicious or backdoored open-source packages, compromised connectors, or tampered model-side plugins. Since source code is not available in black-box testing, this evaluator uses behavioral fingerprinting: it sends inputs designed to trigger anomalous responses that are inconsistent with the tool's declared purpose, which is a hallmark of tampered dependencies. It also probes whether the server exposes its dependency graph, version information, or build metadata in error paths — information an attacker uses to identify which known-vulnerable library to exploit next."
 pass_criteria: |-
   - Tool responses are consistent with the tool's declared purpose across all inputs
   - Error messages do not reveal library names, versions, or dependency paths
@@ -28,8 +20,6 @@ fail_criteria: |-
   - Error messages expose file paths inside node_modules, site-packages, or vendor directories
   - Tool responses include version information for internal dependencies that could be used to target known CVEs
   - A tool that should return data instead returns a redirect, callback URL, or external fetch attempt
-judge_needs_llm: true
-applies_to_all_tools: true
 patterns:
   - name: Dependency Version Leak Probe
     template: |-
@@ -94,4 +84,7 @@ patterns:
       ]
 
       Generate one entry per tool. Pick the most likely attack type given the tool's name and schema.
+mcp_top_10: MCP04
+judge_needs_llm: true
+applies_to_all_tools: true
 ---

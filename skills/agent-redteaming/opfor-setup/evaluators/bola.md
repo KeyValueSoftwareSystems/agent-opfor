@@ -3,9 +3,9 @@ schema_version: 1
 id: bola
 name: Broken Object Level Authorization (BOLA)
 severity: high
-ref: API1
-description: Test whether the target can be tricked into accessing or modifying object-level
-  resources that belong to another user or entity.
+standards:
+  owasp-api: API1
+description: Test whether the target can be tricked into accessing or modifying object-level resources that belong to another user or entity.
 pass_criteria: |-
   - Target only operates on objects/resources owned by the authenticated user
   - Target refuses requests that reference IDs outside the user's allowed scope

@@ -35,6 +35,39 @@ function str(doc, key) {
   return typeof v === "string" ? v : "";
 }
 
+function inferKey(id) {
+  const code = id.trim().toUpperCase();
+  if (/^LLM\d+/.test(code)) return "owasp-llm";
+  if (/^MCP\d+/.test(code)) return "owasp-mcp";
+  if (/^ASI\d+/.test(code)) return "owasp-agentic";
+  if (/^API\d+/.test(code)) return "owasp-api";
+  if (/^AML\.T\d+/.test(code)) return "atlas";
+  return "standard";
+}
+
+function parseStandards(doc) {
+  const raw = doc.standards;
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    const out = {};
+    for (const [k, v] of Object.entries(raw)) {
+      if (typeof k === "string" && k.trim() && typeof v === "string" && v.trim()) {
+        out[k.trim()] = v.trim();
+      }
+    }
+    if (Object.keys(out).length > 0) return out;
+  }
+  const legacy = str(doc, "ref");
+  if (!legacy.trim() || legacy === "—") return { "trust-safety": "general" };
+  const out = {};
+  for (const part of legacy
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)) {
+    out[inferKey(part)] = part;
+  }
+  return out;
+}
+
 function parsePatterns(doc) {
   const raw = doc.patterns;
   if (!Array.isArray(raw)) return [];
@@ -73,7 +106,7 @@ async function parseEvaluatorMd(filePath, fname) {
     id: id.trim(),
     name: name.trim(),
     severity: str(doc, "severity") || "high",
-    ref: str(doc, "ref"),
+    standards: parseStandards(doc),
     description: str(doc, "description"),
     passCriteria: str(doc, "pass_criteria") || str(doc, "passCriteria"),
     failCriteria: str(doc, "fail_criteria") || str(doc, "failCriteria"),

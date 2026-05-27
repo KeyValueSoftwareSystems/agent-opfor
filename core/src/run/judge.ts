@@ -87,7 +87,7 @@ export function errorJudge(errorMessage: string): JudgeResult {
 export interface EvaluatorCriteria {
   id: string;
   name: string;
-  ref: string;
+  standards?: Record<string, string>;
   severity: string;
   passCriteria: string;
   failCriteria: string;

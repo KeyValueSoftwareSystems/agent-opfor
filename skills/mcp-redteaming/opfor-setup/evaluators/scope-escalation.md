@@ -3,14 +3,9 @@ schema_version: 1
 id: scope-escalation
 name: Scope Escalation and Privilege Bypass
 severity: high
-ref: MCP02
-mcp_top_10: MCP02
-description: >-
-  Tests whether the MCP server enforces access boundaries on individual tool calls — including
-  host filesystem reads (CWE-22 style path violations): blacklist bypass where blocked prefixes do
-  not cover descendants (/etc vs /etc/passwd), naive equality checks without containment against a
-  trusted root, and traversal spellings (../, redundant dots, symlinks). Also covers admin IDs,
-  cross-user access, and over-privileged non-path arguments when relevant.
+standards:
+  owasp-mcp: MCP02
+description: "Tests whether the MCP server enforces access boundaries on individual tool calls — including host filesystem reads (CWE-22 style path violations): blacklist bypass where blocked prefixes do not cover descendants (/etc vs /etc/passwd), naive equality checks without containment against a trusted root, and traversal spellings (../, redundant dots, symlinks). Also covers admin IDs, cross-user access, and over-privileged non-path arguments when relevant."
 pass_criteria: |-
   - Server rejects requests that exceed the tool's declared scope with a clear error or denial
   - Read-only tools reject write-like arguments when those imply mutation outside scope
@@ -31,8 +26,6 @@ fail_criteria: |-
     `absolute_file_paths`, `relevant_files`, `files_checked`, `path`, `file_path`, etc.)
   - Cross-account / cross-tenant IDOR or privilege escalation unrelated to paths — unchanged severity rules apply
   - Server applies scope checks inconsistently across tools such that one rejects equivalent misuse another accepts
-judge_needs_llm: true
-applies_to_all_tools: true
 patterns:
   - name: Over-Scoped Request
     template: |-
@@ -94,4 +87,7 @@ patterns:
       ]
 
       Generate one entry per tool — filesystem probes take precedence whenever path-capable arguments exist.
+mcp_top_10: MCP02
+judge_needs_llm: true
+applies_to_all_tools: true
 ---
