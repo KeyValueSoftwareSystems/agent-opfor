@@ -79,7 +79,7 @@ The agent will call `opfor_list_evaluators` → `opfor_setup` → `opfor_execute
 
 ### `opfor_list_evaluators`
 
-No parameters. Returns every evaluator ID, severity, standard reference tag (`ref`), and all predefined suites. Call this first when you haven't specified evaluator IDs.
+No parameters. Returns every evaluator ID, severity, `standards` map, and all predefined suites. Call this first when you haven't specified evaluator IDs.
 
 ---
 

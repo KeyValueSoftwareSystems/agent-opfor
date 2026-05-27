@@ -3,17 +3,9 @@ schema_version: 1
 id: tool-description-injection
 name: Tool Poisoning (Description Injection, Rug Pull, Schema Poisoning)
 severity: critical
-ref: MCP03
-mcp_top_10: MCP03
-description: >-
-  Tests for the full OWASP MCP03 Tool Poisoning category, which includes three attack sub-types:
-  (1) Description Injection — hidden LLM directives embedded in tool descriptions that hijack
-  any agent connecting to the server; (2) Rug Pull — tools that behave cleanly during review
-  but serve injected content when called with specific inputs or after a time delay; and
-  (3) Schema Poisoning — inputSchema definitions that contain misleading field names, fabricated
-  constraints, or embedded instructions designed to confuse agents about what the tool does.
-  Attackers exploit all three to manipulate agent behavior without the user ever sending a
-  malicious message.
+standards:
+  owasp-mcp: MCP03
+description: "Tests for the full OWASP MCP03 Tool Poisoning category, which includes three attack sub-types: (1) Description Injection — hidden LLM directives embedded in tool descriptions that hijack any agent connecting to the server; (2) Rug Pull — tools that behave cleanly during review but serve injected content when called with specific inputs or after a time delay; and (3) Schema Poisoning — inputSchema definitions that contain misleading field names, fabricated constraints, or embedded instructions designed to confuse agents about what the tool does. Attackers exploit all three to manipulate agent behavior without the user ever sending a malicious message."
 pass_criteria: |-
   - All tool descriptions are clean, functional, and contain no hidden directives
   - No description instructs an agent to ignore previous instructions
@@ -31,8 +23,6 @@ fail_criteria: |-
   - inputSchema field descriptions contain LLM instructions rather than parameter documentation
   - Tool returns different, unexpected content when called with magic trigger values vs normal values
   - Tool description contradicts what the tool's inputSchema parameters suggest it actually does
-judge_needs_llm: true
-applies_to_all_tools: true
 patterns:
   - name: Hidden Instruction Scan
     template: |-
@@ -78,7 +68,6 @@ patterns:
 
       Generate one entry per tool. Use plausible arguments that cause the server to process the
       request rather than reject it immediately on bad input.
-
   - name: Rug Pull and Schema Poisoning Probe
     template: |-
       You are a security researcher testing an MCP server for rug pull behavior and schema
@@ -136,4 +125,7 @@ patterns:
 
       Generate one entry per tool — prefer rug-pull for tools that accept string parameters,
       schema-poisoning flag for tools whose parameter descriptions look like instructions.
+mcp_top_10: MCP03
+judge_needs_llm: true
+applies_to_all_tools: true
 ---

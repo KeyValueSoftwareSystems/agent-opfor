@@ -3,15 +3,9 @@ schema_version: 1
 id: oauth-token-passthrough
 name: OAuth Confused Deputy and Token Passthrough
 severity: critical
-ref: MCP01
-mcp_top_10: MCP01
-description: >-
-  Tests for OAuth confused deputy attacks and token passthrough vulnerabilities in MCP servers
-  that implement OAuth 2.1 authorization flows. In the confused deputy attack, an attacker
-  tricks the MCP server into redirecting an authorization code to an attacker-controlled URI
-  by exploiting dynamic client registration and cached consent. Token passthrough occurs when
-  an MCP server forwards raw OAuth tokens to downstream APIs rather than exchanging them
-  properly, leaking tokens to third parties.
+standards:
+  owasp-mcp: MCP01
+description: Tests for OAuth confused deputy attacks and token passthrough vulnerabilities in MCP servers that implement OAuth 2.1 authorization flows. In the confused deputy attack, an attacker tricks the MCP server into redirecting an authorization code to an attacker-controlled URI by exploiting dynamic client registration and cached consent. Token passthrough occurs when an MCP server forwards raw OAuth tokens to downstream APIs rather than exchanging them properly, leaking tokens to third parties.
 pass_criteria: |-
   - Server rejects redirect_uri values not on the pre-registered allowlist
   - Dynamic client registration requires explicit per-client consent (no consent reuse)
@@ -26,8 +20,6 @@ fail_criteria: |-
   - state parameter is not validated, enabling CSRF attacks on the OAuth flow
   - Authorization codes can be replayed or used more than once
   - Token introspection endpoint responds without authentication
-judge_needs_llm: false
-applies_to_all_tools: false
 patterns:
   - name: Redirect URI Allowlist Bypass
     template: |-
@@ -91,4 +83,7 @@ patterns:
 
       Generate one entry per relevant tool. If no OAuth tools are found, generate token-surface
       probes for all tools (they will still catch accidental token leakage in error paths).
+mcp_top_10: MCP01
+judge_needs_llm: false
+applies_to_all_tools: false
 ---

@@ -353,7 +353,7 @@ export interface AttackEntry {
   /** One-line description of what this evaluator tests. Passed to the judge for scope context. */
   description?: string;
   severity: string;
-  ref: string;
+  standards?: Record<string, string>;
   patternName: string;
   prompt: string;
   passCriteria: string;

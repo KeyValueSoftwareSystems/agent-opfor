@@ -81,7 +81,7 @@ All metrics are derived from attack execution results. Define them as follows:
       "id": "string (evaluator ID)",
       "name": "string (evaluator display name)",
       "severity": "string (critical|high|medium|low)",
-      "ref": "string (e.g. OWASP-MCP-01, MITRE T1059)",
+      "standards": { "owasp-mcp": "MCP01", "atlas": "AML.T0056" },
       "totalAttacks": "number",
       "passed": "number",
       "failed": "number",

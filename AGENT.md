@@ -171,7 +171,8 @@ schema_version: 1
 id: command-injection # must match filename without .md
 name: Command Injection
 severity: critical # critical | high | medium | low
-owasp: MCP05
+standards:
+  owasp-mcp: MCP05
 description: >-
   One or two sentences on what this evaluator tests.
 pass_criteria: |-
@@ -264,7 +265,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) — "Adding a test agent" section.
 ## Adding an evaluator (no TypeScript needed)
 
 1. Create `skills/agent-redteaming/opfor-setup/evaluators/<id>.md` (or `skills/mcp-redteaming/opfor-setup/evaluators/<id>.md`)
-2. Fill YAML frontmatter: `id`, `name`, `severity`, `owasp`, `description`, `pass_criteria`, `fail_criteria`, `patterns`
+2. Fill YAML frontmatter: `id`, `name`, `severity`, `standards`, `description`, `pass_criteria`, `fail_criteria`, `patterns` (see `docs/evaluator-schema.md`)
 3. Add the ID to at least one suite's `evaluators:` list in `skills/*/opfor-setup/suites/`
 4. Test: `opfor setup --agent --empty` (or `--mcp --empty`) → edit `selection.evaluators` in the generated config → `opfor execute --config <path>`
 5. PR to `master` — see [CONTRIBUTING.md](CONTRIBUTING.md)

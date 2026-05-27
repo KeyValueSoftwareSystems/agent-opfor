@@ -3,16 +3,9 @@ schema_version: 1
 id: audit-telemetry
 name: Lack of Audit and Telemetry
 severity: medium
-ref: MCP08
-mcp_top_10: MCP08
-description: >-
-  Tests whether an MCP server provides observable audit signals — request IDs, trace headers,
-  structured error codes, and activity logs — that would allow an operator to detect and
-  investigate security incidents after the fact. A server with no telemetry is a blind spot:
-  attackers can call tools, exfiltrate data, and pivot across the system with no forensic trail.
-  This evaluator probes black-box signals of telemetry absence: do responses include request IDs?
-  Do errors include structured codes? Does the server respond to standard observability headers?
-  It also tests whether the server inadvertently exposes internal audit logs via tool calls.
+standards:
+  owasp-mcp: MCP08
+description: "Tests whether an MCP server provides observable audit signals — request IDs, trace headers, structured error codes, and activity logs — that would allow an operator to detect and investigate security incidents after the fact. A server with no telemetry is a blind spot: attackers can call tools, exfiltrate data, and pivot across the system with no forensic trail. This evaluator probes black-box signals of telemetry absence: do responses include request IDs? Do errors include structured codes? Does the server respond to standard observability headers? It also tests whether the server inadvertently exposes internal audit logs via tool calls."
 pass_criteria: |-
   - Tool responses include a request ID, trace ID, or correlation token in the response envelope
   - Errors return structured error codes, not raw exception messages
@@ -26,8 +19,6 @@ fail_criteria: |-
   - Any tool returns audit log content, server access logs, or request history
   - A tool response includes another user's request ID or session data (audit log cross-contamination)
   - The server has a tool that reads logs and returns them without access control
-judge_needs_llm: true
-applies_to_all_tools: false
 patterns:
   - name: Telemetry Absence Probe
     template: |-
@@ -90,4 +81,7 @@ patterns:
       ]
 
       Generate one probe per tool.
+mcp_top_10: MCP08
+judge_needs_llm: true
+applies_to_all_tools: false
 ---

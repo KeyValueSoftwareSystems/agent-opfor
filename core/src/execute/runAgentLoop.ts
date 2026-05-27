@@ -130,7 +130,7 @@ export async function runAgentAttack(
               id: attack.evaluatorId,
               name: attack.evaluatorName,
               severity: attack.severity,
-              ref: attack.ref,
+              standards: attack.standards,
               description: attack.description ?? "",
               passCriteria: attack.passCriteria,
               failCriteria: attack.failCriteria,

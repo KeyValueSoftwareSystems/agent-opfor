@@ -91,6 +91,8 @@ Evaluators live in `skills/*/opfor-setup/evaluators/` as Markdown files with YAM
 
 Pick `agent-redteaming` for chat/HTTP-target evaluators, `mcp-redteaming` for evaluators that fire `tools/call` against an MCP server.
 
+Full frontmatter contract: [docs/evaluator-schema.md](docs/evaluator-schema.md). Run `npm run validate:skills` before opening a PR.
+
 ### File format
 
 Create `skills/*/opfor-setup/evaluators/<your-id>.md`:
@@ -101,8 +103,8 @@ schema_version: 1
 id: your-evaluator-id # kebab-case, unique across all evaluators
 name: Human Readable Name
 severity: critical # critical | high | medium | low
-owasp: MCP01 # OWASP mapping (MCP01–MCP10, LLM01–LLM10, etc.)
-mcp_top_10: MCP01 # optional, if directly mapped
+standards:
+  owasp-mcp: MCP01
 description: >-
   One or two sentences describing what this evaluator tests and why it matters.
 pass_criteria: |-

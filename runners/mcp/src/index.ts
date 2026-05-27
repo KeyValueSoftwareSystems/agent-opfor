@@ -39,7 +39,14 @@ server.tool(
           `    Evaluators (${s.evaluatorIds.length}): ${s.evaluatorIds.join(", ")}`
       );
       const evalLines = catalog.evaluators.map(
-        (e) => `  ${e.id}  [${e.severity.toUpperCase()}]  ${e.name}\n    Ref: ${e.ref ?? "—"}`
+        (e) =>
+          `  ${e.id}  [${e.severity.toUpperCase()}]  ${e.name}\n    Standards: ${
+            e.standards
+              ? Object.entries(e.standards)
+                  .map(([k, v]) => `${k}: ${v}`)
+                  .join(", ")
+              : "—"
+          }`
       );
 
       return {
