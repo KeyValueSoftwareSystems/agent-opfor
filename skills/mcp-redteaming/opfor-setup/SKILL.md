@@ -132,7 +132,7 @@ Scan `./evaluators/` for all `.md` files. For each, read the YAML frontmatter an
 - `id` — evaluator ID
 - `name` — display name
 - `severity` — critical, high, medium, low
-- `ref` — reference standard tag (OWASP, MITRE, etc.)
+- `standards` — map of taxonomy → ID (e.g. `owasp-mcp: MCP01`, `atlas: AML.T0056`)
 - `description` — what it tests
 - `patterns` — array of `{ name, template }` (may be empty for scanner-only evaluators)
 - `pass_criteria` / `fail_criteria` — judging guidance

@@ -78,7 +78,7 @@ function toEvaluatorViewModel(ev: EvaluatorResult): EvaluatorViewModel {
   return {
     evaluatorId: ev.evaluatorId,
     evaluatorName: ev.evaluatorName,
-    ref: ev.ref,
+    standards: ev.standards,
     severity: ev.severity,
     total: ev.total,
     passed: ev.passed,

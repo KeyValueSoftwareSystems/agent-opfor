@@ -34,6 +34,15 @@ export async function runAgentAttack(
   const history: { role: "user" | "assistant"; content: string }[] = [
     ...(context?.initialHistory ?? []),
   ];
+  // Parallel meta channel for attacker tag output (not sent to target).
+  // Used to thread PREVIOUS_TECHNIQUE into the next turn's user-block.
+  // Resume limitation: on resumed runs (initialHistory non-empty), this
+  // array starts empty even when startTurn > 1, so the first resumed turn
+  // has no PREVIOUS_TECHNIQUE and the refusal-pivot rule (STEP 5) skips.
+  // Subsequent turns within the resumed session populate and work normally.
+  // To eliminate: persist meta alongside history in the resume context
+  // (Phase 2 alongside AgentTurnRecord.technique field).
+  const attackerMeta: Array<{ technique?: string; lastReplyHook?: string }> = [];
   let finalPrompt = attack.prompt ?? "";
   let finalResponse = "";
 
@@ -54,26 +63,45 @@ export async function runAgentAttack(
 
   const startTurn = Math.floor(history.length / 2) + 1;
   for (let t = startTurn; t <= attack.turns; t++) {
-    const prompt =
-      t === 1 && attack.prompt
-        ? finalPrompt
-        : await generateNextAdaptiveTurn({
-            history,
-            attack,
-            patterns,
-            target: context?.targetConfig ?? {
-              kind: "agent",
-              name: "",
-              description: "",
-              type: "http-endpoint",
-            },
-            model: attackModel,
-            attackObjective: attack.attackObjective,
-            businessUseCase: attack.businessUseCase,
-            siteSnapshot: attack.siteSnapshot,
-            maxLength: attack.maxMessageLength,
-            upstreamSessions: attack.upstreamSessions,
-          });
+    let prompt: string;
+    // Mode discriminator. Comprehensive mode seeds `attack.prompt` from the
+    // pattern template via generateAttacks → turn 1 uses that seed verbatim.
+    // Adaptive mode sets `attack.prompt = ""` (sentinel) → falls through to
+    // generateNextAdaptiveTurn for turn 1, letting the OPENING-variant prompt
+    // pick the opening angle dynamically.
+    if (t === 1 && attack.prompt) {
+      prompt = finalPrompt;
+      // Push empty meta so attackerMeta indices stay aligned with turn numbers.
+      attackerMeta.push({});
+    } else {
+      const result = await generateNextAdaptiveTurn({
+        history,
+        attack,
+        patterns,
+        target: context?.targetConfig ?? {
+          kind: "agent",
+          name: "",
+          description: "",
+          type: "http-endpoint",
+        },
+        model: attackModel,
+        currentTurn: t,
+        maxTurns: attack.turns,
+        attackObjective: attack.attackObjective,
+        businessUseCase: attack.businessUseCase,
+        siteSnapshot: attack.siteSnapshot,
+        maxLength: attack.maxMessageLength,
+        previousTechnique: attackerMeta[attackerMeta.length - 1]?.technique,
+        upstreamSessions: attack.upstreamSessions,
+      });
+      prompt = result.message;
+      attackerMeta.push({ technique: result.technique, lastReplyHook: result.lastReplyHook });
+      log.dim(
+        `[attacker] turn=${t}/${attack.turns} technique=${result.technique ?? "unknown"} hook=${
+          result.lastReplyHook?.slice(0, 60) ?? "-"
+        }`
+      );
+    }
 
     const response = await target.send(prompt, {
       propagation,
@@ -103,7 +131,7 @@ export async function runAgentAttack(
               id: attack.evaluatorId,
               name: attack.evaluatorName,
               severity: attack.severity,
-              ref: attack.ref,
+              standards: attack.standards,
               description: attack.description ?? "",
               passCriteria: attack.passCriteria,
               failCriteria: attack.failCriteria,

@@ -89,7 +89,7 @@ export interface AttackSpec {
   evaluatorName: string;
   description?: string;
   severity: string;
-  ref: string;
+  standards?: Record<string, string>;
   patternName: string;
   passCriteria: string;
   failCriteria: string;
@@ -152,7 +152,7 @@ export interface AttackResult {
 export interface EvaluatorResult {
   evaluatorId: string;
   evaluatorName: string;
-  ref: string;
+  standards?: Record<string, string>;
   severity: string;
   total: number;
   passed: number;
