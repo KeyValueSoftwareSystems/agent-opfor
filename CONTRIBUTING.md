@@ -139,6 +139,7 @@ patterns:
 - **`{{tool_list_json}}`** is replaced at generation time with the JSON-serialized `tools/list` response from the target MCP server.
 - Include a citation (CVE, OWASP reference, or paper) in the description when one exists.
 - One pattern per evaluator is enough to start. Add more patterns only if they probe a meaningfully different attack surface.
+- **Agent-redteaming patterns** use prose templates with `{{placeholders}}` (no JSON wrapper — the MCP example above is for MCP evaluators only). The attacker LLM fills in placeholders and adapts the pattern across turns.
 
 ### Test your evaluator
 
