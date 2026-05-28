@@ -10,4 +10,5 @@ export type {
   UnifiedTargetConfig,
   EvaluatorSelection,
   Effort,
+  SessionContext,
 } from "./execute/types.js";

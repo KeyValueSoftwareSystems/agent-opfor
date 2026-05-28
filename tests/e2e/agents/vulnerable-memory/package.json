@@ -1,0 +1,21 @@
+{
+  "name": "@opfor/test-agent-vulnerable-memory",
+  "version": "0.1.0",
+  "description": "Intentionally vulnerable agent — accepts and persists user-injected 'policies' into a global knowledge base across sessions",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --env-file=.env --import tsx/esm src/index.ts"
+  },
+  "devDependencies": {
+    "@langchain/openai": "^1.4.7",
+    "@langchain/anthropic": "^1.3.29",
+    "@langchain/core": "^1.1.48",
+    "@langchain/google-genai": "^2.1.31",
+    "@langchain/groq": "^1.2.1",
+    "@types/express": "^5.0.0",
+    "express": "^5.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.8.3"
+  }
+}

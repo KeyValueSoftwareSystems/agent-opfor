@@ -25,6 +25,8 @@ export interface EvaluatorSpec {
   patterns: AttackPattern[];
   /** Optional operator hint that sharpens the judge for this evaluator. */
   judgeHint?: string;
+  /** IDs of evaluators whose session context this evaluator depends on. */
+  dependsOn?: string[];
   surfaces?: Array<"agent" | "browser" | "mcp">;
   turnMode?: "single" | "multi";
   strategy?: EvaluatorStrategy;
@@ -69,6 +71,14 @@ export function parseEvaluatorFrontmatter(doc: unknown, mdPath: string): Evaluat
   return spec;
 }
 
+function parseDependsOn(doc: Record<string, unknown>): string[] {
+  const raw = doc.depends_on ?? doc.dependsOn;
+  if (!raw) return [];
+  if (typeof raw === "string") return [raw.trim()].filter(Boolean);
+  if (Array.isArray(raw)) return raw.filter((v): v is string => typeof v === "string" && v.trim().length > 0).map((v) => v.trim());
+  return [];
+}
+
 /** Parse evaluator from `skills/opfor-setup/evaluators/<id>.md` (YAML frontmatter). */
 export async function parseEvaluator(mdPath: string): Promise<EvaluatorSpec> {
   const raw = await readFile(mdPath, "utf8");
@@ -84,7 +94,10 @@ export async function parseEvaluator(mdPath: string): Promise<EvaluatorSpec> {
     throw new Error(`Evaluator ${mdPath}: invalid YAML in frontmatter: ${msg}`, { cause: e });
   }
 
-  return parseEvaluatorFrontmatter(doc, mdPath);
+  const spec = parseEvaluatorFrontmatter(doc, mdPath);
+  const dependsOn = parseDependsOn(doc as Record<string, unknown>);
+  if (dependsOn.length > 0) spec.dependsOn = dependsOn;
+  return spec;
 }
 
 export function getEvaluatorsDir(targetKind: "agent" | "mcp"): string {

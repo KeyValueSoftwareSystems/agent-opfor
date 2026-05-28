@@ -92,6 +92,7 @@ export async function runAgentAttack(
         siteSnapshot: attack.siteSnapshot,
         maxLength: attack.maxMessageLength,
         previousTechnique: attackerMeta[attackerMeta.length - 1]?.technique,
+        upstreamSessions: attack.upstreamSessions,
       });
       prompt = result.message;
       attackerMeta.push({ technique: result.technique, lastReplyHook: result.lastReplyHook });
@@ -141,7 +142,8 @@ export async function runAgentAttack(
             judgeModel,
             await buildJudgeObservability(context?.telemetry, attackTraceId, finalResponse),
             history.length > 2 ? history : undefined,
-            { patternName: attack.patternName, judgeHint: attack.judgeHint }
+            { patternName: attack.patternName, judgeHint: attack.judgeHint },
+            attack.upstreamSessions
           );
 
   return {

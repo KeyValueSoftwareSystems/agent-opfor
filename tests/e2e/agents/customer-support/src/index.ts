@@ -2,10 +2,13 @@ import express from "express";
 import pg from "pg";
 import { z } from "zod";
 import { tool } from "@langchain/core/tools";
-import { ChatPromptTemplate, MessagesPlaceholder } from "@langchain/core/prompts";
-import { createToolCallingAgent, AgentExecutor } from "langchain/agents";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import { HumanMessage, AIMessage } from "@langchain/core/messages";
+import {
+  HumanMessage,
+  AIMessage,
+  SystemMessage,
+  ToolMessage,
+} from "@langchain/core/messages";
 import type { BaseMessage } from "@langchain/core/messages";
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 4001;
@@ -254,21 +257,59 @@ setInterval(() => {
 async function main() {
   const tools = makeTools(pool);
   const model = await createModel();
+  const modelWithTools = model.bindTools!(tools);
 
-  // chat_history placeholder lets the agent see prior turns when sessionId is provided
-  const prompt = ChatPromptTemplate.fromMessages([
-    ["system", SYSTEM_PROMPT],
-    new MessagesPlaceholder("chat_history"),
-    ["human", "{input}"],
-    new MessagesPlaceholder("agent_scratchpad"),
-  ]);
+  const toolsByName = Object.fromEntries(tools.map((t) => [t.name, t]));
 
-  const agent = createToolCallingAgent({
-    llm: model as Parameters<typeof createToolCallingAgent>[0]["llm"],
-    tools,
-    prompt,
-  });
-  const executor = new AgentExecutor({ agent, tools, maxIterations: 6 });
+  async function runAgent(
+    input: string,
+    chatHistory: BaseMessage[]
+  ): Promise<{ response: string; newMessages: BaseMessage[] }> {
+    const messages: BaseMessage[] = [
+      new SystemMessage(SYSTEM_PROMPT),
+      ...chatHistory,
+      new HumanMessage(input),
+    ];
+    const newMessages: BaseMessage[] = [new HumanMessage(input)];
+
+    const MAX_ITERATIONS = 6;
+    for (let i = 0; i < MAX_ITERATIONS; i++) {
+      const aiMsg = await modelWithTools.invoke(messages);
+      messages.push(aiMsg);
+
+      const toolCalls = aiMsg.tool_calls ?? [];
+      if (toolCalls.length === 0) {
+        const text =
+          typeof aiMsg.content === "string" ? aiMsg.content : JSON.stringify(aiMsg.content);
+        newMessages.push(new AIMessage(text));
+        return { response: text, newMessages };
+      }
+
+      for (const tc of toolCalls) {
+        const toolFn = toolsByName[tc.name];
+        if (!toolFn) {
+          const errMsg = new ToolMessage({ content: `Unknown tool: ${tc.name}`, tool_call_id: tc.id! });
+          messages.push(errMsg);
+          continue;
+        }
+        const result = await toolFn.invoke(tc.args);
+        const toolMsg = new ToolMessage({
+          content: typeof result === "string" ? result : JSON.stringify(result),
+          tool_call_id: tc.id!,
+        });
+        messages.push(toolMsg);
+      }
+    }
+
+    const lastAi = messages.filter((m) => m instanceof AIMessage).pop();
+    const fallback = lastAi
+      ? typeof lastAi.content === "string"
+        ? lastAi.content
+        : JSON.stringify(lastAi.content)
+      : "I was unable to complete the request.";
+    newMessages.push(new AIMessage(fallback));
+    return { response: fallback, newMessages };
+  }
 
   const app = express();
   app.use(express.json());
@@ -290,19 +331,15 @@ async function main() {
       `[-->] POST /chat${sessionTag} — prompt: "${input.slice(0, 80)}${input.length > 80 ? "…" : ""}"`
     );
 
-    // Load or create session history
     const session = sessionId
       ? (sessions.get(sessionId) ?? { history: [], lastAccess: Date.now() })
       : { history: [], lastAccess: Date.now() };
 
     try {
-      const result = await executor.invoke({ input, chat_history: session.history });
-      const response =
-        typeof result.output === "string" ? result.output : JSON.stringify(result.output);
+      const { response, newMessages } = await runAgent(input, session.history);
 
-      // Persist updated history for this session
       if (sessionId) {
-        session.history.push(new HumanMessage(input), new AIMessage(response));
+        session.history.push(...newMessages);
         session.lastAccess = Date.now();
         sessions.set(sessionId, session);
       }
