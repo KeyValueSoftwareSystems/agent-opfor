@@ -179,7 +179,13 @@ function bindToggle(btnId, getter, setter) {
 }
 
 // ── Custom dropdown ────────────────────────────────────────────
-function buildDropdown(rootId, options, value, onChange, { onOpen, searchable = false } = {}) {
+function buildDropdown(
+  rootId,
+  options,
+  value,
+  onChange,
+  { onOpen, searchable = false, inlineSearch = false } = {}
+) {
   const root = $(rootId);
   const button = root.querySelector(".dd-button");
   const labelEl = button.querySelector(".label");
@@ -192,7 +198,12 @@ function buildDropdown(rootId, options, value, onChange, { onOpen, searchable = 
   const SEARCH_THRESHOLD = 10;
 
   function shouldShowSearch() {
-    return searchable || options.length > SEARCH_THRESHOLD;
+    return !inlineSearch && (searchable || options.length > SEARCH_THRESHOLD);
+  }
+
+  function setLabel(text) {
+    if (inlineSearch) labelEl.value = text;
+    else labelEl.textContent = text;
   }
 
   function renderOptions(filtered) {
@@ -241,7 +252,7 @@ function buildDropdown(rootId, options, value, onChange, { onOpen, searchable = 
 
   function render() {
     const cur = options.find((o) => o.value === value);
-    labelEl.textContent = cur ? cur.label : "Select model";
+    setLabel(cur ? cur.label : "");
     menu.innerHTML = "";
     filterText = "";
 
@@ -268,21 +279,47 @@ function buildDropdown(rootId, options, value, onChange, { onOpen, searchable = 
     renderOptions(options);
   }
 
-  button.addEventListener("click", (e) => {
-    e.stopPropagation();
-    if (button.disabled) return;
-    const opening = root.dataset.open !== "true";
-    root.dataset.open = opening ? "true" : "false";
-    if (opening) {
-      if (onOpen) onOpen();
-      setTimeout(() => {
-        if (searchInput && shouldShowSearch()) searchInput.focus();
-      }, 0);
-    }
-  });
+  if (inlineSearch) {
+    labelEl.addEventListener("input", () => {
+      filterText = labelEl.value;
+      if (root.dataset.open !== "true") root.dataset.open = "true";
+      renderOptions(getFiltered());
+    });
+    button.addEventListener("click", () => {
+      if (labelEl.disabled) return;
+      if (root.dataset.open !== "true") {
+        root.dataset.open = "true";
+        scrollDropdownIntoView(root);
+        if (onOpen) onOpen();
+        setTimeout(() => labelEl.select(), 0);
+      }
+    });
+  } else {
+    button.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (button.disabled) return;
+      const opening = root.dataset.open !== "true";
+      root.dataset.open = opening ? "true" : "false";
+      if (opening) scrollDropdownIntoView(root);
+      if (opening) {
+        if (onOpen) onOpen();
+        setTimeout(() => {
+          if (searchInput && shouldShowSearch()) searchInput.focus();
+        }, 0);
+      }
+    });
+  }
 
   document.addEventListener("mousedown", (e) => {
-    if (!root.contains(e.target)) root.dataset.open = "false";
+    if (!root.contains(e.target)) {
+      if (inlineSearch && root.dataset.open === "true") {
+        const cur = options.find((o) => o.value === value);
+        setLabel(cur ? cur.label : "");
+        filterText = "";
+        renderOptions(options);
+      }
+      root.dataset.open = "false";
+    }
   });
 
   render();
@@ -296,14 +333,24 @@ function buildDropdown(rootId, options, value, onChange, { onOpen, searchable = 
       render();
     },
     setLoading(isLoading) {
-      button.disabled = isLoading;
+      if (inlineSearch) labelEl.disabled = isLoading;
+      else button.disabled = isLoading;
       if (spinnerEl) spinnerEl.style.display = isLoading ? "" : "none";
       if (chevEl) chevEl.style.display = isLoading ? "none" : "";
       if (isLoading) {
-        labelEl.textContent = "Loading models…";
+        setLabel("Loading models…");
         root.dataset.open = "false";
       } else {
         render();
+      }
+    },
+    open() {
+      if (root.dataset.open !== "true") {
+        root.dataset.open = "true";
+        scrollDropdownIntoView(root);
+        setTimeout(() => {
+          if (searchInput && shouldShowSearch()) searchInput.focus();
+        }, 0);
       }
     },
   };
@@ -384,12 +431,23 @@ function updateRunButton() {
   const missingKey = !state.apiKey.trim();
   const missingEvals = state.selectedEvaluators.size === 0;
   const missingSuite = !state.suiteId || !state.catalog;
-  const missingDesc = !state.scrapeFromSite && !state.agentDescription.trim();
-  $("runBtn").disabled = missingKey || missingEvals || missingSuite || missingDesc;
+  $("runBtn").disabled = missingKey || missingEvals || missingSuite;
 }
 
 // ── Suite description + dropdown wiring ────────────────────────
 let suiteDD, modelDD, providerDD;
+
+// True once the custom-provider model list has been successfully fetched.
+// Reset whenever anything that would invalidate the list changes.
+let _compatModelsLoaded = false;
+
+function resetCompatModels() {
+  _compatModelsLoaded = false;
+  modelDD?.setOptions([]);
+  modelDD?.setValue("");
+  state.model = "";
+  setModelHint("");
+}
 
 /**
  * @param {string} id
@@ -411,25 +469,6 @@ function setSuite(id, { selectedIds = undefined } = {}) {
 }
 
 // ── Scrape toggle / agent description ──────────────────────────
-async function refreshScrapeMeta() {
-  const meta = $("scrapeMeta");
-  const wrap = $("agentDescWrap");
-  const ta = $("agentDescription");
-  if (state.scrapeFromSite) {
-    wrap.hidden = true;
-    try {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      const host = tab?.url ? new URL(tab.url).host : "current tab";
-      meta.textContent = host || "current tab";
-    } catch {
-      meta.textContent = "current tab";
-    }
-  } else {
-    wrap.hidden = false;
-    meta.textContent = "manual description";
-    autoSizeTextarea(ta);
-  }
-}
 
 function autoSizeTextarea(ta) {
   ta.style.height = "auto";
@@ -483,14 +522,14 @@ async function loadSettings() {
   const stored = await chrome.storage.local.get([POPUP_SETTINGS_KEY, "opforLlmProfiles"]);
   const s = stored[POPUP_SETTINGS_KEY] || {};
   Object.assign(state, {
-    scrapeFromSite: s.scrapeFromSite ?? true,
-    agentDescription: s.agentDescription ?? "",
+    scrapeFromSite: true,
     maxTurns: clamp(Number(s.maxTurns) || 10, 1, 20),
     waitSec: clamp(Number(s.waitSec) || 10, 3, 30),
     messageCharLimit: clamp(Math.round((Number(s.messageCharLimit) || 500) / 50) * 50, 100, 1500),
     attackObjective: s.attackObjective ?? "",
     businessUseCase: s.businessUseCase ?? "",
     judgeHint: s.judgeHint ?? "",
+    agentDescription: s.agentDescription ?? "",
     suiteId: typeof s.suiteId === "string" ? s.suiteId : "",
     _persistedEvaluatorIds: Array.isArray(s.selectedEvaluatorIds)
       ? s.selectedEvaluatorIds.filter((id) => typeof id === "string" && id)
@@ -508,14 +547,13 @@ async function loadSettings() {
 async function saveSettings() {
   await chrome.storage.local.set({
     [POPUP_SETTINGS_KEY]: {
-      scrapeFromSite: state.scrapeFromSite,
-      agentDescription: state.agentDescription,
       maxTurns: state.maxTurns,
       waitSec: state.waitSec,
       messageCharLimit: state.messageCharLimit,
       attackObjective: state.attackObjective,
       businessUseCase: state.businessUseCase,
       judgeHint: state.judgeHint,
+      agentDescription: state.agentDescription,
       suiteId: state.suiteId || "",
       selectedEvaluatorIds: [...state.selectedEvaluators],
     },
@@ -782,6 +820,27 @@ function resetBubbles() {
 
 let progressActive = false;
 
+/**
+ * Apply visual mode for the awaitUser screen.
+ * @param {boolean} needsDesc - true = agent not detected (describe it), false = locate widget
+ */
+function applyAwaitUserMode(needsDesc) {
+  const card = $("awaitUserCard");
+  if (needsDesc) {
+    card.dataset.mode = "detect";
+    $("awaitUserTitle").textContent = "Agent not detected";
+    $("awaitUserSub").textContent = "Not able to detect the agent — open the chat/agent and retry";
+    $("awaitIconWarn").hidden = true;
+    $("awaitIconScan").hidden = false;
+  } else {
+    card.dataset.mode = "locate";
+    $("awaitUserTitle").textContent = "Action needed";
+    $("awaitUserSub").textContent = "Open the chat widget, then retry";
+    $("awaitIconWarn").hidden = false;
+    $("awaitIconScan").hidden = true;
+  }
+}
+
 function handleProgress(message) {
   if (state.screen !== "running" && state.screen !== "awaitUser") return;
   progressActive = true;
@@ -790,10 +849,7 @@ function handleProgress(message) {
   if (message.kind === "turn") stopCosmeticTicker();
   if (message.kind === "phase") {
     if (message.phase === "await_user") {
-      state.awaitUserError = message.error || "Could not find chat widget";
-      $("awaitUserError").textContent = state.awaitUserError;
-      const cur = state.queue[state.evIdx];
-      $("awaitUserEvaluator").textContent = cur?.name || "—";
+      applyAwaitUserMode(!!message.needsAgentDescription);
       setScreen("awaitUser");
       return;
     }
@@ -1009,9 +1065,7 @@ function buildReport() {
   const reportId = `opfor-${state.suiteId || "run"}-${stamp}`;
 
   const targetUrl =
-    state.results[0]?.raw?.siteUrl ||
-    state.results[0]?.raw?.frameUrl ||
-    (state.scrapeFromSite ? "active tab" : "manual description");
+    state.results[0]?.raw?.siteUrl || state.results[0]?.raw?.frameUrl || "active tab";
 
   return {
     metadata: {
@@ -1533,7 +1587,7 @@ function generateHtmlReport(report) {
         <div class="scope-card-title">Target</div>
         <div class="scope-row"><span class="scope-k">System</span><span class="scope-v">${escapeHtml(target.name)}</span></div>
         <div class="scope-row"><span class="scope-k">Type</span><span class="scope-v">LLM Chatbot Interface</span></div>
-        <div class="scope-row"><span class="scope-k">Access method</span><span class="scope-v">${state.scrapeFromSite ? "Browser automation (live tab)" : "Manual description"}</span></div>
+        <div class="scope-row"><span class="scope-k">Access method</span><span class="scope-v">Browser automation (live tab)</span></div>
       </div>
       <div class="scope-card">
         <div class="scope-card-title">Evaluation Parameters</div>
@@ -2548,6 +2602,8 @@ async function cancelAwaitUser() {
 }
 
 async function retryLocate() {
+  // Reset awaitUser UI back to default state for the next cycle
+  applyAwaitUserMode(false);
   setScreen("running");
   renderRunningHeader();
   renderRunStrip();
@@ -2557,10 +2613,14 @@ async function retryLocate() {
   if (cur) {
     $("runEvalName").textContent = cur.name;
   }
-  $("runPhaseText").textContent = "Retrying chat detection";
+  $("runPhaseText").textContent = "Retrying…";
   try {
-    await chrome.runtime.sendMessage({ type: "OPFOR_UI_RETRY_LOCATE" });
+    await chrome.runtime.sendMessage({
+      type: "OPFOR_UI_RETRY_LOCATE",
+      agentDescription: state.agentDescription || "",
+    });
   } catch {}
+  // Note: agentDescription is kept — it lives in Advanced settings and persists across retries.
 }
 
 function modelsForProvider(provider) {
@@ -2568,34 +2628,64 @@ function modelsForProvider(provider) {
   return list.map((m) => ({ value: m, label: m }));
 }
 
+function scrollDropdownIntoView(root) {
+  requestAnimationFrame(() => {
+    const menu = root?.querySelector(".dd-menu");
+    if (!menu) return;
+    const body = document.querySelector(".body");
+    if (!body) return;
+    const bodyRect = body.getBoundingClientRect();
+    const menuRect = menu.getBoundingClientRect();
+    const overflow = menuRect.bottom - bodyRect.bottom;
+    if (overflow > 0) {
+      body.scrollBy({ top: overflow + 8, behavior: "smooth" });
+    }
+  });
+}
+
 function applyProvider({ resetModel = false } = {}) {
   const isCompatible = state.provider === PROVIDERS.OPENAI_COMPATIBLE;
   const needsBaseUrl = PROVIDERS_NEEDING_BASE_URL.has(state.provider);
   const isSimple = !!SIMPLE_PROVIDER_FETCH_CONFIG[state.provider];
 
-  // Endpoint card (Azure + OpenAI-compatible)
-  $("endpointSection").style.display = needsBaseUrl ? "" : "none";
-  const compatOnly = isCompatible ? "" : "none";
-  $("endpointUrlHint").style.display = compatOnly;
-  $("endpointDivider1").style.display = compatOnly;
-  $("endpointKeyHint").style.display = compatOnly;
-  $("endpointKeyOptional").style.display = compatOnly;
-  $("endpointStepLoad").style.display = compatOnly;
+  // Reparent modelSection: inside endpointCardBody for custom, outside for others
+  const modelSec = $("modelSection");
+  const cardBody = $("endpointCardBody");
+  const standaloneKey = $("standaloneApiKey");
+  if (isCompatible) {
+    if (modelSec.parentElement !== cardBody) cardBody.appendChild(modelSec);
+  } else {
+    if (modelSec.previousElementSibling !== standaloneKey) {
+      standaloneKey.insertAdjacentElement("afterend", modelSec);
+    }
+  }
 
-  // Standalone API key (simple providers only)
+  // Endpoint card — only Azure + OpenAI-compatible
+  $("endpointSection").style.display = needsBaseUrl ? "" : "none";
+  $("endpointKeyHint").style.display = isCompatible ? "inline-flex" : "none";
+  $("endpointKeyOptional").style.display = isCompatible ? "" : "none";
+  $("refreshModelsBtn").style.display = isCompatible ? "" : "none";
+
+  // Standalone API key — simple providers only
   $("standaloneApiKey").style.display = isSimple ? "" : "none";
+
+  setModelHint("");
 
   if (isCompatible) {
     $("endpointCardBody").dataset.open = "true";
-    $("modelSection").style.display = "none";
-    setFetchStatus("", "");
+    $("modelSection").style.display = "";
+    $("modelDropdown").style.display = "";
   } else if (isSimple) {
     $("modelSection").style.display = "";
     if (resetModel) {
       modelDD?.setOptions([]);
       modelDD?.setValue("");
       state.model = "";
-      setModelHint("Enter your API key to load models.");
+      if (state.apiKey.trim()) {
+        fetchModelsForSimpleProvider();
+      } else {
+        setModelHint("Enter your API key to load models.");
+      }
     }
   } else {
     // Azure
@@ -2616,50 +2706,41 @@ function setEndpointChevron(open) {
   if (chev) chev.style.transform = open ? "rotate(0deg)" : "rotate(-90deg)";
 }
 
-async function fetchModelsFromBaseUrl() {
+async function fetchModelsFromBaseUrl(reopen = false) {
   const baseUrl = state.baseUrl?.trim().replace(/\/$/, "");
   if (!baseUrl) {
-    setFetchStatus("Enter a base URL first.", "error");
+    setModelHint("Enter a Base URL first.");
     return;
   }
-  setFetchStatus("Loading…", "loading");
+  _compatModelsLoaded = false;
+  modelDD?.setLoading(true);
+  setModelHint("");
   try {
-    const headers = { "Content-Type": "application/json" };
-    if (state.apiKey) headers["Authorization"] = `Bearer ${state.apiKey}`;
-    const res = await fetch(`${baseUrl}/models`, { headers });
-    if (!res.ok) {
-      if (res.status === 401 || res.status === 403)
-        throw new Error("Invalid API key — authentication failed.");
-      if (res.status === 404) throw new Error("Server doesn't expose a /models endpoint.");
-      throw new Error(`Server returned HTTP ${res.status}.`);
-    }
-    const json = await res.json();
+    const result = await chrome.runtime.sendMessage({
+      type: "OPFOR_FETCH_MODELS",
+      baseUrl,
+      apiKey: state.apiKey || "",
+    });
+    if (!result?.ok) throw new Error(result?.error || "Unknown error.");
+    const json = result.json || {};
     const ids = (json.data ?? json.models ?? []).map((m) => m.id ?? m).filter(Boolean);
-    if (!ids.length) {
-      setFetchStatus("No models returned by the server.", "error");
-      return;
-    }
+    if (!ids.length) throw new Error("No models returned by the server.");
     const options = ids.map((id) => ({ value: id, label: id }));
+    modelDD?.setLoading(false);
     modelDD?.setOptions(options);
-    state.model = ids[0];
-    modelDD?.setValue(ids[0]);
+    const keep = ids.includes(state.model) ? state.model : ids[0];
+    state.model = keep;
+    modelDD?.setValue(keep);
     saveModelAndKey();
-    $("modelSection").style.display = "";
-    setFetchStatus(`${ids.length} model${ids.length > 1 ? "s" : ""} loaded.`, "ok");
+    _compatModelsLoaded = true;
+    setModelHint(`${ids.length} model${ids.length > 1 ? "s" : ""} loaded.`, "ok");
+    if (reopen) modelDD?.open();
   } catch (e) {
-    const msg =
-      e instanceof TypeError ? "Could not reach the server — check the base URL." : e.message;
-    setFetchStatus(msg, "error");
-    $("modelSection").style.display = "none";
+    modelDD?.setLoading(false);
+    modelDD?.setOptions([]);
+    _compatModelsLoaded = false;
+    setModelHint(e.message || "Could not reach the server — check the Base URL.", "error");
   }
-}
-
-function setFetchStatus(msg, type) {
-  const el = $("fetchModelsStatus");
-  if (!el) return;
-  el.textContent = msg;
-  el.style.color =
-    type === "error" ? "var(--fail)" : type === "ok" ? "var(--pass)" : "var(--muted)";
 }
 
 function setModelHint(msg, type = "") {
@@ -2682,33 +2763,19 @@ async function fetchModelsForSimpleProvider() {
     return;
   }
 
+  _compatModelsLoaded = false;
   modelDD?.setLoading(true);
   setModelHint("");
   try {
-    const url = cfg.url(key);
-    const res = await fetch(url, { headers: cfg.headers(key) });
-
-    if (!res.ok) {
-      let errBody = null;
-      try {
-        errBody = await res.json();
-      } catch {}
-      const errMsg = errBody?.error?.message || "";
-      const errStatus = errBody?.error?.status || "";
-      if (
-        res.status === 401 ||
-        res.status === 403 ||
-        errStatus === "INVALID_ARGUMENT" ||
-        errMsg.toLowerCase().includes("api key") ||
-        errMsg.toLowerCase().includes("invalid")
-      )
-        throw new Error("Invalid API key — authentication failed.");
-      if (res.status === 429) throw new Error("Rate limited — try again shortly.");
-      throw new Error(errMsg || `Server returned HTTP ${res.status}.`);
-    }
-
-    const json = await res.json();
-    const ids = cfg.parse(json);
+    // Proxy through the service worker to avoid popup-page CORS restrictions.
+    const result = await chrome.runtime.sendMessage({
+      type: "OPFOR_FETCH_MODELS",
+      url: cfg.url(key),
+      headers: cfg.headers(key),
+      apiKey: key,
+    });
+    if (!result?.ok) throw new Error(result?.error || "Unknown error.");
+    const ids = cfg.parse(result.json || {});
     if (!ids.length) throw new Error("No models returned.");
 
     const opts = ids.map((id) => ({ value: id, label: id }));
@@ -2718,15 +2785,15 @@ async function fetchModelsForSimpleProvider() {
     state.model = keep;
     modelDD?.setValue(keep);
     saveModelAndKey();
+    _compatModelsLoaded = true;
     setModelHint("");
   } catch (e) {
     modelDD?.setLoading(false);
     modelDD?.setOptions([]);
-    const msg =
-      e instanceof TypeError
-        ? `Could not reach ${state.provider} — check your connection.`
-        : e.message;
-    setModelHint(msg, "error");
+    setModelHint(
+      e.message || `Could not reach ${state.provider} — check your connection.`,
+      "error"
+    );
   }
 }
 
@@ -2738,6 +2805,7 @@ function wire() {
   );
   providerDD = buildDropdown("providerDropdown", PROVIDER_OPTIONS, state.provider, (v) => {
     state.provider = v;
+    _compatModelsLoaded = false;
     applyProvider({ resetModel: true });
     saveModelAndKey();
     updateRunButton();
@@ -2752,9 +2820,18 @@ function wire() {
       saveModelAndKey();
     },
     {
-      searchable: true,
+      inlineSearch: true,
       onOpen: () => {
-        if (SIMPLE_PROVIDER_FETCH_CONFIG[state.provider]) fetchModelsForSimpleProvider();
+        if (SIMPLE_PROVIDER_FETCH_CONFIG[state.provider]) {
+          if (state.apiKey.trim() && !_compatModelsLoaded) fetchModelsForSimpleProvider();
+        } else if (state.provider === PROVIDERS.OPENAI_COMPATIBLE) {
+          if (!state.baseUrl.trim()) {
+            setModelHint("Enter a Base URL first.");
+          } else if (!_compatModelsLoaded) {
+            // Fetch models and reopen the dropdown automatically when done
+            fetchModelsFromBaseUrl(true);
+          }
+        }
       },
     }
   );
@@ -2762,7 +2839,23 @@ function wire() {
   // Evals collapse
   $("evalsHead").addEventListener("click", () => {
     const evs = $("evals");
-    evs.dataset.open = evs.dataset.open === "true" ? "false" : "true";
+    const opening = evs.dataset.open !== "true";
+    evs.dataset.open = opening ? "true" : "false";
+    if (opening) {
+      requestAnimationFrame(() => {
+        const list = $("evalsList");
+        const body = document.querySelector(".body");
+        if (!list || !body) return;
+        const overflow = list.getBoundingClientRect().bottom - body.getBoundingClientRect().bottom;
+        if (overflow > 0) body.scrollBy({ top: overflow + 8, behavior: "smooth" });
+      });
+    }
+  });
+  document.addEventListener("mousedown", (e) => {
+    const evs = $("evals");
+    if (evs?.dataset.open === "true" && !evs.contains(e.target)) {
+      evs.dataset.open = "false";
+    }
   });
   function toggleAllEvaluators(e) {
     e.stopPropagation();
@@ -2778,34 +2871,15 @@ function wire() {
   $("evalsToggleAll").addEventListener("click", toggleAllEvaluators);
   $("evalsSelectAll").addEventListener("click", toggleAllEvaluators);
 
-  // Scrape toggle
-  bindToggle(
-    "scrapeToggle",
-    () => state.scrapeFromSite,
-    (v) => {
-      state.scrapeFromSite = v;
-      saveSettings();
-      refreshScrapeMeta();
-      updateRunButton();
-    }
-  );
-  $("agentDescription").addEventListener("input", (e) => {
-    state.agentDescription = e.target.value;
-    autoSizeTextarea(e.target);
-    saveSettings();
-    updateRunButton();
-  });
-
-  // Load models button (OpenAI-compatible)
-  $("fetchModelsBtn").addEventListener("click", () => fetchModelsFromBaseUrl());
+  // Refresh models (OpenAI-compatible)
+  $("refreshModelsBtn").addEventListener("click", () => fetchModelsFromBaseUrl());
 
   // Base URL (Azure + OpenAI-compatible)
   $("baseUrl").addEventListener("input", (e) => {
     state.baseUrl = e.target.value;
     saveModelAndKey();
     if (state.provider === PROVIDERS.OPENAI_COMPATIBLE) {
-      $("modelSection").style.display = "none";
-      setFetchStatus("", "");
+      resetCompatModels();
     }
   });
 
@@ -2815,6 +2889,8 @@ function wire() {
     $("apiKeyCard").value = e.target.value;
     saveModelAndKey();
     updateRunButton();
+    setModelHint("");
+    _compatModelsLoaded = false;
   });
 
   function wireEyeBtn(btnId, iconId, inputId) {
@@ -2842,6 +2918,11 @@ function wire() {
     $("apiKey").value = e.target.value;
     saveModelAndKey();
     updateRunButton();
+    setModelHint("");
+    // Reset loaded models when key changes so the next dropdown open re-fetches
+    if (state.provider === PROVIDERS.OPENAI_COMPATIBLE) {
+      resetCompatModels();
+    }
   });
   wireEyeBtn("apiKeyCardEye", "eyeIconCard", "apiKeyCard");
 
@@ -2879,6 +2960,10 @@ function wire() {
   bindStepper("messageCharLimit", "messageCharLimitValue", "messageCharLimit", 100, 1500);
 
   // Advanced text fields
+  $("agentDescription").addEventListener("input", (e) => {
+    state.agentDescription = e.target.value;
+    saveSettings();
+  });
   $("attackObjective").addEventListener("input", (e) => {
     state.attackObjective = e.target.value;
     saveSettings();
@@ -2945,6 +3030,27 @@ async function checkActiveRun() {
 
   if (!opforRunStatus?.running && !popupQueueActive) return false;
 
+  // If storage says await_user, verify the service worker is actually alive and
+  // waiting. If it isn't (run already timed out / crashed / was from a prior
+  // session), clear the stale status and show idle instead.
+  if (opforRunStatus?.phase === "await_user") {
+    try {
+      const check = await chrome.runtime.sendMessage({ type: "OPFOR_CHECK_ACTIVE" });
+      if (!check?.alive) {
+        await chrome.storage.local.set({
+          opforRunStatus: { v: 1, running: false, updatedAt: Date.now() },
+        });
+        return false;
+      }
+    } catch {
+      // Service worker not responding — definitely stale.
+      await chrome.storage.local.set({
+        opforRunStatus: { v: 1, running: false, updatedAt: Date.now() },
+      });
+      return false;
+    }
+  }
+
   if (popupQueueActive) {
     state.suiteId = opforPopupRun.suiteId || state.suiteId;
     state.maxTurns = opforPopupRun.maxTurns || state.maxTurns;
@@ -2974,10 +3080,7 @@ async function checkActiveRun() {
   // Check if we need to show the await_user screen
   const phase = opforRunStatus?.phase || "running";
   if (phase === "await_user") {
-    state.awaitUserError = opforRunStatus?.awaitUserError || "Could not find chat widget";
-    $("awaitUserError").textContent = state.awaitUserError;
-    const cur = state.queue[state.evIdx];
-    $("awaitUserEvaluator").textContent = cur?.name || "—";
+    applyAwaitUserMode(!!opforRunStatus?.needsAgentDescription);
     setScreen("awaitUser");
     startRunStatusPoller();
     return true;
@@ -3028,10 +3131,7 @@ function startRunStatusPoller() {
 
       // Handle await_user phase transition
       if (opforRunStatus.phase === "await_user" && state.screen !== "awaitUser") {
-        state.awaitUserError = opforRunStatus.awaitUserError || "Could not find chat widget";
-        $("awaitUserError").textContent = state.awaitUserError;
-        const cur = state.queue[state.evIdx];
-        $("awaitUserEvaluator").textContent = cur?.name || "—";
+        applyAwaitUserMode(!!opforRunStatus.needsAgentDescription);
         setScreen("awaitUser");
         return;
       }
@@ -3138,19 +3238,22 @@ async function init() {
   $("apiKeyCard").value = state.apiKey;
   applyProvider();
   updateRunButton();
+  // Auto-fetch models on mount if we already have what we need
+  if (state.provider === PROVIDERS.OPENAI_COMPATIBLE && state.baseUrl.trim()) {
+    fetchModelsFromBaseUrl(); // apiKey is optional for local servers
+  } else if (SIMPLE_PROVIDER_FETCH_CONFIG[state.provider] && state.apiKey.trim()) {
+    fetchModelsForSimpleProvider();
+  }
   $("agentDescription").value = state.agentDescription;
   $("attackObjective").value = state.attackObjective;
   $("businessUseCase").value = state.businessUseCase;
   $("judgeHint").value = state.judgeHint;
-  $("scrapeToggle").setAttribute("aria-checked", String(state.scrapeFromSite));
   $("maxTurns").value = String(state.maxTurns);
   $("maxTurnsValue").textContent = String(state.maxTurns);
   $("waitSec").value = String(state.waitSec);
   $("waitSecValue").textContent = String(state.waitSec);
   $("messageCharLimit").value = String(state.messageCharLimit);
   $("messageCharLimitValue").textContent = String(state.messageCharLimit);
-
-  refreshScrapeMeta();
 
   try {
     await loadCatalog();

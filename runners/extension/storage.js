@@ -40,6 +40,11 @@ export function broadcastProgress(payload) {
         patch.phase = payload.phase;
         if (payload.phase === "await_user") {
           patch.awaitUserError = payload.error || "Could not find chat widget";
+          patch.needsAgentDescription = !!payload.needsAgentDescription;
+        } else {
+          // Clear these flags when moving past await_user.
+          patch.needsAgentDescription = false;
+          patch.awaitUserError = "";
         }
       } else if (payload.kind === "turn") {
         patch.phase = "running";

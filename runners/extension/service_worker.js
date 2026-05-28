@@ -45,9 +45,9 @@ function handleMainMessages(message, sendResponse) {
   }
 
   if (message?.type === "OPFOR_UI_RETRY_LOCATE") {
-    // If there's an active retry waiter, trigger it
+    // If there's an active retry waiter, trigger it (pass any agentDescription the user provided)
     if (state.retryLocateResolver) {
-      triggerRetryLocate();
+      triggerRetryLocate({ agentDescription: message.agentDescription || "" });
       sendResponse({ ok: true });
       return true;
     }
@@ -61,7 +61,7 @@ function handleMainMessages(message, sendResponse) {
           return;
         }
 
-        // Restart the run with stored parameters
+        // Restart the run with stored parameters, merging any manual description the user provided
         const restartMessage = {
           type: "OPFOR_UI_RUN",
           suiteId: opforRunStatus.suiteId,
@@ -69,7 +69,7 @@ function handleMainMessages(message, sendResponse) {
           maxRounds: opforRunStatus.maxRounds,
           waitMs: 10000,
           scrapeFromSite: opforRunStatus.scrapeFromSite !== false,
-          agentDescription: opforRunStatus.agentDescription || "",
+          agentDescription: message.agentDescription || opforRunStatus.agentDescription || "",
           attackObjective: opforRunStatus.attackObjective || "",
           businessUseCase: opforRunStatus.businessUseCase || "",
           judgeHint: opforRunStatus.judgeHint || "",
@@ -177,6 +177,81 @@ function handleMainMessages(message, sendResponse) {
         sendResponse(result);
       } catch (err) {
         sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) });
+      }
+    })();
+    return true;
+  }
+
+  // Check whether the service worker has a live run (waiting for retry or running).
+  if (message?.type === "OPFOR_CHECK_ACTIVE") {
+    const alive =
+      !!state.retryLocateResolver || (!state.OPFOR_STOP && !!state.uiRunAbortController);
+    sendResponse({ alive });
+    return true;
+  }
+
+  // Proxy model-list fetches through the service worker so popup pages don't
+  // hit browser CORS / Private Network Access restrictions.
+  if (message?.type === "OPFOR_FETCH_MODELS") {
+    (async () => {
+      try {
+        // Two modes:
+        //  • { baseUrl, apiKey } — OpenAI-compatible: fetches <baseUrl>/models with Bearer auth
+        //  • { url, headers }    — Provider-specific: fetches the given url directly
+        let fetchUrl, fetchHeaders;
+        if (message.url) {
+          fetchUrl = message.url;
+          fetchHeaders = message.headers || {};
+        } else {
+          const baseUrl = String(message.baseUrl || "")
+            .trim()
+            .replace(/\/$/, "");
+          if (!baseUrl) {
+            sendResponse({ ok: false, error: "No base URL provided." });
+            return;
+          }
+          fetchUrl = `${baseUrl}/models`;
+          fetchHeaders = { "Content-Type": "application/json" };
+          if (message.apiKey) fetchHeaders["Authorization"] = `Bearer ${message.apiKey}`;
+        }
+
+        const res = await fetch(fetchUrl, { headers: fetchHeaders });
+        if (!res.ok) {
+          let errBody = null;
+          try {
+            errBody = await res.json();
+          } catch {}
+          const errMsg = errBody?.error?.message || "";
+          if (res.status === 401 || res.status === 403) {
+            sendResponse({
+              ok: false,
+              error: message.apiKey
+                ? "Invalid API key — authentication failed."
+                : "Server requires authentication — enter an API key.",
+            });
+            return;
+          }
+          if (res.status === 404) {
+            sendResponse({ ok: false, error: "Server doesn't expose a /models endpoint." });
+            return;
+          }
+          if (res.status === 429) {
+            sendResponse({ ok: false, error: "Rate limited — try again shortly." });
+            return;
+          }
+          sendResponse({ ok: false, error: errMsg || `Server returned HTTP ${res.status}.` });
+          return;
+        }
+        const json = await res.json();
+        sendResponse({ ok: true, json });
+      } catch (e) {
+        const msg =
+          e instanceof TypeError
+            ? "Could not reach the server — check the base URL."
+            : e instanceof Error
+              ? e.message
+              : String(e);
+        sendResponse({ ok: false, error: msg });
       }
     })();
     return true;
