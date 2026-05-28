@@ -206,18 +206,20 @@ async function generateMcpAttacks(params: {
     ];
   }
 
-  // hard: one attack per pattern
+  // comprehensive: one attack per pattern × per tool
   const attacks: AttackSpec[] = [];
   for (const pattern of evaluator.patterns) {
-    const attack = await generatePatternMcpAttack(evaluator, pattern, tools, model);
-    attacks.push({
-      ...base,
-      id: randomUUID(),
-      patternName: pattern.name,
-      toolName: attack.toolName,
-      toolArguments: attack.toolArguments,
-      judgeHint: attack.judgeHint,
-    });
+    for (const tool of tools) {
+      const attack = await generatePatternMcpAttack(evaluator, pattern, [tool], model);
+      attacks.push({
+        ...base,
+        id: randomUUID(),
+        patternName: `${pattern.name} → ${tool.name}`,
+        toolName: attack.toolName,
+        toolArguments: attack.toolArguments,
+        judgeHint: attack.judgeHint,
+      });
+    }
   }
   return attacks;
 }

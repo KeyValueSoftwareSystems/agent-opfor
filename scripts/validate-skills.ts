@@ -63,12 +63,12 @@ const BaseEvaluatorSchema = z.object({
   description: z.string().optional(),
 });
 
-/** Agent evaluator — patterns required and non-empty. */
+/** Agent evaluator — patterns optional. */
 const AgentEvaluatorSchema = BaseEvaluatorSchema.extend({
-  patterns: z.array(PatternSchema).min(1, "patterns must be a non-empty array"),
+  patterns: z.array(PatternSchema).optional(),
 });
 
-/** MCP evaluator — patterns optional (scanner-only evaluators have none). */
+/** MCP evaluator — patterns optional. */
 const McpEvaluatorSchema = BaseEvaluatorSchema.extend({
   patterns: z.array(PatternSchema).optional(),
 });

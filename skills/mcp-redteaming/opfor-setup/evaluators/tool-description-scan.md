@@ -27,6 +27,4 @@ fail_criteria: |-
   - Tool description purpose does not match the tool's declared name/schema
 judge_needs_llm: true
 applies_to_all_tools: true
-scan_mode: tool_description
-patterns: []
 ---

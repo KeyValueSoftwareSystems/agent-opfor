@@ -69,9 +69,6 @@ export async function parseEvaluator(mdPath: string): Promise<EvaluatorSpec> {
 
   if (!id) throw new Error(`Evaluator ${mdPath}: frontmatter must set id`);
   if (!name) throw new Error(`Evaluator ${mdPath}: frontmatter must set name`);
-  if (!patterns.length) {
-    throw new Error(`Evaluator ${mdPath}: frontmatter must set patterns (non-empty array)`);
-  }
 
   return {
     id,
