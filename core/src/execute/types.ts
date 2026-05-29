@@ -28,7 +28,8 @@ export interface AgentTargetConfig {
    *   prior turns by that id.
    * - false: OPFOR sends the full chat history as a `messages` array each
    *   turn (OpenAI chat-completions shape). Used to test stateless LLM APIs
-   *   directly. `sessionIdField` is ignored in this mode.
+   *   directly. Both `sessionIdField` and `requestFormat` are ignored in
+   *   this mode — the chat-completions shape is fixed by the spec.
    */
   stateful?: boolean;
 }

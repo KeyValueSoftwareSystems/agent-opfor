@@ -304,7 +304,9 @@ async function collectAgentTarget(): Promise<AgentTargetConfig> {
   // their own agents, not raw model endpoints.
   const stateful = await confirm({
     message:
-      "Does the target maintain conversation history on its side? (Y = custom agent with session id, n = raw LLM API)",
+      "Does the target maintain conversation history on its side?\n" +
+      "  Yes → custom agent / chatbot with a session store\n" +
+      "  No  → raw LLM API (OpenAI, Anthropic, Groq, etc.)",
     default: true,
   });
   const sessionIdField = stateful
