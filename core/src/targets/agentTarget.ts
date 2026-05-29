@@ -22,6 +22,12 @@ export interface AgentSendOptions {
   attackTraceId?: string;
   runId?: string;
   attackIndex?: number;
+  /**
+   * Prior turns of this attack. Consumed by stateless-mode HTTP targets to
+   * build the `messages` array; ignored by stateful targets and by the local
+   * script / DOM targets.
+   */
+  history?: { role: "user" | "assistant"; content: string }[];
 }
 
 export interface AgentTarget {
@@ -137,25 +143,38 @@ async function callHttp(
   const targetFormat = config.requestFormat ?? "auto";
   const targetModel = config.targetModel ?? "gpt-4o-mini";
   const sessionId = options?.sessionId;
+  // Stateless targets receive the full conversation as a `messages` array on
+  // every turn (raw OpenAI/Groq/Anthropic-compat endpoints). The body shape
+  // is fixed by the chat-completions spec, so this mode overrides
+  // requestFormat and ignores sessionIdField.
+  const isStateless = config.stateful === false;
+  const conversationHistory = options?.history ?? [];
 
   const buildJsonBody = (promptValue: string): Record<string, unknown> => {
     const body: Record<string, unknown> = {};
     setByPath(body, config.promptPath?.trim() || "prompt", promptValue);
-    if (sessionId && config.sessionIdField) body[config.sessionIdField] = sessionId;
+    if (!isStateless && sessionId && config.sessionIdField) {
+      body[config.sessionIdField] = sessionId;
+    }
     return body;
   };
 
   try {
-    const useJson = targetFormat === "json";
+    const useJson = targetFormat === "json" && !isStateless;
 
     if (!useJson) {
+      const openaiMessages: { role: "user" | "assistant"; content: string }[] = isStateless
+        ? [...conversationHistory, { role: "user", content: prompt }]
+        : [{ role: "user", content: prompt }];
       const openaiBody: Record<string, unknown> = {
         model: targetModel,
-        messages: [{ role: "user", content: prompt }],
+        messages: openaiMessages,
         temperature: 0.7,
         max_tokens: 500,
       };
-      if (sessionId && config.sessionIdField) openaiBody[config.sessionIdField] = sessionId;
+      if (!isStateless && sessionId && config.sessionIdField) {
+        openaiBody[config.sessionIdField] = sessionId;
+      }
       if (hasPropagation && prop?.traceIdBodyField && propagationTraceId) {
         mergeTraceIdIntoJsonBody(openaiBody, prop.traceIdBodyField, propagationTraceId);
       }
@@ -169,7 +188,7 @@ async function callHttp(
         await new Promise((r) => setTimeout(r, 5000));
         return RATE_LIMITED_SENTINEL;
       }
-      if (res.ok || targetFormat === "openai") return extract(await res.text());
+      if (res.ok || targetFormat === "openai" || isStateless) return extract(await res.text());
     }
 
     const jsonBody = buildJsonBody(prompt);

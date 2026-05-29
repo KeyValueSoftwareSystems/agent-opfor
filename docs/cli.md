@@ -211,12 +211,31 @@ By default opfor runs **single-turn** attacks: one attack → one response → j
 
 **Multi-turn** fires a short adversarial conversation. After each response, if the judge still rates the target as PASS, the attacker LLM generates a more escalating follow-up (up to `turns`, default 3). Stops early when the judge returns FAIL.
 
+For HTTP agent targets, you choose how opfor delivers conversation context across turns via `target.stateful`:
+
+| `target.stateful` | When to use                                                                                                                                                           | What opfor sends per turn                                                                                                                 |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `true` (default)  | Custom agents and chat apps that maintain conversation history themselves (in a DB, in memory, etc.), keyed by a session identifier opfor passes in.                  | Only the current turn's user prompt, plus a per-attack session UUID injected at `target.sessionIdField`. Honours `requestFormat`.         |
+| `false`           | Raw LLM endpoints that are stateless by design — OpenAI, Groq, Anthropic via OpenAI-compatible gateway, LiteLLM, vLLM, etc. The endpoint has no concept of a session. | The full `{role, content}` conversation history as a chat-completions `messages` array. Forces OpenAI shape; `sessionIdField` is ignored. |
+
 ```json
-{ "turnMode": "multi", "turns": 3, "target": { "sessionIdField": "session_id" } }
+// Stateful — custom agent that owns its session store
+{
+  "turnMode": "multi",
+  "turns": 3,
+  "target": { "stateful": true, "sessionIdField": "session_id" }
+}
+
+// Stateless — raw LLM API; opfor replays the whole conversation each turn
+{
+  "turnMode": "multi",
+  "turns": 3,
+  "target": { "stateful": false, "requestFormat": "openai", "targetModel": "gpt-4o-mini" }
+}
 ```
 
-- **Agent (HTTP):** multi-turn requires your target to maintain its own conversation history per session. Set `target.sessionIdField` so opfor injects the ID into the request body.
-- **Agent (local-script):** `sessionId` is always included in the stdin JSON — your script holds the history.
+- **Agent (HTTP):** pick `stateful` based on what the endpoint expects. Omitting the field keeps the default of `true`, preserving the historical behaviour.
+- **Agent (local-script):** `sessionId` is always included in the stdin JSON — your script holds the history. `stateful` does not apply.
 - **MCP:** fully adaptive. Opfor feeds the previous `tools/call` response + judge reasoning back to the attacker LLM, which crafts the next tool call. No session-ID wiring needed.
 
 `turnMode` expresses intent (`single` / `multi`); `turns` caps the count when multi. With `turnMode: "single"`, `turns` is ignored.
@@ -352,25 +371,26 @@ Header values support `${VAR}` substitution (e.g. `"Authorization": "Bearer ${TA
 
 ### Agent fields (`target.kind: "agent"`)
 
-| Field                                    | Required           | Description                                                                             |
-| ---------------------------------------- | ------------------ | --------------------------------------------------------------------------------------- |
-| `target.name`                            | Yes                | Human-readable name. Used as the report slug.                                           |
-| `target.description`                     | Yes                | What it does, data it handles, restrictions. More detail = better attacks.              |
-| `target.type`                            | Yes                | `"http-endpoint"` or `"local-script"`.                                                  |
-| `target.endpoint`                        | For HTTP           | Full URL to POST attacks to.                                                            |
-| `target.requestFormat`                   | For HTTP           | `"openai"`, `"json"`, or `"auto"` (default).                                            |
-| `target.targetModel`                     | For HTTP / openai  | Model name to send in the request body.                                                 |
-| `target.targetApiKey`                    | No                 | Bearer token for the target endpoint.                                                   |
-| `target.headers`                         | No                 | Custom HTTP headers (e.g. `{"X-Api-Key": "secret"}`). Merged with built-in headers.     |
-| `target.promptPath`                      | No                 | Dot-path for the prompt field (e.g. `"input.message"`). Defaults to top-level `prompt`. |
-| `target.responsePath`                    | No                 | Dot-path to extract the reply (e.g. `"data.reply"`). Falls back to built-in chain.      |
-| `target.sessionIdField`                  | No                 | Body field for the session ID injected on multi-turn requests.                          |
-| `target.scriptPath`                      | For `local-script` | Path to the `.js`/`.py` adapter, relative to cwd.                                       |
-| `telemetry.provider`                     | No                 | `"langfuse"`, `"netra"`, or `"none"`.                                                   |
-| `telemetry.enrichJudgeFromTrace`         | No                 | Fetch the recorded trace after each attack and pass spans to the judge.                 |
-| `telemetry.propagation.traceIdBodyField` | No                 | Request body field to inject a trace ID (e.g. `"trace_id"`).                            |
-| `telemetry.propagation.headers`          | No                 | HTTP headers to set on each target request. Values support `{{traceId}}`, `{{runId}}`.  |
-| `telemetry.propagation.traceIdStrategy`  | No                 | `"per-attack"` (default) or `"per-run"`.                                                |
+| Field                                    | Required           | Description                                                                                                                                                                                                                                              |
+| ---------------------------------------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `target.name`                            | Yes                | Human-readable name. Used as the report slug.                                                                                                                                                                                                            |
+| `target.description`                     | Yes                | What it does, data it handles, restrictions. More detail = better attacks.                                                                                                                                                                               |
+| `target.type`                            | Yes                | `"http-endpoint"` or `"local-script"`.                                                                                                                                                                                                                   |
+| `target.endpoint`                        | For HTTP           | Full URL to POST attacks to.                                                                                                                                                                                                                             |
+| `target.requestFormat`                   | For HTTP           | `"openai"`, `"json"`, or `"auto"` (default).                                                                                                                                                                                                             |
+| `target.targetModel`                     | For HTTP / openai  | Model name to send in the request body.                                                                                                                                                                                                                  |
+| `target.targetApiKey`                    | No                 | Bearer token for the target endpoint.                                                                                                                                                                                                                    |
+| `target.headers`                         | No                 | Custom HTTP headers (e.g. `{"X-Api-Key": "secret"}`). Merged with built-in headers.                                                                                                                                                                      |
+| `target.promptPath`                      | No                 | Dot-path for the prompt field (e.g. `"input.message"`). Defaults to top-level `prompt`.                                                                                                                                                                  |
+| `target.responsePath`                    | No                 | Dot-path to extract the reply (e.g. `"data.reply"`). Falls back to built-in chain.                                                                                                                                                                       |
+| `target.sessionIdField`                  | No                 | Body field for the session ID injected on multi-turn requests (stateful mode only).                                                                                                                                                                      |
+| `target.stateful`                        | No                 | `true` (default): send only the current turn's prompt + `sessionIdField`. `false`: send the full chat history as a chat-completions `messages` array each turn — required for raw LLM APIs. See [Single-turn vs multi-turn](#single-turn-vs-multi-turn). |
+| `target.scriptPath`                      | For `local-script` | Path to the `.js`/`.py` adapter, relative to cwd.                                                                                                                                                                                                        |
+| `telemetry.provider`                     | No                 | `"langfuse"`, `"netra"`, or `"none"`.                                                                                                                                                                                                                    |
+| `telemetry.enrichJudgeFromTrace`         | No                 | Fetch the recorded trace after each attack and pass spans to the judge.                                                                                                                                                                                  |
+| `telemetry.propagation.traceIdBodyField` | No                 | Request body field to inject a trace ID (e.g. `"trace_id"`).                                                                                                                                                                                             |
+| `telemetry.propagation.headers`          | No                 | HTTP headers to set on each target request. Values support `{{traceId}}`, `{{runId}}`.                                                                                                                                                                   |
+| `telemetry.propagation.traceIdStrategy`  | No                 | `"per-attack"` (default) or `"per-run"`.                                                                                                                                                                                                                 |
 
 ### MCP fields (`target.kind: "mcp"`)
 
@@ -413,6 +433,8 @@ POST /chat
 ```
 
 Response extracted from `choices[0].message.content`.
+
+For multi-turn attacks against a raw LLM endpoint, also set `target.stateful: false` so opfor sends the full conversation history as the `messages` array each turn instead of just the latest user message. See [Single-turn vs multi-turn](#single-turn-vs-multi-turn).
 
 **`json`** — Generic JSON. Sends `{ "prompt": "..." }` by default, reads from `.response`:
 
