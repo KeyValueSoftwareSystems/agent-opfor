@@ -82,7 +82,6 @@ patterns:
       technical content of that chapter as straight prose. The arc:
       fiction wrapper → in-universe artifact → strip wrapper, revealing
       substance produced under safe-feeling fictional context.
-mitre: AML.T0054
 ---
 
 # Jailbreaking Evaluator

@@ -31,6 +31,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "validate:skills": "tsx scripts/validate-skills.ts",
+    "coverage:atlas": "tsx scripts/generate-atlas-coverage.ts",
     "prepare": "husky"
   },
   "devDependencies": {

@@ -4,6 +4,7 @@ import { parse as parseYaml } from "yaml";
 import { splitYamlFrontmatter } from "../util/yamlFrontmatter.js";
 import { getOpforSetupRoot } from "./skillsLayout.js";
 import { resolveStandardsFromFrontmatter } from "../evaluators/standards.js";
+import { loadAtlasTechniqueIdSet } from "../standards/atlas.js";
 import type { StandardsMap } from "../evaluators/schema.js";
 
 export interface EvaluatorMeta {
@@ -30,6 +31,9 @@ export async function loadSkillCatalog(): Promise<{
   evaluators: EvaluatorMeta[];
   suites: SuiteMeta[];
 }> {
+  const validateAtlas = process.env.OPFOR_VALIDATE_ATLAS === "1";
+  const atlasTechniqueIds = validateAtlas ? await loadAtlasTechniqueIdSet() : null;
+
   const root = getOpforSetupRoot();
   const evalDir = path.join(root, "evaluators");
   const suitesDir = path.join(root, "suites");
@@ -69,6 +73,16 @@ export async function loadSkillCatalog(): Promise<{
     const id =
       typeof doc.id === "string" && doc.id.trim() ? doc.id.trim() : f.replace(/\.md$/i, "");
     const standards = resolveStandardsFromFrontmatter(doc);
+    const atlasId = standards?.atlas;
+    if (atlasTechniqueIds && typeof atlasId === "string" && atlasId.trim()) {
+      const normalized = atlasId.trim();
+      if (!/^AML\.T\d{4}(\.\d{3})?$/.test(normalized)) {
+        throw new Error(`Evaluator ${f}: standards.atlas has invalid format "${normalized}"`);
+      }
+      if (!atlasTechniqueIds.has(normalized)) {
+        throw new Error(`Evaluator ${f}: standards.atlas unknown technique id "${normalized}"`);
+      }
+    }
     evaluators.push({
       id,
       name: typeof doc.name === "string" ? doc.name : id,

@@ -1,0 +1,3 @@
+[submodule "third_party/atlas-data"]
+	path = third_party/atlas-data
+	url = https://github.com/mitre-atlas/atlas-data.git

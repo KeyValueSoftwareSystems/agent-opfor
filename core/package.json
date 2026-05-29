@@ -28,7 +28,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --import tsx/esm --test tests/runAll.smoke.test.ts"
+    "test": "node --import tsx/esm --test tests/*.test.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^2.0.77",

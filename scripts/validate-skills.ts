@@ -18,6 +18,7 @@ import {
   EvaluatorFrontmatterSchema,
   SuiteFrontmatterSchema,
 } from "../core/src/evaluators/schema.js";
+import { loadAtlasTechniqueIdSet } from "../core/src/standards/atlas.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "..");
@@ -55,7 +56,7 @@ const SKILL_TREES = [
     label: "mcp-redteaming",
     evaluatorsDir: path.join(REPO_ROOT, "skills/mcp-redteaming/opfor-setup/evaluators"),
     suitesDir: path.join(REPO_ROOT, "skills/mcp-redteaming/opfor-setup/suites"),
-    requirePatterns: false,
+    requirePatterns: true,
   },
 ];
 
@@ -83,7 +84,8 @@ async function validateEvaluator(
   filePath: string,
   tree: (typeof SKILL_TREES)[number],
   knownIds: Map<string, string>,
-  stagedEvaluatorPaths: Set<string> | null
+  stagedEvaluatorPaths: Set<string> | null,
+  atlasTechniqueIds: Set<string>
 ): Promise<FileResult> {
   const relPath = path.relative(REPO_ROOT, filePath);
   const errors: string[] = [];
@@ -156,6 +158,20 @@ async function validateEvaluator(
     }
   }
 
+  const atlasId = data.standards?.atlas;
+  if (typeof atlasId === "string" && atlasId.trim()) {
+    const normalized = atlasId.trim();
+    if (!/^AML\.T\d{4}(\.\d{3})?$/.test(normalized)) {
+      errors.push(
+        `standards.atlas: invalid format "${normalized}" (expected AML.T#### or AML.T####.###)`
+      );
+    } else if (!atlasTechniqueIds.has(normalized)) {
+      errors.push(
+        `standards.atlas: unknown technique id "${normalized}" (not found in third_party/atlas-data)`
+      );
+    }
+  }
+
   return { file: relPath, errors, warnings };
 }
 
@@ -214,6 +230,14 @@ async function main(): Promise<void> {
   const allResults: FileResult[] = [];
   const knownIds = new Map<string, string>();
   const stagedEvaluatorPaths = getStagedEvaluatorPaths();
+  let atlasTechniqueIds: Set<string>;
+  try {
+    atlasTechniqueIds = await loadAtlasTechniqueIdSet();
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error(`\n✗ Could not load MITRE ATLAS data for validation.\n\n${msg}\n`);
+    process.exit(1);
+  }
 
   for (const tree of SKILL_TREES) {
     let evalFiles: string[];
@@ -229,7 +253,9 @@ async function main(): Promise<void> {
     const evaluatorIdsByFilestem = new Set(evalFiles.map((f) => path.basename(f, ".md")));
 
     for (const fp of evalFiles) {
-      allResults.push(await validateEvaluator(fp, tree, knownIds, stagedEvaluatorPaths));
+      allResults.push(
+        await validateEvaluator(fp, tree, knownIds, stagedEvaluatorPaths, atlasTechniqueIds)
+      );
     }
 
     let suiteFiles: string[];

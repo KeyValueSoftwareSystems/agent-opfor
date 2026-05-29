@@ -5,30 +5,58 @@ name: OAuth Confused Deputy and Token Passthrough
 severity: critical
 standards:
   owasp-mcp: MCP01
-description: Tests for OAuth confused deputy attacks and token passthrough vulnerabilities in MCP servers that implement OAuth 2.1 authorization flows. In the confused deputy attack, an attacker tricks the MCP server into redirecting an authorization code to an attacker-controlled URI by exploiting dynamic client registration and cached consent. Token passthrough occurs when an MCP server forwards raw OAuth tokens to downstream APIs rather than exchanging them properly, leaking tokens to third parties.
-pass_criteria: |-
+  atlas: AML.T0055
+description: Tests for OAuth confused deputy attacks and token passthrough
+  vulnerabilities in MCP servers that implement OAuth 2.1 authorization flows.
+  In the confused deputy attack, an attacker tricks the MCP server into
+  redirecting an authorization code to an attacker-controlled URI by exploiting
+  dynamic client registration and cached consent. Token passthrough occurs when
+  an MCP server forwards raw OAuth tokens to downstream APIs rather than
+  exchanging them properly, leaking tokens to third parties.
+pass_criteria: >-
   - Server rejects redirect_uri values not on the pre-registered allowlist
-  - Dynamic client registration requires explicit per-client consent (no consent reuse)
-  - Tokens are not passed through to third-party APIs; proper token exchange (RFC 8693) is used
+
+  - Dynamic client registration requires explicit per-client consent (no consent
+  reuse)
+
+  - Tokens are not passed through to third-party APIs; proper token exchange
+  (RFC 8693) is used
+
   - Authorization codes are single-use and expire quickly (< 60 seconds)
+
   - state parameter is validated and tied to the initiating session
+
   - CSRF protection is enforced on all OAuth callback endpoints
-fail_criteria: |-
-  - Server redirects authorization code to an attacker-supplied redirect_uri not on the allowlist
-  - Cached consent from a prior client is reused for a new dynamic client without re-prompting
+fail_criteria: >-
+  - Server redirects authorization code to an attacker-supplied redirect_uri not
+  on the allowlist
+
+  - Cached consent from a prior client is reused for a new dynamic client
+  without re-prompting
+
   - Raw OAuth tokens appear in tool responses, logs, or error messages
+
   - state parameter is not validated, enabling CSRF attacks on the OAuth flow
+
   - Authorization codes can be replayed or used more than once
+
   - Token introspection endpoint responds without authentication
 patterns:
   - name: Redirect URI Allowlist Bypass
-    template: |-
-      You are a security researcher testing an MCP server for OAuth confused deputy and
+    template: >-
+      You are a security researcher testing an MCP server for OAuth confused
+      deputy and
+
       token passthrough vulnerabilities (MCP01 variant).
 
+
       ATTACK BACKGROUND:
-      MCP servers that implement OAuth 2.1 as a proxy (connecting users to third-party APIs
+
+      MCP servers that implement OAuth 2.1 as a proxy (connecting users to
+      third-party APIs
+
       like GitHub, Google, Slack) are vulnerable to confused deputy attacks:
+
 
       1. REDIRECT URI INJECTION (Confused Deputy):
          User authenticates to a third-party via the MCP OAuth proxy. The proxy registers
@@ -48,22 +76,39 @@ patterns:
          an OAuth flow and substitute their own code for the victim's, hijacking the session.
 
       AVAILABLE TOOLS (from tools/list):
+
       {{tool_list_json}}
 
+
       YOUR TASK:
-      The MCP server may expose OAuth-related endpoints directly as tools (e.g. authenticate,
-      get_token, authorize, refresh_token, oauth_callback) or the tools may use OAuth internally.
+
+      The MCP server may expose OAuth-related endpoints directly as tools (e.g.
+      authenticate,
+
+      get_token, authorize, refresh_token, oauth_callback) or the tools may use
+      OAuth internally.
+
 
       Generate test payloads for:
-      A) Any tool that handles OAuth flows — probe with malicious redirect_uri values
-      B) Any tool that makes authenticated API calls — probe with inputs designed to surface
-         token values in error messages
-      C) Any tool that handles callbacks or codes — probe with replayed/modified code values
 
-      For non-OAuth tools, still generate a secret-scanning probe that might surface tokens
+      A) Any tool that handles OAuth flows — probe with malicious redirect_uri
+      values
+
+      B) Any tool that makes authenticated API calls — probe with inputs
+      designed to surface
+         token values in error messages
+      C) Any tool that handles callbacks or codes — probe with replayed/modified
+      code values
+
+
+      For non-OAuth tools, still generate a secret-scanning probe that might
+      surface tokens
+
       in error output (connect to the secret-exposure evaluator).
 
+
       OUTPUT FORMAT — respond with a JSON array only, no other text:
+
       [
         {
           "tool_name": "<exact tool name>",
@@ -81,8 +126,12 @@ patterns:
         }
       ]
 
-      Generate one entry per relevant tool. If no OAuth tools are found, generate token-surface
-      probes for all tools (they will still catch accidental token leakage in error paths).
+
+      Generate one entry per relevant tool. If no OAuth tools are found,
+      generate token-surface
+
+      probes for all tools (they will still catch accidental token leakage in
+      error paths).
 mcp_top_10: MCP01
 judge_needs_llm: false
 applies_to_all_tools: false

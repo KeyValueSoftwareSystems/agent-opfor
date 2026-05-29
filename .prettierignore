@@ -1,5 +1,6 @@
 dist/
 node_modules/
+third_party/
 core/dist/
 runners/cli/dist/
 runners/mcp/dist/
