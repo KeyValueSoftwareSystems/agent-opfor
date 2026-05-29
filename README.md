@@ -186,7 +186,7 @@ This catches what input/output testing misses — PII that leaks into a tool cal
 
 Highest-impact ways to contribute:
 
-1. **New evaluators** — add a `.md` file under `skills/*/opfor-setup/evaluators/` with attack templates and pass/fail criteria. The engine auto-discovers it. No TypeScript needed.
+1. **New evaluators** — add a `.md` file under `evaluators/agent/` or `evaluators/mcp/`, run `npm run sync:skills-evaluators`, and commit both root and `_generated` copies. The engine reads repo root. No TypeScript needed.
 2. **New target adapters** — extend `core/src/mcp-client/` to support new agent frameworks.
 3. **Findings** — run opfor against a public agent or MCP server and PR your writeup to `findings/`.
 4. **Bug reports** — open an [issue](https://github.com/KeyValueSoftwareSystems/opfor/issues).

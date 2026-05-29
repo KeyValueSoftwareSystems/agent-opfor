@@ -9,8 +9,7 @@ import { readdir } from "node:fs/promises";
 import path from "node:path";
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { getCatalogRoot } from "../src/catalog/loadCatalog.js";
-import { getOpforSetupRoot } from "../src/config/skillsLayout.js";
+import { getEvaluatorsDir } from "../src/config/evaluatorsLayout.js";
 import { parseEvaluator } from "../src/evaluators/parseEvaluator.js";
 
 async function assertAllEvaluatorsParse(
@@ -33,10 +32,10 @@ async function assertAllEvaluatorsParse(
   }
 }
 
-test("agent-redteaming evaluators parse via parseEvaluator", async () => {
-  await assertAllEvaluatorsParse(path.join(getOpforSetupRoot(), "evaluators"), "agent");
+test("agent evaluators parse via parseEvaluator", async () => {
+  await assertAllEvaluatorsParse(getEvaluatorsDir("agent"), "agent");
 });
 
-test("mcp-redteaming evaluators parse via parseEvaluator", async () => {
-  await assertAllEvaluatorsParse(path.join(getCatalogRoot(), "evaluators"), "mcp");
+test("mcp evaluators parse via parseEvaluator", async () => {
+  await assertAllEvaluatorsParse(getEvaluatorsDir("mcp"), "mcp");
 });

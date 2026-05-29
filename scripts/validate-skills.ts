@@ -1,5 +1,5 @@
 /**
- * Validate all evaluator and suite markdown files under skills/.
+ * Validate evaluator and suite markdown at repo root (`evaluators/`, `suites/`).
  *
  * Evaluator rules:
  *   - id, name, severity, pass_criteria, fail_criteria required
@@ -37,7 +37,9 @@ function getStagedEvaluatorPaths(): Set<string> | null {
     for (const line of out.split(/\r?\n/)) {
       const p = line.trim();
       if (!p.endsWith(".md")) continue;
-      if (p.includes("/opfor-setup/evaluators/")) paths.add(p);
+      if (/^evaluators\/(agent|mcp)\//.test(p) || /^suites\/(agent|mcp)\//.test(p)) {
+        paths.add(p);
+      }
     }
     return paths;
   } catch {
@@ -45,17 +47,17 @@ function getStagedEvaluatorPaths(): Set<string> | null {
   }
 }
 
-const SKILL_TREES = [
+const EVALUATOR_TREES = [
   {
-    label: "agent-redteaming",
-    evaluatorsDir: path.join(REPO_ROOT, "skills/agent-redteaming/opfor-setup/evaluators"),
-    suitesDir: path.join(REPO_ROOT, "skills/agent-redteaming/opfor-setup/suites"),
+    label: "agent",
+    evaluatorsDir: path.join(REPO_ROOT, "evaluators/agent"),
+    suitesDir: path.join(REPO_ROOT, "suites/agent"),
     requirePatterns: true,
   },
   {
-    label: "mcp-redteaming",
-    evaluatorsDir: path.join(REPO_ROOT, "skills/mcp-redteaming/opfor-setup/evaluators"),
-    suitesDir: path.join(REPO_ROOT, "skills/mcp-redteaming/opfor-setup/suites"),
+    label: "mcp",
+    evaluatorsDir: path.join(REPO_ROOT, "evaluators/mcp"),
+    suitesDir: path.join(REPO_ROOT, "suites/mcp"),
     requirePatterns: true,
   },
 ];
@@ -239,7 +241,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  for (const tree of SKILL_TREES) {
+  for (const tree of EVALUATOR_TREES) {
     let evalFiles: string[];
     try {
       evalFiles = (await readdir(tree.evaluatorsDir))

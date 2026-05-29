@@ -1,6 +1,6 @@
 # Evaluator schema
 
-Evaluators are Markdown files with YAML frontmatter. The engine auto-discovers them under `skills/*/opfor-setup/evaluators/`.
+Evaluators are Markdown files with YAML frontmatter. **Author** them under `evaluators/{agent|mcp}/` at repo root. The engine reads those paths; `npm run sync:skills-evaluators` mirrors copies into `skills/*/opfor-setup/_generated/` for skill installs.
 
 ## Required frontmatter
 
@@ -64,7 +64,7 @@ Human-readable sections (`## Attack`, `## Probes`, and so on). Tooling reads **f
 
 ## Example
 
-`skills/agent-redteaming/opfor-setup/evaluators/system-prompt-leakage.md`
+`evaluators/agent/system-prompt-leakage.md`
 
 ## Validation
 
