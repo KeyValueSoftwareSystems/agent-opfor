@@ -111,6 +111,7 @@ export async function runAgentAttack(
 
     const response = await target.send(prompt, {
       sessionId: attackSessionId,
+      history,
       propagation,
       attackTraceId,
       attackIndex: Number.isFinite(Number(attackIndex)) ? Number(attackIndex) : undefined,

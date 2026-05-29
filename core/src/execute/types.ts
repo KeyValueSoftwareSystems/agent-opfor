@@ -21,6 +21,17 @@ export interface AgentTargetConfig {
   promptPath?: string;
   responsePath?: string;
   scriptPath?: string;
+  /**
+   * Whether the target maintains conversation history server-side.
+   * - true (default): OPFOR sends only the latest prompt per turn and threads
+   *   `sessionId` via `sessionIdField`. The target is expected to look up
+   *   prior turns by that id.
+   * - false: OPFOR sends the full chat history as a `messages` array each
+   *   turn (OpenAI chat-completions shape). Used to test stateless LLM APIs
+   *   directly. Both `sessionIdField` and `requestFormat` are ignored in
+   *   this mode — the chat-completions shape is fixed by the spec.
+   */
+  stateful?: boolean;
 }
 
 export interface McpTargetConfig {
