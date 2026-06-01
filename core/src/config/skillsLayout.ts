@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(realpathSync(fileURLToPath(import.meta.url)));
 
-/** `skills/agent-redteaming/opfor-setup` at repo root (works from `core/src/config` and `core/dist/config`). */
+/** `skills/agent-redteaming/opfor-setup` — SKILL.md and targets (evaluators live at repo-root `evaluators/agent/`). */
 export function getOpforSetupRoot(): string {
   return path.resolve(__dirname, "../../../skills/agent-redteaming/opfor-setup");
 }

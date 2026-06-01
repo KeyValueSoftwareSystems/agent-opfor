@@ -2,8 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { parse as parseYaml } from "yaml";
 import { splitYamlFrontmatter } from "../util/yamlFrontmatter.js";
-import { getOpforSetupRoot } from "../config/skillsLayout.js";
-import { getCatalogRoot } from "../catalog/loadCatalog.js";
+import { getEvaluatorsDir, type EvaluatorCategory } from "../config/evaluatorsLayout.js";
 import { EvaluatorFrontmatterSchema } from "./schema.js";
 import type { StandardsMap } from "./schema.js";
 import type { EvaluatorStrategy } from "./strategies.js";
@@ -82,7 +81,7 @@ function parseDependsOn(doc: Record<string, unknown>): string[] {
   return [];
 }
 
-/** Parse evaluator from `skills/opfor-setup/evaluators/<id>.md` (YAML frontmatter). */
+/** Parse evaluator from `evaluators/{agent|mcp}/<id>.md` (YAML frontmatter). */
 export async function parseEvaluator(mdPath: string): Promise<EvaluatorSpec> {
   const raw = await readFile(mdPath, "utf8");
   const sp = splitYamlFrontmatter(raw);
@@ -103,15 +102,13 @@ export async function parseEvaluator(mdPath: string): Promise<EvaluatorSpec> {
   return spec;
 }
 
-export function getEvaluatorsDir(targetKind: "agent" | "mcp"): string {
-  return targetKind === "mcp"
-    ? path.join(getCatalogRoot(), "evaluators")
-    : path.join(getOpforSetupRoot(), "evaluators");
+export function getEvaluatorsDirForTarget(targetKind: EvaluatorCategory): string {
+  return getEvaluatorsDir(targetKind);
 }
 
 export async function loadBuiltinEvaluator(
   id: string,
   targetKind: "agent" | "mcp" = "agent"
 ): Promise<EvaluatorSpec> {
-  return parseEvaluator(path.join(getEvaluatorsDir(targetKind), `${id}.md`));
+  return parseEvaluator(path.join(getEvaluatorsDirForTarget(targetKind), `${id}.md`));
 }

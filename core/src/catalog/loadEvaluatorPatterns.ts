@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { parse as parseYaml } from "yaml";
-import { getCatalogRoot } from "./loadCatalog.js";
+import { getEvaluatorsDir } from "../config/evaluatorsLayout.js";
 import { splitYamlFrontmatter } from "../util/yamlFrontmatter.js";
 
 export interface EvaluatorPattern {
@@ -16,7 +16,7 @@ export interface EvaluatorDoc {
 }
 
 export async function loadEvaluatorDoc(evaluatorId: string): Promise<EvaluatorDoc> {
-  const dir = path.join(getCatalogRoot(), "evaluators");
+  const dir = getEvaluatorsDir("mcp");
   const mdPath = path.join(dir, `${evaluatorId}.md`);
   const raw = await readFile(mdPath, "utf8");
   const sp = splitYamlFrontmatter(raw);

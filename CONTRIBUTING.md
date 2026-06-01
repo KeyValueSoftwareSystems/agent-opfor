@@ -87,7 +87,7 @@ cp .env.example .env
 
 ## Adding an evaluator
 
-Evaluators live in `skills/*/opfor-setup/evaluators/` as Markdown files with YAML frontmatter. No TypeScript changes are needed — the engine loads them automatically.
+Evaluators live in `evaluators/{agent,mcp}/` at repo root as Markdown with YAML frontmatter. Run `npm run sync:skills-evaluators` to refresh `skills/*/opfor-setup/_generated/` for skill installs. No TypeScript changes are needed — the engine loads root paths automatically.
 
 Pick `agent-redteaming` for chat/HTTP-target evaluators, `mcp-redteaming` for evaluators that fire `tools/call` against an MCP server.
 
@@ -95,7 +95,7 @@ Full frontmatter contract: [docs/evaluator-schema.md](docs/evaluator-schema.md).
 
 ### File format
 
-Create `skills/*/opfor-setup/evaluators/<your-id>.md`:
+Create `evaluators/agent/<your-id>.md` or `evaluators/mcp/<your-id>.md`, then run `npm run sync:skills-evaluators`:
 
 ```markdown
 ---
@@ -178,7 +178,7 @@ evaluators:
 ---
 ```
 
-Reference only evaluator IDs that exist in `skills/*/opfor-setup/evaluators/`. The engine validates this at load time.
+Reference only evaluator IDs that exist in the matching `evaluators/{agent|mcp}/` tree. The engine validates this at load time.
 
 ---
 

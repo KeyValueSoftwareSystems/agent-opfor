@@ -1,13 +1,13 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { parse as parseYaml } from "yaml";
-import { getCatalogRoot } from "./loadCatalog.js";
+import { getEvaluatorsDir } from "../config/evaluatorsLayout.js";
 import { splitYamlFrontmatter } from "../util/yamlFrontmatter.js";
 import type { EvaluatorCriteria } from "../run/judge.js";
 import { resolveStandardsFromFrontmatter } from "../evaluators/standards.js";
 
 export async function loadEvaluatorCriteria(evaluatorId: string): Promise<EvaluatorCriteria> {
-  const dir = path.join(getCatalogRoot(), "evaluators");
+  const dir = getEvaluatorsDir("mcp");
   const raw = await readFile(path.join(dir, `${evaluatorId}.md`), "utf8");
   const sp = splitYamlFrontmatter(raw);
   if (!sp) throw new Error(`Evaluator ${evaluatorId}: missing YAML frontmatter`);

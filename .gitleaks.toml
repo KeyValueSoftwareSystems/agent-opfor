@@ -13,6 +13,8 @@ regexes = [
 paths = [
   # Test fixture agents may contain placeholder keys in .env.example files
   '''tests/e2e/agents/.*/\.env\.example''',
-  # Skills/evaluator markdown docs reference token patterns as examples
-  '''skills/opfor-setup/evaluators/.*\.md''',
+  # Evaluator markdown (repo root source + synced skill mirrors)
+  '''evaluators/.*\.md''',
+  '''suites/.*\.md''',
+  '''skills/.*/opfor-setup/_generated/.*\.md''',
 ]

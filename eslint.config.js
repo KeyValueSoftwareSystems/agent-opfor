@@ -27,6 +27,16 @@ export default tseslint.config(
     },
   },
   {
+    files: ["tests/e2e/**/*.mjs"],
+    languageOptions: {
+      globals: {
+        console: "readonly",
+        process: "readonly",
+        Buffer: "readonly",
+      },
+    },
+  },
+  {
     files: ["runners/extension/**/*.js"],
     languageOptions: {
       globals: {

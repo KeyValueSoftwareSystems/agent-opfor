@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Bundles evaluator + suite metadata from `skills/agent-redteaming/opfor-setup`
+ * Bundles evaluator + suite metadata from repo-root `evaluators/agent` + `suites/agent`
  * into `extension/catalog.json` for the MV3 extension (no filesystem access at
  * runtime).
  *
@@ -13,7 +13,8 @@ import { parse as parseYaml } from "yaml";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "../../..");
-const SETUP_ROOT = path.join(REPO_ROOT, "skills/agent-redteaming/opfor-setup");
+const EVALUATORS_DIR = path.join(REPO_ROOT, "evaluators/agent");
+const SUITES_DIR = path.join(REPO_ROOT, "suites/agent");
 const OUT = path.join(REPO_ROOT, "runners/extension/catalog.json");
 
 function splitYamlFrontmatter(raw) {
@@ -135,8 +136,8 @@ async function parseSuiteMd(filePath, fname) {
 }
 
 async function main() {
-  const evalDir = path.join(SETUP_ROOT, "evaluators");
-  const suitesDir = path.join(SETUP_ROOT, "suites");
+  const evalDir = EVALUATORS_DIR;
+  const suitesDir = SUITES_DIR;
 
   const evalFiles = (await readdir(evalDir)).filter((f) => f.endsWith(".md"));
   const evaluators = [];
@@ -168,7 +169,7 @@ async function main() {
   const payload = {
     version: 1,
     generatedAt: new Date().toISOString(),
-    source: "skills/agent-redteaming/opfor-setup",
+    source: "evaluators/agent",
     suites,
     evaluators,
   };
