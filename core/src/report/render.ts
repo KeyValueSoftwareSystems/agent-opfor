@@ -149,7 +149,7 @@ export function renderReport(model: ReportViewModel): string {
                 <strong>${esc(f.evaluator)}</strong>
                 <span class="finding-score">Score ${f.score}/10</span>
                 <span style="color:#64748B;font-size:12px;margin-left:4px">${esc(f.resultId)}</span>
-                <div class="finding-desc">${esc(truncate(f.description, 240))}</div>
+                <div class="finding-desc">${esc(f.description)}</div>
               </li>`
               )
               .join("")}
@@ -688,6 +688,7 @@ function resultCard(r: ResultViewModel, index: number, mode: "agent" | "mcp"): s
           · Score ${r.judge.score}/10
           · Confidence ${r.judge.confidence}%
           ${r.judge.evidence && r.judge.evidence !== "N/A" ? `· Evidence: <em>${esc(truncate(r.judge.evidence, 200))}</em>` : ""}
+          ${verdict === "FAIL" && r.judge.failingTurns && r.judge.failingTurns.length >= 2 ? `· Failing turns: ${r.judge.failingTurns.join(", ")}` : ""}
           <br><span style="color:var(--text-2)">${esc(r.judge.reasoning)}</span>
         </div>`;
 

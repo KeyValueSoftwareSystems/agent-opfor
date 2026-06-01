@@ -9,6 +9,7 @@ export interface ReportJudge {
   confidence: number;
   evidence: string;
   reasoning: string;
+  failingTurns?: number[];
   errorMessage?: string;
 }
 

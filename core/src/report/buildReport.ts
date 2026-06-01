@@ -96,6 +96,7 @@ function toResultViewModel(a: AttackResult): ResultViewModel {
     confidence: a.judge.confidence,
     evidence: a.judge.evidence ?? "",
     reasoning: a.judge.reasoning ?? "",
+    failingTurns: a.judge.failingTurns,
     errorMessage: a.judge.errorMessage,
   };
 
