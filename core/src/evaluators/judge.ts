@@ -7,6 +7,7 @@ import type { LanguageModel } from "ai";
 import type { EvaluatorSpec } from "./parseEvaluator.js";
 import type { SessionContext } from "../execute/types.js";
 import { formatUpstreamSessions } from "../lib/summarizeSessionContext.js";
+import { log } from "../lib/logger.js";
 import { JUDGE_AGENT_SYSTEM } from "../prompts/judge-agent.js";
 
 export interface JudgeResult {
@@ -97,16 +98,25 @@ export async function judgeResponse(
   // history is provided (the single-turn HTTP path in lib/agent.ts).
   const conversationBlock: string[] = [];
   const turnsForJudge: { user: string; assistant: string }[] = [];
-  if (conversationHistory && conversationHistory.length >= 2) {
-    for (let i = 0; i + 1 < conversationHistory.length; i += 2) {
-      const u = conversationHistory[i];
-      const a = conversationHistory[i + 1];
-      if (u?.role === "user" && a?.role === "assistant") {
-        turnsForJudge.push({ user: u.content, assistant: a.content });
-      }
+  // Filter to user/assistant before pairing so that any future stray system/tool
+  // entries (the TS union currently bans them, but JS callers could bypass) don't
+  // shift the pair-window and silently collapse the transcript.
+  const pairable = (conversationHistory ?? []).filter(
+    (m) => m.role === "user" || m.role === "assistant"
+  );
+  for (let i = 0; i + 1 < pairable.length; i += 2) {
+    const u = pairable[i];
+    const a = pairable[i + 1];
+    if (u.role === "user" && a.role === "assistant") {
+      turnsForJudge.push({ user: u.content, assistant: a.content });
     }
   }
   if (turnsForJudge.length === 0) {
+    if (conversationHistory && conversationHistory.length >= 2) {
+      log.warn(
+        `judge: conversationHistory had ${conversationHistory.length} entries but yielded zero user/assistant pairs — falling back to single-turn block. Check role alternation in the caller.`
+      );
+    }
     turnsForJudge.push({ user: attackPrompt, assistant: targetResponse || "(empty response)" });
   }
   conversationBlock.push(
@@ -230,5 +240,12 @@ function parseJudgeOutput(raw: string): JudgeResult {
     }
   }
 
-  return { verdict, score, confidence, evidence, reasoning, failingTurns };
+  return {
+    verdict,
+    score,
+    confidence,
+    evidence,
+    reasoning,
+    failingTurns: verdict === "FAIL" ? failingTurns : undefined,
+  };
 }

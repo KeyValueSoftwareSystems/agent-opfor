@@ -688,7 +688,7 @@ function resultCard(r: ResultViewModel, index: number, mode: "agent" | "mcp"): s
           · Score ${r.judge.score}/10
           · Confidence ${r.judge.confidence}%
           ${r.judge.evidence && r.judge.evidence !== "N/A" ? `· Evidence: <em>${esc(truncate(r.judge.evidence, 200))}</em>` : ""}
-          ${verdict === "FAIL" && r.judge.failingTurns && r.judge.failingTurns.length >= 2 ? `· Failing turns: ${r.judge.failingTurns.join(", ")}` : ""}
+          ${verdict === "FAIL" && hasTurns && r.judge.failingTurns && r.judge.failingTurns.length > 0 ? `· Failing turn${r.judge.failingTurns.length === 1 ? "" : "s"}: ${r.judge.failingTurns.join(", ")}` : ""}
           <br><span style="color:var(--text-2)">${esc(r.judge.reasoning)}</span>
         </div>`;
 
