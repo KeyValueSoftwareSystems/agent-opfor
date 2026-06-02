@@ -22,16 +22,17 @@ See [cli.md → Two testing modes](cli.md#two-testing-modes) for the mode select
 
 # Agent red-team
 
-## Suites (6)
+## Suites (7)
 
-| Suite ID                  | Standard / version                   | Count | Focus                                                                                                                           |
-| ------------------------- | ------------------------------------ | ----- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `owasp-llm-top10`         | OWASP LLM Top 10 (2025)              | 10    | Prompt injection, sensitive disclosure, supply chain, data poisoning, agency, hallucination, misinformation, consumption limits |
-| `owasp-agentic-ai`        | OWASP Agentic AI Top 10 (2024)       | 10    | Goal hijack, tool misuse, identity abuse, memory poisoning, inter-agent comms, cascading failures, rogue agents                 |
-| `owasp-mcp-top10`         | OWASP MCP Top 10 (2025) — agent-side | 10    | How an agent target handles MCP tool calls, server trust, scope, and resource boundaries                                        |
-| `owasp-api`               | OWASP API Security Top 10 (2023)     | 10    | BOLA, BFLA, RBAC, PII via API/DB tools, SQL/shell injection, debug exposure, goal hijack                                        |
-| `eu-ai-act-bias`          | EU AI Act — Bias & Fairness (2024)   | 4     | Demographic bias: age, disability, gender, race                                                                                 |
-| `output-trust-and-safety` | Output Trust & Safety (v1)           | 8     | Hallucination, sycophancy, imitation, contractual overreach, off-topic drift, reasoning DoS, ASCII smuggling                    |
+| Suite ID                  | Standard / version                   | Count | Focus                                                                                                                                                            |
+| ------------------------- | ------------------------------------ | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `owasp-llm-top10`         | OWASP LLM Top 10 (2025)              | 10    | Prompt injection, sensitive disclosure, supply chain, data poisoning, agency, hallucination, misinformation, consumption limits                                  |
+| `owasp-agentic-ai`        | OWASP Agentic AI Top 10 (2024)       | 10    | Goal hijack, tool misuse, identity abuse, memory poisoning, inter-agent comms, cascading failures, rogue agents                                                  |
+| `owasp-mcp-top10`         | OWASP MCP Top 10 (2025) — agent-side | 10    | How an agent target handles MCP tool calls, server trust, scope, and resource boundaries                                                                         |
+| `owasp-api`               | OWASP API Security Top 10 (2023)     | 10    | BOLA, BFLA, RBAC, PII via API/DB tools, SQL/shell injection, debug exposure, goal hijack                                                                         |
+| `eu-ai-act-bias`          | EU AI Act — Bias & Fairness (2024)   | 4     | Demographic bias: age, disability, gender, race                                                                                                                  |
+| `output-trust-and-safety` | Output Trust & Safety (v1)           | 8     | Hallucination, sycophancy, imitation, contractual overreach, off-topic drift, reasoning DoS, ASCII smuggling                                                     |
+| `harmful-content`         | MLCommons + Harmbench harm taxonomy  | 12    | CBRN weapons, IEDs, malicious code, CSAM, sex/violent crime, illegal drug synthesis, self-harm, radicalization, unqualified specialized advice, unsafe practices |
 
 ## Evaluators
 
@@ -119,13 +120,32 @@ Probes how an agent target _behaves around_ MCP. For probing an MCP server direc
 | `reasoning-dos`   | Reasoning Denial of Service          | high     | LLM10 |
 | `ascii-smuggling` | ASCII / Unicode Smuggling            | high     | LLM01 |
 
+### `harmful-content` — 12 evaluators
+
+Content-harm coverage drawn from the MLCommons hazard taxonomy and Harmbench. Targets what a model can be talked into _saying_ — synthesis routes, operational planning, recruitment messaging, method content. Best paired with raw LLM endpoints (OpenAI, Anthropic, Bedrock). Compose with `owasp-llm-top10`, `owasp-api`, and `eu-ai-act-bias` for prompt-level, PII, and bias coverage.
+
+| ID                                  | Name                                 | Severity | Tag               |
+| ----------------------------------- | ------------------------------------ | -------- | ----------------- |
+| `harmful-bioweapons`                | Chemical & Biological Weapons        | critical | LLM10 / AML.T0054 |
+| `harmful-indiscriminate-weapons`    | Indiscriminate Weapons (CBRN)        | critical | LLM10 / AML.T0054 |
+| `harmful-weapons-ied`               | Improvised Explosive Devices         | critical | LLM10 / AML.T0054 |
+| `harmful-cybercrime-malicious-code` | Cybercrime & Malicious Code          | critical | LLM10 / AML.T0054 |
+| `harmful-child-exploitation`        | Child Exploitation (CSAM)            | critical | LLM10 / AML.T0054 |
+| `harmful-sex-crime`                 | Sex Crime                            | critical | LLM10 / AML.T0054 |
+| `harmful-violent-crime`             | Violent Crime                        | high     | LLM10 / AML.T0054 |
+| `harmful-illegal-drugs`             | Illegal Drug Synthesis & Trafficking | high     | LLM10 / AML.T0054 |
+| `harmful-self-harm`                 | Self-Harm & Suicide                  | high     | LLM10 / AML.T0054 |
+| `harmful-radicalization`            | Radicalization & Extremism           | high     | LLM10 / AML.T0054 |
+| `harmful-specialized-advice`        | Unqualified Specialized Advice       | high     | LLM09 / AML.T0048 |
+| `harmful-unsafe-practices`          | Promotion of Unsafe Practices        | high     | LLM09 / AML.T0048 |
+
 ## Standalone agent evaluators (not in any suite)
 
 | ID             | Name         | Severity | OWASP |
 | -------------- | ------------ | -------- | ----- |
 | `jailbreaking` | Jailbreaking | high     | LLM10 |
 
-Pick via `--evaluators jailbreaking` or list it in `agent.selection.evaluators`.
+Pick via `--evaluators jailbreaking` or list it under `agent.selection.evaluators`.
 
 ---
 
