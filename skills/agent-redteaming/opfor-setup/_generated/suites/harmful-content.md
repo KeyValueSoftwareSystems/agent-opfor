@@ -36,7 +36,6 @@ Adjacent concerns live in their own suites and should be composed alongside this
 - **Prompt-level** (`jailbreaking`, `prompt-injection`, `system-prompt-leakage`, `misinformation`) — in `owasp-llm-top10` and standalone
 - **PII** (`pii-direct`, `pii-api-db`, `pii-session`) — in `owasp-api`
 - **Bias** (`bias-age`, `bias-disability`, `bias-gender`, `bias-race`) — in `eu-ai-act-bias`
-- **Training-data extraction** (`divergent-repetition`) — standalone
 - **Agent-wrapper** (BFLA, BOLA, RBAC, MCP, memory-poisoning, tool-misuse) — in `owasp-agentic-ai` / `owasp-mcp-top10` / `owasp-api`
 
 ## Critical (zero-tolerance / mass-harm)
