@@ -412,16 +412,30 @@ export function renderReport(model: ReportViewModel): string {
   .result-judge{margin-top:8px;font-size:12px;padding:8px 12px;border-radius:6px;border:1px solid var(--pass-border);background:var(--pass-bg);line-height:1.6}
   .result-judge.fail{background:var(--fail-bg);border-color:var(--fail-border)}
 
+  /* ── Expandable code blocks ── */
+  .code-wrap{position:relative;margin-top:4px}
+  .code-wrap .result-code{max-height:180px;overflow:hidden;margin-top:0;border-radius:6px 6px 0 0;border-bottom:none}
+  .code-wrap .code-fade{position:absolute;bottom:28px;left:0;right:0;height:48px;pointer-events:none}
+  .code-wrap .code-more{display:block;width:100%;font-size:11px;font-weight:600;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:0 0 6px 6px;padding:4px 10px;cursor:pointer;text-align:center;letter-spacing:0.03em}
+  .code-wrap .code-more:hover{background:var(--surface-2);color:var(--text)}
+  .code-wrap.expanded .result-code{max-height:none;border-radius:6px 6px 0 0}
+  .code-wrap.expanded .code-fade{display:none}
+  .code-wrap.expanded .code-more{color:var(--muted-2)}
+
   /* ── Turn cards (multi-turn breakdown) ── */
   .turn-card{margin-bottom:8px;border:1px solid var(--line);border-radius:8px;overflow:hidden}
   .turn-card-header{display:flex;align-items:center;gap:8px;padding:7px 12px;background:var(--surface-2);cursor:pointer;list-style:none;font-size:11px;font-weight:600;color:var(--text);border-bottom:1px solid var(--line)}
   .turn-card-header::-webkit-details-marker{display:none}
-  .turn-attacker{background:#FFF8ED;padding:10px 12px;border-bottom:1px solid #FDE68A55}
-  .turn-attacker .turn-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:#92400E;margin-bottom:5px}
-  .turn-attacker .result-code{background:#FEF3C7;border-color:#FDE68A;max-height:none}
-  .turn-agent{background:#F0F9FF;padding:10px 12px}
-  .turn-agent .turn-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:#075985;margin-bottom:5px}
-  .turn-agent .result-code{background:#E0F2FE;border-color:#BAE6FD;max-height:none}
+  .turn-attacker{background:var(--surface-2);padding:10px 12px;border-bottom:1px solid var(--line);border-left:3px solid var(--accent)}
+  .turn-attacker .turn-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--accent);margin-bottom:5px}
+  .turn-attacker .code-wrap .result-code{background:var(--surface);border-color:var(--line)}
+  .turn-attacker .code-more{background:var(--surface-2);border-color:var(--line)}
+  .turn-attacker .code-more:hover{background:var(--surface)}
+  .turn-agent{background:var(--surface);padding:10px 12px;border-left:3px solid var(--line-2)}
+  .turn-agent .turn-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--muted);margin-bottom:5px}
+  .turn-agent .code-wrap .result-code{background:var(--surface-2);border-color:var(--line)}
+  .turn-agent .code-more{background:var(--surface);border-color:var(--line)}
+  .turn-agent .code-more:hover{background:var(--surface-2)}
   .turn-reasoning{padding:7px 12px;background:var(--surface-2);border-top:1px solid var(--line);font-size:11px;color:var(--muted);font-style:italic;line-height:1.5}
 
   /* ── Footer ── */
@@ -587,36 +601,55 @@ export function renderReport(model: ReportViewModel): string {
   <div class="footer-right">${esc(model.reportId)}</div>
 </div>
 
+<script>
+(function(){
+  document.querySelectorAll('.code-wrap').forEach(function(wrap){
+    var pre=wrap.querySelector('.result-code');
+    if(pre&&pre.scrollHeight<=pre.clientHeight+4){
+      wrap.querySelector('.code-fade').style.display='none';
+      wrap.querySelector('.code-more').style.display='none';
+    }
+  });
+})();
+</script>
 </body>
 </html>`;
 }
 
 // ── Result card helper ───────────────────────────────────────────
 
+function expandableBlock(content: string, fadeColor: string, extraStyle = ""): string {
+  return `<div class="code-wrap">
+    <pre class="result-code"${extraStyle ? ` style="${extraStyle}"` : ""}>${content}</pre>
+    <div class="code-fade" style="background:linear-gradient(to bottom,${fadeColor}00,${fadeColor})"></div>
+    <button class="code-more" onclick="var w=this.closest('.code-wrap');w.classList.toggle('expanded');this.textContent=w.classList.contains('expanded')?'▲ Show less':'▼ Show more'">▼ Show more</button>
+  </div>`;
+}
+
 function renderDetailContent(detail: DetailCard, _mode: "agent" | "mcp"): string {
   if (detail.kind === "prompt") {
     return `
       <details class="result-section">
-        <summary style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:#92400E;cursor:pointer;padding:2px 0">▸ Attacker Prompt</summary>
-        <pre class="result-code" style="margin-top:4px;background:#FEF3C7;border-color:#FDE68A">${esc(truncate(detail.prompt, 3000))}</pre>
+        <summary style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--accent);cursor:pointer;padding:2px 0">▸ Attacker Prompt</summary>
+        ${expandableBlock(esc(truncate(detail.prompt, 8000)), "#F1F5F9")}
       </details>
       <details class="result-section">
-        <summary style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:#075985;cursor:pointer;padding:2px 0">▸ Agent Response</summary>
-        <pre class="result-code" style="margin-top:4px;background:#E0F2FE;border-color:#BAE6FD">${esc(truncate(detail.response, 3000))}</pre>
+        <summary style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--muted);cursor:pointer;padding:2px 0">▸ Agent Response</summary>
+        ${expandableBlock(esc(truncate(detail.response, 8000)), "#F1F5F9")}
       </details>`;
   }
   const argsFormatted = esc(JSON.stringify(detail.args, null, 2));
   const responseText = detail.error
-    ? `Error: ${esc(truncate(detail.error, 1500))}`
-    : esc(truncate(detail.response, 2000));
+    ? `Error: ${esc(truncate(detail.error, 4000))}`
+    : esc(truncate(detail.response, 8000));
   return `
     <details class="result-section">
       <summary style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);cursor:pointer">Arguments</summary>
-      <pre class="result-code" style="margin-top:4px">${argsFormatted}</pre>
+      ${expandableBlock(argsFormatted, "#F1F5F9")}
     </details>
     <details class="result-section">
       <summary style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);cursor:pointer">Tool Response</summary>
-      <pre class="result-code" style="margin-top:4px">${responseText}</pre>
+      ${expandableBlock(responseText, "#F1F5F9")}
     </details>`;
 }
 
@@ -641,28 +674,28 @@ function renderTurnContent(turn: TurnViewModel): string {
     detailHtml = `
       <div class="turn-attacker">
         <div class="turn-label">Attacker Prompt</div>
-        <pre class="result-code">${esc(truncate(turn.detail.prompt, 2000))}</pre>
+        ${expandableBlock(esc(truncate(turn.detail.prompt, 8000)), "#F1F5F9")}
       </div>
       <div class="turn-agent">
         <div class="turn-label">Agent Response</div>
-        <pre class="result-code">${esc(truncate(turn.detail.response, 2000))}</pre>
+        ${expandableBlock(esc(truncate(turn.detail.response, 8000)), "#FFFFFF")}
       </div>`;
   } else {
     const tArgs = esc(JSON.stringify(turn.detail.args, null, 2));
     const tResp = turn.detail.error
-      ? `Error: ${esc(truncate(turn.detail.error, 600))}`
-      : esc(truncate(turn.detail.response, 800));
+      ? `Error: ${esc(truncate(turn.detail.error, 4000))}`
+      : esc(truncate(turn.detail.response, 8000));
     const toolLabel = turn.detail.toolName
       ? ` · <code style="background:var(--surface-2);padding:1px 5px;border-radius:3px;font-size:10px">${esc(turn.detail.toolName)}</code>`
       : "";
     detailHtml = `
       <div class="turn-attacker">
         <div class="turn-label">Arguments${toolLabel}</div>
-        <pre class="result-code">${tArgs}</pre>
+        ${expandableBlock(tArgs, "#F1F5F9")}
       </div>
       <div class="turn-agent">
         <div class="turn-label">Tool Response</div>
-        <pre class="result-code">${tResp}</pre>
+        ${expandableBlock(tResp, "#FFFFFF")}
       </div>`;
   }
 
