@@ -5,7 +5,9 @@ const RED = "\x1b[31m";
 const DIM = "\x1b[2m";
 
 function isColorEnabled(): boolean {
-  return process.stdout.isTTY !== false && process.env.NO_COLOR == null;
+  // Extension/service-worker and other browser bundles have no Node `process`.
+  if (typeof process === "undefined") return false;
+  return process.stdout?.isTTY !== false && process.env?.NO_COLOR == null;
 }
 
 function c(color: string, text: string): string {

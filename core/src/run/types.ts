@@ -6,6 +6,7 @@ export const JudgeResultSchema = z.object({
   confidence: z.number().min(0).max(100),
   evidence: z.string(),
   reasoning: z.string(),
+  failingTurns: z.array(z.number()).optional(),
   errorMessage: z.string().optional(),
 });
 

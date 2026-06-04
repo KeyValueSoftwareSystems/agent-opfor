@@ -264,7 +264,7 @@ Example suites found:
 
 ### Step 2: Discover Available Evaluators
 
-**Also scan** `./evaluators/` for all `.md` files:
+**Also scan** `./_generated/evaluators/` for all `.md` files:
 
 For each file, read the **YAML frontmatter** and extract:
 
@@ -327,7 +327,7 @@ This will run these 10 evaluators:
 
 ### If User Chooses Option B: Custom Evaluators
 
-Present evaluators grouped by severity (discovered from `./evaluators/`):
+Present evaluators grouped by severity (discovered from `./_generated/evaluators/`):
 
 ```
 CRITICAL (5 found):
@@ -383,7 +383,7 @@ After collecting test configuration, generate pre-attack input files automatical
 
 **For each selected evaluator:**
 
-1. Read the evaluator file from `./evaluators/<evaluator-id>.md`
+1. Read the evaluator file from `./_generated/evaluators/<evaluator-id>.md`
 2. Parse YAML frontmatter: use the `patterns` array (`name` + `template` strings) as the only source of attack templates
 3. Generate `<test_cases>` attack prompts:
    - Use those templates

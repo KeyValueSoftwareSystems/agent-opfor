@@ -10,6 +10,7 @@ import type { JudgeObservabilityContext } from "../evaluators/judge.js";
 import { isTargetError } from "../targets/agentTarget.js";
 import type { AgentTarget } from "../targets/agentTarget.js";
 import { newOtelTraceId } from "../lib/tracePropagation.js";
+import { randomUUID } from "../lib/random.js";
 import { getAdapter } from "../telemetry/adapter.js";
 import { log } from "../lib/logger.js";
 import type { AttackSpec, AttackResult, AgentTurnRecord } from "./types.js";
@@ -61,6 +62,11 @@ export async function runAgentAttack(
       ? newOtelTraceId()
       : undefined;
 
+  // One sessionId per attack — every turn of this attack reuses it so a
+  // stateful agent under test can thread its own chat history across turns.
+  // Agents that don't read sessionIdField just ignore it.
+  const attackSessionId = randomUUID();
+
   const startTurn = Math.floor(history.length / 2) + 1;
   for (let t = startTurn; t <= attack.turns; t++) {
     let prompt: string;
@@ -104,6 +110,8 @@ export async function runAgentAttack(
     }
 
     const response = await target.send(prompt, {
+      sessionId: attackSessionId,
+      history,
       propagation,
       attackTraceId,
       attackIndex: Number.isFinite(Number(attackIndex)) ? Number(attackIndex) : undefined,

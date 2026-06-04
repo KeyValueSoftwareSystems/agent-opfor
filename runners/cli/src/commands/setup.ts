@@ -298,11 +298,18 @@ async function collectAgentTarget(): Promise<AgentTargetConfig> {
   });
   const targetApiKey = hasApiKey ? await password({ message: "API key value" }) : undefined;
 
-  const hasSession = await confirm({
-    message: "Inject a session ID per attack for multi-turn state tracking?",
-    default: false,
+  // Stateful (custom agent that keeps history server-side, keyed by a session
+  // id) vs stateless (raw LLM API — OPFOR sends the full chat history every
+  // turn as a `messages` array). Defaults to stateful since most users test
+  // their own agents, not raw model endpoints.
+  const stateful = await confirm({
+    message:
+      "Does the target maintain conversation history on its side?\n" +
+      "  Yes → custom agent / chatbot with a session store\n" +
+      "  No  → raw LLM API (OpenAI, Anthropic, Groq, etc.)",
+    default: true,
   });
-  const sessionIdField = hasSession
+  const sessionIdField = stateful
     ? await input({ message: "Session ID field name in request body", default: "session_id" })
     : undefined;
 
@@ -315,6 +322,7 @@ async function collectAgentTarget(): Promise<AgentTargetConfig> {
     requestFormat,
     targetApiKey,
     sessionIdField,
+    stateful,
   };
 }
 

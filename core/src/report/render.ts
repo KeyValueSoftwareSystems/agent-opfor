@@ -149,7 +149,7 @@ export function renderReport(model: ReportViewModel): string {
                 <strong>${esc(f.evaluator)}</strong>
                 <span class="finding-score">Score ${f.score}/10</span>
                 <span style="color:#64748B;font-size:12px;margin-left:4px">${esc(f.resultId)}</span>
-                <div class="finding-desc">${esc(truncate(f.description, 240))}</div>
+                <div class="finding-desc">${esc(f.description)}</div>
               </li>`
               )
               .join("")}
@@ -408,9 +408,35 @@ export function renderReport(model: ReportViewModel): string {
   .result-tool{font-size:11px;color:var(--muted);font-family:ui-monospace,monospace}
   .result-section{margin-bottom:8px}
   .result-section-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:4px}
-  .result-code{font-size:12px;background:var(--surface-2);border:1px solid var(--line);padding:8px 10px;border-radius:6px;white-space:pre-wrap;word-break:break-word;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;max-height:200px;overflow:auto}
+  .result-code{font-size:12px;background:var(--surface-2);border:1px solid var(--line);padding:8px 10px;border-radius:6px;white-space:pre-wrap;word-break:break-word;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;max-height:400px;overflow:auto}
   .result-judge{margin-top:8px;font-size:12px;padding:8px 12px;border-radius:6px;border:1px solid var(--pass-border);background:var(--pass-bg);line-height:1.6}
   .result-judge.fail{background:var(--fail-bg);border-color:var(--fail-border)}
+
+  /* ── Expandable code blocks ── */
+  .code-wrap{position:relative;margin-top:4px}
+  .code-wrap .result-code{max-height:180px;overflow:hidden;margin-top:0;border-radius:6px 6px 0 0;border-bottom:none}
+  .code-wrap .code-fade{position:absolute;bottom:28px;left:0;right:0;height:48px;pointer-events:none}
+  .code-wrap .code-more{display:block;width:100%;font-size:11px;font-weight:600;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:0 0 6px 6px;padding:4px 10px;cursor:pointer;text-align:center;letter-spacing:0.03em}
+  .code-wrap .code-more:hover{background:var(--surface-2);color:var(--text)}
+  .code-wrap.expanded .result-code{max-height:none;border-radius:6px 6px 0 0}
+  .code-wrap.expanded .code-fade{display:none}
+  .code-wrap.expanded .code-more{color:var(--muted-2)}
+
+  /* ── Turn cards (multi-turn breakdown) ── */
+  .turn-card{margin-bottom:8px;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .turn-card-header{display:flex;align-items:center;gap:8px;padding:7px 12px;background:var(--surface-2);cursor:pointer;list-style:none;font-size:11px;font-weight:600;color:var(--text);border-bottom:1px solid var(--line)}
+  .turn-card-header::-webkit-details-marker{display:none}
+  .turn-attacker{background:var(--surface-2);padding:10px 12px;border-bottom:1px solid var(--line);border-left:3px solid var(--accent)}
+  .turn-attacker .turn-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--accent);margin-bottom:5px}
+  .turn-attacker .code-wrap .result-code{background:var(--surface);border-color:var(--line)}
+  .turn-attacker .code-more{background:var(--surface-2);border-color:var(--line)}
+  .turn-attacker .code-more:hover{background:var(--surface)}
+  .turn-agent{background:var(--surface);padding:10px 12px;border-left:3px solid var(--line-2)}
+  .turn-agent .turn-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--muted);margin-bottom:5px}
+  .turn-agent .code-wrap .result-code{background:var(--surface-2);border-color:var(--line)}
+  .turn-agent .code-more{background:var(--surface);border-color:var(--line)}
+  .turn-agent .code-more:hover{background:var(--surface-2)}
+  .turn-reasoning{padding:7px 12px;background:var(--surface-2);border-top:1px solid var(--line);font-size:11px;color:var(--muted);font-style:italic;line-height:1.5}
 
   /* ── Footer ── */
   .report-footer{max-width:960px;margin:40px auto 0;padding:16px 24px;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
@@ -575,36 +601,55 @@ export function renderReport(model: ReportViewModel): string {
   <div class="footer-right">${esc(model.reportId)}</div>
 </div>
 
+<script>
+(function(){
+  document.querySelectorAll('.code-wrap').forEach(function(wrap){
+    var pre=wrap.querySelector('.result-code');
+    if(pre&&pre.scrollHeight<=pre.clientHeight+4){
+      wrap.querySelector('.code-fade').style.display='none';
+      wrap.querySelector('.code-more').style.display='none';
+    }
+  });
+})();
+</script>
 </body>
 </html>`;
 }
 
 // ── Result card helper ───────────────────────────────────────────
 
+function expandableBlock(content: string, fadeColor: string, extraStyle = ""): string {
+  return `<div class="code-wrap">
+    <pre class="result-code"${extraStyle ? ` style="${extraStyle}"` : ""}>${content}</pre>
+    <div class="code-fade" style="background:linear-gradient(to bottom,${fadeColor}00,${fadeColor})"></div>
+    <button class="code-more" onclick="var w=this.closest('.code-wrap');w.classList.toggle('expanded');this.textContent=w.classList.contains('expanded')?'▲ Show less':'▼ Show more'">▼ Show more</button>
+  </div>`;
+}
+
 function renderDetailContent(detail: DetailCard, _mode: "agent" | "mcp"): string {
   if (detail.kind === "prompt") {
     return `
       <details class="result-section">
-        <summary style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);cursor:pointer">Attacker Prompt</summary>
-        <pre class="result-code" style="margin-top:4px">${esc(truncate(detail.prompt, 3000))}</pre>
+        <summary style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--accent);cursor:pointer;padding:2px 0">▸ Attacker Prompt</summary>
+        ${expandableBlock(esc(truncate(detail.prompt, 8000)), "#F1F5F9")}
       </details>
       <details class="result-section">
-        <summary style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);cursor:pointer">Agent Response</summary>
-        <pre class="result-code" style="margin-top:4px">${esc(truncate(detail.response, 3000))}</pre>
+        <summary style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--muted);cursor:pointer;padding:2px 0">▸ Agent Response</summary>
+        ${expandableBlock(esc(truncate(detail.response, 8000)), "#F1F5F9")}
       </details>`;
   }
   const argsFormatted = esc(JSON.stringify(detail.args, null, 2));
   const responseText = detail.error
-    ? `Error: ${esc(truncate(detail.error, 1500))}`
-    : esc(truncate(detail.response, 2000));
+    ? `Error: ${esc(truncate(detail.error, 4000))}`
+    : esc(truncate(detail.response, 8000));
   return `
     <details class="result-section">
       <summary style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);cursor:pointer">Arguments</summary>
-      <pre class="result-code" style="margin-top:4px">${argsFormatted}</pre>
+      ${expandableBlock(argsFormatted, "#F1F5F9")}
     </details>
     <details class="result-section">
       <summary style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);cursor:pointer">Tool Response</summary>
-      <pre class="result-code" style="margin-top:4px">${responseText}</pre>
+      ${expandableBlock(responseText, "#F1F5F9")}
     </details>`;
 }
 
@@ -620,33 +665,50 @@ function renderTurnContent(turn: TurnViewModel): string {
           : "var(--muted)";
   const borderColor = tVerdict ? tColor : "var(--line-2)";
 
+  const verdictBadge = tVerdict
+    ? `<span style="margin-left:auto;font-size:10px;font-weight:700;padding:1px 8px;border-radius:3px;background:${tVerdict === "PASS" ? "var(--pass-bg)" : tVerdict === "FAIL" ? "var(--fail-bg)" : "#FEF3C7"};color:${tColor};border:1px solid ${tVerdict === "PASS" ? "var(--pass-border)" : tVerdict === "FAIL" ? "var(--fail-border)" : "#FDE68A"}">${tVerdict}${tVerdict !== "ERROR" ? ` · ${turn.judge?.score}/10` : ""}</span>`
+    : "";
+
   let detailHtml: string;
   if (turn.detail.kind === "prompt") {
     detailHtml = `
-      <div class="result-section-label">Attacker Prompt</div>
-      <pre class="result-code" style="max-height:120px">${esc(truncate(turn.detail.prompt, 2000))}</pre>
-      <div class="result-section-label" style="margin-top:6px">Agent Response</div>
-      <pre class="result-code" style="max-height:120px">${esc(truncate(turn.detail.response, 2000))}</pre>`;
+      <div class="turn-attacker">
+        <div class="turn-label">Attacker Prompt</div>
+        ${expandableBlock(esc(truncate(turn.detail.prompt, 8000)), "#F1F5F9")}
+      </div>
+      <div class="turn-agent">
+        <div class="turn-label">Agent Response</div>
+        ${expandableBlock(esc(truncate(turn.detail.response, 8000)), "#FFFFFF")}
+      </div>`;
   } else {
     const tArgs = esc(JSON.stringify(turn.detail.args, null, 2));
     const tResp = turn.detail.error
-      ? `Error: ${esc(truncate(turn.detail.error, 600))}`
-      : esc(truncate(turn.detail.response, 800));
-    const toolLabel = turn.detail.toolName ? ` · <code>${esc(turn.detail.toolName)}</code>` : "";
+      ? `Error: ${esc(truncate(turn.detail.error, 4000))}`
+      : esc(truncate(turn.detail.response, 8000));
+    const toolLabel = turn.detail.toolName
+      ? ` · <code style="background:var(--surface-2);padding:1px 5px;border-radius:3px;font-size:10px">${esc(turn.detail.toolName)}</code>`
+      : "";
     detailHtml = `
-      <div style="font-size:11px;font-weight:600;color:var(--text);margin-bottom:4px">Turn ${turn.turnIndex}${toolLabel}${tVerdict ? ` · <span style="color:${tColor}">${tVerdict}</span>${tVerdict !== "ERROR" ? ` · ${turn.judge?.score}/10` : ""}` : ""}</div>
-      <div class="result-section-label">Arguments</div>
-      <pre class="result-code" style="max-height:120px">${tArgs}</pre>
-      <div class="result-section-label" style="margin-top:6px">Response</div>
-      <pre class="result-code" style="max-height:120px">${tResp}</pre>`;
+      <div class="turn-attacker">
+        <div class="turn-label">Arguments${toolLabel}</div>
+        ${expandableBlock(tArgs, "#F1F5F9")}
+      </div>
+      <div class="turn-agent">
+        <div class="turn-label">Tool Response</div>
+        ${expandableBlock(tResp, "#FFFFFF")}
+      </div>`;
   }
 
   return `
-    <div style="margin-bottom:8px;padding:8px 10px;background:var(--surface-2);border-radius:6px;border-left:2px solid ${borderColor}">
-      ${turn.detail.kind === "prompt" ? `<div style="font-size:11px;font-weight:600;color:var(--text);margin-bottom:4px">Turn ${turn.turnIndex}${tVerdict ? ` · <span style="color:${tColor}">${tVerdict}</span>${tVerdict !== "ERROR" ? ` · ${turn.judge?.score}/10` : ""}` : ""}</div>` : ""}
+    <details class="turn-card" open>
+      <summary class="turn-card-header" style="border-left:3px solid ${borderColor}">
+        <span style="font-family:ui-monospace,monospace;font-size:10px;color:var(--muted-2)">T${turn.turnIndex}</span>
+        <span>Turn ${turn.turnIndex}</span>
+        ${verdictBadge}
+      </summary>
       ${detailHtml}
-      ${turn.judge?.reasoning ? `<div style="font-size:11px;color:var(--muted);margin-top:4px;font-style:italic">${esc(turn.judge.reasoning)}</div>` : ""}
-    </div>`;
+      ${turn.judge?.reasoning ? `<div class="turn-reasoning">${esc(turn.judge.reasoning)}</div>` : ""}
+    </details>`;
 }
 
 function resultCard(r: ResultViewModel, index: number, mode: "agent" | "mcp"): string {
@@ -688,6 +750,7 @@ function resultCard(r: ResultViewModel, index: number, mode: "agent" | "mcp"): s
           · Score ${r.judge.score}/10
           · Confidence ${r.judge.confidence}%
           ${r.judge.evidence && r.judge.evidence !== "N/A" ? `· Evidence: <em>${esc(truncate(r.judge.evidence, 200))}</em>` : ""}
+          ${verdict === "FAIL" && hasTurns && r.judge.failingTurns && r.judge.failingTurns.length > 0 ? `· Failing turn${r.judge.failingTurns.length === 1 ? "" : "s"}: ${r.judge.failingTurns.join(", ")}` : ""}
           <br><span style="color:var(--text-2)">${esc(r.judge.reasoning)}</span>
         </div>`;
 

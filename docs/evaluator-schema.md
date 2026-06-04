@@ -1,6 +1,6 @@
 # Evaluator schema
 
-Evaluators are Markdown files with YAML frontmatter. The engine auto-discovers them under `skills/*/opfor-setup/evaluators/`.
+Evaluators are Markdown files with YAML frontmatter. **Author** them under `evaluators/{agent|mcp}/` at repo root. The engine reads those paths; `npm run sync:skills-evaluators` mirrors copies into `skills/*/opfor-setup/_generated/` for skill installs.
 
 ## Required frontmatter
 
@@ -24,16 +24,16 @@ patterns:
 ---
 ```
 
-| Field           | Required         | Notes                                                                                                   |
-| --------------- | ---------------- | ------------------------------------------------------------------------------------------------------- |
-| `id`            | yes              | Kebab-case, unique across both skill trees                                                              |
-| `name`          | yes              | Display name                                                                                            |
-| `severity`      | yes              | `critical`, `high`, `medium`, `low`                                                                     |
-| `standards`     | recommended      | Map of taxonomy key → ID (e.g. `owasp-llm: LLM07`, `atlas: AML.T0056`); omit or leave empty if unmapped |
-| `pass_criteria` | yes              | Injected into the judge prompt                                                                          |
-| `fail_criteria` | yes              | Injected into the judge prompt                                                                          |
-| `patterns`      | yes (agent tree) | Non-empty array of `{ name, template }`; optional for some MCP evaluators                               |
-| `description`   | recommended      | Short summary for docs and skills                                                                       |
+| Field           | Required    | Notes                                                                                                   |
+| --------------- | ----------- | ------------------------------------------------------------------------------------------------------- |
+| `id`            | yes         | Kebab-case, unique across both skill trees                                                              |
+| `name`          | yes         | Display name                                                                                            |
+| `severity`      | yes         | `critical`, `high`, `medium`, `low`                                                                     |
+| `standards`     | recommended | Map of taxonomy key → ID (e.g. `owasp-llm: LLM07`, `atlas: AML.T0056`); omit or leave empty if unmapped |
+| `pass_criteria` | yes         | Injected into the judge prompt                                                                          |
+| `fail_criteria` | yes         | Injected into the judge prompt                                                                          |
+| `patterns`      | yes         | Non-empty array of `{ name, template }` for agent and MCP evaluators                                    |
+| `description`   | recommended | Short summary for docs and skills                                                                       |
 
 ### Common `standards` keys
 
@@ -64,7 +64,7 @@ Human-readable sections (`## Attack`, `## Probes`, and so on). Tooling reads **f
 
 ## Example
 
-`skills/agent-redteaming/opfor-setup/evaluators/system-prompt-leakage.md`
+`evaluators/agent/system-prompt-leakage.md`
 
 ## Validation
 

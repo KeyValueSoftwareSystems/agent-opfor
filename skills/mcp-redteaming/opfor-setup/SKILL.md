@@ -127,7 +127,7 @@ Scan `./suites/` for all `.md` files. For each, read the YAML frontmatter and ex
 
 ### Step 2: Discover Available Evaluators
 
-Scan `./evaluators/` for all `.md` files. For each, read the YAML frontmatter and extract:
+Scan `./_generated/evaluators/` for all `.md` files. For each, read the YAML frontmatter and extract:
 
 - `id` — evaluator ID
 - `name` — display name
@@ -194,7 +194,7 @@ Ask: **"Single-turn or multi-turn attacks?"**
 
 For each selected evaluator:
 
-1. Read the evaluator file from `./evaluators/<id>.md`
+1. Read the evaluator file from `./_generated/evaluators/<id>.md`
 2. Parse YAML frontmatter: use the `patterns` array as attack templates
 3. Generate `<n>` attack variations:
    - Adapt templates to the specific tools and resources discovered in Step 4
