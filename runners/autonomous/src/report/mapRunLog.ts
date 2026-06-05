@@ -1,0 +1,206 @@
+// Map the in-memory RunLog into the native AutonomousReport.
+
+import { randomUUID } from "node:crypto";
+import type { RunLog, ThreadState, Finding } from "../state/runLog.js";
+import type {
+  AutonomousReport,
+  ReportFinding,
+  ReportTurn,
+  PersonaTimelineEntry,
+  ReportDecision,
+  Severity,
+} from "./types.js";
+
+const RECON_THREAD = "recon";
+
+function severityToScore(sev: Severity): number {
+  switch (sev) {
+    case "critical":
+      return 1;
+    case "high":
+      return 3;
+    case "medium":
+      return 5;
+    default:
+      return 6;
+  }
+}
+
+/** Build per-turn scores: defended (10) until the failure manifests, low after. */
+function turnsForFinding(thread: ThreadState | undefined, finding: Finding): ReportTurn[] {
+  if (!thread) return [];
+  const failSet = new Set(finding.failingTurns ?? []);
+  const failScore = severityToScore(finding.severity);
+  const firstFail = finding.failingTurns?.length ? Math.min(...finding.failingTurns) : Infinity;
+  return thread.turns.map((t) => ({
+    turnIndex: t.turnIndex,
+    prompt: t.prompt,
+    response: t.response,
+    persona: t.persona,
+    strategy: t.strategy,
+    score: failSet.has(t.turnIndex) || t.turnIndex >= firstFail ? failScore : 10,
+  }));
+}
+
+function defendedTurns(thread: ThreadState): ReportTurn[] {
+  return thread.turns.map((t) => ({
+    turnIndex: t.turnIndex,
+    prompt: t.prompt,
+    response: t.response,
+    persona: t.persona,
+    strategy: t.strategy,
+    score: t.isError ? undefined : 10,
+  }));
+}
+
+export function mapRunLogToReport(log: RunLog): AutonomousReport {
+  const findings: ReportFinding[] = [];
+  const threadsWithFindings = new Set<string>();
+
+  // 1. Confirmed findings.
+  for (const f of log.findings) {
+    const thread = log.threads.get(f.threadId);
+    threadsWithFindings.add(f.threadId);
+    findings.push({
+      findingId: f.findingId,
+      vulnClassId: f.vulnClassId,
+      name: f.name,
+      severity: f.severity,
+      standards: f.standards,
+      threadId: f.threadId,
+      strategy: f.strategy,
+      personaArc: f.personaArc,
+      verdict: f.verdict,
+      confidence: f.confidence,
+      evidence: f.evidence,
+      reasoning: f.reasoning,
+      failingTurns: f.failingTurns,
+      turns: turnsForFinding(thread, f),
+      selfCheck: f.selfCheck,
+    });
+  }
+
+  // 2. Attempted-but-defended threads (no finding) → PASS/ERROR rows for the summary.
+  for (const [threadId, thread] of log.threads) {
+    if (threadId === RECON_THREAD || threadsWithFindings.has(threadId)) continue;
+    if (thread.turns.length === 0) continue;
+    const allError = thread.turns.every((t) => t.isError);
+    const lastStrategy =
+      [...thread.turns].reverse().find((t) => t.strategy)?.strategy ?? "improvised";
+    const personaArc = [
+      ...new Set(thread.turns.map((t) => t.persona).filter((p): p is string => !!p)),
+    ];
+    findings.push({
+      findingId: randomUUID(),
+      vulnClassId: thread.vulnClassId ?? "unknown",
+      name: thread.vulnClassId ?? "Attempted vector",
+      severity: "low",
+      threadId,
+      strategy: lastStrategy,
+      personaArc,
+      verdict: allError ? "ERROR" : "PASS",
+      confidence: 0,
+      evidence: "N/A",
+      reasoning: allError
+        ? "All turns errored against the target."
+        : "Target defended against this vector across all attempted turns.",
+      turns: defendedTurns(thread),
+    });
+  }
+
+  const confirmed = findings.filter((f) => f.verdict === "FAIL").length;
+  const defended = findings.filter((f) => f.verdict === "PASS").length;
+  const errors = findings.filter((f) => f.verdict === "ERROR").length;
+  const scoreDenom = confirmed + defended;
+
+  // Persona timeline across all attack threads.
+  const personaTimeline: PersonaTimelineEntry[] = [];
+  for (const [threadId, thread] of log.threads) {
+    if (threadId === RECON_THREAD) continue;
+    for (const turn of thread.turns) {
+      personaTimeline.push({
+        threadId,
+        turnIndex: turn.turnIndex,
+        persona: turn.persona,
+        strategy: turn.strategy,
+      });
+    }
+  }
+
+  // Decision log: explicit decisions + dispatch events derived from Task tool calls.
+  const decisionLog: ReportDecision[] = log.decisions.map((d) => ({
+    at: d.at,
+    threadId: d.threadId,
+    action: d.action,
+    rationale: d.rationale,
+  }));
+  for (const entry of log.transcript) {
+    if (entry.tool === "Agent" || entry.tool === "Task") {
+      const desc = entry.input as { description?: string; prompt?: string } | undefined;
+      decisionLog.push({
+        at: entry.at,
+        action: "dispatch",
+        rationale: desc?.description ?? "Dispatched a subagent.",
+      });
+    }
+  }
+  decisionLog.sort((a, b) => a.at.localeCompare(b.at));
+
+  // Strategies used (union of turn strategies, finding strategies, inventions).
+  const strategySet = new Set<string>();
+  for (const f of findings) {
+    if (f.strategy) strategySet.add(f.strategy);
+    for (const t of f.turns) if (t.strategy) strategySet.add(t.strategy);
+  }
+  for (const inv of log.inventions) if (inv.kind === "strategy") strategySet.add(inv.name);
+
+  const fingerprint = log.fingerprint;
+  const synthesis = log.synthesis;
+
+  return {
+    reportId: log.runId,
+    generatedAt: new Date().toISOString(),
+    target: { name: log.targetName, endpoint: log.targetEndpoint },
+    objective: log.objective,
+    objectiveOutcome:
+      synthesis?.objectiveOutcome ?? (confirmed > 0 ? "partially-achieved" : "not-achieved"),
+    commanderModel: "",
+    attackerModel: "",
+    truncated: log.truncated,
+    truncationReason: log.truncationReason,
+    totalCostUsd: log.totalCostUsd,
+    summary: {
+      threads: findings.length,
+      confirmed,
+      defended,
+      errors,
+      attackSuccessRate: scoreDenom > 0 ? Math.round((confirmed / scoreDenom) * 100) : 0,
+    },
+    recon: {
+      fingerprint: fingerprint?.summary ?? summarizeReconProbes(log),
+      guardrails: fingerprint?.guardrails ?? [],
+      weakPoints: fingerprint?.weakPoints ?? [],
+      probeCount: log.recon.length,
+    },
+    findings,
+    personaTimeline,
+    decisionLog,
+    strategiesUsed: [...strategySet],
+    inventions: log.inventions.map((i) => ({
+      kind: i.kind,
+      name: i.name,
+      description: i.description,
+      persistedPath: i.persistedPath,
+    })),
+    executiveNarrative:
+      synthesis?.executiveSummary ??
+      "The run ended before a synthesis was submitted; this is a partial report built from recorded activity.",
+    responsePatterns: synthesis?.responsePatterns ?? [],
+    recommendations: synthesis?.recommendations ?? [],
+  };
+}
+
+function summarizeReconProbes(log: RunLog): string {
+  if (log.recon.length === 0) return "No recon was performed.";
+  return `${log.recon.length} benign probe(s) sent during reconnaissance.`;
+}
