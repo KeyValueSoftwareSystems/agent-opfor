@@ -10,6 +10,42 @@ import {
 } from "./dist/core.bundle.js";
 import { resetChatSession, executeAdaptiveRedTeamRun } from "./orchestrator.js";
 import { persistPartialResult } from "./storage.js";
+
+async function configureSidePanel() {
+  if (!chrome.sidePanel?.setPanelBehavior) return;
+  try {
+    await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+  } catch {
+    // Older builds or non-Chromium browsers — ignore.
+  }
+
+  // Prefer right-side docking (MetaMask-style). Ignored on Chrome versions that
+  // only support global Settings → Appearance → Side panel position.
+  if (chrome.sidePanel?.setOptions) {
+    try {
+      await chrome.sidePanel.setOptions({
+        path: "sidepanel.html",
+        enabled: true,
+        side: "right",
+      });
+    } catch {
+      try {
+        await chrome.sidePanel.setOptions({ path: "sidepanel.html", enabled: true });
+      } catch {
+        // ignore
+      }
+    }
+  }
+}
+
+chrome.runtime.onInstalled.addListener(() => {
+  configureSidePanel();
+});
+chrome.runtime.onStartup.addListener(() => {
+  configureSidePanel();
+});
+configureSidePanel();
+
 function buildModelFromProfile(profile) {
   const envVar = PROVIDER_ENV_VARS[profile.provider] ?? "OPFOR_API_KEY";
   setEnvProvider((name) => (name === envVar ? profile.apiKey : undefined));

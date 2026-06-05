@@ -1,5 +1,6 @@
 // ─────────────────────────────────────────────────────────────────
-// Opfor red-team popup — vanilla JS implementation of the design.
+// Opfor red-team panel — vanilla JS implementation of the design.
+// Runs in the Chrome side panel (sidepanel.html → sidepanel-bootstrap.js).
 // Drives idle / running / paused / done screens and the slide-in
 // advanced panel. Talks to service_worker.js via the existing
 // OPFOR_UI_RUN / RESUME / STOP / DISCARD_PAUSED message contracts.

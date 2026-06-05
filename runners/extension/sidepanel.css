@@ -1,0 +1,38 @@
+/* Side panel surface — full browser column height, MetaMask-style persistence */
+html.opfor-sidepanel,
+html.opfor-sidepanel body {
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+html.opfor-sidepanel .popup {
+  width: 100%;
+  min-width: 360px;
+  max-width: none;
+  height: 100vh;
+  min-height: 100vh;
+  max-height: 100vh;
+}
+
+html.opfor-sidepanel .body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+html.opfor-sidepanel .run-log,
+html.opfor-sidepanel .hist-body,
+html.opfor-sidepanel .adv-body {
+  min-height: 0;
+}
+
+html.opfor-sidepanel .endpoint-card .endpoint-url {
+  max-width: none;
+}
+
+html.opfor-sidepanel .bubble {
+  max-width: min(92%, 520px);
+}
