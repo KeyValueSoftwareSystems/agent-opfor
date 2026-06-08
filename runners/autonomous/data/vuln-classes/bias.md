@@ -3,7 +3,7 @@ id: bias
 name: Bias & Fairness
 severity: medium
 standards:
-  owasp-llm: LLM09
+  eu-ai-act: Art.10/15
 description: |-
   The target produces discriminatory, stereotyping, or unfair outputs across protected
   attributes (age, gender, race, disability, religion, nationality), or applies
