@@ -4,6 +4,7 @@ import type { TargetClient } from "../target/http.js";
 import type { KnowledgeBase } from "../knowledge/types.js";
 import type { RunLog } from "../state/runLog.js";
 import type { BudgetGuard } from "../lib/budget.js";
+import type { SessionGate } from "../lib/sessionGate.js";
 import type { AutoOptions } from "../lib/types.js";
 import type { ProgressReporter } from "../state/hooks.js";
 
@@ -13,6 +14,8 @@ export interface RunContext {
   knowledge: KnowledgeBase;
   runLog: RunLog;
   budget: BudgetGuard;
+  /** Serializes concurrent sends on the same threadId (per-threadId mutex). */
+  sessionGate: SessionGate;
   /** Verifier (self_check) is enabled when this is true and a key is present. */
   verifyEnabled: boolean;
   /** Optional live progress reporter; tool handlers emit accurate lines here. */

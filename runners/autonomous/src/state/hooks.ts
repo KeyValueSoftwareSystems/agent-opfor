@@ -4,10 +4,18 @@
 
 import type { HookCallback, HookCallbackMatcher } from "@anthropic-ai/claude-agent-sdk";
 import type { RunLog, TranscriptEntry } from "./runLog.js";
+import type { RunEvent } from "./observe.js";
 
 export interface ProgressReporter {
   /** A single formatted, human-readable progress line. */
   onLine(line: string): void;
+  /** Optional structured event sink (e.g. a .jsonl trail a web view can consume). */
+  onEvent?(event: RunEvent): void;
+}
+
+/** Emit a structured run event to the reporter's event sink, if any. */
+export function noteEvent(progress: ProgressReporter | undefined, event: RunEvent): void {
+  progress?.onEvent?.(event);
 }
 
 function snippet(value: unknown, max = 150): string {

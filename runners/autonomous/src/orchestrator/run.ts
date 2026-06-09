@@ -9,9 +9,11 @@ import { createTargetClient } from "../target/http.js";
 import { loadKnowledge } from "../knowledge/load.js";
 import { createRunLog } from "../state/runLog.js";
 import { BudgetGuard } from "../lib/budget.js";
+import { SessionGate } from "../lib/sessionGate.js";
 import type { RunContext } from "./context.js";
 import { buildRedteamServer, REDTEAM_SERVER_NAME, toolId, TOOL_NAMES } from "../tools/server.js";
 import { buildHooks, type ProgressReporter } from "../state/hooks.js";
+import { threadTreeText, countsLine } from "../state/observe.js";
 import { buildCommanderPrompt } from "../prompts/commander.js";
 import { buildAttackerPrompt } from "../prompts/attacker.js";
 import { buildReconPrompt } from "../prompts/recon.js";
@@ -79,6 +81,10 @@ export async function runAutonomous(
   const budget = new BudgetGuard({
     maxThreadTurns: options.maxThreadTurns,
     budgetUsd: options.budgetUsd,
+    maxTotalThreads: options.maxTotalThreads,
+    maxForksPerThread: options.maxForksPerThread,
+    maxDepth: options.maxDepth,
+    maxTotalSends: options.maxTotalSends,
   });
 
   const ctx: RunContext = {
@@ -87,6 +93,7 @@ export async function runAutonomous(
     knowledge,
     runLog,
     budget,
+    sessionGate: new SessionGate(),
     verifyEnabled,
     reporter: runHooks?.progress,
   };
@@ -97,6 +104,9 @@ export async function runAutonomous(
     toolId(t.listKnowledge),
     toolId(t.getKnowledge),
     toolId(t.sendToTarget),
+    toolId(t.forkThread),
+    toolId(t.getThread),
+    toolId(t.flagLead),
     toolId(t.recordFinding),
     toolId(t.registerInvention),
   ];
@@ -125,6 +135,8 @@ export async function runAutonomous(
     toolId(t.reconProbe),
     toolId(t.listKnowledge),
     toolId(t.getKnowledge),
+    toolId(t.getThread),
+    toolId(t.listLeads),
     toolId(t.recordFinding),
     toolId(t.registerInvention),
     toolId(t.submitReport),
@@ -204,6 +216,12 @@ export async function runAutonomous(
     // Stream ended without a submit_report (e.g. agent stopped early).
     runLog.truncated = runLog.findings.length === 0 && runLog.threads.size === 0;
     if (runLog.truncated) runLog.truncationReason = "agent ended without producing activity";
+  }
+
+  // Final exploration shape — the branching tree + tallies, for the live log.
+  if (reporter) {
+    reporter.onLine(countsLine(runLog));
+    reporter.onLine("Attack tree:\n" + threadTreeText(runLog));
   }
 
   const report = mapRunLogToReport(runLog);

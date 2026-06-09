@@ -1,6 +1,7 @@
 // Map the in-memory RunLog into the native AutonomousReport.
 
 import { randomUUID } from "node:crypto";
+import { normalizeForMatch, sharesForkAncestry } from "../state/runLog.js";
 import type { RunLog, ThreadState, Finding } from "../state/runLog.js";
 import type {
   AutonomousReport,
@@ -57,26 +58,55 @@ export function mapRunLogToReport(log: RunLog): AutonomousReport {
   const findings: ReportFinding[] = [];
   const threadsWithFindings = new Set<string>();
 
-  // 1. Confirmed findings.
+  // 1. Confirmed findings — deduped by (vulnClassId, normalized-evidence) across lineage.
+  //    Same evidence within one fork lineage → one finding (a child resting on inherited
+  //    evidence is not a new vuln). Same evidence from INDEPENDENT threads → one finding marked
+  //    cross-session-corroborated with boosted confidence (the §11 hardening, realized here).
+  const groups = new Map<string, Finding[]>();
   for (const f of log.findings) {
-    const thread = log.threads.get(f.threadId);
-    threadsWithFindings.add(f.threadId);
+    const key = `${f.vulnClassId}|${normalizeForMatch(f.evidence)}`;
+    const g = groups.get(key);
+    if (g) g.push(f);
+    else groups.set(key, [f]);
+  }
+
+  for (const group of groups.values()) {
+    for (const f of group) threadsWithFindings.add(f.threadId);
+    // Representative = highest-confidence finding in the group.
+    const rep = group.reduce((a, b) => (b.confidence > a.confidence ? b : a));
+
+    // Independent corroboration: any two contributing threads with no shared fork ancestry.
+    let corroborated = false;
+    const threadIds = [...new Set(group.map((f) => f.threadId))];
+    for (let i = 0; i < threadIds.length && !corroborated; i++) {
+      for (let j = i + 1; j < threadIds.length; j++) {
+        if (!sharesForkAncestry(log, threadIds[i], threadIds[j])) {
+          corroborated = true;
+          break;
+        }
+      }
+    }
+
     findings.push({
-      findingId: f.findingId,
-      vulnClassId: f.vulnClassId,
-      name: f.name,
-      severity: f.severity,
-      standards: f.standards,
-      threadId: f.threadId,
-      strategy: f.strategy,
-      personaArc: f.personaArc,
-      verdict: f.verdict,
-      confidence: f.confidence,
-      evidence: f.evidence,
-      reasoning: f.reasoning,
-      failingTurns: f.failingTurns,
-      turns: turnsForFinding(thread, f),
-      selfCheck: f.selfCheck,
+      findingId: rep.findingId,
+      vulnClassId: rep.vulnClassId,
+      name: rep.name,
+      severity: rep.severity,
+      standards: rep.standards,
+      threadId: rep.threadId,
+      strategy: rep.strategy,
+      personaArc: rep.personaArc,
+      verdict: rep.verdict,
+      confidence: corroborated ? Math.min(100, rep.confidence + 10) : rep.confidence,
+      evidence: rep.evidence,
+      reasoning: rep.reasoning,
+      failingTurns: rep.failingTurns,
+      turns: turnsForFinding(log.threads.get(rep.threadId), rep),
+      selfCheck: rep.selfCheck,
+      crossSessionCorroborated: corroborated || undefined,
+      corroboratingThreads: threadIds.length > 1 ? threadIds : undefined,
+      parentThreadId: log.threads.get(rep.threadId)?.parentThreadId,
+      gen: log.threads.get(rep.threadId)?.gen,
     });
   }
 
@@ -105,6 +135,8 @@ export function mapRunLogToReport(log: RunLog): AutonomousReport {
         ? "All turns errored against the target."
         : "Target defended against this vector across all attempted turns.",
       turns: defendedTurns(thread),
+      parentThreadId: thread.parentThreadId,
+      gen: thread.gen,
     });
   }
 
@@ -181,6 +213,16 @@ export function mapRunLogToReport(log: RunLog): AutonomousReport {
       guardrails: fingerprint?.guardrails ?? [],
       weakPoints: fingerprint?.weakPoints ?? [],
       probeCount: log.recon.length,
+    },
+    exploration: {
+      // Deepest generation actually explored = the max gen among SPAWNED leads (leads reliably
+      // carry their generation; follow-up threads aren't always stamped). 0 = only the root wave.
+      maxDepthReached: log.leads
+        .filter((l) => l.status === "spawned")
+        .reduce((m, l) => Math.max(m, l.gen), 0),
+      leadsFlagged: log.leads.length,
+      leadsSpawned: log.leads.filter((l) => l.status === "spawned").length,
+      leadsDismissed: log.leads.filter((l) => l.status === "dismissed").length,
     },
     findings,
     personaTimeline,
