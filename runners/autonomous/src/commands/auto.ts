@@ -230,7 +230,20 @@ export function registerAutoCommand(program: Command): void {
       const eventLogPath = path.join(autoOptions.outputDir, `run-${startedAt}.jsonl`);
       const eventLog: WriteStream = createWriteStream(eventLogPath, { flags: "a" });
       const emitEvent = (event: RunEvent): void => {
-        eventLog.write(JSON.stringify({ ...event, wall: clock() }) + "\n");
+        // An observability sink must never crash the run. Guard JSON.stringify (data is
+        // Record<string, unknown> — a future event could carry a circular ref / BigInt).
+        try {
+          eventLog.write(JSON.stringify({ ...event, wall: clock() }) + "\n");
+        } catch (err) {
+          eventLog.write(
+            JSON.stringify({
+              type: "serialization_error",
+              eventType: event.type,
+              error: String(err),
+              wall: clock(),
+            }) + "\n"
+          );
+        }
       };
 
       const header = [

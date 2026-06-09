@@ -93,20 +93,30 @@ function renderFindingCard(f: ReportFinding): string {
 
 function renderAttackTree(r: AutonomousReport): string {
   if (r.findings.length === 0) return "";
-  const byId = new Map(r.findings.map((f) => [f.threadId, f] as const));
-  const ids = [...new Set(r.findings.map((f) => f.threadId))];
+  // A thread can have several findings (multiple classes / cross-class hits), so group by
+  // threadId and aggregate — otherwise the node would show only the last one.
+  const byId = new Map<string, ReportFinding[]>();
+  for (const f of r.findings) {
+    const arr = byId.get(f.threadId);
+    if (arr) arr.push(f);
+    else byId.set(f.threadId, [f]);
+  }
+  const ids = [...byId.keys()];
   const tree = renderForest(
     ids,
-    (id) => byId.get(id)?.parentThreadId,
+    (id) => byId.get(id)![0].parentThreadId,
     (id) => {
-      const f = byId.get(id)!;
-      const mark =
-        f.verdict === "FAIL"
-          ? `🔴 ${f.severity}`
-          : f.verdict === "PASS"
-            ? "🛡 defended"
-            : "⚠ error";
-      return `${id}  [${f.vulnClassId}]  ${mark}${f.crossSessionCorroborated ? " ✓corr" : ""}`;
+      const fs = byId.get(id)!;
+      const classes = [...new Set(fs.map((x) => x.vulnClassId))].join(", ");
+      const fails = fs.filter((x) => x.verdict === "FAIL");
+      const worst = SEV_ORDER.find((s) => fails.some((x) => x.severity === s));
+      const mark = fails.length
+        ? `🔴 ${worst}`
+        : fs.every((x) => x.verdict === "PASS")
+          ? "🛡 defended"
+          : "⚠ error";
+      const corr = fs.some((x) => x.crossSessionCorroborated) ? " ✓corr" : "";
+      return `${id}  [${classes}]  ${mark}${corr}`;
     }
   );
   const e = r.exploration;
@@ -250,10 +260,9 @@ export function renderReportHtml(r: AutonomousReport): string {
     ? `<div class="card" style="margin-bottom:8px">${r.strategiesUsed.map((s) => `<span class="std" style="margin:0 6px 6px 0;display:inline-block">${esc(s)}</span>`).join("")}</div>`
     : "";
 
-  const narrative =
-    r.executiveNarrative && !r.executiveNarrative.startsWith("The run ended before")
-      ? esc(r.executiveNarrative)
-      : `Assessment of <strong>${esc(r.target.name)}</strong>: <strong>${r.summary.confirmed}</strong> confirmed vulnerabilit${r.summary.confirmed === 1 ? "y" : "ies"} (${crit} critical, ${high} high) across ${r.summary.threads} attack threads — ${r.summary.attackSuccessRate}% attack-success rate.${r.truncated ? ` <em>Run truncated: ${esc(r.truncationReason ?? "")}.</em>` : ""}`;
+  const narrative = r.synthesisComplete
+    ? esc(r.executiveNarrative)
+    : `Assessment of <strong>${esc(r.target.name)}</strong>: <strong>${r.summary.confirmed}</strong> confirmed vulnerabilit${r.summary.confirmed === 1 ? "y" : "ies"} (${crit} critical, ${high} high) across ${r.summary.threads} attack threads — ${r.summary.attackSuccessRate}% attack-success rate.${r.truncated ? ` <em>Run truncated: ${esc(r.truncationReason ?? "")}.</em>` : ""}`;
 
   return `<!doctype html>
 <html lang="en"><head>

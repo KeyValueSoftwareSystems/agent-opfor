@@ -118,6 +118,8 @@ export interface AutonomousReport {
   decisionLog: ReportDecision[];
   strategiesUsed: string[];
   inventions: ReportInvention[];
+  /** True when the commander submitted a synthesis; false ⇒ executiveNarrative is a fallback. */
+  synthesisComplete: boolean;
   executiveNarrative: string;
   responsePatterns: Array<{ pattern: string; observation: string }>;
   recommendations: string[];

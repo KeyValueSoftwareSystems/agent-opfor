@@ -234,6 +234,7 @@ export function mapRunLogToReport(log: RunLog): AutonomousReport {
       description: i.description,
       persistedPath: i.persistedPath,
     })),
+    synthesisComplete: !!synthesis,
     executiveNarrative:
       synthesis?.executiveSummary ??
       "The run ended before a synthesis was submitted; this is a partial report built from recorded activity.",

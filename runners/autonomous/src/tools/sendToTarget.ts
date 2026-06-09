@@ -51,11 +51,6 @@ export function sendToTargetTool(ctx: RunContext) {
 
       const thread = getOrCreateThread(ctx.runLog, args.threadId, args.vulnClassId);
 
-      // Record the self-judged score against the PRIOR turn (the reply just read).
-      if (typeof args.priorTurnScore === "number" && thread.turns.length > 0) {
-        thread.turns[thread.turns.length - 1].score = args.priorTurnScore;
-      }
-
       if (!ctx.budget.threadTurnAllowed(thread.turns.length)) {
         return jsonResult({
           refused: true,
@@ -76,6 +71,11 @@ export function sendToTargetTool(ctx: RunContext) {
       // Serialize concurrent sends on the SAME threadId (shared history / one server session).
       // Distinct threadIds run concurrently — parallel branches use distinct forked ids.
       const { result, turnIndex } = await ctx.sessionGate.run(args.threadId, async () => {
+        // Record the self-judged score for the PRIOR turn — inside the gate so concurrent
+        // same-threadId sends can't clobber each other's score (lost update).
+        if (typeof args.priorTurnScore === "number" && thread.turns.length > 0) {
+          thread.turns[thread.turns.length - 1].score = args.priorTurnScore;
+        }
         await ctx.budget.awaitTargetSlot();
         ctx.budget.recordSend();
         const sendResult = await ctx.target.send(args.prompt, {

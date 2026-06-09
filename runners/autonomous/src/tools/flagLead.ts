@@ -48,9 +48,11 @@ export function flagLeadTool(ctx: RunContext) {
         return jsonResult({ flagged: false, reason: `No thread "${args.threadId}".` });
       }
       const progress = computeProgressSignal(thread, thread.forkedFromTurn ?? 0);
+      // atTurn is 1-based; clamp to [1, turns.length], then convert to 0-indexed (empty → none).
       const seamTurn =
-        thread.turns[Math.min(Math.max(args.atTurn, 1), thread.turns.length) - 1] ??
-        thread.turns[thread.turns.length - 1];
+        thread.turns.length > 0
+          ? thread.turns[Math.min(Math.max(args.atTurn, 1), thread.turns.length) - 1]
+          : undefined;
       const evidenceSnippet = seamTurn ? snip(seamTurn.response, 200) : undefined;
 
       const lead = addLead(ctx.runLog, {
