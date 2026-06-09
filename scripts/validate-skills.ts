@@ -4,6 +4,7 @@
  * Evaluator rules:
  *   - id, name, severity, pass_criteria, fail_criteria required
  *   - patterns required and non-empty for agent evaluators; optional for MCP
+ *     (exception: scan_mode: source_code evaluators read source, so no patterns)
  *
  * Exit 0 — all files valid (warnings may still be printed).
  * Exit 1 — one or more hard errors found.
@@ -137,7 +138,11 @@ async function validateEvaluator(
 
   const patterns = data.patterns ?? [];
 
-  if (tree.requirePatterns && patterns.length === 0) {
+  // Source-scan evaluators (scan_mode: source_code) read the target's source
+  // instead of sending generated attacks, so they legitimately carry no patterns.
+  const isSourceScan = (data as Record<string, unknown>).scan_mode === "source_code";
+
+  if (tree.requirePatterns && patterns.length === 0 && !isSourceScan) {
     errors.push(`patterns must be a non-empty array for ${tree.label} evaluators`);
   }
 

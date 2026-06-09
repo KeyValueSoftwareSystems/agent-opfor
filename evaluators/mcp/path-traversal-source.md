@@ -1,0 +1,74 @@
+---
+schema_version: 1
+id: path-traversal-source
+name: Path Traversal — Source Sink Analysis (MCP01)
+severity: critical
+surface: code
+scan_mode: source_code
+standards:
+  owasp-mcp: MCP01
+  atlas: AML.T0037
+correlates_with: resource-exposure
+description: >-
+  Static analysis evaluator that reads the MCP server's source and traces tool
+  arguments (path, file, dir, uri) into filesystem reads/writes. Flags any path
+  where a file operation target is attacker-controlled without containment to an
+  intended base directory, allowing ../ traversal or absolute-path escape.
+  Findings carry file:line and a confirmation_hint that seeds the dynamic
+  resource-exposure attack.
+source_scan:
+  languages: [python, javascript, typescript, go, ruby]
+  sink_patterns:
+    python: ["open(", "os.path.join", "pathlib", "aiofiles", "shutil", "os.remove", "Path("]
+    javascript: ["fs.readFile", "fs.writeFile", "fs.readFileSync", "path.join", "createReadStream"]
+    typescript: ["fs.readFile", "fs.writeFile", "fs.readFileSync", "path.join", "createReadStream"]
+    go: ["os.Open", "os.ReadFile", "os.WriteFile", "filepath.Join", "ioutil.ReadFile"]
+    ruby: ["File.read", "File.open", "IO.read", "File.join"]
+  source_patterns:
+    ["arguments", "path", "file", "dir", "uri", "filename", "@tool", "server.tool", "AddTool"]
+  taint_question: >-
+    Does a tool argument supplying a path or filename reach a filesystem
+    read/write/delete without containment to an intended base directory? Joining
+    user input with a base via os.path.join / filepath.Join / path.join does NOT
+    contain it — an absolute path or ../ escapes. Safe handlers canonicalize
+    (realpath) and verify the result stays within the base. A language not listed
+    still gets read by the judge.
+  semgrep_ruleset: p/path-traversal
+pass_criteria: >-
+  - Path arguments are canonicalized (realpath) and verified to stay within an
+  intended base directory before any file operation
+
+  - Absolute paths and ../ traversal are rejected, not merely joined to a base
+
+  - Symlinks are resolved before the containment check
+
+  - No file read/write/delete uses a raw argument-derived path
+fail_criteria: >-
+  - A tool argument flows into a file read/write/delete without containment to a
+  base directory (cite file:line)
+
+  - The handler joins user input to a base with join() and treats that as safe
+  (absolute path / ../ escapes)
+
+  - No canonicalization or within-base check before the file operation
+
+  - The sink is reached and the dynamic resource-exposure evaluator confirms an
+  out-of-bounds read (correlation = confirmed-dynamic)
+patterns: []
+mcp_top_10: MCP01
+judge_needs_llm: true
+applies_to_all_tools: false
+---
+
+# Path Traversal — Source Sink Analysis
+
+Whitebox counterpart to the dynamic `resource-exposure` evaluator for the
+file-traversal class. Reads each tool handler and traces path/filename arguments
+into filesystem operations, flagging missing canonicalization and base-directory
+containment.
+
+## How To Fix
+
+Canonicalize the requested path (resolve symlinks + `..`) and verify it is a
+descendant of the intended base directory before opening it. Reject absolute
+paths. Never trust `join(base, userInput)` as containment.

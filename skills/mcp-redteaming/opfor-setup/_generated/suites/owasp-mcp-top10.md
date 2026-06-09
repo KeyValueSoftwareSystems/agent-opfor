@@ -9,15 +9,20 @@ description: >-
   and are not listed here.
 evaluators:
   - secret-exposure
+  - secret-exposure-source
   - oauth-token-passthrough
   - scope-escalation
   - mcp-supply-chain
   - tool-description-injection
   - command-injection
+  - command-injection-source
   - missing-authentication
+  - missing-authentication-source
   - intent-subversion
   - cross-resource-leakage
   - ssrf
+  - ssrf-source
+  - path-traversal-source
   - content-injection
   - audit-telemetry
   - shadow-mcp-server
@@ -30,7 +35,7 @@ evaluators:
 
 # OWASP MCP Top 10
 
-16 attack evaluators + 3 automatic baseline scans covering the full MCP attack surface.
+21 attack evaluators + 3 automatic baseline scans covering the full MCP attack surface. Five of the evaluators are **whitebox source-scan** variants (`*-source`, `scan_mode: source_code`) that read the server's implementation and correlate with their dynamic counterparts; they require a resolvable source root.
 
 ### Always-on baseline scans (run automatically, not selectable)
 
@@ -60,3 +65,15 @@ evaluators:
 | MCP08    | audit-telemetry            | Lack of audit logging and telemetry — actions taken without traceability |
 | MCP09    | shadow-mcp-server          | Shadow/rogue MCP server detection and spoofing                           |
 | MCP10    | cross-resource-leakage     | Cross-user, cross-tenant, and cross-session data leakage                 |
+
+### Whitebox source-scan evaluators (selectable)
+
+`scan_mode: source_code` — these read the server's implementation instead of sending a runtime payload, and correlate with the dynamic evaluator named in `correlates_with`. They require a resolvable source root (derived from the launch command for stdio; supplied by the operator for url). See the execute skill's Static Source Pre-Scan step.
+
+| OWASP id | Evaluator id                  | Correlates with        | Theme                                                         |
+| -------- | ----------------------------- | ---------------------- | ------------------------------------------------------------- |
+| MCP01    | secret-exposure-source        | secret-exposure        | Hardcoded secrets + error paths leaking exceptions/env        |
+| MCP01    | path-traversal-source         | resource-exposure      | Path/filename args reaching file ops without base containment |
+| MCP05    | command-injection-source      | command-injection      | Tool args traced into shell/exec/eval sinks                   |
+| MCP05    | ssrf-source                   | ssrf                   | URL/host args reaching outbound clients without validation    |
+| MCP07    | missing-authentication-source | missing-authentication | Sensitive handlers acting without an auth/authz check         |

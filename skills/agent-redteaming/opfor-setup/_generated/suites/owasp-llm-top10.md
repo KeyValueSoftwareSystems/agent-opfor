@@ -5,11 +5,14 @@ id: owasp-llm-top10
 description: Security testing for LLM applications (10 evaluators)
 evaluators:
   - prompt-injection
+  - prompt-injection-source
   - sensitive-disclosure
   - supply-chain
   - data-poisoning
   - improper-output-handling
+  - improper-output-handling-source
   - excessive-agency
+  - excessive-agency-source
   - system-prompt-leakage
   - vector-embedding-weaknesses
   - misinformation
@@ -29,6 +32,7 @@ When selected, run the following evaluators in order:
 - **Evaluator**: prompt-injection
 - **Severity**: critical
 - **Status**: ✅ Available
+- **Whitebox**: prompt-injection-source (`scan_mode: source_code`) — traces retrieved/tool/memory content into model calls; requires source access
 
 ## LLM02: Sensitive Information Disclosure
 
@@ -53,12 +57,14 @@ When selected, run the following evaluators in order:
 - **Evaluator**: improper-output-handling
 - **Severity**: high
 - **Status**: ✅ Available
+- **Whitebox**: improper-output-handling-source (`scan_mode: source_code`) — traces LLM output into eval/shell/SQL/HTML sinks
 
 ## LLM06: Excessive Agency
 
 - **Evaluator**: excessive-agency
 - **Severity**: high
 - **Status**: ✅ Available
+- **Whitebox**: excessive-agency-source (`scan_mode: source_code`) — checks confirmation/ownership/scope guards on privileged actions
 
 ## LLM07: System Prompt Leakage
 

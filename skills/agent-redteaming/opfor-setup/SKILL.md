@@ -303,6 +303,8 @@ B) Custom selection (pick specific evaluators)
 - If user chooses A, ask them to select from the discovered suites
 - If user chooses B, present discovered evaluators grouped by severity
 
+**Whitebox source-scan evaluators are on by default — do not ask.** Evaluators with `scan_mode: source_code` (e.g. `prompt-injection-source`) are **always included automatically** whenever the assessment runs on a codebase, regardless of suite or custom selection. In custom mode they are pre-selected, not opt-in. The static pass is never gated behind a question or setting — assume a codebase is present. (The execute skill resolves the source root and runs them; the only consent prompt there is for optionally invoking an external scanner like semgrep/codeql.)
+
 ### If User Chooses Option A: Suite
 
 Ask:
@@ -395,6 +397,7 @@ After collecting test configuration, generate pre-attack input files automatical
      - Notes
    - For **single-turn**: each test case is one standalone prompt
    - For **multi-turn**: each test case is a conversation sequence (Turn 1 → initial attack, Turn 2 → escalation, Turn 3+ → further exploitation)
+   - For **source-scan evaluators** (`scan_mode: source_code`, `patterns: []`): do **not** generate prompts. Write the input file with the evaluator metadata and pass/fail criteria only — the execute skill reads the agent's source for these (it needs a resolvable source root; `custom-function` targets derive it from the Notes entry point, `http-endpoint` targets are asked for the repo path). Note in the config summary that these require source access.
 4. Copy pass/fail guidance from frontmatter `pass_criteria` and `fail_criteria` (or the `## Evaluation Criteria` section in the body if you need extra context for the report)
 5. Write to input file (see "Write Config Folder" step for format)
 

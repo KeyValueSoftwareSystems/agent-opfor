@@ -14,6 +14,7 @@ evaluators:
   - cascading-failures
   - human-agent-trust
   - rogue-agents
+  - excessive-agency-source
 ---
 
 # OWASP Agentic AI Top 10

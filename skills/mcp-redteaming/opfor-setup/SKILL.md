@@ -156,6 +156,8 @@ B) Custom selection (pick specific evaluators)
 - If user chooses A, show which evaluators will run
 - If user chooses B, present evaluators grouped by severity
 
+**Whitebox source-scan evaluators are on by default — do not ask.** Evaluators with `scan_mode: source_code` (e.g. `command-injection-source`) are **always included automatically** whenever the assessment runs on a codebase, regardless of whether the user picks a suite or custom evaluators. Treat them like the always-on baseline scans: in custom mode they are pre-selected and need not be shown as opt-in choices. The static pass itself is never gated behind a question or setting — assume a codebase is present. (The execute skill resolves the source root and runs them; the only consent prompt there is for optionally invoking an external scanner like semgrep/codeql.)
+
 ### Recommending Evaluators Based on Discovery
 
 After tool/resource discovery, highlight which evaluators are most relevant:
@@ -200,6 +202,7 @@ For each selected evaluator:
    - Adapt templates to the specific tools and resources discovered in Step 4
    - Use actual tool names, argument schemas, and resource URIs
    - For evaluators without patterns (scanner-only): generate attacks based on the evaluator's description and the discovered attack surface
+   - For **source-scan evaluators** (`scan_mode: source_code`, `patterns: []`): do **not** generate runtime attacks. Write the input file with the evaluator metadata and pass/fail criteria only — the execute skill reads the server's source for these (it needs a resolvable source root; for `url` transport it will ask for the repo path). Note in the config summary that these evaluators require source access.
 4. Copy pass/fail criteria from frontmatter
 
 Show progress:

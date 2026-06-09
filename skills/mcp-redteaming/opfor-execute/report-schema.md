@@ -92,14 +92,19 @@ All metrics are derived from attack execution results. Define them as follows:
       "attackResults": [
         {
           "attackNumber": "number (1-based index)",
+          "method": "string (dynamic | static) — 'static' for source-scan evaluators",
           "toolName": "string (MCP tool or resource attacked)",
-          "arguments": "object (JSON arguments sent)",
-          "response": "string (full server response)",
+          "arguments": "object (JSON arguments sent) — dynamic only",
+          "response": "string (full server response) — dynamic only",
           "error": "string | null (transport/tool error if any)",
+          "filePath": "string | null — source file (static only)",
+          "lineRange": "string | null — e.g. '42-47' (static only)",
+          "taintPath": "string | null — e.g. 'arguments.cmd → subprocess.run(shell=True)' (static only)",
+          "correlation": "string | null — confirmed-dynamic | static-only | dynamic-only",
           "verdict": "string (PASS|FAIL|ERROR)",
           "score": "number (0-10)",
           "confidence": "number (0-100)",
-          "evidence": "string (quote from response)",
+          "evidence": "string (quote from response, or sink code for static)",
           "reasoning": "string (1-2 sentences)",
           "turns": [
             {
@@ -138,9 +143,41 @@ All metrics are derived from attack execution results. Define them as follows:
       "score": "number",
       "description": "string"
     }
-  ]
+  ],
+
+  "correlation": {
+    "comment": "Present only when a source-scan evaluator ran (Step 4.5/6.5). Pairs static source findings with the dynamic evaluator named by `correlates_with`.",
+    "confirmed": [
+      {
+        "evaluator": "string (dynamic evaluator id)",
+        "toolName": "string",
+        "filePath": "string",
+        "lineRange": "string",
+        "attackId": "string (dynamic attack that confirmed it)"
+      }
+    ],
+    "staticOnly": [
+      {
+        "evaluator": "string (source-scan evaluator id)",
+        "toolName": "string",
+        "filePath": "string",
+        "lineRange": "string",
+        "taintPath": "string"
+      }
+    ],
+    "dynamicOnly": [
+      {
+        "evaluator": "string (dynamic evaluator id)",
+        "toolName": "string",
+        "attackId": "string",
+        "note": "string (e.g. 'tool unmapped' | 'no source root')"
+      }
+    ]
+  }
 }
 ```
+
+**Metric note:** source-scan (`method: "static"`) results count toward findings and severity totals, but the **Safety Score and Attack Success Rate denominators stay dynamic-only** (those metrics measure live attacks). Report static findings under their own counts and the `correlation` block so the two methods don't distort each other's percentages. The `correlation` key is omitted entirely when no source-scan evaluator ran.
 
 ---
 
@@ -154,9 +191,10 @@ All metrics are derived from attack execution results. Define them as follows:
 2. **Executive Summary** — verdict banner, stat cards, narrative
 3. **Assessment Scope** — server info, evaluation parameters
 4. **Key Findings** — critical and high severity findings (or "no findings" message)
-5. **Evaluation Results** — summary table of all evaluators
-6. **Detailed Attack Results** — expandable per-evaluator sections with individual attack cards
-7. **Footer** — generator credit and report ID
+5. **Static ∧ Dynamic Correlation** — only when a source-scan evaluator ran; omit otherwise
+6. **Evaluation Results** — summary table of all evaluators
+7. **Detailed Attack Results** — expandable per-evaluator sections with individual attack cards
+8. **Footer** — generator credit and report ID
 
 ### Cover Band
 
@@ -189,6 +227,32 @@ Two cards side by side:
 - Show critical findings first, then high
 - Each finding: evaluator name, tool name, score, and 1-line description
 - Sort within severity by score descending
+
+### Static ∧ Dynamic Correlation
+
+Render **only when a source-scan evaluator ran** (the `correlation` block exists); otherwise omit this section entirely. Three labeled groups, in this order:
+
+- **Confirmed (static ∧ dynamic)** — `confirmed[]`. Each row: tool name, `filePath:lineRange` (mono), and the confirming `attackId`. This is the headline result — a located sink **and** a live exploit. Use the FAIL color.
+- **Static only** — `staticOnly[]`. Each row: tool name, `filePath:lineRange` (mono), `taintPath` (mono). Frame as "code smell the dynamic attacks did not trigger — likely missed by black-box testing." Use the amber/high color.
+- **Dynamic only** — `dynamicOnly[]`. Each row: tool name, `attackId`, and `note`. Frame as "runtime exploit with no located sink — static coverage gap." Use the amber/high color.
+
+If a group is empty, show a one-line "none" message for it rather than dropping the heading.
+
+### Detailed Attack Results — static cards
+
+For `method: "static"` results, the attack card omits Arguments/Tool Response and instead shows:
+
+```
+[#01 command-injection-source] [run_command]                 [FAIL badge]
+  Source:   src/tools/run.py:42-47
+  Taint:    arguments.cmd → subprocess.run(shell=True)
+  ▸ Sink (collapsed)
+    <pre> evidence code excerpt </pre>
+  [Judge verdict block]
+    FAIL · Score 9/10 · Confidence 95%
+    Correlation: confirmed-dynamic
+    Reasoning: explanation
+```
 
 ### Evaluation Results Table
 
@@ -275,6 +339,10 @@ Before writing report files, verify:
 - [ ] Multi-turn attacks show all turns (not just the final one)
 - [ ] ERROR attacks are excluded from pass rate / attack success rate denominator
 - [ ] Timestamps are valid ISO 8601
+- [ ] Static (`method: "static"`) results are excluded from Safety Score / Attack Success Rate denominators
+- [ ] `correlation` block present iff a source-scan evaluator ran; omitted otherwise
+- [ ] Static attack cards show filePath/lineRange/taintPath instead of arguments/response
+- [ ] Correlation section omitted from HTML when no source-scan evaluator ran
 
 ---
 
