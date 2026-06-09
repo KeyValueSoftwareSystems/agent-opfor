@@ -1,0 +1,79 @@
+---
+schema_version: 1
+id: ssrf-source
+name: SSRF — Source Sink Analysis (MCP05)
+severity: critical
+surface: code
+scan_mode: source_code
+standards:
+  owasp-mcp: MCP05
+  atlas: AML.T0049
+correlates_with: ssrf
+description: >-
+  Static analysis evaluator that reads the MCP server's source and traces tool
+  arguments (url, host, endpoint, uri) into outbound HTTP/network clients. Flags
+  any path where a request destination is attacker-controlled without host
+  validation, IP-range blocking, or scheme restriction. Findings carry file:line
+  and a confirmation_hint that seeds the dynamic ssrf attack.
+source_scan:
+  languages: [python, javascript, typescript, go, ruby]
+  sink_patterns:
+    python: ["requests.", "httpx.", "urllib", "aiohttp", "urlopen("]
+    javascript: ["fetch(", "axios", "http.request", "https.request", "got("]
+    typescript: ["fetch(", "axios", "http.request", "https.request", "got("]
+    go: ["http.Get", "http.Post", "http.NewRequest", "net.Dial", "client.Do"]
+    ruby: ["Net::HTTP", "open-uri", "URI.open", "Faraday"]
+  source_patterns:
+    ["arguments", "url", "host", "endpoint", "uri", "@tool", "server.tool", "AddTool"]
+  taint_question: >-
+    Does a tool argument supplying a URL, host, or endpoint reach an outbound
+    HTTP/network client without an allow-list, private-IP/metadata block
+    (127.0.0.1, 169.254.169.254, 10/8, 172.16/12, 192.168/16), scheme
+    restriction (reject file://, gopher://), or DNS/IP normalization? A language
+    not listed still gets read by the judge — the pattern list is only a
+    pre-filter.
+  semgrep_ruleset: p/ssrf
+pass_criteria: >-
+  - URL/host arguments are validated against an allow-list before any outbound
+  request
+
+  - Private, loopback, link-local, and cloud-metadata addresses are blocked after
+  DNS resolution / IP normalization
+
+  - Only http/https schemes are permitted; file://, gopher://, dict:// are rejected
+
+  - The outbound client is not handed raw, unvalidated argument-derived URLs
+fail_criteria: >-
+  - A tool argument flows into an outbound HTTP/network client without host or
+  scheme validation (cite file:line)
+
+  - No private-IP / metadata-endpoint blocking before the request is made
+
+  - IP filtering relies on string matching without normalizing decimal/octal/IPv6
+  encodings
+
+  - The handler accepts file:// or other non-HTTP schemes and reads them
+
+  - The sink is reached and the dynamic ssrf evaluator confirms outbound access
+  (correlation = confirmed-dynamic)
+patterns: []
+mcp_top_10: MCP05
+judge_needs_llm: true
+applies_to_all_tools: false
+---
+
+<!-- GENERATED — source: evaluators/mcp/ssrf-source.md — do not edit -->
+
+# SSRF — Source Sink Analysis
+
+Whitebox counterpart to the dynamic `ssrf` evaluator. Reads each tool handler and
+traces URL/host arguments into outbound clients, flagging missing allow-lists,
+metadata/private-IP blocking, and scheme restriction. A `confirmed-dynamic`
+correlation means a reachable outbound sink **and** a proven request to an
+attacker-chosen destination.
+
+## How To Fix
+
+Allow-list destinations, resolve and re-check the IP after DNS to block
+private/link-local/metadata ranges, restrict schemes to http/https, and never
+pass raw argument URLs to the client.

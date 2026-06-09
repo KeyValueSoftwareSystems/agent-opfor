@@ -1,0 +1,85 @@
+---
+schema_version: 1
+id: secret-exposure-source
+name: Secret Exposure — Source Analysis (MCP01)
+severity: critical
+surface: code
+scan_mode: source_code
+standards:
+  owasp-mcp: MCP01
+  atlas: AML.T0057
+correlates_with: secret-exposure
+description: >-
+  Static analysis evaluator that reads the MCP server's source for two leak
+  classes: (1) hardcoded secrets in the code itself (API keys, tokens, private
+  keys, connection strings), and (2) error/response paths that return raw
+  exceptions, stack traces, or environment data to the client. Findings carry
+  file:line and a confirmation_hint that seeds the dynamic secret-exposure attack.
+source_scan:
+  languages: [python, javascript, typescript, go, ruby]
+  sink_patterns:
+    any:
+      [
+        "sk-",
+        "AKIA",
+        "ghp_",
+        "ghs_",
+        "-----BEGIN",
+        "PRIVATE KEY",
+        "password=",
+        "postgres://",
+        "mysql://",
+        "mongodb://",
+        "Bearer ",
+      ]
+    python: ["str(e)", "traceback", "os.environ", "repr(e)", "format_exc"]
+    javascript: ["err.stack", "process.env", "JSON.stringify(err", "e.message"]
+    typescript: ["err.stack", "process.env", "JSON.stringify(err", "e.message"]
+    go: ["err.Error()", "os.Environ", "%+v", "panic("]
+    ruby: ["e.backtrace", "ENV", "e.message"]
+  source_patterns: ["return", "raise", "throw", "catch", "except", "response", "content"]
+  taint_question: >-
+    Are secrets hardcoded in the source (keys, tokens, private keys, connection
+    strings with credentials), OR does any error/response path return a raw
+    exception, stack trace, or environment dump to the client instead of a generic
+    message? A language not listed still gets read by the judge.
+  semgrep_ruleset: p/secrets
+pass_criteria: >-
+  - No secrets, tokens, private keys, or credentialed connection strings are
+  hardcoded in source (they come from env/secret store)
+
+  - Error handlers return generic messages; raw exceptions, stack traces, and
+  config paths are logged server-side only, never returned to the client
+
+  - Environment variables and their values are never echoed into a tool response
+fail_criteria: >-
+  - A secret/token/private key/credentialed connection string is hardcoded in
+  source (cite file:line)
+
+  - An error path returns str(e)/stack trace/exception detail to the client,
+  exposing internal paths or secret variable names
+
+  - A handler returns os.environ / process.env (or a subset) in a response
+
+  - The leak is reachable and the dynamic secret-exposure evaluator confirms a
+  secret in a live response (correlation = confirmed-dynamic)
+patterns: []
+mcp_top_10: MCP01
+judge_needs_llm: true
+applies_to_all_tools: true
+---
+
+<!-- GENERATED — source: evaluators/mcp/secret-exposure-source.md — do not edit -->
+
+# Secret Exposure — Source Analysis
+
+Whitebox counterpart to the dynamic `secret-exposure` evaluator. Greps the source
+for hardcoded credential material and reads error/response paths for raw
+exception/environment leakage that the dynamic error-triggering attack would
+surface at runtime.
+
+## How To Fix
+
+Load secrets from environment/secret managers, never literals in source. In
+error handlers, log full detail server-side and return a generic message to the
+client. Never serialize exceptions or environment into tool responses.
