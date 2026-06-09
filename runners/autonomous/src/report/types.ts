@@ -46,6 +46,14 @@ export interface ReportFinding {
   turns: ReportTurn[];
   /** Optional independent corroboration. */
   selfCheck?: SelfCheckResult;
+  /** True when the same evidence was reproduced on ≥2 genuinely independent threads. */
+  crossSessionCorroborated?: boolean;
+  /** All threads that produced this (deduped) finding, when more than one. */
+  corroboratingThreads?: string[];
+  /** Lineage for the attack-tree view. */
+  parentThreadId?: string;
+  /** Exploration generation of this thread. */
+  gen?: number;
 }
 
 /** A novel persona/strategy the agent invented during the run. */
@@ -61,7 +69,7 @@ export interface ReportInvention {
 export interface ReportDecision {
   at: string;
   threadId?: string;
-  action: "continue" | "escalate" | "pivot" | "stop" | "dispatch" | "note";
+  action: "continue" | "escalate" | "pivot" | "stop" | "dispatch" | "fork" | "note";
   rationale: string;
 }
 
@@ -97,11 +105,21 @@ export interface AutonomousReport {
     weakPoints: string[];
     probeCount: number;
   };
+  /** Shape of the adaptive exploration tree (waves/forks/leads). */
+  exploration: {
+    /** Deepest exploration generation reached across all threads. */
+    maxDepthReached: number;
+    leadsFlagged: number;
+    leadsSpawned: number;
+    leadsDismissed: number;
+  };
   findings: ReportFinding[];
   personaTimeline: PersonaTimelineEntry[];
   decisionLog: ReportDecision[];
   strategiesUsed: string[];
   inventions: ReportInvention[];
+  /** True when the commander submitted a synthesis; false ⇒ executiveNarrative is a fallback. */
+  synthesisComplete: boolean;
   executiveNarrative: string;
   responsePatterns: Array<{ pattern: string; observation: string }>;
   recommendations: string[];

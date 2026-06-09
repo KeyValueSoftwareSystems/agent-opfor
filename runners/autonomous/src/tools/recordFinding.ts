@@ -7,6 +7,8 @@ import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { snip, type RunContext } from "../orchestrator/context.js";
 import { evidenceFoundInThread, type Finding } from "../state/runLog.js";
+import { noteEvent } from "../state/hooks.js";
+import { countsLine } from "../state/observe.js";
 import { jsonResult } from "./util.js";
 
 export function recordFindingTool(ctx: RunContext) {
@@ -33,6 +35,21 @@ export function recordFindingTool(ctx: RunContext) {
       personaArc: z.array(z.string()).optional().describe("Personas used, in order."),
     },
     async (args) => {
+      // Reject unknown vuln-class ids so the agent can't invent variants (e.g. "sensitive-data-
+      // disclosure") that fragment the taxonomy. Cross-class findings are fine — but the id must
+      // be one of the LOADED classes.
+      const vulnClass = ctx.knowledge.vulnClasses.find((v) => v.id === args.vulnClassId);
+      if (!vulnClass) {
+        const valid = ctx.knowledge.vulnClasses.map((v) => v.id).join(", ");
+        ctx.reporter?.onLine(
+          `[attacker] ⚠️  finding rejected — unknown vulnClassId "${args.vulnClassId}"`
+        );
+        return jsonResult({
+          accepted: false,
+          reason: `Unknown vulnClassId "${args.vulnClassId}". Use exactly one of the loaded classes: ${valid}.`,
+        });
+      }
+
       const thread = ctx.runLog.threads.get(args.threadId);
       if (!thread) {
         ctx.reporter?.onLine(
@@ -54,13 +71,12 @@ export function recordFindingTool(ctx: RunContext) {
         });
       }
 
-      const vulnClass = ctx.knowledge.vulnClasses.find((v) => v.id === args.vulnClassId);
       const finding: Finding = {
         findingId: randomUUID(),
         vulnClassId: args.vulnClassId,
-        name: vulnClass?.name ?? args.title,
+        name: vulnClass.name,
         severity: args.severity,
-        standards: vulnClass?.standards,
+        standards: vulnClass.standards,
         threadId: args.threadId,
         strategy: args.strategiesUsed[0] ?? "improvised",
         personaArc: args.personaArc ?? [],
@@ -82,6 +98,13 @@ export function recordFindingTool(ctx: RunContext) {
       ctx.reporter?.onLine(
         `[attacker] 🚨 FINDING [${args.severity}] ${snip(args.title, 80)}  (confidence ${args.confidence}%)`
       );
+      noteEvent(ctx.reporter, {
+        at: finding.at,
+        type: "finding",
+        threadId: args.threadId,
+        data: { vulnClassId: args.vulnClassId, severity: args.severity, title: args.title },
+      });
+      ctx.reporter?.onLine(countsLine(ctx.runLog));
 
       return jsonResult({ accepted: true, findingId: finding.findingId });
     }

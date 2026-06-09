@@ -48,9 +48,24 @@ export interface AutoOptions {
   maxAttackers: number;
   /** Hard ceiling on SDK agentic turns. */
   maxTurns: number;
-  /** Per-attack-thread turn cap (refuse sends past this). */
+  /**
+   * Per-thread depth SAFETY CEILING (sends are refused past this). A runaway backstop,
+   * NOT the operating limit — the agent stops on diminishing returns (the progress signal)
+   * well before reaching it. Post-fork it bounds the whole lineage, since a forked child
+   * inherits the parent's turns.
+   */
   maxThreadTurns: number;
-  /** Hard USD budget; run finalizes a partial report when breached. */
+  /** Hard ceiling on total attack threads (tree size); forking is refused past this. */
+  maxTotalThreads: number;
+  /** Hard ceiling on direct forks (children) of any one thread (fan-out). */
+  maxForksPerThread: number;
+  /** Deterministic ceiling on total target sends (real-time cost backstop). Optional → budget-derived. */
+  maxTotalSends?: number;
+  /** Max exploration generations (follow-up waves) the commander may spawn from leads. */
+  maxDepth: number;
+  /** Soft guidance: how many leads the commander should expand per wave (top-K). */
+  maxLeadsPerWave: number;
+  /** Hard USD budget; run finalizes a partial report when breached. The real cost backstop. */
   budgetUsd?: number;
   /** Enable the optional in-package second-model verifier (self_check). */
   verify: boolean;

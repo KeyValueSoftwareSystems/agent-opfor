@@ -6,6 +6,10 @@ import type { RunContext } from "../orchestrator/context.js";
 import { listKnowledgeTool, getKnowledgeTool } from "./knowledge.js";
 import { reconProbeTool } from "./reconProbe.js";
 import { sendToTargetTool } from "./sendToTarget.js";
+import { forkThreadTool } from "./forkThread.js";
+import { getThreadTool } from "./getThread.js";
+import { flagLeadTool } from "./flagLead.js";
+import { listLeadsTool } from "./listLeads.js";
 import { selfCheckTool } from "./selfCheck.js";
 import { recordFindingTool } from "./recordFinding.js";
 import { registerInventionTool } from "./registerInvention.js";
@@ -23,6 +27,10 @@ export const TOOL_NAMES = {
   listKnowledge: "list_knowledge",
   getKnowledge: "get_knowledge",
   sendToTarget: "send_to_target",
+  forkThread: "fork_thread",
+  getThread: "get_thread",
+  flagLead: "flag_lead",
+  listLeads: "list_leads",
   selfCheck: "self_check",
   recordFinding: "record_finding",
   registerInvention: "register_invention",
@@ -38,6 +46,10 @@ export function buildRedteamServer(ctx: RunContext) {
       listKnowledgeTool(ctx),
       getKnowledgeTool(ctx),
       sendToTargetTool(ctx),
+      forkThreadTool(ctx),
+      getThreadTool(ctx),
+      flagLeadTool(ctx),
+      listLeadsTool(ctx),
       selfCheckTool(ctx),
       recordFindingTool(ctx),
       registerInventionTool(ctx),

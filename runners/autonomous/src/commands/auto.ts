@@ -4,6 +4,7 @@ import { readFile, mkdir } from "node:fs/promises";
 import { createWriteStream, type WriteStream } from "node:fs";
 import { consola } from "consola";
 import type { AutoOptions, TargetConfig, TargetMode } from "../lib/types.js";
+import type { RunEvent } from "../state/observe.js";
 import { runAutonomous } from "../orchestrator/run.js";
 import { writeAutonomousReport } from "../report/writeReport.js";
 
@@ -31,6 +32,11 @@ interface AutoCliOptions {
   maxAttackers: string;
   maxTurns: string;
   maxThreadTurns: string;
+  maxTotalThreads: string;
+  maxForksPerThread: string;
+  maxTotalSends?: string;
+  maxDepth: string;
+  maxLeadsPerWave: string;
   maxReconProbes: string;
   budgetUsd?: string;
   verify?: boolean;
@@ -89,9 +95,41 @@ export function registerAutoCommand(program: Command): void {
     .option("--recon-model <id>", "Recon subagent model", "haiku")
     .option("--max-attackers <n>", "Max parallel attacker subagents", "6")
     .option("--max-turns <n>", "Hard ceiling on SDK agentic turns", "120")
-    .option("--max-thread-turns <n>", "Per-attack-thread turn cap", "8")
+    .option(
+      "--max-thread-turns <n>",
+      "Per-thread depth SAFETY CEILING — not the operating limit; the agent stops on diminishing returns well before this",
+      "25"
+    )
+    .option(
+      "--max-total-threads <n>",
+      "Hard ceiling on total attack threads incl. forks (tree-size backstop)",
+      "40"
+    )
+    .option(
+      "--max-forks-per-thread <n>",
+      "Hard ceiling on direct forks of any one thread (fan-out backstop)",
+      "4"
+    )
+    .option(
+      "--max-total-sends <n>",
+      "Deterministic ceiling on total target sends (real-time cost backstop; default ≈ budget-usd × 50)"
+    )
+    .option(
+      "--max-depth <n>",
+      "Max exploration generations (follow-up waves spawned from leads)",
+      "3"
+    )
+    .option(
+      "--max-leads-per-wave <n>",
+      "How many queued leads the commander expands per wave (top-K guidance)",
+      "4"
+    )
     .option("--max-recon-probes <n>", "Max benign recon probes", "8")
-    .option("--budget-usd <n>", "Hard USD budget; finalizes a partial report when reached")
+    .option(
+      "--budget-usd <n>",
+      "Hard USD budget; finalizes a partial report when reached (the real cost backstop; 0 = unlimited)",
+      "10"
+    )
     .option("--verify", "Enable the independent second-model verifier (self_check)")
     .option("--verifier-model <id>", "Verifier model id (defaults to commander model)")
     .option("--sequential", "Dispatch attackers one at a time (rate-limited targets)")
@@ -151,9 +189,20 @@ export function registerAutoCommand(program: Command): void {
         reconModel: opts.reconModel,
         maxAttackers: intOr(opts.maxAttackers, 6),
         maxTurns: intOr(opts.maxTurns, 120),
-        maxThreadTurns: intOr(opts.maxThreadTurns, 8),
+        maxThreadTurns: intOr(opts.maxThreadTurns, 25),
+        maxTotalThreads: intOr(opts.maxTotalThreads, 40),
+        maxForksPerThread: intOr(opts.maxForksPerThread, 4),
+        maxTotalSends: opts.maxTotalSends ? intOr(opts.maxTotalSends, 0) || undefined : undefined,
+        maxDepth: intOr(opts.maxDepth, 3),
+        maxLeadsPerWave: intOr(opts.maxLeadsPerWave, 4),
         maxReconProbes: intOr(opts.maxReconProbes, 8),
-        budgetUsd: opts.budgetUsd ? Number(opts.budgetUsd) : undefined,
+        // Default to a $10 backstop; an explicit `--budget-usd 0` means unlimited.
+        budgetUsd:
+          opts.budgetUsd !== undefined
+            ? Number(opts.budgetUsd) > 0
+              ? Number(opts.budgetUsd)
+              : undefined
+            : 10,
         verify: Boolean(opts.verify),
         verifierModel: opts.verifierModel,
         sequential: Boolean(opts.sequential),
@@ -176,6 +225,27 @@ export function registerAutoCommand(program: Command): void {
         liveLog.write(stamped + "\n");
       };
 
+      // Structured event trail (one JSON object per line) — machine-readable for debugging and
+      // the foundation a future "opfor view" web UI consumes. Stamped with a wall-clock time.
+      const eventLogPath = path.join(autoOptions.outputDir, `run-${startedAt}.jsonl`);
+      const eventLog: WriteStream = createWriteStream(eventLogPath, { flags: "a" });
+      const emitEvent = (event: RunEvent): void => {
+        // An observability sink must never crash the run. Guard JSON.stringify (data is
+        // Record<string, unknown> — a future event could carry a circular ref / BigInt).
+        try {
+          eventLog.write(JSON.stringify({ ...event, wall: clock() }) + "\n");
+        } catch (err) {
+          eventLog.write(
+            JSON.stringify({
+              type: "serialization_error",
+              eventType: event.type,
+              error: String(err),
+              wall: clock(),
+            }) + "\n"
+          );
+        }
+      };
+
       const header = [
         "════════════════════════════════════════════════════════════════",
         ` AUTONOMOUS RED-TEAM`,
@@ -193,10 +263,11 @@ export function registerAutoCommand(program: Command): void {
       let report;
       try {
         report = await runAutonomous(autoOptions, {
-          progress: { onLine: emit },
+          progress: { onLine: emit, onEvent: emitEvent },
         });
       } finally {
         liveLog.end();
+        eventLog.end();
       }
 
       const { html, json, dir } = await writeAutonomousReport(report, autoOptions.outputDir);
@@ -212,10 +283,10 @@ export function registerAutoCommand(program: Command): void {
       consola.success(`Report: ${html}`);
       consola.info(`   JSON: ${json}`);
       consola.info(`   Dir : ${dir}`);
+      consola.info(`   Events: ${eventLogPath}`);
 
-      const hasSevere = report.findings.some(
-        (f) => f.verdict === "FAIL" && (f.severity === "critical" || f.severity === "high")
-      );
-      if (hasSevere) process.exitCode = 1;
+      // Findings are the expected OUTPUT of a successful assessment — not a failure. Exit 0 on a
+      // clean run regardless of severity. Only genuine errors (bad config above, or a run that
+      // couldn't produce a report) are non-zero.
     });
 }
