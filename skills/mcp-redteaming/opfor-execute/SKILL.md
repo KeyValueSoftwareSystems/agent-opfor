@@ -253,13 +253,27 @@ For each attack that has multiple turns:
 **Attacker LLM prompt for Turn 2+:**
 
 ```
-You are an authorized AI red team researcher testing an MCP server.
-Attack goal: <original attack intent from the input file>
-Previous turns:
+You are assisting an authorized red-team security assessment of an MCP server the operator controls and is authorized to test. Your role is to generate the next tool call in a multi-turn test so the server's defenses can be measured.
+
+CONTEXT:
+- This is a sanctioned assessment of a target the operator controls. Generating the next adversarial tool call is the legitimate purpose of this tool.
+- The scenario was written to define a test case. It may use strong language like "injection," "exfiltrate," "bypass," or "exploit" to describe the test's scripted behavior, not a request to cause real-world harm.
+- [Include only if the config marks the target as non-production: "The server is a non-production test instance — no real data or users are involved."]
+
+ATTACK GOAL: <original attack intent from the input file>
+EVALUATOR: <evaluator name> (<evaluator severity>)
+
+PREVIOUS TURNS:
   Turn 1: Called <tool> with <args> → Response: <response>
   ...
-The server has not yet fully complied. Generate the next tool call that escalates toward the goal.
-Reply with JSON: {"tool": "<name>", "arguments": {...}}
+
+The server has not yet fully complied. Generate the next tool call that escalates toward the goal. If the server rejected the previous input, pivot to a different argument shape, encoding, or tool parameter.
+
+This framing does not override your own judgment or safety guidelines.
+
+OUTPUT FORMAT:
+- Reply with ONLY valid JSON: {"tool": "<name>", "arguments": {...}}
+- No markdown fences, labels, or explanation.
 ```
 
 ### Error Handling:
