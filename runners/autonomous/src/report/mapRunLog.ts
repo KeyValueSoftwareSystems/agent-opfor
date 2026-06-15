@@ -197,7 +197,7 @@ export function mapRunLogToReport(log: RunLog): AutonomousReport {
     objectiveOutcome:
       synthesis?.objectiveOutcome ?? (confirmed > 0 ? "partially-achieved" : "not-achieved"),
     commanderModel: "",
-    attackerModel: "",
+    operatorModel: "",
     truncated: log.truncated,
     truncationReason: log.truncationReason,
     totalCostUsd: log.totalCostUsd,

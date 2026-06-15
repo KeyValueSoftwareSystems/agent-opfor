@@ -31,7 +31,7 @@ export interface ReportFinding {
   severity: Severity;
   standards?: Record<string, string>;
   threadId: string;
-  /** The attacker's chosen strategy/technique label for this thread. */
+  /** The operator's chosen strategy/technique label for this thread. */
   strategy: string;
   /** Personas used across the thread, in order. */
   personaArc: string[];
@@ -87,7 +87,7 @@ export interface AutonomousReport {
   objective: string;
   objectiveOutcome: "achieved" | "partially-achieved" | "not-achieved" | "inconclusive";
   commanderModel: string;
-  attackerModel: string;
+  operatorModel: string;
   /** Whether the run was truncated by a budget/turn ceiling. */
   truncated: boolean;
   truncationReason?: string;

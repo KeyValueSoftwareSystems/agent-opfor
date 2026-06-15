@@ -39,7 +39,7 @@ export function registerInventionTool(ctx: RunContext) {
       }
 
       ctx.runLog.inventions.push(invention);
-      ctx.reporter?.onLine(`[attacker] 💡 invented ${args.kind}: ${snip(args.name, 60)}`);
+      ctx.reporter?.onLine(`[operator] 💡 invented ${args.kind}: ${snip(args.name, 60)}`);
       return jsonResult({ accepted: true, persistedPath: invention.persistedPath });
     }
   );

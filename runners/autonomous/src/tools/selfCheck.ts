@@ -1,5 +1,5 @@
 // self_check — OPTIONAL independent corroboration via a SECOND model call
-// (@anthropic-ai/sdk), separate from the attacker's own self-judgment. Never a
+// (@anthropic-ai/sdk), separate from the operator's own self-judgment. Never a
 // gate: the agent self-judges first and calls this only to harden a finding.
 
 import { tool } from "@anthropic-ai/claude-agent-sdk";
@@ -81,7 +81,7 @@ export function selfCheckTool(ctx: RunContext) {
       }
 
       const transcript = thread.turns
-        .map((t) => `[Turn ${t.turnIndex}]\nAttacker: ${t.prompt}\nTarget: ${t.response}`)
+        .map((t) => `[Turn ${t.turnIndex}]\nOperator: ${t.prompt}\nTarget: ${t.response}`)
         .join("\n\n");
       const userPrompt = [
         `VULNERABILITY CLASS: ${vulnClass.name}`,
@@ -111,7 +111,7 @@ export function selfCheckTool(ctx: RunContext) {
         const verdict = parseVerdict(text);
         ctx.runLog.selfChecks.set(args.threadId, verdict);
         ctx.reporter?.onLine(
-          `[attacker] ⚖️  verifier: ${verdict.verdict} (score ${verdict.score}/10, conf ${verdict.confidence}%)`
+          `[operator] ⚖️  verifier: ${verdict.verdict} (score ${verdict.score}/10, conf ${verdict.confidence}%)`
         );
         return jsonResult({ available: true, ...verdict });
       } catch (err) {

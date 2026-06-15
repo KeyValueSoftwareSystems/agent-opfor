@@ -48,7 +48,7 @@ export function reconProbeTool(ctx: RunContext) {
         : result.isError
           ? `[error] ${result.errorMessage}`
           : snip(result.response, 150);
-      ctx.reporter?.onLine(`[recon] 🔎 "${snip(args.probe, 70)}"  →  ${status}`);
+      ctx.reporter?.onLine(`[scout] 🔎 "${snip(args.probe, 70)}"  →  ${status}`);
 
       return jsonResult({
         response: result.response,

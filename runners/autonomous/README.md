@@ -30,7 +30,7 @@ Run `npm run dev -- auto --help` to see this list in the terminal.
 
 | Variable             | Required                 | Purpose                                                                   |
 | -------------------- | ------------------------ | ------------------------------------------------------------------------- |
-| `ANTHROPIC_API_KEY`  | **yes**                  | Drives the agent (commander / attacker / recon) via the Claude Agent SDK. |
+| `ANTHROPIC_API_KEY`  | **yes**                  | Drives the agent (commander / operator / scout) via the Claude Agent SDK. |
 | `ANTHROPIC_BASE_URL` | no                       | Point the SDK at a gateway (e.g. LiteLLM) instead of `api.anthropic.com`. |
 | `TARGET_API_KEY`     | if the target needs auth | Bearer key sent to the target endpoint (or pass `--target-key`).          |
 
@@ -65,8 +65,8 @@ Loaded from `.env` in the working directory, or a file passed via `--env`.
 | Flag                    | Default     | Description                                                  |
 | ----------------------- | ----------- | ------------------------------------------------------------ |
 | `--model <id>`          | `opus`      | Commander model (alias or full id).                          |
-| `--attacker-model <id>` | `sonnet`    | Attacker subagent model.                                     |
-| `--recon-model <id>`    | `haiku`     | Recon subagent model.                                        |
+| `--operator-model <id>` | `sonnet`    | Operator subagent model.                                     |
+| `--scout-model <id>`    | `haiku`     | Scout subagent model.                                        |
 | `--verify`              | off         | Enable the independent second-model verifier (`self_check`). |
 | `--verifier-model <id>` | = `--model` | Model used for the verifier.                                 |
 
@@ -76,7 +76,7 @@ Loaded from `.env` in the working directory, or a file passed via `--env`.
 | ---------------------------- | ------------------- | ---------------------------------------------------------------------------------------------------------------------- |
 | `--budget-usd <n>`           | `10`                | Hard USD cost ceiling; finalizes a partial report when reached. `0` = unlimited. The primary cost guard.               |
 | `--max-total-sends <n>`      | ≈ `budget-usd × 50` | Deterministic ceiling on total target sends — the real-time cost backstop (USD is only known after the fact).          |
-| `--max-attackers <n>`        | `6`                 | Max attacker vectors dispatched in the first wave.                                                                     |
+| `--max-operators <n>`        | `6`                 | Max operator vectors dispatched in the first wave.                                                                     |
 | `--max-turns <n>`            | `120`               | Hard ceiling on SDK agentic turns for the whole run.                                                                   |
 | `--max-thread-turns <n>`     | `25`                | Per-thread/lineage depth **safety ceiling** — not the operating limit; the agent stops on diminishing returns earlier. |
 | `--max-total-threads <n>`    | `40`                | Hard ceiling on total attack threads incl. forks (tree size).                                                          |
@@ -84,7 +84,7 @@ Loaded from `.env` in the working directory, or a file passed via `--env`.
 | `--max-depth <n>`            | `3`                 | Max exploration generations (follow-up waves spawned from leads).                                                      |
 | `--max-leads-per-wave <n>`   | `4`                 | How many queued leads the commander expands per wave (top-K).                                                          |
 | `--max-recon-probes <n>`     | `8`                 | Max benign recon probes before recon must conclude.                                                                    |
-| `--sequential`               | off                 | Dispatch attackers one at a time (for rate-limited targets).                                                           |
+| `--sequential`               | off                 | Dispatch operators one at a time (for rate-limited targets).                                                           |
 
 ### Misc
 

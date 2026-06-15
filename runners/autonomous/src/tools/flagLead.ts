@@ -1,4 +1,4 @@
-// flag_lead — an attacker flags a promising-but-unfinished seam for the commander to expand in a
+// flag_lead — an operator flags a promising-but-unfinished seam for the commander to expand in a
 // later wave. The authoritative follow-up channel (the prose summary is for the report only).
 // CONFIRMED evidence goes to record_finding instead; this is for leads worth EXPLORING.
 
@@ -40,7 +40,7 @@ export function flagLeadTool(ctx: RunContext) {
         .int()
         .min(0)
         .optional()
-        .describe("Your current exploration generation (from your task; root-wave attackers = 0)."),
+        .describe("Your current exploration generation (from your task; root-wave operators = 0)."),
     },
     async (args) => {
       const thread = ctx.runLog.threads.get(args.threadId);
@@ -72,7 +72,7 @@ export function flagLeadTool(ctx: RunContext) {
         });
       }
       ctx.reporter?.onLine(
-        `[attacker] 🩺 lead ${lead.id} (gen ${lead.gen}, rec:${args.recommend}) on ${args.threadId}: ${snip(args.rationale, 90)}`
+        `[operator] 🩺 lead ${lead.id} (gen ${lead.gen}, rec:${args.recommend}) on ${args.threadId}: ${snip(args.rationale, 90)}`
       );
       noteEvent(ctx.reporter, {
         at: lead.at,

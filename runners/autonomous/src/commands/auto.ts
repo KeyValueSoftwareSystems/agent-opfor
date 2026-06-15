@@ -27,9 +27,9 @@ interface AutoCliOptions {
   header?: string[];
   name?: string;
   model: string;
-  attackerModel: string;
-  reconModel: string;
-  maxAttackers: string;
+  operatorModel: string;
+  scoutModel: string;
+  maxOperators: string;
   maxTurns: string;
   maxThreadTurns: string;
   maxTotalThreads: string;
@@ -91,9 +91,9 @@ export function registerAutoCommand(program: Command): void {
       []
     )
     .option("--model <id>", "Commander model (alias or id)", "opus")
-    .option("--attacker-model <id>", "Attacker subagent model", "sonnet")
-    .option("--recon-model <id>", "Recon subagent model", "haiku")
-    .option("--max-attackers <n>", "Max parallel attacker subagents", "6")
+    .option("--operator-model <id>", "Operator subagent model", "sonnet")
+    .option("--scout-model <id>", "Scout subagent model", "haiku")
+    .option("--max-operators <n>", "Max parallel operator subagents", "6")
     .option("--max-turns <n>", "Hard ceiling on SDK agentic turns", "120")
     .option(
       "--max-thread-turns <n>",
@@ -132,7 +132,7 @@ export function registerAutoCommand(program: Command): void {
     )
     .option("--verify", "Enable the independent second-model verifier (self_check)")
     .option("--verifier-model <id>", "Verifier model id (defaults to commander model)")
-    .option("--sequential", "Dispatch attackers one at a time (rate-limited targets)")
+    .option("--sequential", "Dispatch operators one at a time (rate-limited targets)")
     .option("--persist-inventions", "Persist novel personas/strategies back to the seed library")
     .option("--seed-dir <path>", "Override the seed knowledge directory")
     .option("--output <dir>", "Report output directory", ".opfor/reports")
@@ -185,9 +185,9 @@ export function registerAutoCommand(program: Command): void {
         target,
         objective,
         commanderModel: opts.model,
-        attackerModel: opts.attackerModel,
-        reconModel: opts.reconModel,
-        maxAttackers: intOr(opts.maxAttackers, 6),
+        operatorModel: opts.operatorModel,
+        scoutModel: opts.scoutModel,
+        maxOperators: intOr(opts.maxOperators, 6),
         maxTurns: intOr(opts.maxTurns, 120),
         maxThreadTurns: intOr(opts.maxThreadTurns, 25),
         maxTotalThreads: intOr(opts.maxTotalThreads, 40),
@@ -211,7 +211,7 @@ export function registerAutoCommand(program: Command): void {
         outputDir: path.resolve(opts.output),
       };
 
-      // Live log file the operator can `tail -f` while the run is in progress.
+      // Live log file the user can `tail -f` while the run is in progress.
       await mkdir(autoOptions.outputDir, { recursive: true });
       const startedAt = new Date()
         .toISOString()
@@ -251,8 +251,8 @@ export function registerAutoCommand(program: Command): void {
         ` AUTONOMOUS RED-TEAM`,
         ` target    : ${target.name} (${mode})  ${target.endpoint}`,
         ` objective : ${objective}`,
-        ` models    : commander=${autoOptions.commanderModel}  attacker=${autoOptions.attackerModel}  recon=${autoOptions.reconModel}`,
-        ` limits    : attackers≤${autoOptions.maxAttackers}  turns≤${autoOptions.maxTurns}  thread-turns≤${autoOptions.maxThreadTurns}${autoOptions.budgetUsd ? `  budget=$${autoOptions.budgetUsd}` : ""}`,
+        ` models    : commander=${autoOptions.commanderModel}  operator=${autoOptions.operatorModel}  scout=${autoOptions.scoutModel}`,
+        ` limits    : operators≤${autoOptions.maxOperators}  turns≤${autoOptions.maxTurns}  thread-turns≤${autoOptions.maxThreadTurns}${autoOptions.budgetUsd ? `  budget=$${autoOptions.budgetUsd}` : ""}`,
         ` verifier  : ${autoOptions.verify ? "on" : "off"}`,
         "════════════════════════════════════════════════════════════════",
       ].join("\n");

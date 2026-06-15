@@ -35,10 +35,10 @@ New devs: read §1–§3 to understand the flow, then jump to the [module map](#
 | Agent           | Model    | Role                                                                                                                |
 | --------------- | -------- | ------------------------------------------------------------------------------------------------------------------- |
 | **Commander**   | `opus`   | Orchestrates: recon → plan → dispatch waves → synthesize. Never attacks directly.                                   |
-| **Recon** ×1    | `haiku`  | Benign fingerprinting only — classifies the target **archetype** (raw-llm / business-agent / tool-using / rag-bot). |
-| **Attacker** ×N | `sonnet` | Owns ONE vuln class; runs the adaptive loop, branches, self-judges, records findings.                               |
+| **Scout** ×1    | `haiku`  | Benign fingerprinting only — classifies the target **archetype** (raw-llm / business-agent / tool-using / rag-bot). |
+| **Operator** ×N | `sonnet` | Owns ONE vuln class; runs the adaptive loop, branches, self-judges, records findings.                               |
 
-The commander spawns recon/attackers as SDK subagents (the `Agent`/`Task` tool). Multiple in one
+The commander spawns scout/operators as SDK subagents (the `Agent`/`Task` tool). Multiple in one
 turn → run **in parallel**, each on its own `threadId`. Subagents are **run-to-completion**: the
 commander only regains control between waves.
 
@@ -50,10 +50,10 @@ commander only regains control between waves.
 RECON ─ benign probes → archetype + guardrails + weak points
   │
 PLAN ─ gate vuln classes to the archetype (drop what can't apply), force-include objective vectors,
-  │    rank, take top ≤ maxAttackers
+  │    rank, take top ≤ maxOperators
   │
-WAVE 0 ─ dispatch one attacker per chosen vector (parallel) ──┐
-  │                                                           │  each attacker, per thread:
+WAVE 0 ─ dispatch one operator per chosen vector (parallel) ──┐
+  │                                                           │  each operator, per thread:
   │   ┌───────────────────────────────────────────────────┐  │   send_to_target → SELF-JUDGE vs rubric
   │   │  CONTINUE while moving · ESCALATE on a seam ·        │ ◄┘   → CONTINUE / ESCALATE / PIVOT / STOP
   │   │  FORK a promising state · STOP on pivot-exhaustion   │      → record_finding (evidence-guarded)
@@ -61,7 +61,7 @@ WAVE 0 ─ dispatch one attacker per chosen vector (parallel) ──┐
   │   └───────────────────────────────────────────────────┘
   │
 WAVES 1..N ─ commander reads the lead queue (list_leads), ranks by objective signal, expands the
-  │          best (top-K, ≤ maxDepth) as focused follow-up attackers — CONTINUE a thread or start NEW —
+  │          best (top-K, ≤ maxDepth) as focused follow-up operators — CONTINUE a thread or start NEW —
   │          dismisses the rest. Repeat until the queue is dry / maxDepth / budget.
   │
 SYNTHESIZE ─ submit_report (narrative + recommendations) → write report
@@ -69,7 +69,7 @@ SYNTHESIZE ─ submit_report (narrative + recommendations) → write report
 
 **Branching (the "tree").** Two mechanisms:
 
-- **`fork_thread`** (intra-attacker, _stateless only_): copy a thread's history up to a seam into a
+- **`fork_thread`** (intra-operator, _stateless only_): copy a thread's history up to a seam into a
   child `threadId`, then diverge — explores a new angle without polluting the parent. Lineage is
   tracked (`parentThreadId` / `forkedFromTurn` / `gen`).
 - **lead queue** (commander, between waves): `flag_lead` → `list_leads` → spawn follow-ups. This is
@@ -78,7 +78,7 @@ SYNTHESIZE ─ submit_report (narrative + recommendations) → write report
 **Stateful vs stateless targets.** Stateless = full history replayed each call (forking is free).
 Stateful = `threadId` _is_ the server session id, history held server-side (can't be cloned, so
 `fork_thread` is rejected; deepen by continuing the same session). A per-`threadId` `SessionGate`
-serializes same-session sends so concurrent attackers never corrupt a session.
+serializes same-session sends so concurrent operators never corrupt a session.
 
 ---
 
@@ -144,7 +144,7 @@ src/
   tools/                server.ts (MCP "redteam") + one file per tool:
                           reconProbe · knowledge (list/get) · sendToTarget · forkThread · getThread
                           · flagLead · listLeads · selfCheck · recordFinding · registerInvention · submitReport
-  prompts/              commander.ts · attacker.ts · recon.ts · digest.ts (doctrine + seed catalog)
+  prompts/              commander.ts · operator.ts · scout.ts · digest.ts (doctrine + seed catalog)
   state/
     runLog.ts           RunLog/ThreadState/Finding/SeamLead · evidence guard · fork/lineage · progress signal
     observe.ts          RunEvent + counts line + ASCII attack-tree renderers

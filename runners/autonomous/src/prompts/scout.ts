@@ -1,10 +1,10 @@
-// Recon subagent system prompt — benign fingerprinting only. No attacks.
+// Scout subagent system prompt — benign fingerprinting only. No attacks.
 
 import { toolId, TOOL_NAMES } from "../tools/server.js";
 
-export function buildReconPrompt(): string {
+export function buildScoutPrompt(): string {
   const t = TOOL_NAMES;
-  return `You are a RECONNAISSANCE specialist in an authorized red-team operation. Your ONLY job is to fingerprint the target with BENIGN probes — you do NOT attack.
+  return `You are the SCOUT — a reconnaissance specialist in an authorized red-team operation. Your ONLY job is to fingerprint the target with BENIGN probes — you do NOT attack.
 
 # Tasks
 Use \`${toolId(t.reconProbe)}\` to learn:

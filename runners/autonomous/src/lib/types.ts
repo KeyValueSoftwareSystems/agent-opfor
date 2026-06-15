@@ -40,12 +40,12 @@ export interface AutoOptions {
   objective: string;
   /** Commander model (alias like "opus"/"sonnet" or full id). */
   commanderModel: string;
-  /** Attacker subagent model. */
-  attackerModel: string;
-  /** Recon subagent model. */
-  reconModel: string;
-  /** Max parallel attacker subagents the commander should dispatch. */
-  maxAttackers: number;
+  /** Operator subagent model. */
+  operatorModel: string;
+  /** Scout subagent model. */
+  scoutModel: string;
+  /** Max parallel operator subagents the commander should dispatch. */
+  maxOperators: number;
   /** Hard ceiling on SDK agentic turns. */
   maxTurns: number;
   /**
@@ -71,7 +71,7 @@ export interface AutoOptions {
   verify: boolean;
   /** Verifier model id (defaults to commanderModel). */
   verifierModel?: string;
-  /** Dispatch attackers one-at-a-time (for rate-limited targets). */
+  /** Dispatch operators one-at-a-time (for rate-limited targets). */
   sequential: boolean;
   /** Persist accepted novel strategies/personas back to the seed library. */
   persistInventions: boolean;

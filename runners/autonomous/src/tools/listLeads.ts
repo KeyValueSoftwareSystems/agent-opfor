@@ -1,4 +1,4 @@
-// list_leads — the commander reads the queue of attacker-flagged seams between waves, ranks them,
+// list_leads — the commander reads the queue of operator-flagged seams between waves, ranks them,
 // and expands the best. Optional markSpawned/markDismissed resolve leads in the same round-trip so
 // the same seam is never spawned twice. Read-mostly (the marks are bookkeeping on the queue).
 
@@ -12,7 +12,7 @@ import { jsonResult } from "./util.js";
 export function listLeadsTool(ctx: RunContext) {
   return tool(
     "list_leads",
-    "Read the queue of open seam leads flagged by attackers (with their objective progress signal, evidence, recommendation, and exploration generation). Rank these and dispatch follow-up attackers for the best, within maxDepth and the thread/budget backstops. Pass markSpawned/markDismissed to resolve leads you act on so they aren't expanded twice.",
+    "Read the queue of open seam leads flagged by operators (with their objective progress signal, evidence, recommendation, and exploration generation). Rank these and dispatch follow-up operators for the best, within maxDepth and the thread/budget backstops. Pass markSpawned/markDismissed to resolve leads you act on so they aren't expanded twice.",
     {
       markSpawned: z
         .array(z.string())

@@ -45,7 +45,7 @@ function renderTurn(t: ReportTurn, failing: boolean): string {
         <span>Turn ${t.turnIndex}${failing ? " — breach" : ""}</span>
         <span style="margin-left:auto;font-size:10px;color:${scoreColor};font-weight:600">${esc(tag)}</span>
       </summary>
-      <div class="turn-attacker"><div class="turn-label">Attacker</div>${expandableBlock(esc(truncate(t.prompt, 8000)))}</div>
+      <div class="turn-operator"><div class="turn-label">Operator</div>${expandableBlock(esc(truncate(t.prompt, 8000)))}</div>
       <div class="turn-agent"><div class="turn-label">Target</div>${expandableBlock(esc(truncate(t.response, 8000)), "#FFFFFF")}</div>
     </details>`;
 }
@@ -415,10 +415,10 @@ export function renderReportHtml(r: AutonomousReport): string {
   .turn-card{margin-bottom:8px;border:1px solid var(--line);border-radius:9px;overflow:hidden}
   .turn-card-header{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--surface-2);cursor:pointer;list-style:none;font-size:11px;font-weight:600;border-bottom:1px solid var(--line)}
   .turn-card-header::-webkit-details-marker{display:none}
-  .turn-attacker{padding:11px 13px;border-bottom:1px solid var(--line);border-left:3px solid var(--accent);background:#fffaf3}
+  .turn-operator{padding:11px 13px;border-bottom:1px solid var(--line);border-left:3px solid var(--accent);background:#fffaf3}
   .turn-agent{padding:11px 13px;border-left:3px solid var(--line-2)}
   .turn-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px}
-  .turn-attacker .turn-label{color:#b45309}.turn-agent .turn-label{color:var(--muted)}
+  .turn-operator .turn-label{color:#b45309}.turn-agent .turn-label{color:var(--muted)}
   .code-wrap{position:relative}
   .result-code{font-size:12px;background:var(--surface);border:1px solid var(--line);padding:9px 11px;border-radius:7px;white-space:pre-wrap;word-break:break-word;font-family:ui-monospace,monospace;max-height:200px;overflow:hidden;line-height:1.55}
   .code-fade{position:absolute;bottom:28px;left:0;right:0;height:42px;pointer-events:none}
@@ -459,7 +459,7 @@ export function renderReportHtml(r: AutonomousReport): string {
     <div class="cover-meta-item"><div class="cover-meta-k">Target</div><div class="cover-meta-v" title="${esc(r.target.name)}">${esc(truncate(r.target.name, 50))}</div></div>
     <div class="cover-meta-item"><div class="cover-meta-k">Endpoint</div><div class="cover-meta-v mono">${esc(truncate(r.target.endpoint, 50))}</div></div>
     <div class="cover-meta-item"><div class="cover-meta-k">Assessment Date</div><div class="cover-meta-v">${esc(dateStr)}, ${esc(timeStr)}</div></div>
-    <div class="cover-meta-item"><div class="cover-meta-k">Commander · Attacker</div><div class="cover-meta-v mono">${esc(r.commanderModel)} · ${esc(r.attackerModel)}</div></div>
+    <div class="cover-meta-item"><div class="cover-meta-k">Commander · Operator</div><div class="cover-meta-v mono">${esc(r.commanderModel)} · ${esc(r.operatorModel)}</div></div>
     <div class="cover-meta-item"><div class="cover-meta-k">Cost</div><div class="cover-meta-v">${r.totalCostUsd !== undefined ? "$" + r.totalCostUsd.toFixed(2) : "—"}</div></div>
     <div class="cover-meta-item"><div class="cover-meta-k">Report ID</div><div class="cover-meta-v mono" style="color:#7C8BA1">${esc(r.reportId.slice(0, 8))}</div></div>
   </div>

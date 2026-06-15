@@ -62,7 +62,7 @@ export function forkThreadTool(ctx: RunContext) {
         rationale: `Forked from ${args.parentThreadId} @t${child.forkedFromTurn}: ${args.reason}`,
       });
       ctx.reporter?.onLine(
-        `[attacker] 🌿 fork ${args.parentThreadId} → ${child.threadId} @t${child.forkedFromTurn}: ${snip(args.reason, 100)}`
+        `[operator] 🌿 fork ${args.parentThreadId} → ${child.threadId} @t${child.forkedFromTurn}: ${snip(args.reason, 100)}`
       );
       noteEvent(ctx.reporter, {
         at: new Date().toISOString(),

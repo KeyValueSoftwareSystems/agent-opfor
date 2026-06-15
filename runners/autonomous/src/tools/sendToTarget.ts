@@ -109,8 +109,8 @@ export function sendToTargetTool(ctx: RunContext) {
           ? `[error] ${result.errorMessage}`
           : snip(result.response, 160);
       ctx.reporter?.onLine(
-        `[attacker] 🎯 [${args.vulnClassId ?? "?"}] ${args.threadId} t${turnIndex} (${args.persona ?? "-"}/${args.strategy ?? "-"})\n` +
-          `        ↳ attacker: "${snip(args.prompt, 120)}"\n` +
+        `[operator] 🎯 [${args.vulnClassId ?? "?"}] ${args.threadId} t${turnIndex} (${args.persona ?? "-"}/${args.strategy ?? "-"})\n` +
+          `        ↳ operator: "${snip(args.prompt, 120)}"\n` +
           `        ↳ target:   ${status}`
       );
 

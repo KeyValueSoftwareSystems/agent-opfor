@@ -42,7 +42,7 @@ export function recordFindingTool(ctx: RunContext) {
       if (!vulnClass) {
         const valid = ctx.knowledge.vulnClasses.map((v) => v.id).join(", ");
         ctx.reporter?.onLine(
-          `[attacker] ⚠️  finding rejected — unknown vulnClassId "${args.vulnClassId}"`
+          `[operator] ⚠️  finding rejected — unknown vulnClassId "${args.vulnClassId}"`
         );
         return jsonResult({
           accepted: false,
@@ -53,7 +53,7 @@ export function recordFindingTool(ctx: RunContext) {
       const thread = ctx.runLog.threads.get(args.threadId);
       if (!thread) {
         ctx.reporter?.onLine(
-          `[attacker] ⚠️  finding rejected — no thread "${args.threadId}" (run send_to_target first)`
+          `[operator] ⚠️  finding rejected — no thread "${args.threadId}" (run send_to_target first)`
         );
         return jsonResult({
           accepted: false,
@@ -62,7 +62,7 @@ export function recordFindingTool(ctx: RunContext) {
       }
       if (!evidenceFoundInThread(thread, args.evidence)) {
         ctx.reporter?.onLine(
-          `[attacker] ⚠️  finding rejected — evidence not found verbatim in "${args.threadId}": "${snip(args.evidence, 80)}"`
+          `[operator] ⚠️  finding rejected — evidence not found verbatim in "${args.threadId}": "${snip(args.evidence, 80)}"`
         );
         return jsonResult({
           accepted: false,
@@ -96,7 +96,7 @@ export function recordFindingTool(ctx: RunContext) {
         rationale: `Recorded ${args.severity} finding: ${args.title}`,
       });
       ctx.reporter?.onLine(
-        `[attacker] 🚨 FINDING [${args.severity}] ${snip(args.title, 80)}  (confidence ${args.confidence}%)`
+        `[operator] 🚨 FINDING [${args.severity}] ${snip(args.title, 80)}  (confidence ${args.confidence}%)`
       );
       noteEvent(ctx.reporter, {
         at: finding.at,

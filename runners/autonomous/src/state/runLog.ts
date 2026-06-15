@@ -72,7 +72,7 @@ export interface ReconProbe {
 }
 
 /**
- * A promising-but-unfinished seam an attacker flagged for the commander to expand in a later wave.
+ * A promising-but-unfinished seam an operator flagged for the commander to expand in a later wave.
  * The authoritative follow-up channel (the prose summary is for the report only).
  */
 export interface SeamLead {
@@ -83,7 +83,7 @@ export interface SeamLead {
   atTurn: number;
   /** Vuln class to pursue (may differ from the source thread's — a cross-class lead). */
   suggestedClassId?: string;
-  /** The flagging attacker's recommendation; the commander makes the final call. */
+  /** The flagging operator's recommendation; the commander makes the final call. */
   recommend: "continue" | "new";
   rationale: string;
   /** Verbatim snippet of the target reply that makes this promising (objective signal). */
@@ -133,7 +133,7 @@ export interface RunLog {
   findings: Finding[];
   inventions: Invention[];
   decisions: Decision[];
-  /** Seam leads flagged by attackers for between-wave follow-up. */
+  /** Seam leads flagged by operators for between-wave follow-up. */
   leads: SeamLead[];
   transcript: TranscriptEntry[];
   /** Most recent self_check verdict per thread, attached to findings on that thread. */

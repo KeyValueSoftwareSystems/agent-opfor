@@ -1,5 +1,5 @@
 // Orchestrator: build the run context, wire the Claude Agent SDK query() with
-// the commander system prompt + recon/attacker subagents + custom tools, drive
+// the commander system prompt + scout/operator subagents + custom tools, drive
 // the autonomous loop, and map the captured RunLog into a report.
 
 import { randomUUID } from "node:crypto";
@@ -15,8 +15,8 @@ import { buildRedteamServer, REDTEAM_SERVER_NAME, toolId, TOOL_NAMES } from "../
 import { buildHooks, type ProgressReporter } from "../state/hooks.js";
 import { threadTreeText, countsLine } from "../state/observe.js";
 import { buildCommanderPrompt } from "../prompts/commander.js";
-import { buildAttackerPrompt } from "../prompts/attacker.js";
-import { buildReconPrompt } from "../prompts/recon.js";
+import { buildOperatorPrompt } from "../prompts/operator.js";
+import { buildScoutPrompt } from "../prompts/scout.js";
 import { mapRunLogToReport } from "../report/mapRunLog.js";
 import type { AutonomousReport } from "../report/types.js";
 
@@ -32,7 +32,7 @@ const DISPATCH_TOOLS = ["Agent", "Task"];
  * would otherwise inherit the parent's session markers (CLAUDECODE, session id)
  * and use the PARENT's stored credentials instead of the configured gateway key.
  * We strip those markers so the child authenticates cleanly with ANTHROPIC_API_KEY
- * (+ ANTHROPIC_BASE_URL) as provided by the operator.
+ * (+ ANTHROPIC_BASE_URL) as provided by the user.
  */
 function buildChildEnv(): Record<string, string> {
   const stripPrefixes = ["CLAUDECODE", "CLAUDE_CODE_", "CLAUDE_AGENT_SDK", "CLAUDE_EFFORT"];
@@ -100,7 +100,7 @@ export async function runAutonomous(
   const server = buildRedteamServer(ctx);
 
   // Tool grants.
-  const attackerTools = [
+  const operatorTools = [
     toolId(t.listKnowledge),
     toolId(t.getKnowledge),
     toolId(t.sendToTarget),
@@ -110,23 +110,23 @@ export async function runAutonomous(
     toolId(t.recordFinding),
     toolId(t.registerInvention),
   ];
-  if (verifyEnabled) attackerTools.push(toolId(t.selfCheck));
+  if (verifyEnabled) operatorTools.push(toolId(t.selfCheck));
 
-  const reconTools = [toolId(t.reconProbe), toolId(t.listKnowledge)];
+  const scoutTools = [toolId(t.reconProbe), toolId(t.listKnowledge)];
 
   const agents: Record<string, AgentDefinition> = {
-    recon: {
+    scout: {
       description: "Benign reconnaissance specialist — fingerprints the target without attacking.",
-      prompt: buildReconPrompt(),
-      tools: reconTools,
-      model: options.reconModel,
+      prompt: buildScoutPrompt(),
+      tools: scoutTools,
+      model: options.scoutModel,
     },
-    attacker: {
+    operator: {
       description:
         "Adversarial specialist — owns one vulnerability vector, runs an adaptive multi-turn attack, self-judges, and records findings.",
-      prompt: buildAttackerPrompt(options),
-      tools: attackerTools,
-      model: options.attackerModel,
+      prompt: buildOperatorPrompt(options),
+      tools: operatorTools,
+      model: options.operatorModel,
     },
   };
 
@@ -159,7 +159,7 @@ export async function runAutonomous(
     disallowedTools: ["Bash", "Read", "Write", "Edit", "WebFetch", "WebSearch", "Glob", "Grep"],
   };
 
-  const kickoff = `Begin the autonomous red-team assessment now. Start with reconnaissance, then plan and dispatch your attackers. Objective:\n"""\n${options.objective}\n"""`;
+  const kickoff = `Begin the autonomous red-team assessment now. Start with reconnaissance, then plan and dispatch your operators. Objective:\n"""\n${options.objective}\n"""`;
 
   const q = query({ prompt: kickoff, options: queryOptions });
   const reporter = runHooks?.progress;
@@ -226,6 +226,6 @@ export async function runAutonomous(
 
   const report = mapRunLogToReport(runLog);
   report.commanderModel = options.commanderModel;
-  report.attackerModel = options.attackerModel;
+  report.operatorModel = options.operatorModel;
   return report;
 }
