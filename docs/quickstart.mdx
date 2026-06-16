@@ -1,0 +1,39 @@
+---
+title: "Quickstart"
+description: "Run your first OPFOR red-team in under five minutes."
+---
+
+The fastest path is the CLI. It handles interactive setup, attack generation,
+firing attacks, judging responses, and producing reports.
+
+<Steps>
+  <Step title="Install">
+    ```bash
+    npm install -g opfor
+    ```
+  </Step>
+  <Step title="Set up a target">
+    Run the interactive wizard. It asks for your target (an HTTP chat endpoint or
+    an MCP server) and your LLM keys, then writes `opfor.config.json`.
+
+    ```bash
+    opfor setup
+    ```
+
+  </Step>
+  <Step title="Run the red-team">
+    Generate attacks, fire them, judge the responses, and write an HTML + JSON
+    report.
+
+    ```bash
+    opfor run
+    ```
+
+  </Step>
+</Steps>
+
+Prefer no terminal? Use the [browser extension](/browser-extension). Want your
+AI coding agent to drive it? See [skills](/skills) or the [MCP server](/mcp).
+
+For the full command reference and the two testing modes (`agent` vs `mcp`),
+read the [CLI guide](/cli).
