@@ -7,6 +7,8 @@ import type { AutoOptions, TargetConfig, TargetMode } from "../lib/types.js";
 import type { RunEvent } from "../state/observe.js";
 import { runAutonomous } from "../orchestrator/run.js";
 import { writeAutonomousReport } from "../report/writeReport.js";
+import { startUiServer } from "../ui/server.js";
+import { mergeReporters } from "../ui/bridge.js";
 
 /** Short HH:MM:SS timestamp for live log lines. */
 function clock(): string {
@@ -46,6 +48,8 @@ interface AutoCliOptions {
   seedDir?: string;
   output: string;
   env?: string;
+  ui?: boolean;
+  uiPort: string;
 }
 
 function parseHeaders(raw?: string[]): Record<string, string> | undefined {
@@ -57,6 +61,32 @@ function parseHeaders(raw?: string[]): Record<string, string> | undefined {
     headers[item.slice(0, idx).trim()] = item.slice(idx + 1).trim();
   }
   return Object.keys(headers).length ? headers : undefined;
+}
+
+function configureBrainAuth(): void {
+  const base = process.env.ANTHROPIC_BASE_URL?.trim();
+  if (!base?.includes("openrouter.ai")) return;
+
+  // OpenRouter Anthropic-skin: https://openrouter.ai/docs/guides/community/anthropic-agent-sdk
+  process.env.ANTHROPIC_BASE_URL = "https://openrouter.ai/api";
+  const token =
+    process.env.ANTHROPIC_AUTH_TOKEN?.trim() ||
+    process.env.OPENROUTER_API_KEY?.trim() ||
+    process.env.ANTHROPIC_API_KEY?.trim();
+  if (token) process.env.ANTHROPIC_AUTH_TOKEN = token;
+
+  // Route all SDK model tiers to the cheapest Claude on OpenRouter unless overridden.
+  process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL ??= "anthropic/claude-haiku-4.5";
+  process.env.ANTHROPIC_DEFAULT_SONNET_MODEL ??= "anthropic/claude-haiku-4.5";
+  process.env.ANTHROPIC_DEFAULT_OPUS_MODEL ??= "anthropic/claude-haiku-4.5";
+}
+
+function brainApiKeyConfigured(): boolean {
+  return Boolean(
+    process.env.ANTHROPIC_API_KEY?.trim() ||
+    process.env.OPENROUTER_API_KEY?.trim() ||
+    process.env.ANTHROPIC_AUTH_TOKEN?.trim()
+  );
 }
 
 function intOr(value: string | undefined, fallback: number): number {
@@ -137,15 +167,19 @@ export function registerAutoCommand(program: Command): void {
     .option("--seed-dir <path>", "Override the seed knowledge directory")
     .option("--output <dir>", "Report output directory", ".opfor/reports")
     .option("--env <path>", "Path to a .env file to load")
+    .option("--ui", "Launch live dashboard UI in the browser")
+    .option("--ui-port <port>", "Port for the live dashboard UI", "3847")
     .action(async (opts: AutoCliOptions) => {
       if (opts.env) {
         const { config: loadDotenv } = await import("dotenv");
         loadDotenv({ path: path.resolve(opts.env), override: true });
       }
 
-      if (!process.env.ANTHROPIC_API_KEY) {
+      configureBrainAuth();
+
+      if (!brainApiKeyConfigured()) {
         consola.error(
-          "ANTHROPIC_API_KEY is not set — required to drive the agent (Claude Agent SDK)."
+          "Set ANTHROPIC_API_KEY (or OPENROUTER_API_KEY for OpenRouter) to drive the agent."
         );
         process.exitCode = 1;
         return;
@@ -260,10 +294,41 @@ export function registerAutoCommand(program: Command): void {
       liveLog.write(header + "\n");
       consola.box(`Live log (tail it):\n  tail -f ${liveLogPath}`);
 
+      let uiHandle: Awaited<ReturnType<typeof startUiServer>> | undefined;
+      if (opts.ui) {
+        const uiPort = intOr(opts.uiPort, 3847);
+        try {
+          uiHandle = await startUiServer({
+            port: uiPort,
+            meta: {
+              objective,
+              targetName: target.name,
+              targetEndpoint: target.endpoint,
+              budgetUsd: autoOptions.budgetUsd,
+              commanderModel: autoOptions.commanderModel,
+              operatorModel: autoOptions.operatorModel,
+              scoutModel: autoOptions.scoutModel,
+            },
+          });
+          consola.success(`Live UI: ${uiHandle.url}`);
+          uiHandle.bridge.onLine("Live dashboard connected — initializing agent…");
+        } catch (err) {
+          consola.error(`Failed to start UI server: ${String(err)}`);
+          process.exitCode = 1;
+          liveLog.end();
+          eventLog.end();
+          return;
+        }
+      }
+
+      const fileReporter = { onLine: emit, onEvent: emitEvent };
+      const progress = uiHandle ? mergeReporters(fileReporter, uiHandle.bridge) : fileReporter;
+
       let report;
       try {
         report = await runAutonomous(autoOptions, {
-          progress: { onLine: emit, onEvent: emitEvent },
+          progress,
+          onRunLog: uiHandle ? (log) => uiHandle!.attachRunLog(log) : undefined,
         });
       } finally {
         liveLog.end();
@@ -271,6 +336,8 @@ export function registerAutoCommand(program: Command): void {
       }
 
       const { html, json, dir } = await writeAutonomousReport(report, autoOptions.outputDir);
+
+      uiHandle?.markComplete({ reportDir: dir, outcome: report.objectiveOutcome });
 
       consola.info("");
       consola.success(`Assessment complete — outcome: ${report.objectiveOutcome}`);
@@ -284,6 +351,20 @@ export function registerAutoCommand(program: Command): void {
       consola.info(`   JSON: ${json}`);
       consola.info(`   Dir : ${dir}`);
       consola.info(`   Events: ${eventLogPath}`);
+      if (uiHandle) {
+        consola.info(`   UI    : ${uiHandle.url} (press Ctrl+C to exit)`);
+        consola.info(`   Note  : CLI waits here so you can review the dashboard`);
+        await new Promise<void>((resolve) => {
+          const onSignal = () => {
+            process.off("SIGINT", onSignal);
+            process.off("SIGTERM", onSignal);
+            resolve();
+          };
+          process.on("SIGINT", onSignal);
+          process.on("SIGTERM", onSignal);
+        });
+        await uiHandle.close();
+      }
 
       // Findings are the expected OUTPUT of a successful assessment — not a failure. Exit 0 on a
       // clean run regardless of severity. Only genuine errors (bad config above, or a run that

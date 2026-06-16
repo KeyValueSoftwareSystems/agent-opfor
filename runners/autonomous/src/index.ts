@@ -4,6 +4,8 @@ import { readFileSync } from "node:fs";
 import { config as loadDotenv } from "dotenv";
 import { Command } from "commander";
 import { registerAutoCommand } from "./commands/auto.js";
+import { registerUiDemoCommand } from "./commands/uiDemo.js";
+import { registerUiCommand } from "./commands/ui.js";
 
 loadDotenv();
 
@@ -25,6 +27,8 @@ program
   .version(readVersion(), "-v, --version", "Print version");
 
 registerAutoCommand(program);
+registerUiDemoCommand(program);
+registerUiCommand(program);
 
 program.parseAsync(process.argv).catch((err: unknown) => {
   const message = err instanceof Error ? (err.stack ?? err.message) : String(err);

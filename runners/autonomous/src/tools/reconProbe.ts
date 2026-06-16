@@ -5,6 +5,7 @@ import { tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import { snip, type RunContext } from "../orchestrator/context.js";
 import { getOrCreateThread } from "../state/runLog.js";
+import { noteEvent } from "../state/hooks.js";
 import { jsonResult, textResult } from "./util.js";
 
 const RECON_THREAD = "recon";
@@ -36,6 +37,17 @@ export function reconProbeTool(ctx: RunContext) {
         thread.history.push({ role: "user", content: args.probe });
         thread.history.push({ role: "assistant", content: result.response });
       }
+
+      const turnIndex = thread.turns.length + 1;
+      const isFirst = turnIndex === 1;
+      thread.turns.push({
+        turnIndex,
+        prompt: args.probe,
+        response: result.response,
+        isError: result.isError,
+        rateLimited: result.rateLimited,
+      });
+
       ctx.runLog.recon.push({
         probe: args.probe,
         response: result.response,
@@ -49,6 +61,21 @@ export function reconProbeTool(ctx: RunContext) {
           ? `[error] ${result.errorMessage}`
           : snip(result.response, 150);
       ctx.reporter?.onLine(`[scout] 🔎 "${snip(args.probe, 70)}"  →  ${status}`);
+
+      if (isFirst) {
+        noteEvent(ctx.reporter, {
+          at: new Date().toISOString(),
+          type: "thread_created",
+          threadId: RECON_THREAD,
+          data: { vulnClassId: "recon" },
+        });
+      }
+      noteEvent(ctx.reporter, {
+        at: new Date().toISOString(),
+        type: "turn",
+        threadId: RECON_THREAD,
+        data: { turnIndex, isError: result.isError, rateLimited: result.rateLimited },
+      });
 
       return jsonResult({
         response: result.response,

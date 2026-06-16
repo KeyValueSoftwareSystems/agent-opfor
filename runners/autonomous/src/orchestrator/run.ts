@@ -37,12 +37,16 @@ const DISPATCH_TOOLS = ["Agent", "Task"];
 function buildChildEnv(): Record<string, string> {
   const stripPrefixes = ["CLAUDECODE", "CLAUDE_CODE_", "CLAUDE_AGENT_SDK", "CLAUDE_EFFORT"];
   const stripExact = new Set([
-    "ANTHROPIC_AUTH_TOKEN",
     "AI_AGENT",
     "CURSOR_SPAWNED_BY_EXTENSION_ID",
     "CURSOR_SPAWN_CHAIN",
     "CLAUDE_CODE_SSE_PORT",
   ]);
+  const usingOpenRouter = process.env.ANTHROPIC_BASE_URL?.includes("openrouter.ai");
+  // Strip inherited OAuth tokens unless routing through an explicit gateway (OpenRouter, LiteLLM, …).
+  if (!process.env.ANTHROPIC_BASE_URL?.trim()) {
+    stripExact.add("ANTHROPIC_AUTH_TOKEN");
+  }
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(process.env)) {
     if (v === undefined) continue;
@@ -50,11 +54,23 @@ function buildChildEnv(): Record<string, string> {
     if (stripPrefixes.some((p) => k.startsWith(p))) continue;
     out[k] = v;
   }
+  if (usingOpenRouter) {
+    // OpenRouter expects Bearer auth, not Anthropic x-api-key.
+    out.ANTHROPIC_BASE_URL = "https://openrouter.ai/api";
+    const token =
+      process.env.ANTHROPIC_AUTH_TOKEN?.trim() ||
+      process.env.OPENROUTER_API_KEY?.trim() ||
+      process.env.ANTHROPIC_API_KEY?.trim();
+    if (token) out.ANTHROPIC_AUTH_TOKEN = token;
+    out.ANTHROPIC_API_KEY = "";
+  }
   return out;
 }
 
 export interface RunHooks {
   progress?: ProgressReporter;
+  /** Called once the in-memory RunLog is created — used by the live UI for snapshots. */
+  onRunLog?: (runLog: import("../state/runLog.js").RunLog) => void;
 }
 
 export async function runAutonomous(
@@ -76,6 +92,7 @@ export async function runAutonomous(
     targetName: options.target.name,
     targetEndpoint: options.target.endpoint,
   });
+  runHooks?.onRunLog?.(runLog);
 
   const verifyEnabled = options.verify && Boolean(process.env.ANTHROPIC_API_KEY);
   const budget = new BudgetGuard({
@@ -163,6 +180,8 @@ export async function runAutonomous(
 
   const q = query({ prompt: kickoff, options: queryOptions });
   const reporter = runHooks?.progress;
+
+  reporter?.onLine("Autonomous assessment started — commander initializing…");
 
   try {
     for await (const message of q) {
