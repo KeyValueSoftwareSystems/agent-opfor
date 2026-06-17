@@ -9,6 +9,7 @@ import { config as loadDotenv } from "dotenv";
 import { Command } from "commander";
 import { registerSetupCommand } from "./commands/setup.js";
 import { registerExecuteCommand } from "./commands/execute.js";
+import { registerAutoCommand } from "@opfor/autonomous/commands/auto.js";
 
 loadDotenv();
 
@@ -27,6 +28,7 @@ program
 
 registerSetupCommand(program);
 registerExecuteCommand(program);
+registerAutoCommand(program);
 
 main().catch((err: unknown) => {
   if (err instanceof Error && err.name === "ExitPromptError") process.exit(0);

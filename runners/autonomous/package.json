@@ -4,22 +4,19 @@
   "description": "Opfor Autonomous — a Claude-Agent-SDK-native adaptive red-team agent that autonomously attacks a target agent and self-judges",
   "license": "Apache-2.0",
   "type": "module",
-  "bin": {
-    "opfor-auto": "./dist/index.js"
+  "exports": {
+    "./commands/auto.js": { "types": "./dist/commands/auto.d.ts", "default": "./dist/commands/auto.js" },
+    "./ui/*.js": { "types": "./dist/ui/*.d.ts", "default": "./dist/ui/*.js" }
   },
   "files": [
     "dist/",
     "data/"
   ],
   "scripts": {
-    "dev": "tsx src/index.ts",
     "build": "npm run build:ui && tsc -p tsconfig.json",
     "build:ui": "cd ui && npm install && npm run build",
-    "start": "node dist/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --import tsx/esm --test tests/*.test.ts",
-    "ui:demo": "npm run build && node dist/index.js ui-demo",
-    "ui": "npm run build && node dist/index.js ui"
+    "test": "node --import tsx/esm --test tests/*.test.ts"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.165",
