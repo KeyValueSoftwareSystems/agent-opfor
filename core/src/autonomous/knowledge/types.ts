@@ -2,10 +2,12 @@
 // look for, WHO to be, and HOW to pressure — never binding attack prompts.
 // The agent reads them as a starting menu and is free to improvise/invent.
 
+import type { Severity } from "../../evaluators/schema.js";
+
 export interface VulnClass {
   id: string;
   name: string;
-  severity: "critical" | "high" | "medium" | "low";
+  severity: Severity;
   /** Standards mappings, e.g. { "owasp-llm": "LLM01" }. */
   standards?: Record<string, string>;
   /** What this vulnerability class is about. */

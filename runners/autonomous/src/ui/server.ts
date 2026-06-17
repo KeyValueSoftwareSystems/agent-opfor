@@ -6,7 +6,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { exec, spawn } from "node:child_process";
 import express from "express";
-import type { RunLog } from "../state/runLog.js";
+import type { RunLog } from "@opfor/core/autonomous/state/runLog.js";
 import { UiBridge, type SseClient } from "./bridge.js";
 import type { SnapshotMeta } from "./snapshot.js";
 

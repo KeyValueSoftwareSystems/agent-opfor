@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { loadKnowledge } from "../src/knowledge/load.js";
+import { loadKnowledge } from "@opfor/core/autonomous/knowledge/load.js";
 
 test("loadKnowledge loads the bundled seed libraries", async () => {
   const kb = await loadKnowledge();

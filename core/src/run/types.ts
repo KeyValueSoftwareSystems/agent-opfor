@@ -1,16 +1,6 @@
-import { z } from "zod";
+import type { JudgeResult } from "../lib/judgeTypes.js";
 
-export const JudgeResultSchema = z.object({
-  verdict: z.enum(["PASS", "FAIL", "ERROR"]),
-  score: z.number().min(0).max(10),
-  confidence: z.number().min(0).max(100),
-  evidence: z.string(),
-  reasoning: z.string(),
-  failingTurns: z.array(z.number()).optional(),
-  errorMessage: z.string().optional(),
-});
-
-export type JudgeResult = z.infer<typeof JudgeResultSchema>;
+export { JudgeResultSchema, type JudgeResult } from "../lib/judgeTypes.js";
 
 /** One turn in an adaptive multi-turn attack sequence. */
 export interface TurnRecord {

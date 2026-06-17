@@ -1,5 +1,7 @@
 // Cost/rate guardrails for an autonomous run.
 
+import { RateLimiter } from "../../lib/rateLimiter.js";
+
 export interface BudgetGuardOptions {
   maxThreadTurns: number;
   budgetUsd?: number;
@@ -26,8 +28,7 @@ export class BudgetGuard {
   readonly maxForksPerThread: number;
   readonly maxDepth: number;
   readonly maxTotalSends: number;
-  private readonly maxPerMinute: number;
-  private callTimestamps: number[] = [];
+  private readonly rateLimiter: RateLimiter;
   private lastKnownCostUsd = 0;
   private sendsUsed = 0;
 
@@ -39,7 +40,7 @@ export class BudgetGuard {
     this.maxDepth = opts.maxDepth ?? 3;
     this.maxTotalSends =
       opts.maxTotalSends ?? (opts.budgetUsd ? Math.ceil(opts.budgetUsd * 50) : 400);
-    this.maxPerMinute = opts.maxTargetCallsPerMinute ?? 60;
+    this.rateLimiter = new RateLimiter(opts.maxTargetCallsPerMinute ?? 60);
   }
 
   /** Tally a target send (called once per actual call to the target). */
@@ -120,14 +121,6 @@ export class BudgetGuard {
    * the limit; otherwise waits until the oldest call in the window ages out.
    */
   async awaitTargetSlot(): Promise<void> {
-    const now = Date.now();
-    const windowStart = now - 60_000;
-    this.callTimestamps = this.callTimestamps.filter((t) => t > windowStart);
-    if (this.callTimestamps.length >= this.maxPerMinute) {
-      const oldest = this.callTimestamps[0];
-      const waitMs = Math.max(0, oldest + 60_000 - now);
-      if (waitMs > 0) await new Promise((r) => setTimeout(r, waitMs));
-    }
-    this.callTimestamps.push(Date.now());
+    await this.rateLimiter.acquire();
   }
 }

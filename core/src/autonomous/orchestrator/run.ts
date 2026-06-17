@@ -9,7 +9,7 @@ import { createTargetClient } from "../target/http.js";
 import { loadKnowledge } from "../knowledge/load.js";
 import { createRunLog } from "../state/runLog.js";
 import { BudgetGuard } from "../lib/budget.js";
-import { SessionGate } from "../lib/sessionGate.js";
+import { SessionGate } from "../../lib/sessionGate.js";
 import type { RunContext } from "./context.js";
 import { buildRedteamServer, REDTEAM_SERVER_NAME, toolId, TOOL_NAMES } from "../tools/server.js";
 import { buildHooks, type ProgressReporter } from "../state/hooks.js";

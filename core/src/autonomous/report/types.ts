@@ -1,7 +1,10 @@
-// Native report model for the autonomous runner. No @opfor/core dependency.
+// Autonomous report model — types for the autonomous red-team runner.
 
-export type Verdict = "FAIL" | "PASS" | "ERROR";
-export type Severity = "critical" | "high" | "medium" | "low";
+import type { Severity as _Severity } from "../../evaluators/schema.js";
+import type { Verdict as _Verdict } from "../../lib/judgeTypes.js";
+
+export type Severity = _Severity;
+export type Verdict = _Verdict;
 
 /** One turn of an attack conversation thread. */
 export interface ReportTurn {

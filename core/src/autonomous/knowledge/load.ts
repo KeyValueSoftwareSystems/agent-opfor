@@ -1,29 +1,25 @@
 // Loader for the seed knowledge libraries (YAML-frontmatter .md files).
-// Standalone: no @opfor/core import. Resolves the bundled `data/` directory
-// relative to this module so it works regardless of the caller's cwd.
+// Uses core's shared frontmatter parser. Resolves the bundled `data/`
+// directory relative to this module so it works regardless of the caller's cwd.
 
 import { readFile, readdir, writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse as parseYaml } from "yaml";
+import { splitYamlFrontmatter } from "../../util/yamlFrontmatter.js";
 import type { KnowledgeBase, VulnClass, Persona, Strategy, KnowledgeKind } from "./types.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /**
  * Resolve the seed data directory. At runtime this module lives in
- * `dist/knowledge/load.js`, so the bundled seeds are at `../../data`
- * (the `data/` dir is shipped via package.json `files`).
+ * `dist/autonomous/knowledge/load.js`, so the bundled seeds are at
+ * `../../../../data` (relative to the runner's `data/` dir shipped
+ * via package.json `files`). Callers should always pass `seedDir`
+ * explicitly; this fallback is a best-effort for in-repo dev use.
  */
 function defaultSeedDir(): string {
-  return path.resolve(__dirname, "../../data");
-}
-
-/** Split a markdown file into YAML frontmatter + body. */
-function splitFrontmatter(raw: string): { yaml: string; body: string } | null {
-  const match = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/.exec(raw);
-  if (!match) return null;
-  return { yaml: match[1], body: match[2] ?? "" };
+  return path.resolve(__dirname, "../../../../runners/autonomous/data");
 }
 
 async function readMdDir(dir: string): Promise<Array<Record<string, unknown>>> {
@@ -36,7 +32,7 @@ async function readMdDir(dir: string): Promise<Array<Record<string, unknown>>> {
   const docs: Array<Record<string, unknown>> = [];
   for (const file of entries.sort()) {
     const raw = await readFile(path.join(dir, file), "utf8");
-    const split = splitFrontmatter(raw);
+    const split = splitYamlFrontmatter(raw);
     if (!split) continue;
     let doc: unknown;
     try {

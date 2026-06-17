@@ -3,15 +3,10 @@
  * that both agent and MCP red-teaming paths map into before rendering.
  */
 
-export interface ReportJudge {
-  verdict: "PASS" | "FAIL" | "ERROR";
-  score: number;
-  confidence: number;
-  evidence: string;
-  reasoning: string;
-  failingTurns?: number[];
-  errorMessage?: string;
-}
+import type { JudgeResult } from "../lib/judgeTypes.js";
+
+/** @deprecated Use JudgeResult from @opfor/core/lib/judgeTypes.js directly. */
+export type ReportJudge = JudgeResult;
 
 export type DetailCard =
   | { kind: "prompt"; prompt: string; response: string }

@@ -1,7 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createRunLog, getOrCreateThread, forkThread, addLead } from "../src/state/runLog.js";
-import { countsLine, threadTreeText, renderForest } from "../src/state/observe.js";
+import {
+  createRunLog,
+  getOrCreateThread,
+  forkThread,
+  addLead,
+} from "@opfor/core/autonomous/state/runLog.js";
+import { countsLine, threadTreeText, renderForest } from "@opfor/core/autonomous/state/observe.js";
 
 function baseLog() {
   return createRunLog({

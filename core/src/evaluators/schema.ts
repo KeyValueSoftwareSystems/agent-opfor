@@ -5,6 +5,7 @@
 import { z } from "zod";
 
 export const SeveritySchema = z.enum(["critical", "high", "medium", "low"]);
+export type Severity = z.infer<typeof SeveritySchema>;
 
 export const SurfaceSchema = z.enum(["agent", "browser", "mcp"]);
 

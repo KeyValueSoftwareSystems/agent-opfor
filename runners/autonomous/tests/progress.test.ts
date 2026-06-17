@@ -1,6 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createRunLog, getOrCreateThread, computeProgressSignal } from "../src/state/runLog.js";
+import {
+  createRunLog,
+  getOrCreateThread,
+  computeProgressSignal,
+} from "@opfor/core/autonomous/state/runLog.js";
 
 function baseLog() {
   return createRunLog({

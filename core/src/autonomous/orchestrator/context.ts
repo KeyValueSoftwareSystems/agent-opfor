@@ -4,7 +4,7 @@ import type { TargetClient } from "../target/http.js";
 import type { KnowledgeBase } from "../knowledge/types.js";
 import type { RunLog } from "../state/runLog.js";
 import type { BudgetGuard } from "../lib/budget.js";
-import type { SessionGate } from "../lib/sessionGate.js";
+import type { SessionGate } from "../../lib/sessionGate.js";
 import type { AutoOptions } from "../lib/types.js";
 import type { ProgressReporter } from "../state/hooks.js";
 

@@ -1,6 +1,6 @@
 // Serialize RunLog into a JSON-safe shape for the live UI REST API.
 
-import type { RunLog, ThreadState } from "../state/runLog.js";
+import type { RunLog, ThreadState } from "@opfor/core/autonomous/state/runLog.js";
 
 export interface UiThreadTurn {
   turnIndex: number;

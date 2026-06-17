@@ -7,9 +7,9 @@ import {
   sharesForkAncestry,
   evidenceFoundInThread,
   type Finding,
-} from "../src/state/runLog.js";
-import { BudgetGuard } from "../src/lib/budget.js";
-import { mapRunLogToReport } from "../src/report/mapRunLog.js";
+} from "@opfor/core/autonomous/state/runLog.js";
+import { BudgetGuard } from "@opfor/core/autonomous/lib/budget.js";
+import { mapRunLogToReport } from "@opfor/core/autonomous/report/mapRunLog.js";
 
 function baseLog() {
   return createRunLog({
