@@ -1,7 +1,4 @@
----
-title: "CLI"
-description: "Run OPFOR adversary emulation from your terminal."
----
+# Opfor — CLI
 
 The CLI handles everything: interactive setup, attack generation, firing attacks, judging responses, and producing reports.
 
@@ -18,7 +15,7 @@ Pick one per config; opfor decides which pipeline to run from `target.kind`.
 
 Use agent mode for chatbots, RAG apps, and tool-calling agents fronted by an HTTP API. Use MCP mode when you want to attack an MCP server directly.
 
-> Not to be confused with [running Opfor itself as an MCP server](/mcp) so AI coding assistants can invoke it.
+> Not to be confused with [running Opfor itself as an MCP server](mcp.md) so AI coding assistants can invoke it.
 
 ---
 
@@ -361,7 +358,7 @@ Header values support `${VAR}` substitution (e.g. `"Authorization": "Bearer ${TA
 | ---------------------- | ----------------------------- | ---------------------------------------------------------------------------------------------- |
 | `target.kind`          | Yes                           | `"agent"` or `"mcp"`.                                                                          |
 | `selection.mode`       | Yes                           | `"suite"` or `"evaluators"`.                                                                   |
-| `selection.suite`      | For suite                     | Suite ID — see [evaluators reference](/evaluators).                                            |
+| `selection.suite`      | For suite                     | Suite ID — see [evaluators reference](evaluators.md).                                          |
 | `selection.evaluators` | For evaluators                | Array of evaluator IDs.                                                                        |
 | `attackLlm.provider`   | Yes                           | See [Supported LLM providers](#supported-llm-providers).                                       |
 | `attackLlm.model`      | Yes                           | Model name (e.g. `gpt-4o-mini`).                                                               |

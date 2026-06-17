@@ -1,7 +1,4 @@
----
-title: "Evaluator Schema"
-description: "Author your own evaluators with YAML frontmatter."
----
+# Evaluator schema
 
 Evaluators are Markdown files with YAML frontmatter. **Author** them under `evaluators/{agent|mcp}/` at repo root. The engine reads those paths; `npm run sync:skills-evaluators` mirrors copies into `skills/*/opfor-setup/_generated/` for skill installs.
 
@@ -85,4 +82,4 @@ Runs on pre-commit (husky) when hooks are installed. Validates frontmatter shape
 | `core/src/evaluators/standards.ts`      | Formatting helpers   |
 | `core/src/evaluators/parseEvaluator.ts` | Runtime loader       |
 | `scripts/validate-skills.ts`            | Batch validation     |
-| `docs//evaluators`                      | Suites and selection |
+| `docs/evaluators.md`                    | Suites and selection |

@@ -1,7 +1,4 @@
----
-title: "Evaluators & Suites"
-description: "Attack-and-judge patterns and the standards-aligned bundles they form."
----
+# Opfor — Evaluators and Suites
 
 An **evaluator** is a single attack-and-judge pattern (e.g. `prompt-injection`, `bola`). Each evaluator is a Markdown file with YAML frontmatter — the attacker LLM reads it to craft prompts and the judge LLM uses its pass/fail criteria to score responses.
 
@@ -19,7 +16,7 @@ Opfor maintains two **independent** evaluator catalogs — one for agent / chatb
 > - `supply-chain` evaluator ID exists in both trees (different content per tree). Same disambiguation rule.
 > - Agent-tree evaluators prefixed `mcp-*` (e.g. `mcp-scope-escalation`) probe the agent's MCP-handling behavior — they are **not** the MCP-tree evaluators.
 
-See [/cli → Two testing modes](/cli#two-testing-modes) for the mode selection.
+See [cli.md → Two testing modes](cli.md#two-testing-modes) for the mode selection.
 
 ---
 
@@ -222,7 +219,7 @@ opfor generate --config .opfor/configs/...json --evaluators prompt-injection sen
 { "evaluator_ids": ["prompt-injection", "bola"] }
 ```
 
-See [/cli → Config fields reference](/cli#config-fields-reference) and [/mcp → opfor_setup](/mcp#opfor_setup).
+See [cli.md → Config fields reference](cli.md#config-fields-reference) and [mcp.md → opfor_setup](mcp.md#opfor_setup).
 
 ---
 
@@ -231,7 +228,7 @@ See [/cli → Config fields reference](/cli#config-fields-reference) and [/mcp �
 1. Drop a `.md` file under the correct tree:
    - Agent: `skills/agent-redteaming/opfor-setup/evaluators/<id>.md`
    - MCP: `skills/mcp-redteaming/opfor-setup/evaluators/<id>.md`
-2. Required frontmatter: `id`, `name`, `severity`, `description`, `patterns`, pass/fail criteria; `standards` recommended. See [/evaluator-schema](/evaluator-schema).
+2. Required frontmatter: `id`, `name`, `severity`, `description`, `patterns`, pass/fail criteria; `standards` recommended. See [evaluator-schema.md](evaluator-schema.md).
 3. Engine auto-discovers — no TypeScript change needed for declarative evaluators.
 4. To include it in a suite, add the evaluator ID to that suite's `evaluators:` list in its `.md` file.
 5. Run `npm run validate:skills` before opening a PR.

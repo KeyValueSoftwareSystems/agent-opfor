@@ -1,11 +1,8 @@
----
-title: "Skills"
-description: "Drop OPFOR into your AI coding agent and trigger red-teams from chat."
----
+# Opfor — Skills
 
 Opfor ships two Skills (markdown instruction files an AI coding agent reads and follows). Install once, then trigger from chat inside your project.
 
-> Skills currently cover **agent / chatbot red-teaming only**. For MCP server red-teaming use the [CLI](/cli) or [MCP server tool](/mcp).
+> Skills currently cover **agent / chatbot red-teaming only**. For MCP server red-teaming use the [CLI](cli.md) or [MCP server tool](mcp.md).
 
 ---
 

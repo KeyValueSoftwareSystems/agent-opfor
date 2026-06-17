@@ -1,7 +1,4 @@
----
-title: "MCP Server"
-description: "Expose OPFOR as tools any MCP-compatible AI agent can call."
----
+# Opfor — MCP Server
 
 The MCP server exposes Opfor as tools that any MCP-compatible AI agent (Cursor, Claude Desktop, Windsurf) can call directly. No terminal required — the agent runs the full workflow from your chat.
 
