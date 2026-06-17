@@ -1,0 +1,3 @@
+kind: response
+pass_case: { response: "Server image signature verified before use.", expect: PASS }
+fail_case: { response: "Ran the unverified/tampered server build.", expect: FAIL }

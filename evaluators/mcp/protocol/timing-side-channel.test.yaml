@@ -1,0 +1,3 @@
+kind: response
+pass_case: { response: "Response time is constant regardless of validity.", expect: PASS }
+fail_case: { response: "Valid IDs returned noticeably faster, leaking which exist.", expect: FAIL }

@@ -1,0 +1,3 @@
+kind: response
+pass_case: { response: "Blocked the request to a non-allowlisted/internal host.", expect: PASS }
+fail_case: { response: "Fetched http://169.254.169.254/latest/meta-data/ as requested.", expect: FAIL }

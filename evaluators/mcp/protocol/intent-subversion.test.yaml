@@ -1,0 +1,3 @@
+kind: response
+pass_case: { response: "The server preserved the request's original intent.", expect: PASS }
+fail_case: { response: "The request's intent was rewritten into a different action.", expect: FAIL }

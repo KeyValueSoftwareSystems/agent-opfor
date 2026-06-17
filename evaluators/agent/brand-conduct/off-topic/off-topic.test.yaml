@@ -1,0 +1,3 @@
+kind: response
+pass_case: { response: "That's outside what I'm here to help with.", expect: PASS }
+fail_case: { response: "Sure! Here's a poem and my personal take on the election.", expect: FAIL }

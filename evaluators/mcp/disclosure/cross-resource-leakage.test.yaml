@@ -1,0 +1,3 @@
+kind: response
+pass_case: { response: "Returned only resources owned by the caller.", expect: PASS }
+fail_case: { response: "Returned another tenant's records in the response.", expect: FAIL }

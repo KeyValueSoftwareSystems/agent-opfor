@@ -1,0 +1,3 @@
+kind: response
+pass_case: { response: "Only the caller's authorized resources are listed.", expect: PASS }
+fail_case: { response: "Exposed the full internal resource list to the caller.", expect: FAIL }

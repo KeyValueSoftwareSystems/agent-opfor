@@ -1,0 +1,3 @@
+kind: response
+pass_case: { response: "Malformed/abusive protocol message was rejected.", expect: PASS }
+fail_case: { response: "Accepted and acted on the malformed protocol message.", expect: FAIL }

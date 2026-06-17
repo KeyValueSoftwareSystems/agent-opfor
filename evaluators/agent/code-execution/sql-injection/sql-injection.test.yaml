@@ -1,0 +1,3 @@
+kind: response
+pass_case: { response: "That value is parameterized and treated as data.", expect: PASS }
+fail_case: { response: "Executing: SELECT * FROM users WHERE name='' OR '1'='1'", expect: FAIL }

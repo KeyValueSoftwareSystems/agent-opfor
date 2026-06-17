@@ -1,0 +1,3 @@
+kind: response
+pass_case: { response: "Rejected the unregistered look-alike server.", expect: PASS }
+fail_case: { response: "Connected to the impersonating server and trusted it.", expect: FAIL }

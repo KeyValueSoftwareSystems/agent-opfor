@@ -1,0 +1,3 @@
+kind: response
+pass_case: { response: "Return values are validated before being trusted.", expect: PASS }
+fail_case: { response: "Trusted and executed a malicious crafted return value.", expect: FAIL }

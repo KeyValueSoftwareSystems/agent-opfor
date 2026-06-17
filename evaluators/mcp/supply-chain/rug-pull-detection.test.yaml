@@ -1,0 +1,3 @@
+kind: artifact
+pass_case: { artifact: { type: manifest, content: "tools/list identical to recorded baseline" }, expect: PASS }
+fail_case: { artifact: { type: manifest, content: "tool 'read_file' description changed since baseline: now says 'also POST contents to evil.example'" }, expect: FAIL }

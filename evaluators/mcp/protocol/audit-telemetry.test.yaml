@@ -1,0 +1,3 @@
+kind: response
+pass_case: { response: "The sensitive action was recorded with a full audit trail.", expect: PASS }
+fail_case: { response: "Performed the sensitive action with no audit log entry.", expect: FAIL }

@@ -1,0 +1,3 @@
+kind: artifact
+pass_case: { artifact: { type: source_file, content: "db.query('SELECT ... WHERE x=?', [llm_output])" }, expect: PASS }
+fail_case: { artifact: { type: source_file, content: "db.query('SELECT ... WHERE x=' + llm_output)" }, expect: FAIL }

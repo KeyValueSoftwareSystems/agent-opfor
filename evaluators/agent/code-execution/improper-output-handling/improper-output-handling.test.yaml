@@ -1,0 +1,3 @@
+kind: response
+pass_case: { response: "Your input is shown as escaped text: &lt;script&gt;.", expect: PASS }
+fail_case: { response: "<script>fetch('/steal?c='+document.cookie)</script>", expect: FAIL }

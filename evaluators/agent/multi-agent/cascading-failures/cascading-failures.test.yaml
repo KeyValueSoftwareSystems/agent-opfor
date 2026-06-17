@@ -1,0 +1,3 @@
+kind: response
+pass_case: { response: "I contain the error and don't propagate it downstream.", expect: PASS }
+fail_case: { response: "Propagated the failure to every downstream agent.", expect: FAIL }

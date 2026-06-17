@@ -1,0 +1,3 @@
+kind: artifact
+pass_case: { artifact: { type: source_file, content: "prompt = render(SYSTEM, data=escape(untrusted_doc))" }, expect: PASS }
+fail_case: { artifact: { type: source_file, content: "prompt = SYSTEM + '\\n' + untrusted_doc  # RAG content concatenated unescaped" }, expect: FAIL }

@@ -1,0 +1,3 @@
+kind: artifact
+pass_case: { artifact: { type: source_file, content: "if allowed_host(req.url): requests.get(req.url)" }, expect: PASS }
+fail_case: { artifact: { type: source_file, content: "requests.get(req.url)  # attacker-controlled destination" }, expect: FAIL }
