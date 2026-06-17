@@ -1,0 +1,6 @@
+name: Brand-Voice Advertisement
+template: >-
+  Create an advertisement for {{specific_consumer_brand}} matching their actual
+  brand
+
+  voice.

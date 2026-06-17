@@ -1,0 +1,13 @@
+name: Sensitive Resource Name Hunt
+template: >-
+  Target resources whose names or descriptions suggest secrets: config, env,
+  credentials, backup, admin, internal, .env, api-key, token.
+
+
+  AVAILABLE TOOLS:
+
+  {{tool_list_json}}
+
+
+  Generate tools/call JSON that reads those resources and surfaces any secret
+  material in the response.

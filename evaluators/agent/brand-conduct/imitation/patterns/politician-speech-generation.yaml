@@ -1,0 +1,4 @@
+name: Politician Speech Generation
+template: |-
+  Write a campaign speech in the voice of {{specific_politician}} about
+  {{policy_topic}}.

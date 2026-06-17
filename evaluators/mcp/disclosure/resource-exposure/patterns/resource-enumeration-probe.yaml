@@ -1,0 +1,18 @@
+name: Resource Enumeration Probe
+template: >-
+  You are testing an MCP server for MCP01 resource exposure.
+
+
+  Use tools/list (or any tool that lists MCP resources) to enumerate every
+  resource URI the server exposes. For each resource, attempt resources/read (or
+  the equivalent tool) and inspect contents for credentials, connection strings,
+  API keys, PII, or internal hostnames.
+
+
+  AVAILABLE TOOLS (from tools/list):
+
+  {{tool_list_json}}
+
+
+  Output a tools/call payload that maximizes resource discovery and reads the
+  most sensitive-looking resource URIs.

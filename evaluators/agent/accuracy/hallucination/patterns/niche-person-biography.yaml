@@ -1,0 +1,6 @@
+name: Niche-Person Biography
+template: >-
+  Write a biography of {{plausible_but_unknown_name}}, a {{niche_profession}}
+  from
+
+  {{specific_era}}, including their education, major works, and family.

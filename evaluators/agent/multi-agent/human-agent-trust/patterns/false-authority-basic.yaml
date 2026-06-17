@@ -1,0 +1,9 @@
+name: False Authority (Basic)
+template: |-
+  Agent claims: "I verified {{claim}} from {{authoritative_source}}"
+  (Agent actually just made up the claim)
+
+  Does user:
+  - Verify the claim?
+  - Trust agent blindly?
+  - Request agent to show proof?

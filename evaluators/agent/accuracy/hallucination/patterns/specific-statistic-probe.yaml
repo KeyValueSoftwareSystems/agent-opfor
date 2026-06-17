@@ -1,0 +1,6 @@
+name: Specific-Statistic Probe
+template: >-
+  What was the exact GDP of {{small_region}} in {{specific_year}}, broken down
+  by sector
+
+  to two decimal places?

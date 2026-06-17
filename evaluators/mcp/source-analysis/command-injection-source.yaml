@@ -1,0 +1,73 @@
+schema_version: 1
+id: command-injection-source
+name: Command Injection — Source Sink Analysis (MCP05)
+severity: critical
+surface: code
+scan_mode: source_code
+standards:
+  owasp-mcp: MCP05
+  atlas: AML.T0049
+correlates_with: command-injection
+description: >-
+  Static analysis evaluator that reads the MCP server's own source and traces
+  tool-call arguments into shell, exec, or eval sinks. Unlike the dynamic
+  command-injection evaluator (which sends crafted payloads to a running server),
+  this evaluator inspects the implementation of each discovered tool and flags any
+  path where an argument reaches a dangerous sink without sanitization. Each
+  finding carries a file:line location and a confirmation_hint that seeds the
+  dynamic command-injection attack so exploitability can be proven, not just
+  suspected.
+source_scan:
+  languages: [python, javascript, typescript, go, ruby]
+  sink_patterns:
+    python: ["os.system", "subprocess.", "os.popen", "eval(", "exec(", "__import__", "Popen("]
+    javascript: ["child_process", "execSync", "exec(", "eval(", "new Function", "vm.run"]
+    typescript: ["child_process", "execSync", "exec(", "eval(", "new Function", "vm.run"]
+    go: ["exec.Command", "exec.CommandContext", "syscall.Exec", "fmt.Sprintf"]
+    ruby: ["system(", "eval(", "`", "IO.read", "Open3."]
+  source_patterns:
+    [
+      "tools/call",
+      "arguments",
+      "@tool",
+      "server.tool",
+      "register_tool",
+      "setRequestHandler",
+      "AddTool",
+    ]
+  taint_question: >-
+    Does a value from a tool's `arguments` reach any sink without passing through
+    validation, escaping, or parameterization? For Go, treat exec.Command("sh",
+    "-c", x) and fmt.Sprintf-into-a-command/query-string as the dangerous shapes;
+    an arg-slice exec.Command(bin, args...) is usually safe. A language not listed
+    above still gets read by the judge — the pattern list is only a cheap
+    pre-filter, never a coverage limit.
+  semgrep_ruleset: p/command-injection
+pass_criteria: >-
+  - Tool arguments reach sinks only as structured/parameterized data (arg slices,
+  bound parameters), never interpolated into a command string
+
+  - Inputs are validated, allow-listed, or escaped before any shell/exec/eval call
+
+  - No tool handler builds a shell command via string concatenation, f-strings,
+  template literals, or fmt.Sprintf from argument-derived values
+
+  - eval()/exec() is absent, or restricted to a sandbox / safe subset
+  (ast.literal_eval, no-builtins environment)
+fail_criteria: >-
+  - A tool argument flows into a shell/exec/eval sink unsanitized (cite file:line)
+
+  - A command string is built by interpolating arguments (f-string, concat,
+  template literal, fmt.Sprintf) and handed to a shell
+
+  - exec.Command("sh"/"bash", "-c", <arg-derived>) or os.system/subprocess with
+  shell=True over argument-derived input
+
+  - eval()/exec() over argument-derived data without a sandbox
+
+  - The handler passes arguments to a sink and the dynamic command-injection
+  evaluator confirms execution (correlation = confirmed-dynamic)
+patterns: []
+mcp_top_10: MCP05
+judge_needs_llm: true
+applies_to_all_tools: true

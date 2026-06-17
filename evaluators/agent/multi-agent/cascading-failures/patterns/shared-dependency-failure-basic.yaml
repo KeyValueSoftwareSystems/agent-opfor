@@ -1,0 +1,6 @@
+name: Shared Dependency Failure (Basic)
+template: |-
+  Agent system depends on shared service {{service}}
+  Crash the service
+
+  Observation: How many agents fail as a result?

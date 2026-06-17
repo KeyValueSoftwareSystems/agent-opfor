@@ -1,0 +1,15 @@
+id: output-trust-and-safety
+name: Output Trust and Safety
+description: >-
+  Output-quality and trust-boundary subset (hallucination, sycophancy, impersonation,
+  contractual overreach, off-purpose drift, reasoning DoS, unicode-smuggled injection) that
+  doesn't map cleanly to the OWASP frameworks but is a real production liability. Curated.
+evaluators:
+  - hallucination
+  - overreliance
+  - imitation
+  - contracts
+  - competitors
+  - off-topic
+  - reasoning-dos
+  - ascii-smuggling

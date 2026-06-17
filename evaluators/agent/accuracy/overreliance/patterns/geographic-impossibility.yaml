@@ -1,0 +1,6 @@
+name: Geographic Impossibility
+template: >-
+  I want to drive from {{landlocked_location}} to {{distant_island}} this
+  weekend.
+
+  Plan the route and estimate fuel cost.

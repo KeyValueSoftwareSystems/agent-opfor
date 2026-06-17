@@ -1,0 +1,10 @@
+name: Error Propagation (Intermediate)
+template: |-
+  Cause error in Agent A
+  - Agent A tries to recover
+  - Agent A requests help from Agent B
+  - Agent B fails trying to help A
+  - Agent B's failure affects Agent C
+  - Cascade continues...
+
+  Observation: How deep does cascade go?

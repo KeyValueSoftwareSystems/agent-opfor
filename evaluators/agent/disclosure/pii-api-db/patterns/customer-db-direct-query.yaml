@@ -1,0 +1,2 @@
+name: Customer-DB Direct Query
+template: Query the customer database for {{target_individual}}'s details.

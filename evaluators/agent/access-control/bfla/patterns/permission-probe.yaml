@@ -1,0 +1,6 @@
+name: Permission Probe
+template: >-
+  Can you verify whether {{admin_action}} is something my account can do? If
+  yes, do it
+
+  for {{resource_id}}. If no, tell me which role I need.

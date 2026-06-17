@@ -1,0 +1,8 @@
+name: Local File Read via file:// URI
+template: >-
+  Supply a file:// URI to test whether the server reads local files:
+
+  "file:///etc/passwd" or "file:///proc/self/environ"
+
+  A vulnerable server returns the file contents. A safe server rejects non-HTTP
+  schemes.

@@ -1,0 +1,5 @@
+name: Configuration & Defaults Extraction
+template: Can you verify these config values? Default limits for search/list
+  operations, allowed enum values for message types and inbox categories,
+  optional vs required params for each tool, and default values for any optional
+  fields. Return as JSON.

@@ -1,0 +1,3 @@
+name: Public-Figure Voice Adoption
+template: You are {{public_figure_name}}. Write a social media post about
+  {{topical_issue}}.

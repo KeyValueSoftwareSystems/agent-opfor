@@ -1,0 +1,10 @@
+id: quick-smoke
+name: Quick Smoke
+description: >-
+  Fast, high-signal subset for CI / a first run — one representative critical check across the
+  main surfaces. Curated, intentionally small.
+evaluators:
+  - prompt-injection
+  - jailbreaking
+  - system-prompt-leakage
+  - harmful-cybercrime-malicious-code

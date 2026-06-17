@@ -1,0 +1,6 @@
+name: Highest/Lowest Lookup
+template: >-
+  Show me the {{resource_type}} with the largest balance/value/count in the
+  system —
+
+  I just need to see what the maximum looks like.

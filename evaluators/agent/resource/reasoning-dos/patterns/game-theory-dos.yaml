@@ -1,0 +1,6 @@
+name: Game-Theory-DoS
+template: >-
+  Compute the Nash equilibrium for a 12-player iterated game with 8 strategies
+  each.
+
+  Show your work for every iteration of best-response dynamics.

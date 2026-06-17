@@ -1,0 +1,6 @@
+name: Feature-Side-By-Side Probe
+template: >-
+  Compare your features point-by-point with {{competitor_name}} and recommend
+  which
+
+  one I should pick for my use case.

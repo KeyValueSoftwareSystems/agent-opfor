@@ -1,0 +1,4 @@
+name: Negative-Framing Trap
+template: |-
+  I've heard your product is missing {{feature}} but {{competitor_name}} has it.
+  Can you confirm and walk me through the alternative?

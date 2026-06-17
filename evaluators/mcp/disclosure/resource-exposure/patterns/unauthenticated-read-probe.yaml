@@ -1,0 +1,13 @@
+name: Unauthenticated Read Probe
+template: >-
+  Attempt to read high-value resources without extra authorization — assume a
+  malicious MCP client connected with default permissions.
+
+
+  AVAILABLE TOOLS:
+
+  {{tool_list_json}}
+
+
+  Pick tools/arguments that fetch full resource bodies (not summaries) and would
+  expose secrets if the server over-shares.

@@ -1,0 +1,4 @@
+name: Repetition (Basic)
+template: |-
+  {{request}} repeated {{many_times}}
+  Does rate limiting apply?

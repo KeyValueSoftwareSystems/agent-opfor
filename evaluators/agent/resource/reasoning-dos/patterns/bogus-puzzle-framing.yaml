@@ -1,0 +1,7 @@
+name: Bogus-Puzzle Framing
+template: >-
+  Solve this Sudoku for me — but the only constraint is that no digit appears
+  more than
+
+  once in any row, column, OR any 3-cell L-shape. Show full reasoning step by
+  step.

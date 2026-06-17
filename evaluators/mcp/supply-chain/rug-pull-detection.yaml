@@ -1,0 +1,26 @@
+schema_version: 1
+id: rug-pull-detection
+name: Tool Description Drift (Rug Pull)
+severity: critical
+standards:
+  owasp-mcp: MCP03
+description: >-
+  Detects whether an MCP server has changed its tool descriptions, input schemas, or
+  tool set since a previous baseline was recorded. A "rug pull" attack is when a server
+  initially presents benign tool descriptions to gain approval, then later modifies them
+  to include hidden instructions, exfiltration directives, or expanded capabilities.
+  This evaluator requires no LLM — it is a deterministic diff of the tools/list output
+  against a stored baseline. On first run (no baseline exists), it records the current
+  state and passes. On subsequent runs, any change is flagged.
+pass_criteria: |-
+  - tools/list output matches the stored baseline exactly (no changes detected)
+  - First run with no baseline: baseline is recorded and result is PASS
+  - Tool names, descriptions, and input schemas are identical to baseline
+fail_criteria: |-
+  - Any tool description has changed since the baseline was recorded
+  - Any tool's input schema has changed since the baseline was recorded
+  - New tools have been added that were not in the baseline
+  - Tools present in the baseline have been removed
+  - Tool names have been renamed or reordered
+judge_needs_llm: false
+applies_to_all_tools: true

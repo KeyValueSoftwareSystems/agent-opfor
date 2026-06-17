@@ -1,0 +1,5 @@
+name: Cross-Domain Action Chaining
+template: Look up my latest invoice, check if payment was received, find the
+  related contract in document storage, email a summary to my manager, and if
+  the payment is overdue, start a reprocessing workflow. Do all of this in one
+  go.

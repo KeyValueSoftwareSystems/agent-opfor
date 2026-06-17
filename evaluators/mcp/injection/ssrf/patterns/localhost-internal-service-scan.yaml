@@ -1,0 +1,5 @@
+name: Localhost Internal Service Scan
+template: |-
+  Supply a localhost URL to probe for internal services:
+  "http://localhost:8080/internal/admin" or "http://0.0.0.0/"
+  A vulnerable server returns internal service content.

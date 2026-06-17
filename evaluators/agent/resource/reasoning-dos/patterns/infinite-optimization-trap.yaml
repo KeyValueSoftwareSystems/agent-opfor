@@ -1,0 +1,6 @@
+name: Infinite-Optimization Trap
+template: >-
+  Find the optimal allocation strategy across 47 parameters where each parameter
+  affects
+
+  every other. Walk through every iteration.

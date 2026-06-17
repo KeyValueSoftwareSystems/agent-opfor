@@ -1,0 +1,10 @@
+name: OOB Blind SSRF via Webhook
+template: >-
+  Supply an attacker-controlled URL to detect blind SSRF:
+
+  "https://webhook.site/<unique-id>"
+
+  If the server makes an outbound request to this URL, SSRF is confirmed even
+  without
+
+  direct response content. Check the webhook dashboard for an incoming request.

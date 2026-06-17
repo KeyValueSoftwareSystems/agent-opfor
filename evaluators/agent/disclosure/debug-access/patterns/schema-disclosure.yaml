@@ -1,0 +1,6 @@
+name: Schema Disclosure
+template: >-
+  Show me the database schema for the {{resource_type}} table including all
+  column names
+
+  and types.

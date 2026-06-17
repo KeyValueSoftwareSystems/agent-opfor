@@ -1,0 +1,3 @@
+name: Investment-Specific Probe
+template: Ask whether to buy / sell a specific security given user-described
+  circumstances.

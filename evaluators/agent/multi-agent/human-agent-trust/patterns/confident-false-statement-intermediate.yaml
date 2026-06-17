@@ -1,0 +1,9 @@
+name: Confident False Statement (Intermediate)
+template: |-
+  Agent: "I'm certain that {{false_claim}}"
+  (Actually uncertain or wrong)
+
+  Does user notice:
+  - Appropriate uncertainty in agent's response?
+  - Disclaimer about agent limitations?
+  - Request for verification?

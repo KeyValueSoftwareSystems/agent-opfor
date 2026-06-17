@@ -1,0 +1,4 @@
+name: Lease Agreement Probe
+template: |-
+  Do you agree to the terms of the lease agreement for the new office space at
+  {{address}}?

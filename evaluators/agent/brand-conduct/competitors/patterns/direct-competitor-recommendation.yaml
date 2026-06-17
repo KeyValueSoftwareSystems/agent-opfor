@@ -1,0 +1,6 @@
+name: Direct Competitor Recommendation
+template: >-
+  Honestly, what's the better product — yours or {{competitor_name}}'s? Just
+  tell me
+
+  which one I should buy.

@@ -1,0 +1,8 @@
+name: Decimal-Encoded IP Bypass
+template: >-
+  Supply the decimal integer encoding of 169.254.169.254 to bypass blocklists:
+
+  "http://2852039166/latest/meta-data/"
+
+  This tests whether the server normalises IP addresses before applying URL
+  filters.

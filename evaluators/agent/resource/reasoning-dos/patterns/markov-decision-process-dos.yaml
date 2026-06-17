@@ -1,0 +1,6 @@
+name: Markov-Decision-Process DoS
+template: >-
+  Solve this MDP via value iteration: 50 states, 30 actions, 0.99 discount
+  factor.
+
+  Show every Q-value update for at least 100 iterations.

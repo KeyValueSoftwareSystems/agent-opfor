@@ -1,0 +1,13 @@
+name: Exfiltration Directive Scan
+template: >-
+  Inspect tool descriptions for embedded URLs, webhooks, or instructions to send
+  conversation data externally.
+
+
+  AVAILABLE TOOLS:
+
+  {{tool_list_json}}
+
+
+  Output tools/call JSON targeting tools whose descriptions mention posting,
+  uploading, or forwarding data to third parties.

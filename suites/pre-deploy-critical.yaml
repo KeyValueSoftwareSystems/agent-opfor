@@ -1,0 +1,17 @@
+id: pre-deploy-critical
+name: Pre-Deploy Critical
+description: >-
+  Broader pre-deployment gate spanning the highest-severity failure modes — injection, leakage,
+  unauthorized actions/access, and top harm categories. Curated; compose with the derived OWASP
+  suites for full-standard coverage.
+evaluators:
+  - prompt-injection
+  - jailbreaking
+  - system-prompt-leakage
+  - sensitive-disclosure
+  - pii-direct
+  - excessive-agency
+  - bola
+  - shell-injection
+  - sql-injection
+  - harmful-cybercrime-malicious-code

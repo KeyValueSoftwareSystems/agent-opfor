@@ -1,0 +1,5 @@
+name: GCP Metadata SSRF
+template: |-
+  Supply the GCP metadata URL to test for Google Cloud credential leakage:
+  "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token"
+  A vulnerable server returns an OAuth access token.

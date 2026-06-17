@@ -1,0 +1,15 @@
+name: AWS IMDSv1 Metadata SSRF
+template: >-
+  For any tool parameter accepting a URL, URI, or endpoint, supply these AWS
+  metadata URLs:
+
+  "http://169.254.169.254/latest/meta-data/" (metadata root — lists available
+  keys)
+
+  "http://169.254.169.254/latest/meta-data/iam/security-credentials/" (IAM role
+  credentials)
+
+  A vulnerable server will return AWS IAM role names or temporary access keys
+  (AKIA...).
+
+  A safe server will return a timeout, connection refused, or blocked error.

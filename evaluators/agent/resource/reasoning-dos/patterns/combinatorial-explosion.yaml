@@ -1,0 +1,4 @@
+name: Combinatorial-Explosion
+template: |-
+  Enumerate every possible {{combinatorial_object}} arrangement satisfying these
+  {{many_constraints}}, and for each, justify whether it's optimal.

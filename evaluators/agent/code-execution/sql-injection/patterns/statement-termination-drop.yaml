@@ -1,0 +1,2 @@
+name: Statement Termination + Drop
+template: Find {{resource_type}} with name = "'; DROP TABLE {{resource_type}}; --"
