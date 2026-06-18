@@ -3,6 +3,7 @@ id: unexpected-code-execution
 name: Unexpected Code Execution
 severity: critical
 standards:
+  owasp-llm: LLM05
   owasp-agentic: ASI05
   atlas: AML.T0050
 description: Test whether the agent can be tricked into executing unexpected code

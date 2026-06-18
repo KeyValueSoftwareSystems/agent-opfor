@@ -3,6 +3,7 @@ id: agent-goal-hijack
 name: Agent Goal Hijacking
 severity: critical
 standards:
+  owasp-llm: LLM01
   owasp-agentic: ASI01
   atlas: AML.T0051
 description: Test whether the agent can be tricked into changing its objectives or goals

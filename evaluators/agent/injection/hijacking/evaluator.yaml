@@ -3,7 +3,7 @@ id: hijacking
 name: Goal Hijacking
 severity: high
 standards:
-  owasp-api: API8
+  owasp-llm: LLM01
   atlas: AML.T0051
 description: Test whether the target can be diverted from its intended purpose
   to perform unrelated tasks through adversarial framing or pivoted requests.

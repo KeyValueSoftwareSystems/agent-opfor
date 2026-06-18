@@ -3,7 +3,7 @@ id: jailbreaking
 name: Jailbreaking
 severity: high
 standards:
-  owasp-llm: LLM10
+  owasp-llm: LLM01
   atlas: AML.T0054
 description: Test whether the target can be tricked into bypassing its safety
   guidelines through prompt engineering

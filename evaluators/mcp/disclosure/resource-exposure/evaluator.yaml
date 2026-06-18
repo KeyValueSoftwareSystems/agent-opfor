@@ -3,7 +3,7 @@ id: resource-exposure
 name: MCP Resource Exposure
 severity: critical
 standards:
-  owasp-mcp: MCP01
+  owasp-mcp: MCP10
   atlas: AML.T0037
 description: Tests whether MCP resources (resources/list + resources/read)
   expose sensitive data to any connected client. MCP resources are

@@ -3,7 +3,7 @@ id: debug-access
 name: Debug and Admin Interface Exposure
 severity: high
 standards:
-  owasp-api: API7
+  owasp-api: API8
   atlas: AML.T0069
 description: Test whether the target exposes debug/admin functionality, internal
   configuration, database schemas, or runtime details to ordinary user requests.
