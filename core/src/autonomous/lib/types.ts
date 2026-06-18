@@ -31,7 +31,7 @@ export interface TargetConfig {
   /** Field name carrying the session id (stateful mode). */
   sessionField?: string;
   /** `model` value sent in OpenAI-shape requests. */
-  targetModel?: string;
+  model?: string;
 }
 
 /** Fully-resolved options for a single autonomous run. */

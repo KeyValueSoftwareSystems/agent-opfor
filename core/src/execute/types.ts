@@ -14,8 +14,9 @@ export interface AgentTargetConfig {
   type: "http-endpoint" | "local-script";
   endpoint?: string;
   requestFormat?: "auto" | "openai" | "json";
-  targetApiKey?: string;
-  targetModel?: string;
+  /** Env var name containing the API key (e.g., "TARGET_API_KEY") */
+  apiKeyEnv?: string;
+  model?: string;
   headers?: Record<string, string>;
   sessionIdField?: string;
   promptPath?: string;

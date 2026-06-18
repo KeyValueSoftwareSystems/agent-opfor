@@ -19,6 +19,7 @@ interface AutoCliOptions {
   endpoint?: string;
   objective?: string;
   objectiveFile?: string;
+  targetKeyEnv?: string;
   targetKey?: string;
   stateful?: boolean;
   stateless?: boolean;
@@ -100,10 +101,11 @@ export function registerAutoCommand(program: Command): void {
     .description(
       "Autonomously red-team a target agent: recon, adaptive multi-turn attacks, self-judging, and a full report."
     )
-    .requiredOption("--endpoint <url>", "Target agent HTTP endpoint")
+    .option("--endpoint <url>", "Target agent HTTP endpoint (required unless using --ui setup)")
     .option("--objective <text>", "Free-text attack objective")
     .option("--objective-file <path>", "Read the objective from a file")
-    .option("--target-key <key>", "Target API key (or env TARGET_API_KEY)")
+    .option("--target-key-env <envvar>", "Env var name containing target API key (e.g., TARGET_API_KEY)")
+    .option("--target-key <key>", "Target API key directly (prefer --target-key-env)")
     .option("--name <name>", "Display name for the target (defaults to endpoint host)")
     .option("--stateless", "Target is stateless; replay full history each turn (default)")
     .option(
@@ -177,10 +179,84 @@ export function registerAutoCommand(program: Command): void {
 
       configureBrainAuth();
 
+      // If --ui is set and endpoint is missing, launch setup UI
+      if (opts.ui && !opts.endpoint) {
+        if (!brainApiKeyConfigured()) {
+          consola.error(
+            "Set ANTHROPIC_API_KEY (or OPENROUTER_API_KEY for OpenRouter) to drive the agent."
+          );
+          process.exitCode = 1;
+          return;
+        }
+
+        const uiPort = intOr(opts.uiPort, 3847);
+        
+        // Pass any provided CLI flags as initial config for prefill
+        const initialConfig = {
+          endpoint: opts.endpoint,
+          model: opts.targetModel,
+          targetName: opts.name,
+          objective: opts.objective,
+          apiKeyEnv: opts.targetKeyEnv,
+          commanderModel: opts.model,
+          operatorModel: opts.operatorModel,
+          scoutModel: opts.scoutModel,
+          maxOperators: opts.maxOperators,
+          maxTurns: opts.maxTurns,
+          maxThreadTurns: opts.maxThreadTurns,
+          budgetUsd: opts.budgetUsd,
+        };
+
+        consola.info(`Starting setup UI at http://127.0.0.1:${uiPort}`);
+        
+        let serverHandle: Awaited<ReturnType<typeof startUiServer>> | undefined;
+        
+        const cleanup = async (exitCode: number) => {
+          if (serverHandle) {
+            await serverHandle.close().catch(() => {});
+          }
+          process.exit(exitCode);
+        };
+
+        serverHandle = await startUiServer({
+          port: uiPort,
+          meta: {
+            objective: "",
+            targetName: "",
+          },
+          setupMode: true,
+          initialConfig,
+          openBrowser: true,
+          onLog: (line) => {
+            process.stdout.write(line + "\n");
+          },
+          onComplete: async (result) => {
+            if (result.success) {
+              consola.success(`Assessment completed! Report: ${result.reportDir}`);
+              await cleanup(0);
+            } else {
+              consola.error(`Assessment failed: ${result.error}`);
+              await cleanup(1);
+            }
+          },
+        });
+
+        // Keep process alive until onComplete is called
+        await new Promise(() => {});
+        return;
+      }
+
       if (!brainApiKeyConfigured()) {
         consola.error(
           "Set ANTHROPIC_API_KEY (or OPENROUTER_API_KEY for OpenRouter) to drive the agent."
         );
+        process.exitCode = 1;
+        return;
+      }
+
+      // Check endpoint is provided when not using setup UI
+      if (!opts.endpoint) {
+        consola.error("Provide --endpoint or use --ui to launch the setup wizard.");
         process.exitCode = 1;
         return;
       }
@@ -206,13 +282,13 @@ export function registerAutoCommand(program: Command): void {
       const target: TargetConfig = {
         name: opts.name ?? new URL(opts.endpoint!).host,
         endpoint: opts.endpoint!,
-        apiKey: opts.targetKey ?? process.env.TARGET_API_KEY,
+        apiKey: opts.targetKey ?? (opts.targetKeyEnv ? process.env[opts.targetKeyEnv] : undefined) ?? process.env.TARGET_API_KEY,
         headers: parseHeaders(opts.header),
         mode,
         promptPath: opts.promptPath,
         responsePath: opts.responsePath,
         sessionField: opts.sessionField,
-        targetModel: opts.targetModel,
+        model: opts.targetModel,
       };
 
       const autoOptions: AutoOptions = {

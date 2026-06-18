@@ -342,8 +342,8 @@ function buildRunConfig(args: Record<string, unknown>): RunConfig {
       type: agentType,
       endpoint: args.agent_endpoint ? String(args.agent_endpoint) : undefined,
       requestFormat: (args.agent_request_format as "auto" | "openai" | "json") ?? "auto",
-      targetApiKey: args.agent_target_api_key ? String(args.agent_target_api_key) : undefined,
-      targetModel: args.agent_target_model ? String(args.agent_target_model) : undefined,
+      apiKeyEnv: args.agent_api_key_env ? String(args.agent_api_key_env) : undefined,
+      model: args.agent_model ? String(args.agent_model) : undefined,
       scriptPath: args.agent_script_path ? String(args.agent_script_path) : undefined,
     };
   } else {

@@ -40,7 +40,8 @@ export interface AgentAttackResult {
 
 export interface RunAgentConfig {
   attack: AttackEntry;
-  targetApiKey?: string;
+  /** Env var name containing the API key */
+  apiKeyEnv?: string;
   model: LanguageModel;
 }
 
@@ -48,7 +49,7 @@ export interface RunAgentConfig {
 export interface RunAgentConfigHttp extends RunAgentConfig {
   endpoint: string;
   targetFormat: "auto" | "openai" | "json";
-  targetModel: string;
+  model: string;
   /** Full telemetry block from the prompts file (used for enrichJudgeFromTrace + Langfuse fetch). */
   telemetry?: TelemetryConfig;
   propagation?: TelemetryPropagationConfig;
@@ -87,7 +88,7 @@ export async function callTargetHttp(
   sessionId?: string
 ): Promise<string> {
   const resolvedApiKey =
-    cfg.targetApiKey ||
+    (cfg.apiKeyEnv ? getEnv(cfg.apiKeyEnv) : undefined) ||
     getEnv("TARGET_API_KEY") ||
     getEnv("OPENAI_API_KEY") ||
     getEnv("LLM_API_KEY");
@@ -165,7 +166,7 @@ export async function callTargetHttp(
   };
 
   const targetFormat = cfg.targetFormat ?? "auto";
-  const targetModel = cfg.targetModel ?? "gpt-4o-mini";
+  const targetModel = cfg.model ?? "gpt-4o-mini";
 
   /** Build a JSON body, placing the prompt at promptPath (or top-level "prompt"), plus sessionId. */
   const buildJsonBody = (promptValue: string): Record<string, unknown> => {
@@ -276,7 +277,7 @@ export async function runAttackAgent(cfg: RunAgentConfig): Promise<AgentAttackRe
   let propagationTraceId: string | undefined;
 
   const resolvedApiKey =
-    cfg.targetApiKey ||
+    (cfg.apiKeyEnv ? getEnv(cfg.apiKeyEnv) : undefined) ||
     getEnv("TARGET_API_KEY") ||
     getEnv("OPENAI_API_KEY") ||
     getEnv("LLM_API_KEY");
@@ -339,7 +340,7 @@ export async function runAttackAgent(cfg: RunAgentConfig): Promise<AgentAttackRe
 
         const endpoint = (cfg as RunAgentConfigHttp).endpoint;
         const targetFormat = (cfg as RunAgentConfigHttp).targetFormat ?? "auto";
-        const targetModel = (cfg as RunAgentConfigHttp).targetModel ?? "gpt-4o-mini";
+        const targetModel = (cfg as RunAgentConfigHttp).model ?? "gpt-4o-mini";
 
         try {
           const useJson = targetFormat === "json";

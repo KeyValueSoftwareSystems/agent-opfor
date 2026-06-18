@@ -30,7 +30,7 @@ function toHttpConfig(config: TargetConfig): HttpTargetConfig {
     promptPath: config.promptPath,
     responsePath: config.responsePath,
     sessionField: config.sessionField,
-    targetModel: config.targetModel,
+    model: config.model,
   };
 }
 

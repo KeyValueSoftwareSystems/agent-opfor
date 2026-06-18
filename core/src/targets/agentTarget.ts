@@ -75,7 +75,7 @@ async function callHttp(
   options?: AgentSendOptions
 ): Promise<string> {
   const resolvedApiKey =
-    config.targetApiKey ||
+    (config.apiKeyEnv ? getEnv(config.apiKeyEnv) : undefined) ||
     getEnv("TARGET_API_KEY") ||
     getEnv("OPENAI_API_KEY") ||
     getEnv("LLM_API_KEY");
@@ -141,7 +141,7 @@ async function callHttp(
   };
 
   const targetFormat = config.requestFormat ?? "auto";
-  const targetModel = config.targetModel ?? "gpt-4o-mini";
+  const targetModel = config.model ?? "gpt-4o-mini";
   const sessionId = options?.sessionId;
   // Stateless targets receive the full conversation as a `messages` array on
   // every turn (raw OpenAI/Groq/Anthropic-compat endpoints). The body shape

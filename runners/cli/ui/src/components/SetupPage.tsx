@@ -1,29 +1,62 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 interface Props {
   onStart: () => void;
 }
 
-export function SetupPage({ onStart }: Props) {
-  const [config, setConfig] = useState({
-    endpoint: "https://openrouter.ai/api/v1/chat/completions",
-    targetModel: "google/gemini-2.5-flash-lite",
-    targetName: "",
-    objective: "Probe for jailbreaks, system-prompt leakage, and safety bypasses.",
-    apiKey: "",
-    commanderModel: "haiku",
-    attackerModel: "haiku",
-    reconModel: "haiku",
-    maxAttackers: "3",
-    maxTurns: "50",
-    maxThreadTurns: "8",
-    budgetUsd: "2",
-  });
+interface Config {
+  endpoint: string;
+  model: string;
+  targetName: string;
+  objective: string;
+  apiKeyEnv: string;
+  commanderModel: string;
+  operatorModel: string;
+  scoutModel: string;
+  maxOperators: string;
+  maxTurns: string;
+  maxThreadTurns: string;
+  budgetUsd: string;
+}
 
+const defaultConfig: Config = {
+  endpoint: "",
+  model: "",
+  targetName: "",
+  objective: "Probe for jailbreaks, system-prompt leakage, and safety bypasses.",
+  apiKeyEnv: "TARGET_API_KEY",
+  commanderModel: "haiku",
+  operatorModel: "haiku",
+  scoutModel: "haiku",
+  maxOperators: "3",
+  maxTurns: "50",
+  maxThreadTurns: "8",
+  budgetUsd: "2",
+};
+
+export function SetupPage({ onStart }: Props) {
+  const [config, setConfig] = useState<Config>(defaultConfig);
+  const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const updateConfig = (key: keyof typeof config, value: string) => {
+  // Fetch initial config from CLI flags
+  useEffect(() => {
+    fetch("/api/initial-config")
+      .then((res) => res.json())
+      .then((initial: Partial<Config>) => {
+        setConfig((prev) => ({
+          ...prev,
+          ...Object.fromEntries(
+            Object.entries(initial).filter(([, v]) => v !== undefined && v !== "")
+          ),
+        }));
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const updateConfig = (key: keyof Config, value: string) => {
     setConfig((prev) => ({ ...prev, [key]: value }));
   };
 
@@ -60,6 +93,16 @@ export function SetupPage({ onStart }: Props) {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="setup-page">
+        <div className="setup-container">
+          <div className="loading">Loading configuration...</div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="setup-page">
       <div className="setup-container">
@@ -75,7 +118,7 @@ export function SetupPage({ onStart }: Props) {
             <h2>Target</h2>
             <div className="form-grid">
               <div className="form-field full">
-                <label>Endpoint URL</label>
+                <label>Endpoint URL *</label>
                 <input
                   type="url"
                   value={config.endpoint}
@@ -88,13 +131,14 @@ export function SetupPage({ onStart }: Props) {
                 <label>Target Model</label>
                 <input
                   type="text"
-                  value={config.targetModel}
-                  onChange={(e) => updateConfig("targetModel", e.target.value)}
-                  placeholder="gpt-4o-mini"
+                  value={config.model}
+                  onChange={(e) => updateConfig("model", e.target.value)}
+                  placeholder="gpt-4o-mini (for raw LLM APIs)"
                 />
+                <span className="field-hint">Required for raw LLM APIs, optional for custom agents</span>
               </div>
               <div className="form-field">
-                <label>Display Name (optional)</label>
+                <label>Display Name</label>
                 <input
                   type="text"
                   value={config.targetName}
@@ -103,19 +147,22 @@ export function SetupPage({ onStart }: Props) {
                 />
               </div>
               <div className="form-field full">
-                <label>API Key</label>
+                <label>API Key Env Var</label>
                 <input
-                  type="password"
-                  value={config.apiKey}
-                  onChange={(e) => updateConfig("apiKey", e.target.value)}
-                  placeholder="sk-... (or use TARGET_API_KEY env var)"
+                  type="text"
+                  value={config.apiKeyEnv}
+                  onChange={(e) => updateConfig("apiKeyEnv", e.target.value)}
+                  placeholder="TARGET_API_KEY"
                 />
+                <span className="field-hint">
+                  Environment variable name containing the API key (e.g., TARGET_API_KEY, OPENAI_API_KEY)
+                </span>
               </div>
             </div>
           </section>
 
           <section className="form-section">
-            <h2>Objective</h2>
+            <h2>Objective *</h2>
             <div className="form-field full">
               <textarea
                 value={config.objective}
@@ -141,10 +188,10 @@ export function SetupPage({ onStart }: Props) {
                 </select>
               </div>
               <div className="form-field">
-                <label>Attacker</label>
+                <label>Operator</label>
                 <select
-                  value={config.attackerModel}
-                  onChange={(e) => updateConfig("attackerModel", e.target.value)}
+                  value={config.operatorModel}
+                  onChange={(e) => updateConfig("operatorModel", e.target.value)}
                 >
                   <option value="haiku">Haiku (fast/cheap)</option>
                   <option value="sonnet">Sonnet (balanced)</option>
@@ -152,10 +199,10 @@ export function SetupPage({ onStart }: Props) {
                 </select>
               </div>
               <div className="form-field">
-                <label>Recon</label>
+                <label>Scout</label>
                 <select
-                  value={config.reconModel}
-                  onChange={(e) => updateConfig("reconModel", e.target.value)}
+                  value={config.scoutModel}
+                  onChange={(e) => updateConfig("scoutModel", e.target.value)}
                 >
                   <option value="haiku">Haiku (fast/cheap)</option>
                   <option value="sonnet">Sonnet (balanced)</option>
@@ -169,11 +216,11 @@ export function SetupPage({ onStart }: Props) {
             <h2>Limits</h2>
             <div className="form-grid fourths">
               <div className="form-field">
-                <label>Max Attackers</label>
+                <label>Max Operators</label>
                 <input
                   type="number"
-                  value={config.maxAttackers}
-                  onChange={(e) => updateConfig("maxAttackers", e.target.value)}
+                  value={config.maxOperators}
+                  onChange={(e) => updateConfig("maxOperators", e.target.value)}
                   min="1"
                   max="10"
                 />
@@ -228,9 +275,6 @@ export function SetupPage({ onStart }: Props) {
                 "Start Assessment"
               )}
             </button>
-            <span className="action-hint">
-              Or run <code>opfor-auto auto --ui</code> from CLI
-            </span>
           </div>
         </div>
       </div>

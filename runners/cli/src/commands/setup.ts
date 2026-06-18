@@ -1,7 +1,7 @@
 import type { Command } from "commander";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
-import { input, select, checkbox, password, confirm } from "@inquirer/prompts";
+import { input, select, checkbox, confirm } from "@inquirer/prompts";
 import { log } from "@opfor/core/lib/logger.js";
 import { loadSkillCatalog } from "@opfor/core/config/loadSkillCatalog.js";
 import {
@@ -296,19 +296,41 @@ async function collectAgentTarget(): Promise<AgentTargetConfig> {
     message: "Does the target require an API key?",
     default: false,
   });
-  const targetApiKey = hasApiKey ? await password({ message: "API key value" }) : undefined;
+  const targetApiKeyEnv = hasApiKey
+    ? await input({
+        message: "API key env var name (e.g., TARGET_API_KEY)",
+        default: "TARGET_API_KEY",
+        validate: (v) => (v.trim() ? true : "Env var name is required"),
+      })
+    : undefined;
 
-  // Stateful (custom agent that keeps history server-side, keyed by a session
-  // id) vs stateless (raw LLM API — OPFOR sends the full chat history every
-  // turn as a `messages` array). Defaults to stateful since most users test
-  // their own agents, not raw model endpoints.
+  // Is this a raw LLM endpoint (needs model param) or a custom agent?
+  const isRawLlm = await confirm({
+    message:
+      "Is this a raw LLM API endpoint?\n" +
+      "  Yes → OpenAI, LiteLLM, Anthropic, etc. (requires model name)\n" +
+      "  No  → custom agent/chatbot with its own model",
+    default: false,
+  });
+
+  let targetModel: string | undefined;
+  if (isRawLlm) {
+    targetModel = await input({
+      message: "Model name (e.g., gpt-4o, deepseek-chat, claude-3-sonnet)",
+      validate: (v) => (v.trim() ? true : "Model name is required for raw LLM APIs"),
+    });
+  }
+
+  // Stateful = target maintains conversation history server-side (keyed by session ID).
+  // Stateless = OPFOR sends full chat history as messages array each turn.
   const stateful = await confirm({
     message:
       "Does the target maintain conversation history on its side?\n" +
-      "  Yes → custom agent / chatbot with a session store\n" +
-      "  No  → raw LLM API (OpenAI, Anthropic, Groq, etc.)",
-    default: true,
+      "  Yes → target keeps session state, needs session ID\n" +
+      "  No  → stateless, OPFOR sends full history each request",
+    default: !isRawLlm, // Raw LLM APIs are typically stateless
   });
+
   const sessionIdField = stateful
     ? await input({ message: "Session ID field name in request body", default: "session_id" })
     : undefined;
@@ -320,7 +342,8 @@ async function collectAgentTarget(): Promise<AgentTargetConfig> {
     type,
     endpoint: endpoint.trim(),
     requestFormat,
-    targetApiKey,
+    apiKeyEnv: targetApiKeyEnv?.trim(),
+    model: targetModel?.trim(),
     sessionIdField,
     stateful,
   };

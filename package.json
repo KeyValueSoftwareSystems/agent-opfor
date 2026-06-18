@@ -23,7 +23,8 @@
     "node": ">=18.0.0"
   },
   "scripts": {
-    "build": "npm run sync:skills-evaluators && tsc -b core runners/cli runners/mcp runners/sdk && npm run extension:catalog && npm run build:core --workspace=@opfor/extension",
+    "build": "npm run sync:skills-evaluators && tsc -b core runners/cli runners/mcp runners/sdk && npm run build:ui && npm run extension:catalog && npm run build:core --workspace=@opfor/extension",
+    "build:ui": "cd runners/cli/ui && npm install && npm run build",
     "clean": "rm -rf core/dist runners/*/dist core/*.tsbuildinfo runners/*/*.tsbuildinfo",
     "install:cli": "npm run build && npm install -g ./runners/cli",
     "test": "npm test --workspace=core",

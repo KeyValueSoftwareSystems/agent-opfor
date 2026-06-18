@@ -107,7 +107,7 @@ function buildCoreOptions(options: AutoOptions): CoreAutoOptions {
     promptPath: options.target.promptPath,
     responsePath: options.target.responsePath,
     sessionField: options.target.sessionField,
-    targetModel: options.target.model,
+    model: options.target.model,
   };
 
   const models = options.models ?? {};

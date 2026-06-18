@@ -19,7 +19,7 @@ export interface HttpTargetConfig {
   promptPath?: string;
   responsePath?: string;
   sessionField?: string;
-  targetModel?: string;
+  model?: string;
 }
 
 export interface HttpSendResult {
@@ -138,7 +138,7 @@ export async function httpSend(
       ].join("\n");
       setByPath(body, config.promptPath.trim(), transcript);
     } else {
-      body = buildStatelessBody(prompt, options.history ?? [], config.targetModel ?? "gpt-4o-mini");
+      body = buildStatelessBody(prompt, options.history ?? [], config.model ?? "gpt-4o-mini");
     }
   } else {
     body = buildCustomJsonBody(

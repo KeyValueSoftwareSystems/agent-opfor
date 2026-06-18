@@ -9,7 +9,8 @@ export interface HttpTargetConfig {
   url: string;
   name?: string;
   description?: string;
-  apiKey?: string;
+  /** Env var name containing the API key (e.g., "TARGET_API_KEY") */
+  apiKeyEnv?: string;
   model?: string;
   headers?: Record<string, string>;
   requestFormat?: "auto" | "openai" | "json";

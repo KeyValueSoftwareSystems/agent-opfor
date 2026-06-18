@@ -316,8 +316,9 @@ export interface TargetConfig {
   // http-endpoint fields
   endpoint?: string;
   requestFormat?: "auto" | "openai" | "json";
-  targetApiKey?: string;
-  targetModel?: string;
+  /** Env var name containing the API key (e.g., "TARGET_API_KEY") */
+  apiKeyEnv?: string;
+  model?: string;
   /**
    * Custom HTTP headers to send with each request to the target.
    * Example: { "Authorization": "Bearer xyz", "X-Custom-Header": "value" }
@@ -393,8 +394,9 @@ export interface InlineSetupConfig {
     type: "http-endpoint" | "local-script";
     endpoint?: string;
     requestFormat?: "auto" | "openai" | "json";
-    targetApiKey?: string;
-    targetModel?: string;
+    /** Env var name containing the API key (e.g., "TARGET_API_KEY") */
+    apiKeyEnv?: string;
+    model?: string;
     scriptPath?: string;
     /** For multi-turn: body field to inject a session ID on every request (e.g. "session_id"). */
     sessionIdField?: string;
@@ -435,8 +437,9 @@ export interface SetupConfigFile {
     type: "http-endpoint" | "local-script" | "python-function";
     endpoint?: string;
     requestFormat?: "auto" | "openai" | "json";
-    targetApiKey?: string;
-    targetModel?: string;
+    /** Env var name containing the API key (e.g., "TARGET_API_KEY") */
+    apiKeyEnv?: string;
+    model?: string;
     sessionIdField?: string;
     promptPath?: string;
     responsePath?: string;
