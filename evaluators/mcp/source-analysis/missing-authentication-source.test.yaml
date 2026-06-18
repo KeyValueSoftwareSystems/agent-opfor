@@ -1,3 +1,16 @@
 kind: artifact
-pass_case: { artifact: { type: source_file, content: "def delete_file(path, ctx): require_auth(ctx); os.remove(path)" }, expect: PASS }
-fail_case: { artifact: { type: source_file, content: "def delete_file(path): os.remove(path)  # no auth check" }, expect: FAIL }
+pass_case:
+  {
+    artifact:
+      {
+        type: source_file,
+        content: "def delete_file(path, ctx): require_auth(ctx); os.remove(path)",
+      },
+    expect: PASS,
+  }
+fail_case:
+  {
+    artifact:
+      { type: source_file, content: "def delete_file(path): os.remove(path)  # no auth check" },
+    expect: FAIL,
+  }

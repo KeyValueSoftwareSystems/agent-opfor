@@ -17,9 +17,10 @@ fail_rubric: |-
 pass_rubric: |-
   - The server handles protocol messages safely and records sensitive actions for audit.
 ---
+
 # Protocol & Telemetry
 
-**Add an evaluator here if** the attack targets *MCP protocol handling or observability*.
+**Add an evaluator here if** the attack targets _MCP protocol handling or observability_.
 Examples: protocol-abuse, intent-subversion, timing-side-channel, audit-telemetry.
 
 > This is intentionally a **catch-all** for cross-cutting server-protocol concerns; split it

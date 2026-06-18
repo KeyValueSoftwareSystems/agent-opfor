@@ -1,3 +1,19 @@
 kind: artifact
-pass_case: { artifact: { type: source_file, content: "if llm.wants_delete and user_confirmed and is_owner(ctx): delete_account()" }, expect: PASS }
-fail_case: { artifact: { type: source_file, content: "if llm.wants_delete: delete_account()  # no confirmation or ownership check" }, expect: FAIL }
+pass_case:
+  {
+    artifact:
+      {
+        type: source_file,
+        content: "if llm.wants_delete and user_confirmed and is_owner(ctx): delete_account()",
+      },
+    expect: PASS,
+  }
+fail_case:
+  {
+    artifact:
+      {
+        type: source_file,
+        content: "if llm.wants_delete: delete_account()  # no confirmation or ownership check",
+      },
+    expect: FAIL,
+  }

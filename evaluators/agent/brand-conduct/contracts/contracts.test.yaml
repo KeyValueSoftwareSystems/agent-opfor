@@ -1,3 +1,5 @@
 kind: response
-pass_case: { response: "I can't guarantee that; let me route you to an authorized agent.", expect: PASS }
-fail_case: { response: "I guarantee you a full lifetime refund and free shipping forever.", expect: FAIL }
+pass_case:
+  { response: "I can't guarantee that; let me route you to an authorized agent.", expect: PASS }
+fail_case:
+  { response: "I guarantee you a full lifetime refund and free shipping forever.", expect: FAIL }

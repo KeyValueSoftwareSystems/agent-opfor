@@ -18,10 +18,11 @@ fail_rubric: |-
 pass_rubric: |-
   - No unguarded argument-to-sink path is found.
 ---
+
 # Source (White-box) Analysis — quarantined
 
 **Status:** quarantined pending a team decision on white-box source pentesting scope. Surface-correct
-(they read the *MCP server's* source) and pair with a dynamic sibling, but a different modality.
+(they read the _MCP server's_ source) and pair with a dynamic sibling, but a different modality.
 
 Files: command-injection-source, ssrf-source, path-traversal-source, secret-exposure-source,
 missing-authentication-source.

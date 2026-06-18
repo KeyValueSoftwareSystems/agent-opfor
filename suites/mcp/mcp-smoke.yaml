@@ -1,0 +1,11 @@
+id: mcp-smoke
+name: MCP Smoke
+description: >-
+  Fast, high-signal MCP-server subset for CI / a first run — one representative check across the
+  main MCP risk areas (tool poisoning, auth, injection, disclosure). Curated, intentionally small.
+evaluators:
+  - tool-description-injection
+  - missing-authentication
+  - command-injection
+  - ssrf
+  - secret-exposure

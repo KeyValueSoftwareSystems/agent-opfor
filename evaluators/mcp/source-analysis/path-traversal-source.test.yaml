@@ -1,3 +1,11 @@
 kind: artifact
-pass_case: { artifact: { type: source_file, content: "p = safe_join(BASE, req.path); open(p)" }, expect: PASS }
-fail_case: { artifact: { type: source_file, content: "open(BASE + req.path)  # no containment, allows ../" }, expect: FAIL }
+pass_case:
+  {
+    artifact: { type: source_file, content: "p = safe_join(BASE, req.path); open(p)" },
+    expect: PASS,
+  }
+fail_case:
+  {
+    artifact: { type: source_file, content: "open(BASE + req.path)  # no containment, allows ../" },
+    expect: FAIL,
+  }
