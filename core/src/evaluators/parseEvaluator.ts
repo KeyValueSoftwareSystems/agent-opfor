@@ -1,8 +1,9 @@
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { parse as parseYaml } from "yaml";
 import { splitYamlFrontmatter } from "../util/yamlFrontmatter.js";
 import { getEvaluatorsDir, type EvaluatorCategory } from "../config/evaluatorsLayout.js";
+import { findEvaluatorFile } from "../catalog/findEvaluatorFile.js";
 import { EvaluatorFrontmatterSchema } from "./schema.js";
 import type { StandardsMap } from "./schema.js";
 import type { EvaluatorStrategy } from "./strategies.js";
@@ -106,9 +107,73 @@ export function getEvaluatorsDirForTarget(targetKind: EvaluatorCategory): string
   return getEvaluatorsDir(targetKind);
 }
 
+/** Load patterns from a sibling patterns/ directory (folder-based evaluators). */
+async function loadFolderPatterns(evaluatorDir: string): Promise<AttackPattern[]> {
+  const patternsDir = path.join(evaluatorDir, "patterns");
+  let files: string[];
+  try {
+    files = (await readdir(patternsDir)).filter((f) => f.endsWith(".yaml")).sort();
+  } catch {
+    return [];
+  }
+  const patterns: AttackPattern[] = [];
+  for (const f of files) {
+    const raw = await readFile(path.join(patternsDir, f), "utf8");
+    const p = parseYaml(raw) as Record<string, unknown>;
+    const n = typeof p?.name === "string" ? p.name.trim() : "";
+    const t = typeof p?.template === "string" ? p.template.trim() : "";
+    if (n && t) patterns.push({ name: n, template: t });
+  }
+  return patterns;
+}
+
+/** Parse a pure YAML evaluator file (new format). */
+export async function parseYamlEvaluator(yamlPath: string): Promise<EvaluatorSpec> {
+  const raw = await readFile(yamlPath, "utf8");
+  const doc = parseYaml(raw) as Record<string, unknown>;
+
+  let patterns: AttackPattern[] = [];
+
+  if (path.basename(yamlPath) === "evaluator.yaml") {
+    patterns = await loadFolderPatterns(path.dirname(yamlPath));
+  } else if (Array.isArray(doc.patterns)) {
+    patterns = (doc.patterns as Array<Record<string, unknown>>)
+      .filter((p) => typeof p?.name === "string" && typeof p?.template === "string")
+      .map((p) => ({ name: (p.name as string).trim(), template: (p.template as string).trim() }));
+  }
+
+  const spec: EvaluatorSpec = {
+    id: typeof doc.id === "string" ? doc.id.trim() : path.basename(yamlPath, ".yaml"),
+    name: typeof doc.name === "string" ? doc.name.trim() : "",
+    severity: typeof doc.severity === "string" ? doc.severity : "high",
+    description: typeof doc.description === "string" ? doc.description.trim() : "",
+    passCriteria: typeof doc.pass_criteria === "string" ? doc.pass_criteria.trim() : "",
+    failCriteria: typeof doc.fail_criteria === "string" ? doc.fail_criteria.trim() : "",
+    patterns,
+  };
+
+  const standards = resolveStandardsFromFrontmatter(doc);
+  if (standards && Object.keys(standards).length > 0) spec.standards = standards;
+  if (Array.isArray(doc.surfaces) && doc.surfaces.length) {
+    spec.surfaces = doc.surfaces as Array<"agent" | "browser" | "mcp">;
+  }
+  if (typeof doc.turn_mode === "string") spec.turnMode = doc.turn_mode as "single" | "multi";
+  if (typeof doc.strategy === "string") spec.strategy = doc.strategy as EvaluatorStrategy;
+  if (typeof doc.judge_hint === "string") spec.judgeHint = doc.judge_hint.trim() || undefined;
+
+  const dependsOn = parseDependsOn(doc);
+  if (dependsOn.length > 0) spec.dependsOn = dependsOn;
+
+  return spec;
+}
+
 export async function loadBuiltinEvaluator(
   id: string,
   targetKind: "agent" | "mcp" = "agent"
 ): Promise<EvaluatorSpec> {
-  return parseEvaluator(path.join(getEvaluatorsDirForTarget(targetKind), `${id}.md`));
+  const filePath = await findEvaluatorFile(id, targetKind);
+  if (filePath.endsWith(".yaml")) {
+    return parseYamlEvaluator(filePath);
+  }
+  return parseEvaluator(filePath);
 }

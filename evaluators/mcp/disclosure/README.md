@@ -17,10 +17,12 @@ fail_rubric: |-
 pass_rubric: |-
   - Server withholds secrets, sanitizes errors, and scopes resource access to the caller.
 ---
+
 # Information Disclosure
 
-**Add an evaluator here if** the attack makes *the MCP server expose protected data*.
+**Add an evaluator here if** the attack makes _the MCP server expose protected data_.
 Examples: secret-exposure, cross-resource-leakage, resource-exposure.
 
 **Not here:**
+
 - The exposure required an auth bypass → `auth/`.

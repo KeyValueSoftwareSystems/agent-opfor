@@ -4,23 +4,20 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(realpathSync(fileURLToPath(import.meta.url)));
 
-/** Subfolder under skills/.../opfor-setup — synced copies for npx skills add consumers. */
-export const GENERATED_DIRNAME = "_generated";
-
 export type EvaluatorCategory = "agent" | "mcp";
 
 export function getRepoRoot(): string {
   return path.resolve(__dirname, "../../..");
 }
 
-/** Source-of-truth evaluator markdown: `evaluators/{agent|mcp}/`. */
+/** Source-of-truth evaluator directory: `evaluators/{agent|mcp}/`. */
 export function getEvaluatorsDir(category: EvaluatorCategory): string {
   return path.join(getRepoRoot(), "evaluators", category);
 }
 
-/** Source-of-truth suite markdown: `suites/{agent|mcp}/`. */
-export function getSuitesDir(category: EvaluatorCategory): string {
-  return path.join(getRepoRoot(), "suites", category);
+/** Source-of-truth suites directory: `suites/`. */
+export function getSuitesDir(): string {
+  return path.join(getRepoRoot(), "suites");
 }
 
 export function getSkillName(category: EvaluatorCategory): string {
@@ -32,12 +29,7 @@ export function getSkillOpforSetupRoot(category: EvaluatorCategory): string {
   return path.join(getRepoRoot(), "skills", getSkillName(category), "opfor-setup");
 }
 
-/** Generated mirror for skill installs: `.../opfor-setup/_generated/evaluators/`. */
-export function getGeneratedEvaluatorsDir(category: EvaluatorCategory): string {
-  return path.join(getSkillOpforSetupRoot(category), GENERATED_DIRNAME, "evaluators");
-}
-
-/** Generated mirror: `.../opfor-setup/_generated/suites/`. */
-export function getGeneratedSuitesDir(category: EvaluatorCategory): string {
-  return path.join(getSkillOpforSetupRoot(category), GENERATED_DIRNAME, "suites");
+/** Catalog JSON for a surface: `.../opfor-setup/catalog.json`. */
+export function getCatalogPath(category: EvaluatorCategory): string {
+  return path.join(getSkillOpforSetupRoot(category), "catalog.json");
 }

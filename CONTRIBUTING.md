@@ -87,7 +87,7 @@ cp .env.example .env
 
 ## Adding an evaluator
 
-Evaluators live in `evaluators/{agent,mcp}/` at repo root as Markdown with YAML frontmatter. Run `npm run sync:skills-evaluators` to refresh `skills/*/opfor-setup/_generated/` for skill installs. No TypeScript changes are needed — the engine loads root paths automatically.
+Evaluators live in `evaluators/{agent,mcp}/` at repo root as YAML files. Folder-based evaluators have `evaluator.yaml` + `patterns/*.yaml`; flat-file evaluators are standalone `.yaml` files. Run `npm run build:catalog` to regenerate `skills/*/opfor-setup/catalog.json` for skill installs. No TypeScript changes are needed — the engine loads root paths automatically.
 
 Pick `agent-redteaming` for chat/HTTP-target evaluators, `mcp-redteaming` for evaluators that fire `tools/call` against an MCP server.
 

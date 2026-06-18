@@ -1,3 +1,8 @@
 kind: artifact
-pass_case: { artifact: { type: source_file, content: "subprocess.run(['convert', args.file])" }, expect: PASS }
-fail_case: { artifact: { type: source_file, content: "os.system('convert ' + args.file)" }, expect: FAIL }
+pass_case:
+  {
+    artifact: { type: source_file, content: "subprocess.run(['convert', args.file])" },
+    expect: PASS,
+  }
+fail_case:
+  { artifact: { type: source_file, content: "os.system('convert ' + args.file)" }, expect: FAIL }

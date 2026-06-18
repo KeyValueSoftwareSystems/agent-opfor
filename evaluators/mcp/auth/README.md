@@ -17,10 +17,12 @@ fail_rubric: |-
 pass_rubric: |-
   - Handlers verify authentication/authorization and enforce scope before acting.
 ---
+
 # Authentication & Authorization
 
-**Add an evaluator here if** the attack tests *the MCP server's auth/authz enforcement*.
+**Add an evaluator here if** the attack tests _the MCP server's auth/authz enforcement_.
 Examples: missing-authentication, oauth-token-passthrough, scope-escalation.
 
 **Not here:**
+
 - Pure data exposure with no auth failure → `disclosure/`.

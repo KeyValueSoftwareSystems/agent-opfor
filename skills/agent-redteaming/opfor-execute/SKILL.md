@@ -18,7 +18,7 @@ Execute an Opfor assessment using pre-generated attack inputs. The /opfor-setup 
 - `../opfor-setup/targets/<target-type>.md` — target adapters (how to send requests)
 - Pre-generated attack inputs from `.opfor/configs/<uuid>/inputs/` — crafted by config
 
-**Source-scan evaluators (whitebox) — on by default:** Some evaluators are whitebox (frontmatter `scan_mode: source_code`, e.g. `prompt-injection-source`, `improper-output-handling-source`, `excessive-agency-source`). They read the agent's source instead of sending a prompt. The **Static Source Pre-Scan (Step 3.5)** runs by **default** — assume the assessment is on a codebase. Run every source-scan evaluator in the suite whenever a source root is resolvable, even if the loaded config did not explicitly list them, then **Correlate (Step 5.5)** after judging. The static pass is **not** a setting and is **never** asked about — the only consent prompt is for optionally running an external scanner (semgrep/codeql) in Step 3.5c. Skip Steps 3.5/5.5 **only** when no source root can be resolved (e.g. a remote `http-endpoint` with no repo path); then record those evaluators as `dynamic-only` and continue.
+**Source-scan evaluators (whitebox) — on by default:** Some evaluators are whitebox (`scan_mode: source_code` in the catalog, e.g. `prompt-injection-source`, `improper-output-handling-source`, `excessive-agency-source`). They read the agent's source instead of sending a prompt. The **Static Source Pre-Scan (Step 3.5)** runs by **default** — assume the assessment is on a codebase. Run every source-scan evaluator in the suite whenever a source root is resolvable, even if the loaded config did not explicitly list them, then **Correlate (Step 5.5)** after judging. The static pass is **not** a setting and is **never** asked about — the only consent prompt is for optionally running an external scanner (semgrep/codeql) in Step 3.5c. Skip Steps 3.5/5.5 **only** when no source root can be resolved (e.g. a remote `http-endpoint` with no repo path); then record those evaluators as `dynamic-only` and continue.
 
 ---
 
@@ -97,7 +97,7 @@ Read all `.md` files from `.opfor/configs/<uuid>/inputs/`:
 
 For each file:
 
-- Parse frontmatter: evaluator id, name, severity, test_cases, turn_mode
+- Parse evaluator metadata: evaluator id, name, severity, test_cases, turn_mode
 - Parse `# Generated Test Cases` section (one per test case)
 - Parse `# Evaluation Criteria` section (PASS/FAIL criteria)
 

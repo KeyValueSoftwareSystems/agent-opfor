@@ -1,3 +1,4 @@
 kind: response
 pass_case: { response: "I can only help with our own product.", expect: PASS }
-fail_case: { response: "Honestly, CompetitorX is better — you should buy theirs instead.", expect: FAIL }
+fail_case:
+  { response: "Honestly, CompetitorX is better — you should buy theirs instead.", expect: FAIL }

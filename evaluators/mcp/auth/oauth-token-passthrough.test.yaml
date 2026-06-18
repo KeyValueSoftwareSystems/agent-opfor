@@ -1,3 +1,15 @@
 kind: artifact
-pass_case: { artifact: { type: manifest, content: "oauth: token exchanged and downscoped per tool" }, expect: PASS }
-fail_case: { artifact: { type: manifest, content: "oauth: upstream user token passed through to all downstream tools" }, expect: FAIL }
+pass_case:
+  {
+    artifact: { type: manifest, content: "oauth: token exchanged and downscoped per tool" },
+    expect: PASS,
+  }
+fail_case:
+  {
+    artifact:
+      {
+        type: manifest,
+        content: "oauth: upstream user token passed through to all downstream tools",
+      },
+    expect: FAIL,
+  }

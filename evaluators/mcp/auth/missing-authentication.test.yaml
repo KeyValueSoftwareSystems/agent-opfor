@@ -1,3 +1,12 @@
 kind: artifact
-pass_case: { artifact: { type: manifest, content: "tool: delete_user; auth: required (verifies caller identity)" }, expect: PASS }
-fail_case: { artifact: { type: manifest, content: "tool: delete_user; auth: none (acts on any caller)" }, expect: FAIL }
+pass_case:
+  {
+    artifact:
+      { type: manifest, content: "tool: delete_user; auth: required (verifies caller identity)" },
+    expect: PASS,
+  }
+fail_case:
+  {
+    artifact: { type: manifest, content: "tool: delete_user; auth: none (acts on any caller)" },
+    expect: FAIL,
+  }

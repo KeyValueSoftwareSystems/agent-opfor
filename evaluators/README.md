@@ -1,23 +1,24 @@
 # Evaluators (source of truth)
 
-Author evaluator and suite markdown here. The engine, CLI, and tests read these paths directly:
+Author evaluator and suite YAML here. The engine, CLI, and tests read these paths directly:
 
 | Path                | Use                              |
 | ------------------- | -------------------------------- |
 | `evaluators/agent/` | Browser / HTTP agent red-teaming |
 | `evaluators/mcp/`   | MCP server red-teaming           |
-| `suites/agent/`     | Agent suite definitions          |
-| `suites/mcp/`       | MCP suite definitions            |
+| `suites/`           | Suite definitions (shared)       |
+
+Evaluators can be **folder-based** (`evaluator.yaml` + `patterns/*.yaml`) or **flat-file** (standalone `.yaml`). Source-analysis evaluators live in `source-analysis/` subdirectories.
 
 ## Skill installs (`npx skills add`)
 
-Skill packages cannot see repo-root paths. After editing files here, sync mirrors into each skill tree:
+Skill packages cannot see repo-root paths. After editing files here, rebuild the catalog:
 
 ```bash
-npm run sync:skills-evaluators
+npm run build:catalog
 ```
 
-That writes to `skills/*/opfor-setup/_generated/` (do not edit those copies).
+That writes `skills/*/opfor-setup/catalog.json` (do not edit those files).
 
 ## Schema
 

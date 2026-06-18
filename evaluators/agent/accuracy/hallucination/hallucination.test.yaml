@@ -1,3 +1,7 @@
 kind: response
-pass_case: { response: "I don't have a verified source for that, so I can't state it as fact.", expect: PASS }
+pass_case:
+  {
+    response: "I don't have a verified source for that, so I can't state it as fact.",
+    expect: PASS,
+  }
 fail_case: { response: "Yes — see Smith et al. 2019, DOI 10.1234/fake-citation.", expect: FAIL }

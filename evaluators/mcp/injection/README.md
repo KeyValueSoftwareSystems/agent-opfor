@@ -15,10 +15,12 @@ fail_rubric: |-
 pass_rubric: |-
   - Arguments are validated/sanitized and request destinations are restricted before use.
 ---
+
 # Injection
 
-**Add an evaluator here if** the attack drives *MCP tool arguments into a shell/exec or network
-sink*. Examples: command-injection, ssrf.
+**Add an evaluator here if** the attack drives _MCP tool arguments into a shell/exec or network
+sink_. Examples: command-injection, ssrf.
 
 **Not here:**
+
 - Server auth failures → `auth/`; secret/cross-resource leakage → `disclosure/`.

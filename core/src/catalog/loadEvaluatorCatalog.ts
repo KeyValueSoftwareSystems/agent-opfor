@@ -1,4 +1,4 @@
-import { readdir, readFile } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { parse as parseYaml } from "yaml";
 import {
@@ -6,7 +6,6 @@ import {
   getSuitesDir,
   type EvaluatorCategory,
 } from "../config/evaluatorsLayout.js";
-import { splitYamlFrontmatter } from "../util/yamlFrontmatter.js";
 import { resolveStandardsFromFrontmatter } from "../evaluators/standards.js";
 import { loadAtlasTechniqueIdSet } from "../standards/atlas.js";
 import type { StandardsMap } from "../evaluators/schema.js";
@@ -31,6 +30,38 @@ function normalizeSeverity(s: string): EvaluatorMeta["severity"] {
   return "high";
 }
 
+async function isDir(p: string): Promise<boolean> {
+  try {
+    return (await stat(p)).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+async function walkYamlFiles(dir: string): Promise<string[]> {
+  const results: string[] = [];
+
+  async function recurse(d: string): Promise<void> {
+    let entries: string[];
+    try {
+      entries = await readdir(d);
+    } catch {
+      return;
+    }
+    for (const entry of entries.sort()) {
+      const full = path.join(d, entry);
+      if (await isDir(full)) {
+        await recurse(full);
+      } else if (entry.endsWith(".yaml") && !entry.endsWith(".test.yaml")) {
+        results.push(full);
+      }
+    }
+  }
+
+  await recurse(dir);
+  return results;
+}
+
 export async function loadEvaluatorCatalog(category: EvaluatorCategory): Promise<{
   evaluators: EvaluatorMeta[];
   suites: SuiteMeta[];
@@ -38,24 +69,22 @@ export async function loadEvaluatorCatalog(category: EvaluatorCategory): Promise
   const validateAtlas = process.env.OPFOR_VALIDATE_ATLAS === "1";
   const atlasTechniqueIds = validateAtlas ? await loadAtlasTechniqueIdSet() : null;
 
-  const evalDir = getEvaluatorsDir(category);
-  const suitesDir = getSuitesDir(category);
+  const suitesDir = getSuitesDir();
 
-  const suiteFiles = (await readdir(suitesDir)).filter((f) => f.endsWith(".md"));
+  let suiteFiles: string[];
+  try {
+    suiteFiles = (await readdir(suitesDir)).filter((f) => f.endsWith(".yaml"));
+  } catch {
+    suiteFiles = [];
+  }
   const suites: SuiteMeta[] = [];
   for (const f of suiteFiles) {
     const raw = await readFile(path.join(suitesDir, f), "utf8");
-    const sp = splitYamlFrontmatter(raw);
-    if (!sp) throw new Error(`Suite ${f}: missing YAML frontmatter (leading --- block)`);
-    const doc = parseYaml(sp.yaml) as Record<string, unknown>;
+    const doc = parseYaml(raw) as Record<string, unknown>;
     const id = doc.id;
-    if (typeof id !== "string" || !id.trim()) {
-      throw new Error(`Suite ${f}: frontmatter must set id (string)`);
-    }
+    if (typeof id !== "string" || !id.trim()) continue;
     const ev = doc.evaluators;
-    if (!Array.isArray(ev) || ev.some((x) => typeof x !== "string")) {
-      throw new Error(`Suite ${f}: frontmatter must set evaluators: [string, ...]`);
-    }
+    if (!Array.isArray(ev) || ev.some((x) => typeof x !== "string")) continue;
     suites.push({
       id: id.trim(),
       name: typeof doc.name === "string" ? doc.name : id.trim(),
@@ -65,25 +94,33 @@ export async function loadEvaluatorCatalog(category: EvaluatorCategory): Promise
   }
   suites.sort((a, b) => a.id.localeCompare(b.id));
 
-  const evalFiles = (await readdir(evalDir)).filter((f) => f.endsWith(".md"));
+  const evalDir = getEvaluatorsDir(category);
+  const allYaml = await walkYamlFiles(evalDir);
   const evaluators: EvaluatorMeta[] = [];
-  for (const f of evalFiles) {
-    const mdPath = path.join(evalDir, f);
-    const raw = await readFile(mdPath, "utf8");
-    const sp = splitYamlFrontmatter(raw);
-    if (!sp) throw new Error(`Evaluator ${f}: missing YAML frontmatter`);
-    const doc = parseYaml(sp.yaml) as Record<string, unknown>;
-    const id =
-      typeof doc.id === "string" && doc.id.trim() ? doc.id.trim() : f.replace(/\.md$/i, "");
+  const seen = new Set<string>();
+
+  for (const filePath of allYaml) {
+    const rel = path.relative(evalDir, filePath);
+
+    // Skip pattern files
+    if (rel.includes("/patterns/")) continue;
+
+    const raw = await readFile(filePath, "utf8");
+    const doc = parseYaml(raw) as Record<string, unknown>;
+    const id = typeof doc.id === "string" && doc.id.trim() ? doc.id.trim() : undefined;
+    if (!id) continue;
+    if (seen.has(id)) continue;
+    seen.add(id);
+
     const standards = resolveStandardsFromFrontmatter(doc);
     const atlasId = standards?.atlas;
     if (atlasTechniqueIds && typeof atlasId === "string" && atlasId.trim()) {
       const normalized = atlasId.trim();
       if (!/^AML\.T\d{4}(\.\d{3})?$/.test(normalized)) {
-        throw new Error(`Evaluator ${f}: standards.atlas has invalid format "${normalized}"`);
+        throw new Error(`Evaluator ${rel}: standards.atlas has invalid format "${normalized}"`);
       }
       if (!atlasTechniqueIds.has(normalized)) {
-        throw new Error(`Evaluator ${f}: standards.atlas unknown technique id "${normalized}"`);
+        throw new Error(`Evaluator ${rel}: standards.atlas unknown technique id "${normalized}"`);
       }
     }
     evaluators.push({

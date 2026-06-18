@@ -18,11 +18,12 @@ fail_rubric: |-
 pass_rubric: |-
   - No unguarded tainted-to-sink path is found.
 ---
+
 # Source (White-box) Analysis — quarantined
 
 **Status:** these SAST evaluators are quarantined here pending a team decision on whether
 white-box source pentesting is in OPFOR's product scope. They are surface-correct (they read the
-*agent's* source) and pair with a dynamic sibling, but they are a different modality.
+_agent's_ source) and pair with a dynamic sibling, but they are a different modality.
 
 Files: prompt-injection-source, improper-output-handling-source, excessive-agency-source.
 

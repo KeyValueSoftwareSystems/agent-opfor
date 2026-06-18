@@ -18,7 +18,7 @@ Execute an MCP adversarial assessment using pre-generated attack inputs. The /op
 - `../opfor-setup/targets/<transport>.md` — transport adapters (how to connect and communicate)
 - Pre-generated attack inputs from `.opfor/configs/<uuid>/inputs/` — crafted by setup
 
-**Source-scan evaluators (whitebox) — on by default:** Some evaluators are whitebox (frontmatter `scan_mode: source_code`). They read the server's source instead of sending a runtime payload. The **Static Source Pre-Scan (Step 4.5)** runs by **default** — assume the assessment is on a codebase. Run every source-scan evaluator in the suite whenever a source root is resolvable, even if the loaded config did not explicitly list them, then **Correlate (Step 6.5)** after judging. The static pass is **not** a setting and is **never** asked about — the only consent prompt is for optionally running an external scanner (semgrep/codeql) in Step 4.5c. Skip Steps 4.5/6.5 **only** when no source root can be resolved (e.g. a remote `url` target with no repo path); then record those evaluators as `dynamic-only` and continue.
+**Source-scan evaluators (whitebox) — on by default:** Some evaluators are whitebox (`scan_mode: source_code` in the catalog). They read the server's source instead of sending a runtime payload. The **Static Source Pre-Scan (Step 4.5)** runs by **default** — assume the assessment is on a codebase. Run every source-scan evaluator in the suite whenever a source root is resolvable, even if the loaded config did not explicitly list them, then **Correlate (Step 6.5)** after judging. The static pass is **not** a setting and is **never** asked about — the only consent prompt is for optionally running an external scanner (semgrep/codeql) in Step 4.5c. Skip Steps 4.5/6.5 **only** when no source root can be resolved (e.g. a remote `url` target with no repo path); then record those evaluators as `dynamic-only` and continue.
 
 ---
 
@@ -89,7 +89,7 @@ Read all `.md` files from `.opfor/configs/<uuid>/inputs/`:
 
 For each file:
 
-- Parse frontmatter: evaluator id, name, severity, attack_count, turn_mode
+- Parse evaluator metadata: evaluator id, name, severity, attack_count, turn_mode
 - Parse `# Generated Attacks` section (one per attack)
 - Parse `# Evaluation Criteria` section (PASS/FAIL criteria)
 

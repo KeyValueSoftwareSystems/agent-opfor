@@ -116,26 +116,43 @@ This discovery informs which evaluators are most relevant.
 
 ## 5. Assessment Scope: Suite or Custom Evaluators
 
-### Step 1: Discover Available Suites
+### Step 1: Load Catalog
 
-Scan `./suites/` for all `.md` files. For each, read the YAML frontmatter and extract:
+Read `./catalog.json`. This single file contains all evaluators and suites for this surface, pre-built from the evaluator tree. Parse it as JSON — it has this shape:
 
-- `id` — stable suite id
-- `name` — display name
-- `description` — short summary
-- `evaluators` — ordered list of evaluator ids
+```json
+{
+  "surface": "mcp",
+  "evaluators": [
+    {
+      "id": "ssrf",
+      "name": "Server-Side Request Forgery (SSRF)",
+      "severity": "critical",
+      "standards": { "owasp-mcp": "MCP05" },
+      "description": "...",
+      "pass_criteria": "...",
+      "fail_criteria": "...",
+      "patterns": [{ "name": "AWS IMDSv1 Metadata SSRF", "template": "..." }],
+      "scan_mode": null,
+      "correlates_with": null,
+      "source_scan": null
+    }
+  ],
+  "suites": [
+    {
+      "id": "quick-smoke",
+      "name": "Quick Smoke",
+      "description": "...",
+      "evaluators": ["prompt-injection", "..."]
+    }
+  ]
+}
+```
 
-### Step 2: Discover Available Evaluators
+From the catalog extract:
 
-Scan `./_generated/evaluators/` for all `.md` files. For each, read the YAML frontmatter and extract:
-
-- `id` — evaluator ID
-- `name` — display name
-- `severity` — critical, high, medium, low
-- `standards` — map of taxonomy → ID (e.g. `owasp-mcp: MCP01`, `atlas: AML.T0056`)
-- `description` — what it tests
-- `patterns` — array of `{ name, template }` (may be empty for scanner-only evaluators)
-- `pass_criteria` / `fail_criteria` — judging guidance
+- **Suites:** each has `id`, `name`, `description`, and `evaluators` (list of evaluator IDs)
+- **Evaluators:** each has `id`, `name`, `severity`, `standards`, `description`, `patterns` (array of `{ name, template }`), `pass_criteria`, `fail_criteria`, and optional `scan_mode`, `correlates_with`, `source_scan`
 
 ### Step 3: Ask User to Choose
 
@@ -152,7 +169,7 @@ B) Custom selection (pick specific evaluators)
 
 **IMPORTANT:**
 
-- Only present suites that actually exist in `./suites/`
+- Only present suites that exist in the catalog
 - If user chooses A, show which evaluators will run
 - If user chooses B, present evaluators grouped by severity
 
@@ -196,14 +213,14 @@ Ask: **"Single-turn or multi-turn attacks?"**
 
 For each selected evaluator:
 
-1. Read the evaluator file from `./_generated/evaluators/<id>.md`
-2. Parse YAML frontmatter: use the `patterns` array as attack templates
+1. Look up the evaluator entry by `id` in the catalog's `evaluators` array
+2. Use the entry's `patterns` array (`{ name, template }`) as attack templates
 3. Generate `<n>` attack variations:
    - Adapt templates to the specific tools and resources discovered in Step 4
    - Use actual tool names, argument schemas, and resource URIs
    - For evaluators without patterns (scanner-only): generate attacks based on the evaluator's description and the discovered attack surface
    - For **source-scan evaluators** (`scan_mode: source_code`, `patterns: []`): do **not** generate runtime attacks. Write the input file with the evaluator metadata and pass/fail criteria only — the execute skill reads the server's source for these (it needs a resolvable source root; for `url` transport it will ask for the repo path). Note in the config summary that these evaluators require source access.
-4. Copy pass/fail criteria from frontmatter
+4. Copy `pass_criteria` and `fail_criteria` from the catalog entry
 
 Show progress:
 

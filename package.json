@@ -22,7 +22,7 @@
     "node": ">=18.0.0"
   },
   "scripts": {
-    "build": "npm run sync:skills-evaluators && tsc -b core runners/cli runners/mcp && npm run extension:catalog && npm run build:core --workspace=@opfor/extension",
+    "build": "npm run build:catalog && tsc -b core runners/cli runners/mcp && npm run extension:catalog && npm run build:core --workspace=@opfor/extension",
     "clean": "rm -rf core/dist runners/*/dist core/*.tsbuildinfo runners/*/*.tsbuildinfo",
     "install:cli": "npm run build && npm install -g ./runners/cli",
     "test": "npm test --workspace=core",
@@ -33,8 +33,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "validate:skills": "tsx scripts/validate-skills.ts",
-    "sync:skills-evaluators": "tsx scripts/sync-skills-evaluators.ts",
-    "sync:skills-evaluators:check": "tsx scripts/sync-skills-evaluators.ts --check",
+    "build:catalog": "tsx scripts/build-catalog.ts",
+    "build:catalog:check": "tsx scripts/build-catalog.ts --check",
     "coverage:atlas": "tsx scripts/generate-atlas-coverage.ts",
     "report:pdf": "tsx scripts/generate-pdf-report.ts",
     "prepare": "husky"

@@ -238,47 +238,45 @@ Ask the user if they can share the target's system prompt. This is optional but 
 
 ## 6. Assessment Scope: Suite or Custom Evaluators
 
-### Step 1: Discover Available Suites
+### Step 1: Load Catalog
 
-**Before asking the user anything**, scan `./suites/` for all `.md` files:
+Read `./catalog.json`. This single file contains all evaluators and suites for this surface, pre-built from the evaluator tree. Parse it as JSON — it has this shape:
 
-For each file, read the **YAML frontmatter** (between the first pair of `---` lines) and extract:
-
-- `id` — stable suite id (e.g. `owasp-llm-top10`; must match the filename stem)
-- `name` — display name
-- `version` — optional label (e.g. `"2025"`)
-- `description` — short summary for the user
-- `evaluators` — ordered list of evaluator ids (strings) that belong to this suite
-
-Example suites found:
-
+```json
+{
+  "surface": "agent",
+  "evaluators": [
+    {
+      "id": "prompt-injection",
+      "name": "Prompt Injection",
+      "severity": "critical",
+      "standards": { "owasp-llm": "LLM01" },
+      "description": "...",
+      "pass_criteria": "...",
+      "fail_criteria": "...",
+      "patterns": [{ "name": "Direct Override", "template": "..." }],
+      "scan_mode": null,
+      "correlates_with": null,
+      "source_scan": null
+    }
+  ],
+  "suites": [
+    {
+      "id": "quick-smoke",
+      "name": "Quick Smoke",
+      "description": "...",
+      "evaluators": ["prompt-injection", "..."]
+    }
+  ]
+}
 ```
-📋 owasp-llm-top10
-   OWASP Top 10 for LLM Applications (2025)
-   Tests: prompt injection, sensitive disclosure, supply chain vulnerabilities, etc.
 
-📋 owasp-agentic-ai
-   OWASP Agentic AI Top 10 (2024)
-   Tests: goal hijacking, tool misuse, identity abuse, cascading failures, etc.
-```
+From the catalog extract:
 
-### Step 2: Discover Available Evaluators
+- **Suites:** each has `id`, `name`, `description`, and `evaluators` (list of evaluator IDs)
+- **Evaluators:** each has `id`, `name`, `severity`, `standards`, `description`, `patterns` (array of `{ name, template }`), `pass_criteria`, `fail_criteria`, and optional `scan_mode`, `correlates_with`, `source_scan`
 
-**Also scan** `./_generated/evaluators/` for all `.md` files:
-
-For each file, read the **YAML frontmatter** and extract:
-
-- `id` — evaluator ID (e.g., "prompt-injection")
-- `name` — display name (e.g., "Prompt Injection")
-- `severity` — critical, high, medium, low
-- `standards` — map of taxonomy → ID (e.g. `owasp-llm: LLM01`, `atlas: AML.T0056`)
-- `surfaces` — optional: agent, browser, mcp
-- `turn_mode` — optional: single or multi
-- `description` — what it tests
-- `patterns` — array of `{ name, template }` used to generate attacks (same source the CLI reads)
-- `pass_criteria` / `fail_criteria` — strings used when judging (may be multi-line)
-
-The markdown **body** (headings like "What It Tests", "Why It Matters") is for humans; **do not** invent alternate templates in the body — use `patterns` from frontmatter when generating inputs.
+**Do not** invent alternate templates — use `patterns` from the catalog when generating inputs.
 
 Group evaluators by severity for display.
 
@@ -298,10 +296,10 @@ B) Custom selection (pick specific evaluators)
 
 **IMPORTANT:**
 
-- Only present suites that actually exist in `./suites/`
+- Only present suites that exist in the catalog
 - Do NOT allow free-form suite names
-- If user chooses A, ask them to select from the discovered suites
-- If user chooses B, present discovered evaluators grouped by severity
+- If user chooses A, ask them to select from the catalog's suites
+- If user chooses B, present catalog evaluators grouped by severity
 
 **Whitebox source-scan evaluators are on by default — do not ask.** Evaluators with `scan_mode: source_code` (e.g. `prompt-injection-source`) are **always included automatically** whenever the assessment runs on a codebase, regardless of suite or custom selection. In custom mode they are pre-selected, not opt-in. The static pass is never gated behind a question or setting — assume a codebase is present. (The execute skill resolves the source root and runs them; the only consent prompt there is for optionally invoking an external scanner like semgrep/codeql.)
 
@@ -329,7 +327,7 @@ This will run these 10 evaluators:
 
 ### If User Chooses Option B: Custom Evaluators
 
-Present evaluators grouped by severity (discovered from `./_generated/evaluators/`):
+Present evaluators grouped by severity (from the catalog):
 
 ```
 CRITICAL (5 found):
@@ -385,8 +383,8 @@ After collecting test configuration, generate pre-attack input files automatical
 
 **For each selected evaluator:**
 
-1. Read the evaluator file from `./_generated/evaluators/<evaluator-id>.md`
-2. Parse YAML frontmatter: use the `patterns` array (`name` + `template` strings) as the only source of attack templates
+1. Look up the evaluator entry by `id` in the catalog's `evaluators` array
+2. Use the entry's `patterns` array (`{ name, template }`) as the only source of attack templates
 3. Generate `<test_cases>` attack prompts:
    - Use those templates
    - Adapt to target using:
@@ -398,7 +396,7 @@ After collecting test configuration, generate pre-attack input files automatical
    - For **single-turn**: each test case is one standalone prompt
    - For **multi-turn**: each test case is a conversation sequence (Turn 1 → initial attack, Turn 2 → escalation, Turn 3+ → further exploitation)
    - For **source-scan evaluators** (`scan_mode: source_code`, `patterns: []`): do **not** generate prompts. Write the input file with the evaluator metadata and pass/fail criteria only — the execute skill reads the agent's source for these (it needs a resolvable source root; `custom-function` targets derive it from the Notes entry point, `http-endpoint` targets are asked for the repo path). Note in the config summary that these require source access.
-4. Copy pass/fail guidance from frontmatter `pass_criteria` and `fail_criteria` (or the `## Evaluation Criteria` section in the body if you need extra context for the report)
+4. Copy `pass_criteria` and `fail_criteria` from the catalog entry
 5. Write to input file (see "Write Config Folder" step for format)
 
 Show progress bar:
