@@ -11,7 +11,7 @@ import express from "express";
 import type { RunLog } from "@opfor/core/autonomous/state/runLog.js";
 import type { AutoOptions, TargetConfig, TargetMode } from "@opfor/core/autonomous/lib/types.js";
 import type { RunEvent } from "@opfor/core/autonomous/state/observe.js";
-import { UiBridge, mergeReporters, type SseClient } from "./bridge.js";
+import { UiBridge, type SseClient } from "./bridge.js";
 import type { SnapshotMeta } from "./snapshot.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));

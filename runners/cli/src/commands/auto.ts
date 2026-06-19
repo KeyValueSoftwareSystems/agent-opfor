@@ -212,6 +212,7 @@ export function registerAutoCommand(program: Command): void {
 
         consola.info(`Starting setup UI at http://127.0.0.1:${uiPort}`);
 
+        // eslint-disable-next-line prefer-const
         let serverHandle: Awaited<ReturnType<typeof startUiServer>> | undefined;
 
         const cleanup = async (exitCode: number) => {
