@@ -1,12 +1,12 @@
 /**
  * Unified evaluator/suite discovery for YAML structure.
  *
- * Structure:
- *   evaluators/{category}/{family}/{evaluator}/
- *     - evaluator.yaml (required)
- *     - patterns/*.yaml (attack patterns)
+ * An evaluator is discovered in either form:
+ *   - Directory form: evaluators/{category}/.../{evaluator}/evaluator.yaml (+ patterns/*.yaml)
+ *   - Flat-file form:  evaluators/{category}/.../{evaluator}.yaml (patterns inline)
+ * (*.test.yaml files are fixtures, not evaluators, and are ignored.)
  *
- *   suites/{category}/*.yaml (flat YAML files)
+ * Suites: suites/{category}/*.yaml (flat YAML files)
  */
 
 import { readdir, readFile, stat } from "node:fs/promises";
@@ -44,6 +44,11 @@ export async function discoverEvaluatorFiles(
   const baseDir = getEvaluatorsDir(category);
   const results: DiscoveredEvaluator[] = [];
 
+  // Flat-file form: <category>/<id>.yaml (patterns inline). Excludes the
+  // directory-form marker (evaluator.yaml) and *.test.yaml fixtures.
+  const isFlatEvaluatorFile = (entry: string): boolean =>
+    /\.ya?ml$/i.test(entry) && !/\.test\.ya?ml$/i.test(entry) && !/^evaluator\.ya?ml$/i.test(entry);
+
   async function walk(dir: string): Promise<void> {
     let entries: string[];
     try {
@@ -79,6 +84,13 @@ export async function discoverEvaluatorFiles(
         }
 
         await walk(fullPath);
+      } else if (isFlatEvaluatorFile(entry)) {
+        results.push({
+          filePath: fullPath,
+          dirPath: dir,
+          isDirectoryForm: false,
+          category,
+        });
       }
     }
   }

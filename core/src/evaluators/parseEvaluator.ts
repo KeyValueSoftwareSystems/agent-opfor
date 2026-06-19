@@ -74,8 +74,13 @@ export async function parseEvaluator(yamlPath: string): Promise<EvaluatorSpec> {
     judgeHint: p.judge_hint?.trim(),
   }));
 
-  // If no inline patterns, look for patterns/ directory
-  if (patterns.length === 0) {
+  // If no inline patterns, look for a patterns/ directory — but ONLY for
+  // directory-form evaluators (evaluator.yaml), whose dirname IS the evaluator's
+  // own folder. A flat-form evaluator (<id>.yaml) shares its dirname with the
+  // whole category, so scanning patterns/ there would load some OTHER evaluator's
+  // patterns. Flat-form evaluators must therefore define their patterns inline.
+  const isDirectoryForm = /^evaluator\.ya?ml$/i.test(path.basename(yamlPath));
+  if (patterns.length === 0 && isDirectoryForm) {
     const evaluatorDir = path.dirname(yamlPath);
     const patternFiles = await discoverPatternFiles(evaluatorDir);
 
@@ -99,7 +104,10 @@ export async function parseEvaluator(yamlPath: string): Promise<EvaluatorSpec> {
 
   // Patterns required unless strategy is mcp-scanner
   if (patterns.length === 0 && fm.strategy !== "mcp-scanner") {
-    throw new Error(`Evaluator ${yamlPath}: must have patterns (inline or in patterns/ directory)`);
+    const where = isDirectoryForm
+      ? "inline or in a patterns/ directory"
+      : "inline (flat-form evaluators cannot use a patterns/ directory)";
+    throw new Error(`Evaluator ${yamlPath}: must have patterns (${where})`);
   }
 
   const spec: EvaluatorSpec = {

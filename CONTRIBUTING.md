@@ -221,11 +221,20 @@ Opfor can fetch recorded traces from an observability platform and give them to 
        /* return full trace object or null */
      },
      async fetchTraceForJudge(telemetry, traceId, opts) {
-       const result = await pollUntilResult(async () => {
-         const data = await myFetchTrace(telemetry, traceId);
-         return data ? stringifyForJudge(data, opts.maxChars) : null;
-       }, opts);
-       return result ?? `[<Name> trace not available after ${opts.maxAttempts} attempt(s).]`;
+       // Shared helper owns the hard part: poll until the trace is COMPLETE
+       // (the final turn has ingested), bounded by the budget, best-effort on
+       // timeout. You supply only how to fetch the current snapshot.
+       return pollTraceForJudge({
+         traceId,
+         providerLabel: "my-provider",
+         expectedResponse: opts.expectedResponse, // completeness signal
+         budget: opts, // initialDelayMs / maxAttempts / retryDelayMs
+         maxChars: opts.maxChars,
+         fetchSnapshot: async () => {
+           const data = await myFetchTrace(telemetry, traceId);
+           return data ?? null; // null until anything is ingested
+         },
+       });
      },
    };
    ```
@@ -242,7 +251,7 @@ Opfor can fetch recorded traces from an observability platform and give them to 
    - Add `"my-provider"` to the `TelemetryProviderId` union.
    - Add a `myProvider?: MyProviderTelemetryConfig` block to `TelemetryConfig`.
 
-5. **Polling defaults** — `POLL_DEFAULTS` in `core/src/telemetry/pollingUtils.ts` gives you sensible starting values (`500 ms` initial delay, `5` attempts, `400 ms` between). Pass them through `fetchTraceForJudge`'s `opts` argument — callers can override per `TelemetryConfig`.
+5. **Trace completeness & polling** — don't return the trace the instant any span appears; observability backends ingest in batches, so the final turn (often where the leak is) lands last. `pollTraceForJudge` (`core/src/telemetry/judgeTracePoll.ts`) handles this for you: it polls your `fetchSnapshot` until the trace contains `opts.expectedResponse` (or the snapshot settles), bounded by the budget, and returns a best-effort `_incomplete`-tagged snapshot on timeout so a slow platform never stalls the run. Budget defaults live in `POLL_DEFAULTS` (`pollingUtils.ts`): `1000 ms` initial, `8` attempts, `1500 ms` between (~11.5 s cap); callers override per `TelemetryConfig`.
 
 ---
 

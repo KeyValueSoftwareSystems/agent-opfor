@@ -432,10 +432,13 @@ export async function runAttackAgent(cfg: RunAgentConfig): Promise<AgentAttackRe
     process.stdout.write(`\n     → ${tel.provider} trace for judge...`);
     obs.traceJson =
       (await adapter.fetchTraceForJudge(tel, propagationTraceId.trim(), {
-        initialDelayMs: tel.traceFetchInitialDelayMs ?? 500,
-        maxAttempts: tel.traceFetchMaxAttempts ?? 5,
-        retryDelayMs: tel.traceFetchRetryDelayMs ?? 400,
+        // Budget sized for the completeness poll (wait for the response to ingest).
+        initialDelayMs: tel.traceFetchInitialDelayMs ?? 1000,
+        maxAttempts: tel.traceFetchMaxAttempts ?? 8,
+        retryDelayMs: tel.traceFetchRetryDelayMs ?? 1500,
         maxChars: tel.enrichJudgeTraceJsonMaxChars ?? 40_000,
+        // Completeness signal: trace is "done" once this response has ingested.
+        expectedResponse: capturedResponse,
       })) ?? undefined;
   }
   const attackContext: AttackContext = { patternName: attack.patternName };

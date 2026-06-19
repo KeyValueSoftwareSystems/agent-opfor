@@ -297,7 +297,10 @@ async function runAssessmentInProcess(
 
   // Set up output directory and log files
   await mkdir(autoOptions.outputDir, { recursive: true });
-  const startedAt = new Date().toISOString().replace(/[-:T.Z]/g, "").slice(0, 14);
+  const startedAt = new Date()
+    .toISOString()
+    .replace(/[-:T.Z]/g, "")
+    .slice(0, 14);
   const liveLogPath = path.join(autoOptions.outputDir, `auto-live-${startedAt}.log`);
   const liveLog: WriteStream = createWriteStream(liveLogPath, { flags: "a" });
   const eventLogPath = path.join(autoOptions.outputDir, `run-${startedAt}.jsonl`);

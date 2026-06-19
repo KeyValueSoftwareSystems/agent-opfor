@@ -30,6 +30,7 @@ export const langfuseAdapter: TelemetryAdapter = {
       maxAttempts: opts.maxAttempts,
       retryDelayMs: opts.retryDelayMs,
       maxJsonChars: opts.maxChars,
+      expectedResponse: opts.expectedResponse,
     });
     return result ?? null;
   },

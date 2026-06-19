@@ -135,7 +135,9 @@ export function SetupPage({ onStart }: Props) {
                   onChange={(e) => updateConfig("model", e.target.value)}
                   placeholder="gpt-4o-mini (for raw LLM APIs)"
                 />
-                <span className="field-hint">Required for raw LLM APIs, optional for custom agents</span>
+                <span className="field-hint">
+                  Required for raw LLM APIs, optional for custom agents
+                </span>
               </div>
               <div className="form-field">
                 <label>Display Name</label>
@@ -155,7 +157,8 @@ export function SetupPage({ onStart }: Props) {
                   placeholder="TARGET_API_KEY"
                 />
                 <span className="field-hint">
-                  Environment variable name containing the API key (e.g., TARGET_API_KEY, OPENAI_API_KEY)
+                  Environment variable name containing the API key (e.g., TARGET_API_KEY,
+                  OPENAI_API_KEY)
                 </span>
               </div>
             </div>

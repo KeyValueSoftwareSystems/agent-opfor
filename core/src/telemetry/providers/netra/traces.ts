@@ -3,8 +3,7 @@ import type {
   NetraTraceSelectionConfig,
   TelemetryConfig,
 } from "../../../config/types.js";
-import { pollUntilResult, POLL_DEFAULTS } from "../../pollingUtils.js";
-import { stringifyForJudge, JUDGE_PAYLOAD_DEFAULTS } from "../../judgePayload.js";
+import { pollTraceForJudge } from "../../judgeTracePoll.js";
 
 const DEFAULT_LIST_LIMIT = 50;
 const DEFAULT_MAX_PAGES = 1;
@@ -307,8 +306,10 @@ export async function hydrateNetraTraceRecord(
 }
 
 /**
- * After an attack, poll GET /sdk/traces/:id/spans until spans appear (ingestion lag),
- * then return a truncated JSON string for the LLM judge.
+ * After an attack, poll GET /sdk/traces/:id/spans until the trace is COMPLETE,
+ * then return a truncated JSON string for the LLM judge. The poll/completeness/
+ * best-effort logic is shared across providers in `pollTraceForJudge`; this only
+ * supplies the Netra-specific snapshot fetch (spans) and the dedupe transform.
  */
 export async function fetchNetraTraceJsonForJudge(
   telemetry: TelemetryConfig,
@@ -318,6 +319,8 @@ export async function fetchNetraTraceJsonForJudge(
     maxAttempts?: number;
     retryDelayMs?: number;
     maxJsonChars?: number;
+    /** Final assistant response — used to detect when the last turn has ingested. */
+    expectedResponse?: string;
   }
 ): Promise<string> {
   if (telemetry.provider !== "netra" || !telemetry.netra) {
@@ -329,22 +332,20 @@ export async function fetchNetraTraceJsonForJudge(
     return "[Netra trace fetch failed: missing credentials (check NETRA_API_KEY and baseUrl).]";
   }
 
-  const initialDelayMs = options?.initialDelayMs ?? POLL_DEFAULTS.initialDelayMs;
-  const maxAttempts = options?.maxAttempts ?? POLL_DEFAULTS.maxAttempts;
-  const retryDelayMs = options?.retryDelayMs ?? POLL_DEFAULTS.retryDelayMs;
-  const maxJsonChars = options?.maxJsonChars ?? JUDGE_PAYLOAD_DEFAULTS.maxChars;
-
-  const result = await pollUntilResult<string>(
-    async () => {
-      const spans = await fetchNetraSpansForTrace(cfg, traceId);
-      return spans.length > 0
-        ? stringifyForJudge(dedupeRepeatedStrings({ traceId, spans }), maxJsonChars)
-        : null;
+  return pollTraceForJudge({
+    traceId,
+    providerLabel: "netra",
+    expectedResponse: options?.expectedResponse,
+    budget: {
+      initialDelayMs: options?.initialDelayMs,
+      maxAttempts: options?.maxAttempts,
+      retryDelayMs: options?.retryDelayMs,
     },
-    { initialDelayMs, maxAttempts, retryDelayMs }
-  );
-
-  return (
-    result ?? `[Netra trace not available after ${maxAttempts} attempt(s). Trace id: ${traceId}]`
-  );
+    maxChars: options?.maxJsonChars,
+    fetchSnapshot: async () => {
+      const spans = await fetchNetraSpansForTrace(cfg, traceId);
+      return spans.length > 0 ? { traceId, spans } : null;
+    },
+    transform: (snapshot) => dedupeRepeatedStrings(snapshot),
+  });
 }

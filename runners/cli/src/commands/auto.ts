@@ -104,7 +104,10 @@ export function registerAutoCommand(program: Command): void {
     .option("--endpoint <url>", "Target agent HTTP endpoint (required unless using --ui setup)")
     .option("--objective <text>", "Free-text attack objective")
     .option("--objective-file <path>", "Read the objective from a file")
-    .option("--target-key-env <envvar>", "Env var name containing target API key (e.g., TARGET_API_KEY)")
+    .option(
+      "--target-key-env <envvar>",
+      "Env var name containing target API key (e.g., TARGET_API_KEY)"
+    )
     .option("--target-key <key>", "Target API key directly (prefer --target-key-env)")
     .option("--name <name>", "Display name for the target (defaults to endpoint host)")
     .option("--stateless", "Target is stateless; replay full history each turn (default)")
@@ -190,7 +193,7 @@ export function registerAutoCommand(program: Command): void {
         }
 
         const uiPort = intOr(opts.uiPort, 3847);
-        
+
         // Pass any provided CLI flags as initial config for prefill
         const initialConfig = {
           endpoint: opts.endpoint,
@@ -208,9 +211,9 @@ export function registerAutoCommand(program: Command): void {
         };
 
         consola.info(`Starting setup UI at http://127.0.0.1:${uiPort}`);
-        
+
         let serverHandle: Awaited<ReturnType<typeof startUiServer>> | undefined;
-        
+
         const cleanup = async (exitCode: number) => {
           if (serverHandle) {
             await serverHandle.close().catch(() => {});
@@ -282,7 +285,10 @@ export function registerAutoCommand(program: Command): void {
       const target: TargetConfig = {
         name: opts.name ?? new URL(opts.endpoint!).host,
         endpoint: opts.endpoint!,
-        apiKey: opts.targetKey ?? (opts.targetKeyEnv ? process.env[opts.targetKeyEnv] : undefined) ?? process.env.TARGET_API_KEY,
+        apiKey:
+          opts.targetKey ??
+          (opts.targetKeyEnv ? process.env[opts.targetKeyEnv] : undefined) ??
+          process.env.TARGET_API_KEY,
         headers: parseHeaders(opts.header),
         mode,
         promptPath: opts.promptPath,

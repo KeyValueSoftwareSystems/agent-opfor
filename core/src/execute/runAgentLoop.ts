@@ -97,6 +97,7 @@ export async function runAgentAttack(
         businessUseCase: attack.businessUseCase,
         siteSnapshot: attack.siteSnapshot,
         maxLength: attack.maxMessageLength,
+        traceContext: attack.traceContext,
         previousTechnique: attackerMeta[attackerMeta.length - 1]?.technique,
         upstreamSessions: attack.upstreamSessions,
       });
@@ -177,10 +178,15 @@ async function buildJudgeObservability(
     log.info(`  → fetching ${telemetry.provider} trace for judge...`);
     const traceJson =
       (await adapter.fetchTraceForJudge(telemetry, attackTraceId, {
-        initialDelayMs: telemetry.traceFetchInitialDelayMs ?? 500,
-        maxAttempts: telemetry.traceFetchMaxAttempts ?? 5,
-        retryDelayMs: telemetry.traceFetchRetryDelayMs ?? 400,
+        // Budget defaults sized for the completeness poll (wait for the final turn
+        // to ingest): ~1s + 7×1.5s ≈ 11.5s cap before returning best-effort.
+        initialDelayMs: telemetry.traceFetchInitialDelayMs ?? 1000,
+        maxAttempts: telemetry.traceFetchMaxAttempts ?? 8,
+        retryDelayMs: telemetry.traceFetchRetryDelayMs ?? 1500,
         maxChars: telemetry.enrichJudgeTraceJsonMaxChars ?? 40_000,
+        // Completeness signal: the trace is "done" once this final turn's
+        // response has been ingested, not the instant any span appears.
+        expectedResponse: finalResponse,
       })) ?? undefined;
     if (traceJson) obs.traceJson = traceJson;
     const ok = traceJson && !traceJson.startsWith("[");

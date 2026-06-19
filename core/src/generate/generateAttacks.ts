@@ -88,15 +88,16 @@ async function generateAgentAttacks(params: {
     // Adaptive mode skips static opening generation entirely. runAll calls
     // generateNextAdaptiveTurn(history=[], …) for turn 1, which lets the
     // escalation prompt pick the opening angle based on full target/evaluator
-    // context. The prompt field is left empty as a sentinel.
+    // context. The prompt field is left empty as a sentinel. The trace summary
+    // is carried on the spec so every adaptive turn can ground itself in it.
     void targetDesc;
-    void traceContext;
     return [
       {
         ...base,
         id: randomUUID(),
         patternName: evaluator.name,
         prompt: "",
+        traceContext,
       },
     ];
   }
@@ -118,6 +119,7 @@ async function generateAgentAttacks(params: {
       id: randomUUID(),
       patternName: pattern.name,
       prompt,
+      traceContext,
     });
   }
   return attacks;

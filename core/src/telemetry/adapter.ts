@@ -11,6 +11,13 @@ export interface JudgeFetchOpts {
   maxAttempts: number;
   retryDelayMs: number;
   maxChars: number;
+  /**
+   * Final assistant response from the attack. Adapters use it to detect when the
+   * trace is COMPLETE (the last turn has been ingested) rather than returning a
+   * partial trace the instant any span appears. Optional — adapters fall back to
+   * a provider-specific settling heuristic when absent.
+   */
+  expectedResponse?: string;
 }
 
 /**

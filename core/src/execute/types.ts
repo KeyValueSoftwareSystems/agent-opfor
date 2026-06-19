@@ -117,6 +117,12 @@ export interface AttackSpec {
   attackObjective?: string;
   businessUseCase?: string;
   siteSnapshot?: string;
+  /**
+   * Telemetry-derived summary of real production traces (from `opfor setup`/curation).
+   * Threaded into the attacker so adaptive turns can mirror real user phrasing and
+   * target real flows. Set in generateAttacks; consumed by generateNextAdaptiveTurn.
+   */
+  traceContext?: string;
   maxMessageLength?: number;
   // agent target
   prompt?: string;
