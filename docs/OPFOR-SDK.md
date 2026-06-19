@@ -22,7 +22,7 @@ const opfor = new Opfor({
 const results = await opfor.execute({
   target: {
     url: "https://api.example.com/chat",
-    apiKey: process.env.TARGET_API_KEY,
+    apiKeyEnv: "TARGET_API_KEY",
   },
 
   suite: "owasp-llm-top10",
@@ -42,7 +42,7 @@ import { execute, report } from "@opfor/sdk";
 const results = await execute({
   target: {
     url: "https://api.example.com/chat",
-    apiKey: process.env.TARGET_API_KEY,
+    apiKeyEnv: "TARGET_API_KEY",
   },
 
   suite: "owasp-llm-top10",
@@ -65,7 +65,7 @@ Run adversarial tests against a target.
 const results = await opfor.execute({
   target: {
     url: "https://api.example.com/chat",
-    apiKey: process.env.TARGET_API_KEY,
+    apiKeyEnv: "TARGET_API_KEY",
     model: "gpt-4o",
   },
 
@@ -162,7 +162,7 @@ const results = await opfor.execute({
     name: "My Chatbot",
     description: "Customer support chatbot with access to order database",
 
-    apiKey: process.env.TARGET_API_KEY,
+    apiKeyEnv: "TARGET_API_KEY",
     model: "gpt-4o",
 
     headers: {
@@ -573,7 +573,7 @@ import { execute } from "@opfor/sdk";
 const results = await execute({
   target: {
     url: process.env.TARGET_URL!,
-    apiKey: process.env.TARGET_API_KEY,
+    apiKeyEnv: "TARGET_API_KEY",
   },
   suite: "owasp-llm-top10",
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -604,7 +604,7 @@ const opfor = new Opfor({
 const results = await opfor.execute({
   target: {
     url: process.env.TARGET_URL!,
-    apiKey: process.env.TARGET_API_KEY,
+    apiKeyEnv: "TARGET_API_KEY",
   },
   suite: "owasp-llm-top10",
 });
@@ -831,7 +831,3 @@ console.log(`Cost: $${results.totalCostUsd?.toFixed(2)}`);
 console.log(`Findings: ${results.findings.length}`);
 console.log(`Report: ${results.htmlReportPath}`);
 ```
-
-## License
-
-Apache-2.0
