@@ -3,7 +3,8 @@ npm run typecheck
 npm run lint
 npm run format:check
 npm run build:catalog
-git add skills/mcp-redteaming/opfor-setup/catalog.json skills/agent-redteaming/opfor-setup/catalog.json
+npm run extension:catalog
+git add skills/mcp-redteaming/opfor-setup/catalog.json skills/agent-redteaming/opfor-setup/catalog.json runners/extension/catalog.json
 npm run validate:skills
 
 if ! command -v gitleaks >/dev/null 2>&1; then
