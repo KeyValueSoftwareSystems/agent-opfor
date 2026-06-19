@@ -1,8 +1,8 @@
 # Opfor — Evaluators and Suites
 
-An **evaluator** is a single attack-and-judge pattern (e.g. `prompt-injection`, `bola`). Each evaluator is a Markdown file with YAML frontmatter — the attacker LLM reads it to craft prompts and the judge LLM uses its pass/fail criteria to score responses.
+An **evaluator** is a single attack-and-judge pattern (e.g. `prompt-injection`, `bola`). Each evaluator is a YAML file — the attacker LLM reads it to craft prompts and the judge LLM uses its pass/fail criteria to score responses.
 
-A **suite** is a named bundle of evaluators that maps to a security standard (e.g. OWASP LLM Top 10). Pick one suite for a full standards-aligned scan, or pick individual evaluators by ID for a narrow scan.
+A **suite** is a named bundle of evaluators. Standard suites (`owasp-llm-top10`, `owasp-mcp-top10`, etc.) are auto-derived from evaluator `standards:` tags. Curated suites (`harmful-content`, `pre-deploy-critical`, etc.) are authored YAML files in `suites/`. Pick one suite for a full scan, or pick individual evaluator IDs for a narrow scan.
 
 ---
 
@@ -225,10 +225,9 @@ See [cli.md → Config fields reference](cli.md#config-fields-reference) and [mc
 
 ## Contributing a new evaluator
 
-1. Drop a `.md` file under the correct tree:
-   - Agent: `skills/agent-redteaming/opfor-setup/evaluators/<id>.md`
-   - MCP: `skills/mcp-redteaming/opfor-setup/evaluators/<id>.md`
-2. Required frontmatter: `id`, `name`, `severity`, `description`, `patterns`, pass/fail criteria; `standards` recommended. See [evaluator-schema.md](evaluator-schema.md).
-3. Engine auto-discovers — no TypeScript change needed for declarative evaluators.
-4. To include it in a suite, add the evaluator ID to that suite's `evaluators:` list in its `.md` file.
-5. Run `npm run validate:skills` before opening a PR.
+See [CONTRIBUTING.md → Adding an evaluator](../CONTRIBUTING.md#adding-an-evaluator) for the full workflow. Quick summary:
+
+1. Add a YAML file (or directory) under `evaluators/agent/<category>/` or `evaluators/mcp/<category>/`.
+2. Required fields: `id`, `name`, `severity`, `pass_criteria`, `fail_criteria`, `patterns` (flat) or `patterns/` directory. See [evaluator-schema.md](evaluator-schema.md).
+3. Set `standards:` to include the evaluator in auto-derived suites (e.g. `owasp-llm: LLM01`). For curated suites, add the ID to the relevant `suites/` file.
+4. Run `npm run build:catalog && npm run validate:skills` before opening a PR.

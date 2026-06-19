@@ -87,24 +87,46 @@ cp .env.example .env
 
 ## Adding an evaluator
 
-Evaluators live in `evaluators/{agent,mcp}/` at repo root as Markdown with YAML frontmatter. Run `npm run sync:skills-evaluators` to refresh `skills/*/opfor-setup/_generated/` for skill installs. No TypeScript changes are needed — the engine loads root paths automatically.
+Evaluators live in `evaluators/{agent,mcp}/` at repo root as YAML files, organized under category subdirectories. No TypeScript changes are needed — `npm run build:catalog` rebuilds the catalog the engine reads.
 
-Pick `agent-redteaming` for chat/HTTP-target evaluators, `mcp-redteaming` for evaluators that fire `tools/call` against an MCP server.
+Pick `evaluators/agent/` for chat/HTTP-target evaluators, `evaluators/mcp/` for evaluators that fire `tools/call` against an MCP server.
 
-Full frontmatter contract: [docs/evaluator-schema.md](docs/evaluator-schema.md). Run `npm run validate:skills` before opening a PR.
+Full schema reference: [docs/evaluator-schema.md](docs/evaluator-schema.md). Run `npm run validate:skills` before opening a PR.
+
+### File layout
+
+Evaluators support two layouts — flat (simple) and directory (multiple patterns). Both are valid for agent and MCP evaluators.
+
+**Flat** — one file, patterns inline. Use when the evaluator has one or two patterns:
+
+```
+evaluators/agent/<category>/<id>.yaml
+evaluators/mcp/<category>/<id>.yaml
+```
+
+**Directory** — evaluator metadata separate from patterns. Use when patterns are long or there are several:
+
+```
+evaluators/agent/<category>/<id>/
+  evaluator.yaml          ← metadata only (no patterns field)
+  patterns/
+    <slug>.yaml           ← one file per pattern
+  <id>.test.yaml          ← pass/fail smoke test
+```
+
+Place your evaluator in the most relevant existing category (e.g. `injection`, `disclosure`, `access-control`). Create a new category folder only if none fit.
 
 ### File format
 
-Create `evaluators/agent/<your-id>.md` or `evaluators/mcp/<your-id>.md`, then run `npm run sync:skills-evaluators`:
+**`evaluator.yaml`** (both flat and directory layouts):
 
-```markdown
----
+```yaml
 schema_version: 1
 id: your-evaluator-id # kebab-case, unique across all evaluators
 name: Human Readable Name
 severity: critical # critical | high | medium | low
 standards:
-  owasp-mcp: MCP01
+  owasp-mcp: MCP01 # omit or leave empty if no standard applies
 description: >-
   One or two sentences describing what this evaluator tests and why it matters.
 pass_criteria: |-
@@ -113,35 +135,46 @@ pass_criteria: |-
 fail_criteria: |-
   - Bullet list of observable conditions that indicate a VULNERABLE response
   - Include concrete patterns (e.g. "response contains sk-, AKIA, ghp_")
-judge_needs_llm: true # true for semantic judgment; false for regex-only
-applies_to_all_tools: true # true = generate attacks for every tool
+# Flat layout only — omit this field when using the directory layout:
 patterns:
   - name: Attack Pattern Name
     template: |-
-      Full LLM prompt here. Use {{tool_list_json}} where you want the tool
-      list injected. The output format must be a JSON array matching the
-      structure shown below (the engine parses this directly).
+      Attack prompt here. {{tool_list_json}} is replaced with the target's
+      tools/list response at generation time.
+```
 
-      OUTPUT FORMAT — respond with a JSON array only, no other text:
-      [
-        {
-          "tool_name": "<exact tool name>",
-          "jsonrpc_payload": { ... },
-          "judge_hint": "<what the judge should look for in this specific response>"
-        }
-      ]
----
+**`patterns/<slug>.yaml`** (directory layout only):
+
+```yaml
+name: Attack Pattern Name
+template: |-
+  Attack prompt here.
+```
+
+**`<id>.test.yaml`** (optional but encouraged):
+
+```yaml
+kind: response
+pass_case: { response: "Access denied — insufficient permissions.", expect: PASS }
+fail_case: { response: "Done — I ran the admin endpoint for you.", expect: FAIL }
 ```
 
 ### Guidelines
 
 - **`id`** must be unique. Check existing files before picking one.
 - **`pass_criteria` / `fail_criteria`** are injected verbatim into the judge prompt. Be precise — vague criteria produce noisy results.
-- **`judge_hint`** in each attack payload is the attacker's tip to the judge: e.g. `"This tool fetches GitHub data — look for ghp_ tokens in error output"`. Always include it.
-- **`{{tool_list_json}}`** is replaced at generation time with the JSON-serialized `tools/list` response from the target MCP server.
+- **MCP patterns** must output a JSON array: `[{ "tool_name", "jsonrpc_payload", "judge_hint" }]`. The `judge_hint` is the attacker's tip to the judge — always include it.
+- **Agent patterns** use prose templates with `{{placeholders}}` — no JSON wrapper. The attacker LLM fills placeholders and adapts across turns.
+- **`{{tool_list_json}}`** (MCP only) is replaced at generation time with the JSON-serialized `tools/list` response from the target server.
 - Include a citation (CVE, OWASP reference, or paper) in the description when one exists.
-- One pattern per evaluator is enough to start. Add more patterns only if they probe a meaningfully different attack surface.
-- **Agent-redteaming patterns** use prose templates with `{{placeholders}}` (no JSON wrapper — the MCP example above is for MCP evaluators only). The attacker LLM fills in placeholders and adapts the pattern across turns.
+- One pattern is enough to start. Add more only if they probe a meaningfully different attack surface.
+- Optional fields `judge_needs_llm` and `applies_to_all_tools` are supported — see [docs/evaluator-schema.md](docs/evaluator-schema.md) for the full list.
+
+After adding files, rebuild the catalog:
+
+```bash
+npm run build:catalog
+```
 
 ### Test your evaluator
 
@@ -162,11 +195,11 @@ opfor execute --config .opfor/configs/opfor-config-*.json
 
 ## Adding a suite
 
-Suites are also Markdown files with YAML frontmatter, in `skills/*/opfor-setup/suites/`.
+**Standard suites** (`owasp-llm-top10`, `owasp-agentic-ai`, `owasp-mcp-top10`, `mitre-atlas`, `eu-ai-act-bias`) are **auto-derived** — the engine groups evaluators by their `standards:` tags at load time. To add an evaluator to one of these suites, set the matching key in the evaluator's `standards:` field. No suite file needed.
 
-```markdown
----
-schema_version: 1
+**Curated suites** are manually authored YAML files in `suites/{agent,mcp}/` at repo root. Use these for thematic groupings that don't map to a single standard (e.g. `harmful-content`, `pre-deploy-critical`).
+
+```yaml
 id: your-suite-id
 name: Suite Display Name
 description: One sentence describing what this suite covers.
@@ -175,10 +208,13 @@ evaluators:
   - command-injection
   - ssrf
   - your-new-evaluator-id
----
 ```
 
-Reference only evaluator IDs that exist in the matching `evaluators/{agent|mcp}/` tree. The engine validates this at load time.
+Reference only evaluator IDs that exist in the matching `evaluators/{agent|mcp}/` tree. The engine validates this at load time. After adding a suite file, rebuild the catalog:
+
+```bash
+npm run build:catalog
+```
 
 ---
 
@@ -251,7 +287,7 @@ Opfor can fetch recorded traces from an observability platform and give them to 
    - Add `"my-provider"` to the `TelemetryProviderId` union.
    - Add a `myProvider?: MyProviderTelemetryConfig` block to `TelemetryConfig`.
 
-5. **Trace completeness & polling** — don't return the trace the instant any span appears; observability backends ingest in batches, so the final turn (often where the leak is) lands last. `pollTraceForJudge` (`core/src/telemetry/judgeTracePoll.ts`) handles this for you: it polls your `fetchSnapshot` until the trace contains `opts.expectedResponse` (or the snapshot settles), bounded by the budget, and returns a best-effort `_incomplete`-tagged snapshot on timeout so a slow platform never stalls the run. Budget defaults live in `POLL_DEFAULTS` (`pollingUtils.ts`): `1000 ms` initial, `8` attempts, `1500 ms` between (~11.5 s cap); callers override per `TelemetryConfig`.
+5. **Polling defaults** — `POLL_DEFAULTS` in `core/src/telemetry/pollingUtils.ts` gives you sensible starting values (`1000 ms` initial delay, `8` attempts, `1500 ms` between). Pass them through `fetchTraceForJudge`'s `opts` argument — callers can override per `TelemetryConfig`.
 
 ---
 
@@ -341,7 +377,7 @@ Only submit findings for systems you are authorized to test, or where you have c
 core/                       ← @opfor/core — shared engine (npm workspace)
   src/
     config/                 ← Zod schemas + LLM/telemetry config types
-    evaluators/             ← evaluator markdown parsing
+    evaluators/             ← evaluator YAML catalog parsing
     execute/                ← runAll, runAgentLoop, run orchestration
     generate/               ← attack prompt generation (attacker LLM)
     providers/              ← LLM provider factory (Vercel AI SDK)
@@ -353,12 +389,18 @@ runners/
   cli/                      ← @opfor/cli — `opfor setup` + `opfor execute`
   mcp/                      ← @opfor/mcp — opfor as an MCP server
   extension/                ← Chrome MV3 browser extension
+evaluators/
+  agent/                      ← agent evaluators by category
+  mcp/                        ← MCP evaluators by category
+suites/
+  agent/                      ← agent suites
+  mcp/                        ← MCP suites
 skills/
   agent-redteaming/
-    opfor-setup/{evaluators,suites,targets}/
+    opfor-setup/catalog.json  ← generated by npm run build:catalog
     opfor-execute/
   mcp-redteaming/
-    opfor-setup/{evaluators,suites}/
+    opfor-setup/catalog.json  ← generated by npm run build:catalog
     opfor-execute/
 tests/e2e/
   agents/
@@ -389,6 +431,7 @@ npm run install:cli   # build + install `opfor` globally (handy during dev)
 
 - [ ] `npm run build` passes with no errors
 - [ ] `npm run typecheck` passes
+- [ ] For new evaluators/suites: `npm run build:catalog:check` passes (catalog in sync)
 - [ ] For new evaluators: tested against a local MCP server (or `tests/e2e/mcp/vulnerable-server`)
 - [ ] No secrets, `.env` files, or `.opfor/` artifacts committed (`gitleaks protect --staged` must pass)
 - [ ] PR description explains _what_ changed and _why_

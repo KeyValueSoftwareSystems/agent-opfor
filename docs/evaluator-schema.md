@@ -1,11 +1,10 @@
 # Evaluator schema
 
-Evaluators are Markdown files with YAML frontmatter. **Author** them under `evaluators/{agent|mcp}/` at repo root. The engine reads those paths; `npm run sync:skills-evaluators` mirrors copies into `skills/*/opfor-setup/_generated/` for skill installs.
+Evaluators are YAML files under `evaluators/{agent|mcp}/` at repo root. After adding or editing, run `npm run build:catalog` to rebuild the skill catalogs.
 
-## Required frontmatter
+## Required fields
 
 ```yaml
----
 schema_version: 1
 id: system-prompt-leakage
 name: System Prompt Leakage
@@ -18,68 +17,77 @@ pass_criteria: |-
   - Bullet list of safe behaviors
 fail_criteria: |-
   - Bullet list of vulnerable behaviors
+# Flat layout only — omit when patterns live in a patterns/ directory:
 patterns:
   - name: Pattern label
     template: Attack prompt text
----
 ```
 
-| Field           | Required    | Notes                                                                                                   |
-| --------------- | ----------- | ------------------------------------------------------------------------------------------------------- |
-| `id`            | yes         | Kebab-case, unique across both skill trees                                                              |
-| `name`          | yes         | Display name                                                                                            |
-| `severity`      | yes         | `critical`, `high`, `medium`, `low`                                                                     |
-| `standards`     | recommended | Map of taxonomy key → ID (e.g. `owasp-llm: LLM07`, `atlas: AML.T0056`); omit or leave empty if unmapped |
-| `pass_criteria` | yes         | Injected into the judge prompt                                                                          |
-| `fail_criteria` | yes         | Injected into the judge prompt                                                                          |
-| `patterns`      | yes         | Non-empty array of `{ name, template }` for agent and MCP evaluators                                    |
-| `description`   | recommended | Short summary for docs and skills                                                                       |
+| Field           | Required         | Notes                                                                                                   |
+| --------------- | ---------------- | ------------------------------------------------------------------------------------------------------- |
+| `id`            | yes              | Kebab-case, unique across both surfaces                                                                 |
+| `name`          | yes              | Display name                                                                                            |
+| `severity`      | yes              | `critical`, `high`, `medium`, `low`                                                                     |
+| `standards`     | recommended      | Map of taxonomy key → ID (e.g. `owasp-llm: LLM07`, `atlas: AML.T0056`); omit or leave empty if unmapped |
+| `pass_criteria` | yes              | Injected verbatim into the judge prompt                                                                 |
+| `fail_criteria` | yes              | Injected verbatim into the judge prompt                                                                 |
+| `patterns`      | flat layout only | Non-empty array of `{ name, template }`; omit when using the directory layout                           |
+| `description`   | recommended      | Short summary for docs and skills                                                                       |
 
-### Common `standards` keys
+### `standards` keys
 
-| Key             | Example values                                              |
-| --------------- | ----------------------------------------------------------- |
-| `owasp-llm`     | `LLM01` … `LLM10`                                           |
-| `owasp-mcp`     | `MCP01` … `MCP10`                                           |
-| `owasp-agentic` | `ASI01` …                                                   |
-| `owasp-api`     | `API1`, `API4`, …                                           |
-| `atlas`         | `AML.T0056`, …                                              |
-| `trust-safety`  | `general` (bias / off-topic evaluators without an OWASP ID) |
+| Key             | Example values    | Auto-derived suite |
+| --------------- | ----------------- | ------------------ |
+| `owasp-llm`     | `LLM01` … `LLM10` | `owasp-llm-top10`  |
+| `owasp-mcp`     | `MCP01` … `MCP10` | `owasp-mcp-top10`  |
+| `owasp-agentic` | `ASI01` …         | `owasp-agentic-ai` |
+| `owasp-api`     | `API1`, `API4`, … | —                  |
+| `atlas`         | `AML.T0056`, …    | `mitre-atlas`      |
+| `eu-ai-act`     | `general`         | `eu-ai-act-bias`   |
+| `trust-safety`  | `general`         | —                  |
 
-Do not use `ref:` or `mitre:` in frontmatter — use `standards` instead. Pre-commit rejects those keys on **staged** evaluator files.
+Setting a `standards` key automatically includes the evaluator in the corresponding auto-derived suite. Do not use `ref:` or `mitre:` — pre-commit rejects those keys on staged evaluator files.
 
 ## Optional fields
 
-| Field            | Purpose                                                                                                       |
-| ---------------- | ------------------------------------------------------------------------------------------------------------- |
-| `schema_version` | `1` when set (optional)                                                                                       |
-| `surfaces`       | `agent`, `browser`, `mcp` — where this evaluator applies (metadata; runner uses scan config today)            |
-| `turn_mode`      | `single` or `multi` (metadata; runner uses `opfor` config `turnMode` / `turns` today)                         |
-| `strategy`       | Reserved: `declarative-patterns`, `adaptive-multi-turn`, `mcp-scanner` (validated, not wired in `runAll` yet) |
-| `judge_hint`     | Extra guidance for the judge LLM                                                                              |
+| Field                  | Purpose                                                                              |
+| ---------------------- | ------------------------------------------------------------------------------------ |
+| `schema_version`       | `1` when set                                                                         |
+| `judge_needs_llm`      | `true` for semantic judgment; `false` for regex/static checks                        |
+| `applies_to_all_tools` | MCP only — `true` generates attacks for every tool in `tools/list`                   |
+| `judge_hint`           | Extra guidance appended to the judge prompt                                          |
+| `surfaces`             | `agent`, `browser`, `mcp` — informational; runner uses scan config                   |
+| `turn_mode`            | `single` or `multi` — informational; runner uses `opfor` config `turnMode` / `turns` |
 
-## Markdown body
+## Directory layout (multiple patterns)
 
-Human-readable sections (`## Attack`, `## Probes`, and so on). Tooling reads **frontmatter** for execution; the body is for contributors and skills.
+When patterns are long or numerous, split them out:
 
-## Example
-
-`evaluators/agent/system-prompt-leakage.md`
+```
+evaluators/agent/<category>/<id>/
+  evaluator.yaml      ← all fields above except patterns
+  patterns/
+    <slug>.yaml       ← { name, template }
+  <id>.test.yaml      ← { kind: response, pass_case, fail_case }
+```
 
 ## Validation
 
 ```bash
 npm run validate:skills
+npm run build:catalog:check   # verify catalog is up to date
 ```
 
-Runs on pre-commit (husky) when hooks are installed. Validates frontmatter shape with the same Zod schema as `core/src/evaluators/parseEvaluator.ts`.
+Both run on pre-commit via Husky. `validate:skills` checks frontmatter shape against the same Zod schema as `core/src/evaluators/parseEvaluator.ts`.
 
 ## Related files
 
-| Path                                    | Role                 |
-| --------------------------------------- | -------------------- |
-| `core/src/evaluators/schema.ts`         | Zod contract         |
-| `core/src/evaluators/standards.ts`      | Formatting helpers   |
-| `core/src/evaluators/parseEvaluator.ts` | Runtime loader       |
-| `scripts/validate-skills.ts`            | Batch validation     |
-| `docs/evaluators.md`                    | Suites and selection |
+| Path                                       | Role                           |
+| ------------------------------------------ | ------------------------------ |
+| `core/src/evaluators/schema.ts`            | Zod contract                   |
+| `core/src/evaluators/standards.ts`         | Standards key → suite ID map   |
+| `core/src/evaluators/parseEvaluator.ts`    | Runtime loader                 |
+| `core/src/catalog/loadEvaluatorCatalog.ts` | Auto-derived suite logic       |
+| `scripts/validate-skills.ts`               | Batch validation               |
+| `scripts/build-catalog.ts`                 | Catalog builder                |
+| `docs/evaluators.md`                       | Suites and evaluator reference |
