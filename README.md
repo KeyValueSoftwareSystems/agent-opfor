@@ -76,9 +76,9 @@ We built opfor because we needed all three.
 
 ---
 
-## Four ways to run opfor
+## Five ways to run opfor
 
-Different people on your team need different entry points. Opfor ships four.
+Different people on your team need different entry points. Opfor ships five.
 
 | Mode                     | How                                                                           | Best for                                                                                  |
 | ------------------------ | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
@@ -86,10 +86,11 @@ Different people on your team need different entry points. Opfor ships four.
 | **🌐 Browser extension** | Install the extension, click the icon on any chat interface                   | Product managers, designers, QA, security analysts — anyone who can't or won't write code |
 | **🤖 MCP server**        | Register opfor in Cursor or Claude Desktop, then ask in chat                  | AI coding agents that test your other agents                                              |
 | **⚡ Skills**            | `/opfor-setup` · `/opfor-execute` · `/opfor-mcp-setup` · `/opfor-mcp-execute` | Developers who want one-command testing inside their IDE                                  |
+| **📦 SDK**               | `npm install @opfor/sdk`, then call `execute` / `auto` from your code         | Programmatic red-teaming and custom workflows                                             |
 
-All four share the same evaluators, attack templates, and judge logic.
+All five share the same evaluators, attack templates, and judge logic.
 
-→ [CLI reference](docs/cli.md) · [Browser extension setup](docs/browser-extension.md) · [MCP setup](docs/mcp.md) · [Skills setup](docs/skills.md)
+→ [CLI reference](docs/cli.md) · [Browser extension setup](docs/browser-extension.md) · [MCP setup](docs/mcp.md) · [Skills setup](docs/skills.md) · [SDK reference](docs/sdk.md)
 
 ---
 

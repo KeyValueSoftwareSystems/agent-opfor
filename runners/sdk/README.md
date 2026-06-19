@@ -47,7 +47,7 @@ await opfor.report(results).json("./report.json");
 
 ## Documentation
 
-See [docs/OPFOR-SDK.md](../../docs/OPFOR-SDK.md) for full documentation.
+See [docs/sdk.md](../../docs/sdk.md) for full documentation.
 
 ## License
 

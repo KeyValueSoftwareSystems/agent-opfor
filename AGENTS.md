@@ -10,7 +10,7 @@ For user-facing CLI docs see [`docs/cli.md`](docs/cli.md); for MCP-server-mode d
 
 Opfor is an open-source red-teaming toolkit for AI agents and MCP servers. It generates OWASP-mapped attack prompts, fires them at a target, and judges each response with an LLM. Output is an HTML + JSON report.
 
-**Four usage modes — one set of evaluators:**
+**Five usage modes — one set of evaluators:**
 
 | Mode              | Entry point                                                                                        | Who runs it                                  |
 | ----------------- | -------------------------------------------------------------------------------------------------- | -------------------------------------------- |
@@ -18,6 +18,7 @@ Opfor is an open-source red-teaming toolkit for AI agents and MCP servers. It ge
 | Browser extension | Click the toolbar icon on any chat UI                                                              | Non-developers — QA, PMs, security analysts  |
 | MCP server        | `opfor_setup`, `opfor_execute` tools                                                               | MCP-compatible host (Cursor, Claude Desktop) |
 | Skills            | `/opfor-setup`, `/opfor-execute` slash commands                                                    | AI coding agent reads markdown skill files   |
+| SDK               | `import { execute, auto } from "@opfor/sdk"`                                                       | Developers embedding opfor in their own code |
 
 ---
 
@@ -130,11 +131,14 @@ opfor/
 │           └── vulnerable-server/ # Intentionally vulnerable MCP server
 ├── docs/
 │   ├── cli.md                     # Complete CLI reference
+│   ├── auto.md                    # Autonomous mode (`opfor auto`) guide
 │   ├── mcp.md                     # MCP server (runner) setup + tools reference
 │   ├── browser-extension.md       # Browser extension guide
-│   ├── evaluators.md              # Evaluator + suite reference
 │   ├── skills.md                  # Skill bundle usage
-│   └── REFACTOR.md                # Refactor notes
+│   ├── sdk.md                     # SDK (@opfor/sdk) reference
+│   ├── evaluators.md              # Evaluator + suite reference
+│   ├── evaluator-schema.md        # Evaluator YAML schema
+│   └── telemetry.md               # Trace-aware testing (Langfuse / Netra)
 └── findings/                      # Community-submitted vulnerability writeups (aspirational; may not exist yet)
 ```
 
