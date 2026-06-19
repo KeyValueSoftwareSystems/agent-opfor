@@ -230,7 +230,7 @@ For HTTP agent targets, you choose how opfor delivers conversation context acros
 {
   "turnMode": "multi",
   "turns": 3,
-  "target": { "stateful": false, "targetModel": "gpt-4o-mini" }
+  "target": { "stateful": false, "model": "gpt-4o-mini" }
 }
 ```
 
@@ -328,8 +328,8 @@ See [telemetry.md](telemetry.md) for Langfuse and Netra setup, config fields, an
 | `target.type`           | Yes                | `"http-endpoint"` or `"local-script"`.                                                                                                                                                                                                                                                                                       |
 | `target.endpoint`       | For HTTP           | Full URL to POST attacks to.                                                                                                                                                                                                                                                                                                 |
 | `target.requestFormat`  | For HTTP           | `"openai"`, `"json"`, or `"auto"` (default). Ignored when `target.stateful` is `false` (stateless mode forces OpenAI shape).                                                                                                                                                                                                 |
-| `target.targetModel`    | For HTTP / openai  | Model name to send in the request body.                                                                                                                                                                                                                                                                                      |
-| `target.targetApiKey`   | No                 | Bearer token for the target endpoint.                                                                                                                                                                                                                                                                                        |
+| `target.model`          | For HTTP / openai  | Model name to send in the request body.                                                                                                                                                                                                                                                                                      |
+| `target.apiKeyEnv`      | No                 | Env var **name** holding the target's API key (e.g. `"TARGET_API_KEY"`). Never put the raw key here.                                                                                                                                                                                                                         |
 | `target.headers`        | No                 | Custom HTTP headers (e.g. `{"X-Api-Key": "secret"}`). Merged with built-in headers.                                                                                                                                                                                                                                          |
 | `target.promptPath`     | No                 | Dot-path for the prompt field (e.g. `"input.message"`). Defaults to top-level `prompt`.                                                                                                                                                                                                                                      |
 | `target.responsePath`   | No                 | Dot-path to extract the reply (e.g. `"data.reply"`). Falls back to built-in chain.                                                                                                                                                                                                                                           |
@@ -347,6 +347,7 @@ See [telemetry.md](telemetry.md) for Langfuse and Netra setup, config fields, an
 | `target.transport`   | Yes       | `"stdio"` (local process) or `"url"` (remote endpoint).                   |
 | `target.command`     | For stdio | Executable to run (e.g. `"node"`).                                        |
 | `target.args`        | For stdio | Array of CLI args (e.g. `["dist/index.js"]`).                             |
+| `target.cwd`         | No        | Working directory for the spawned process (stdio only).                   |
 | `target.env`         | No        | Env vars passed to the spawned server. Values support `${VAR}` expansion. |
 | `target.url`         | For url   | Full HTTP/SSE endpoint URL.                                               |
 | `target.urlHeaders`  | No        | HTTP headers for the URL transport. Values support `${VAR}` expansion.    |
