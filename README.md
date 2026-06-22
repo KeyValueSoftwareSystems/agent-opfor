@@ -14,7 +14,7 @@
 
 <p align="center">
   <a href="https://keyvalue.systems">Website</a> ·
-  <a href="https://github.com/KeyValueSoftwareSystems/opfor">GitHub</a> ·
+  <a href="https://github.com/KeyValueSoftwareSystems/agent-opfor">GitHub</a> ·
   <a href="docs/browser-extension.md">Browser Extension</a>
 </p>
 
@@ -226,7 +226,7 @@ Highest-impact ways to contribute:
 
 1. **New evaluators** — add a `.yaml` file under `evaluators/agent/` or `evaluators/mcp/`, run `npm run build:catalog`, and commit. No TypeScript needed.
 2. **New target adapters** — extend `core/src/mcp-client/` to support new agent frameworks.
-3. **Bug reports** — open an [issue](https://github.com/KeyValueSoftwareSystems/opfor/issues).
+3. **Bug reports** — open an [issue](https://github.com/KeyValueSoftwareSystems/agent-opfor/issues).
 
 Read the [Contributing Guide](CONTRIBUTING.md).
 
@@ -286,5 +286,5 @@ _OPFOR is short for Opposition Force — a military term for the dedicated unit 
 <br/>
 
 <p align="center">
-  Apache 2.0 · <a href="https://github.com/KeyValueSoftwareSystems/opfor">GitHub</a>
+  Apache 2.0 · <a href="https://github.com/KeyValueSoftwareSystems/agent-opfor">GitHub</a>
 </p>

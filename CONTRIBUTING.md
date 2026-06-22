@@ -20,7 +20,7 @@ Thanks for helping make AI red teaming better. This guide covers the three highe
 
 ## Before you start
 
-1. Check [open issues](https://github.com/KeyValueSoftwareSystems/opfor/issues) to avoid duplicating work.
+1. Check [open issues](https://github.com/KeyValueSoftwareSystems/agent-opfor/issues) to avoid duplicating work.
 2. For significant changes (new transport, architectural refactor), open an issue first to align on approach before writing code.
 3. Fork the repo, create a branch off `master`, and open a PR when ready.
 
@@ -62,7 +62,7 @@ chore: update @modelcontextprotocol/sdk to 1.x
 ### Setup
 
 ```bash
-git clone https://github.com/KeyValueSoftwareSystems/opfor.git
+git clone https://github.com/KeyValueSoftwareSystems/agent-opfor.git
 cd opfor
 npm install   # also installs Husky pre-commit hooks
 npm run build

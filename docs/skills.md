@@ -9,7 +9,7 @@ Opfor ships Skills (markdown instruction files an AI coding agent reads and foll
 Run this from the **root of the project you want to test** (the agent scans the repo, so context matters):
 
 ```bash
-npx skills add https://github.com/KeyValueSoftwareSystems/OPFOR.git
+npx skills add https://github.com/KeyValueSoftwareSystems/agent-opfor.git
 ```
 
 The CLI walks you through a short wizard: pick which agent to install into (Claude Code, Cursor, Windsurf, Gemini CLI, GitHub Copilot, etc.) and which skills (`opfor-setup`, `opfor-run`, or both — pick both). Skills land in your agent's skills directory (e.g. `.claude/skills/opfor-setup/` for Claude Code; path varies per agent).

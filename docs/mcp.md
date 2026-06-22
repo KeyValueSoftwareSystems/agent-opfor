@@ -19,7 +19,7 @@ No pre-generated attack file is required. The agent passes target and LLM config
 ## Installation
 
 ```bash
-git clone https://github.com/KeyValueSoftwareSystems/OPFOR.git
+git clone https://github.com/KeyValueSoftwareSystems/agent-opfor.git
 cd opfor
 npm install
 npm run build

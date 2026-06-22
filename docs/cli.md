@@ -28,7 +28,7 @@ npm install -g opfor
 **From source (contributors):**
 
 ```bash
-git clone https://github.com/KeyValueSoftwareSystems/opfor.git
+git clone https://github.com/KeyValueSoftwareSystems/agent-opfor.git
 cd opfor
 npm install
 npm run install:cli   # builds + installs `opfor` globally
