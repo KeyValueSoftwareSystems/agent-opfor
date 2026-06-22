@@ -6,9 +6,9 @@ import {
   addLead,
   markLead,
   forkThread,
-} from "@opfor/core/autonomous/state/runLog.js";
-import { BudgetGuard } from "@opfor/core/autonomous/lib/budget.js";
-import { SessionGate } from "@opfor/core/lib/sessionGate.js";
+} from "@agent-opfor/core/autonomous/state/runLog.js";
+import { BudgetGuard } from "@agent-opfor/core/autonomous/lib/budget.js";
+import { SessionGate } from "@agent-opfor/core/lib/sessionGate.js";
 
 function baseLog() {
   return createRunLog({

@@ -1,5 +1,5 @@
 {
-  "name": "@opfor/core",
+  "name": "@agent-opfor/core",
   "version": "0.1.0",
   "description": "Opfor core engine — attacker prompt generation, judge, and execution shared by all runners",
   "license": "Apache-2.0",

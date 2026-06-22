@@ -1,5 +1,5 @@
 {
-  "name": "opfor",
+  "name": "@agent-opfor/cli",
   "version": "0.1.0",
   "description": "Opfor CLI — security testing for AI agents and MCP servers (opfor setup|generate|execute)",
   "license": "Apache-2.0",
@@ -20,7 +20,7 @@
     "test": "node --import tsx/esm --test tests/*.test.ts"
   },
   "dependencies": {
-    "@opfor/core": "*",
+    "@agent-opfor/core": "*",
     "@anthropic-ai/claude-agent-sdk": "^0.3.165",
     "@anthropic-ai/sdk": "^0.100.1",
     "@ai-sdk/anthropic": "^2.0.77",

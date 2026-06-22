@@ -1,5 +1,5 @@
 {
-  "name": "@opfor/test-agent-vulnerable-memory",
+  "name": "@agent-opfor/test-agent-vulnerable-memory",
   "version": "0.1.0",
   "description": "Intentionally vulnerable agent — accepts and persists user-injected 'policies' into a global knowledge base across sessions",
   "private": true,

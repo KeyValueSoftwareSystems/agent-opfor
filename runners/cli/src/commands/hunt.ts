@@ -3,10 +3,14 @@ import path from "node:path";
 import { readFile, mkdir } from "node:fs/promises";
 import { createWriteStream, type WriteStream } from "node:fs";
 import { consola } from "consola";
-import type { HuntOptions, TargetConfig, TargetMode } from "@opfor/core/autonomous/lib/types.js";
-import type { RunEvent } from "@opfor/core/autonomous/state/observe.js";
-import { runAutonomous } from "@opfor/core/autonomous/orchestrator/run.js";
-import { writeAutonomousReport } from "@opfor/core/autonomous/report/writeReport.js";
+import type {
+  HuntOptions,
+  TargetConfig,
+  TargetMode,
+} from "@agent-opfor/core/autonomous/lib/types.js";
+import type { RunEvent } from "@agent-opfor/core/autonomous/state/observe.js";
+import { runAutonomous } from "@agent-opfor/core/autonomous/orchestrator/run.js";
+import { writeAutonomousReport } from "@agent-opfor/core/autonomous/report/writeReport.js";
 import { startUiServer } from "../ui/server.js";
 import { mergeReporters } from "../ui/bridge.js";
 

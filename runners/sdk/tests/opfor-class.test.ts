@@ -6,7 +6,7 @@
 
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { setEnvProvider } from "@opfor/core/lib/env.js";
+import { setEnvProvider } from "@agent-opfor/core/lib/env.js";
 
 setEnvProvider(() => "fake-test-api-key");
 

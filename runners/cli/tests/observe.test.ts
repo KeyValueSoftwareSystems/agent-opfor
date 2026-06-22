@@ -5,8 +5,12 @@ import {
   getOrCreateThread,
   forkThread,
   addLead,
-} from "@opfor/core/autonomous/state/runLog.js";
-import { countsLine, threadTreeText, renderForest } from "@opfor/core/autonomous/state/observe.js";
+} from "@agent-opfor/core/autonomous/state/runLog.js";
+import {
+  countsLine,
+  threadTreeText,
+  renderForest,
+} from "@agent-opfor/core/autonomous/state/observe.js";
 
 function baseLog() {
   return createRunLog({
