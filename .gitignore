@@ -18,18 +18,10 @@ dist/
 temp/
 cli/node_modules/
 *.tsbuildinfo
-.opfor
-opfor.config.json
-opfor-prompts-*.json
-tracedata.json
 
 # Opfor artifacts
-.opfor/configs/
-.opfor/attacks/
-.opfor/reports/
-
-# Back-compat / legacy artifacts (kept ignored)
-opfor-mcp-attacks.json
+.opfor
+tracedata.json
 
 # Pre-refactor local trees / accidental rebuilds (canonical code is cli/, core/, mcp/)
 /src/
@@ -37,3 +29,6 @@ src/agent/**/dist/
 
 # Coding agents
 .claude/
+
+# Graphify
+graphify-out
