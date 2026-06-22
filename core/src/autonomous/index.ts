@@ -11,7 +11,7 @@ export type { RunContext } from "./orchestrator/context.js";
 export type { ProgressReporter } from "./state/hooks.js";
 export type { RunEvent } from "./state/observe.js";
 
-export type { AutoOptions, TargetConfig, TargetMode } from "./lib/types.js";
+export type { HuntOptions, TargetConfig, TargetMode } from "./lib/types.js";
 export { BudgetGuard } from "./lib/budget.js";
 export type { BudgetGuardOptions } from "./lib/budget.js";
 

@@ -35,7 +35,7 @@ export interface TargetConfig {
 }
 
 /** Fully-resolved options for a single autonomous run. */
-export interface AutoOptions {
+export interface HuntOptions {
   target: TargetConfig;
   objective: string;
   /** Commander model (alias like "opus"/"sonnet" or full id). */

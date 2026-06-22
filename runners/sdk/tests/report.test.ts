@@ -13,11 +13,11 @@ import { setEnvProvider } from "@opfor/core/lib/env.js";
 setEnvProvider(() => "fake-test-api-key");
 
 import { report } from "../src/report.js";
-import type { ExecuteResults } from "../src/types.js";
+import type { RunResults } from "../src/types.js";
 
 const TEST_OUTPUT_DIR = path.join(import.meta.dirname, "test-output");
 
-function createMockResults(overrides: Partial<ExecuteResults> = {}): ExecuteResults {
+function createMockResults(overrides: Partial<RunResults> = {}): RunResults {
   return {
     id: "test-report-123",
     timestamp: new Date().toISOString(),

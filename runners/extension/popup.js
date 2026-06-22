@@ -969,7 +969,7 @@ function renderDone() {
   }
 }
 
-// ── Report generation (per skills/opfor-execute/report-schema.md) ──
+// ── Report generation (per skills/opfor-run/report-schema.md) ──
 function severityFull(s) {
   const v = String(s || "").toLowerCase();
   if (v === "med" || v === "medium") return "medium";

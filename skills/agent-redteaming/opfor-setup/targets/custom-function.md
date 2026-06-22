@@ -101,7 +101,7 @@ Capture stdout as the response. Check exit code for errors.
 
 ## Integration Example
 
-When `opfor-execute` invokes an attack against a custom function:
+When `opfor-run` invokes an attack against a custom function:
 
 ```
 1. Read attack pattern from attacks/jailbreaking/role-play.md

@@ -6,7 +6,7 @@ import { BudgetGuard } from "@opfor/core/autonomous/lib/budget.js";
 import { SessionGate } from "@opfor/core/lib/sessionGate.js";
 import { createRunLog } from "@opfor/core/autonomous/state/runLog.js";
 import type { RunContext } from "@opfor/core/autonomous/orchestrator/context.js";
-import type { AutoOptions } from "@opfor/core/autonomous/lib/types.js";
+import type { HuntOptions } from "@opfor/core/autonomous/lib/types.js";
 
 function stubFetch(reply: string): () => void {
   const original = globalThis.fetch;
@@ -23,7 +23,7 @@ function ctx(): RunContext {
     target: { name: "t", endpoint: "http://localhost/chat", mode: "stateless" },
     objective: "probe",
     maxThreadTurns: 25,
-  } as unknown as AutoOptions;
+  } as unknown as HuntOptions;
   return {
     options,
     target: createTargetClient(options.target),
@@ -66,7 +66,7 @@ test("send_to_target refuses past the depth safety ceiling", async () => {
       target: { name: "t", endpoint: "http://localhost/chat", mode: "stateless" },
       objective: "probe",
       maxThreadTurns: 2,
-    } as unknown as AutoOptions;
+    } as unknown as HuntOptions;
     const c: RunContext = {
       options,
       target: createTargetClient(options.target),

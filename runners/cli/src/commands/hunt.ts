@@ -3,7 +3,7 @@ import path from "node:path";
 import { readFile, mkdir } from "node:fs/promises";
 import { createWriteStream, type WriteStream } from "node:fs";
 import { consola } from "consola";
-import type { AutoOptions, TargetConfig, TargetMode } from "@opfor/core/autonomous/lib/types.js";
+import type { HuntOptions, TargetConfig, TargetMode } from "@opfor/core/autonomous/lib/types.js";
 import type { RunEvent } from "@opfor/core/autonomous/state/observe.js";
 import { runAutonomous } from "@opfor/core/autonomous/orchestrator/run.js";
 import { writeAutonomousReport } from "@opfor/core/autonomous/report/writeReport.js";
@@ -15,7 +15,7 @@ function clock(): string {
   return new Date().toISOString().slice(11, 19);
 }
 
-interface AutoCliOptions {
+interface HuntCliOptions {
   endpoint?: string;
   objective?: string;
   objectiveFile?: string;
@@ -95,9 +95,9 @@ function intOr(value: string | undefined, fallback: number): number {
   return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
-export function registerAutoCommand(program: Command): void {
+export function registerHuntCommand(program: Command): void {
   program
-    .command("auto")
+    .command("hunt")
     .description(
       "Autonomously red-team a target agent: recon, adaptive multi-turn attacks, self-judging, and a full report."
     )
@@ -174,7 +174,7 @@ export function registerAutoCommand(program: Command): void {
     .option("--env <path>", "Path to a .env file to load")
     .option("--ui", "Launch live dashboard UI in the browser")
     .option("--ui-port <port>", "Port for the live dashboard UI", "3847")
-    .action(async (opts: AutoCliOptions) => {
+    .action(async (opts: HuntCliOptions) => {
       if (opts.env) {
         const { config: loadDotenv } = await import("dotenv");
         loadDotenv({ path: path.resolve(opts.env), override: true });
@@ -298,7 +298,7 @@ export function registerAutoCommand(program: Command): void {
         model: opts.targetModel,
       };
 
-      const autoOptions: AutoOptions = {
+      const huntOptions: HuntOptions = {
         target,
         objective,
         commanderModel: opts.model,
@@ -329,12 +329,12 @@ export function registerAutoCommand(program: Command): void {
       };
 
       // Live log file the user can `tail -f` while the run is in progress.
-      await mkdir(autoOptions.outputDir, { recursive: true });
+      await mkdir(huntOptions.outputDir, { recursive: true });
       const startedAt = new Date()
         .toISOString()
         .replace(/[-:T.Z]/g, "")
         .slice(0, 14);
-      const liveLogPath = path.join(autoOptions.outputDir, `auto-live-${startedAt}.log`);
+      const liveLogPath = path.join(huntOptions.outputDir, `hunt-live-${startedAt}.log`);
       const liveLog: WriteStream = createWriteStream(liveLogPath, { flags: "a" });
       const emit = (line: string): void => {
         const stamped = `[${clock()}] ${line}`;
@@ -344,7 +344,7 @@ export function registerAutoCommand(program: Command): void {
 
       // Structured event trail (one JSON object per line) — machine-readable for debugging and
       // the foundation a future "opfor view" web UI consumes. Stamped with a wall-clock time.
-      const eventLogPath = path.join(autoOptions.outputDir, `run-${startedAt}.jsonl`);
+      const eventLogPath = path.join(huntOptions.outputDir, `run-${startedAt}.jsonl`);
       const eventLog: WriteStream = createWriteStream(eventLogPath, { flags: "a" });
       const emitEvent = (event: RunEvent): void => {
         // An observability sink must never crash the run. Guard JSON.stringify (data is
@@ -368,9 +368,9 @@ export function registerAutoCommand(program: Command): void {
         ` AUTONOMOUS RED-TEAM`,
         ` target    : ${target.name} (${mode})  ${target.endpoint}`,
         ` objective : ${objective}`,
-        ` models    : commander=${autoOptions.commanderModel}  operator=${autoOptions.operatorModel}  scout=${autoOptions.scoutModel}`,
-        ` limits    : operators≤${autoOptions.maxOperators}  turns≤${autoOptions.maxTurns}  thread-turns≤${autoOptions.maxThreadTurns}${autoOptions.budgetUsd ? `  budget=$${autoOptions.budgetUsd}` : ""}`,
-        ` verifier  : ${autoOptions.verify ? "on" : "off"}`,
+        ` models    : commander=${huntOptions.commanderModel}  operator=${huntOptions.operatorModel}  scout=${huntOptions.scoutModel}`,
+        ` limits    : operators≤${huntOptions.maxOperators}  turns≤${huntOptions.maxTurns}  thread-turns≤${huntOptions.maxThreadTurns}${huntOptions.budgetUsd ? `  budget=$${huntOptions.budgetUsd}` : ""}`,
+        ` verifier  : ${huntOptions.verify ? "on" : "off"}`,
         "════════════════════════════════════════════════════════════════",
       ].join("\n");
       process.stdout.write(header + "\n");
@@ -387,10 +387,10 @@ export function registerAutoCommand(program: Command): void {
               objective,
               targetName: target.name,
               targetEndpoint: target.endpoint,
-              budgetUsd: autoOptions.budgetUsd,
-              commanderModel: autoOptions.commanderModel,
-              operatorModel: autoOptions.operatorModel,
-              scoutModel: autoOptions.scoutModel,
+              budgetUsd: huntOptions.budgetUsd,
+              commanderModel: huntOptions.commanderModel,
+              operatorModel: huntOptions.operatorModel,
+              scoutModel: huntOptions.scoutModel,
             },
           });
           consola.success(`Live UI: ${uiHandle.url}`);
@@ -409,7 +409,7 @@ export function registerAutoCommand(program: Command): void {
 
       let report;
       try {
-        report = await runAutonomous(autoOptions, {
+        report = await runAutonomous(huntOptions, {
           progress,
           onRunLog: uiHandle ? (log) => uiHandle!.attachRunLog(log) : undefined,
         });
@@ -418,7 +418,7 @@ export function registerAutoCommand(program: Command): void {
         eventLog.end();
       }
 
-      const { html, json, dir } = await writeAutonomousReport(report, autoOptions.outputDir);
+      const { html, json, dir } = await writeAutonomousReport(report, huntOptions.outputDir);
 
       uiHandle?.markComplete({ reportDir: dir, outcome: report.objectiveOutcome });
 

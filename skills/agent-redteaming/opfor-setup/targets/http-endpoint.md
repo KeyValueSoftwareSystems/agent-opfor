@@ -119,7 +119,7 @@ Capture stdout as the response. If curl fails (exit code != 0), fall back to Opt
 
 ## Integration Example
 
-When `opfor-execute` invokes an attack:
+When `opfor-run` invokes an attack:
 
 ```
 1. Read attack pattern from attacks/jailbreaking/role-play.md

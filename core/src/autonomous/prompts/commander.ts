@@ -1,13 +1,13 @@
 // Commander system prompt — the primary attack-intelligence doctrine.
 // Judging AND attacking logic live here so the agent stays smart and unconstrained.
 
-import type { AutoOptions } from "../lib/types.js";
+import type { HuntOptions } from "../lib/types.js";
 import type { KnowledgeBase } from "../knowledge/types.js";
 import { renderKnowledgeDigest } from "./digest.js";
 import { toolId, TOOL_NAMES } from "../tools/server.js";
 
 export function buildCommanderPrompt(opts: {
-  options: AutoOptions;
+  options: HuntOptions;
   knowledge: KnowledgeBase;
 }): string {
   const { options, knowledge } = opts;

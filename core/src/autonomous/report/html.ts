@@ -267,7 +267,7 @@ export function renderReportHtml(r: AutonomousReport): string {
   return `<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Opfor Autonomous — ${esc(r.target.name)}</title>
+<title>Opfor Hunt — ${esc(r.target.name)}</title>
 <style>
   :root{--bg:#F6F7F9;--surface:#FFF;--surface-2:#F1F4F8;--text:#0B1220;--text-2:#3A475A;--muted:#6B7A90;--muted-2:#9AA7B8;--line:#E4E8EE;--line-2:#CBD3DE;--pass:#059669;--pass-bg:#ECFDF5;--pass-border:#A7F3D0;--fail:#DC2626;--fail-bg:#FEF2F2;--fail-border:#FCA5A5;--accent:#f5ad5c;--ink:#0F172A;--shadow:0 1px 2px rgba(16,24,40,.04),0 1px 3px rgba(16,24,40,.06)}
   *{box-sizing:border-box;margin:0;padding:0}
@@ -553,7 +553,7 @@ export function renderReportHtml(r: AutonomousReport): string {
 
 </div>
 
-<div class="report-footer"><div>Opfor Autonomous · ${esc(dateStr)}</div><div class="mono">${esc(r.reportId)}</div></div>
+<div class="report-footer"><div>Opfor Hunt · ${esc(dateStr)}</div><div class="mono">${esc(r.reportId)}</div></div>
 
 <script>
 (function(){document.querySelectorAll('.code-wrap').forEach(function(w){var p=w.querySelector('.result-code');if(p&&p.scrollHeight<=p.clientHeight+4){var f=w.querySelector('.code-fade');var m=w.querySelector('.code-more');if(f)f.style.display='none';if(m)m.style.display='none';}});})();

@@ -24,4 +24,4 @@ if ! command -v opfor >/dev/null 2>&1; then
   npm run install:cli
 fi
 
-exec opfor execute --config "$CONFIG" --env "$ENV_FILE" "$@"
+exec opfor run --config "$CONFIG" --env "$ENV_FILE" "$@"

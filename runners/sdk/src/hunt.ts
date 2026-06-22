@@ -2,7 +2,7 @@
  * Autonomous red-team mode for the Opfor SDK.
  *
  * Provides programmatic access to the same autonomous red-teaming capabilities
- * as `opfor auto` CLI command.
+ * as `opfor hunt` CLI command.
  */
 
 import { mkdir } from "node:fs/promises";
@@ -10,31 +10,31 @@ import path from "node:path";
 import { runAutonomous } from "@opfor/core/autonomous/orchestrator/run.js";
 import { writeAutonomousReport } from "@opfor/core/autonomous/report/writeReport.js";
 import type {
-  AutoOptions as CoreAutoOptions,
+  HuntOptions as CoreHuntOptions,
   TargetConfig as CoreTargetConfig,
   TargetMode,
 } from "@opfor/core/autonomous/lib/types.js";
 import type { AutonomousReport } from "@opfor/core/autonomous/report/types.js";
 import type {
-  AutoOptions,
-  AutoResults,
-  AutoFinding,
-  AutoTurn,
-  AutoProgressEvent,
+  HuntOptions,
+  HuntResults,
+  HuntFinding,
+  HuntTurn,
+  HuntProgressEvent,
 } from "./types.js";
 
 /**
  * Run autonomous red-team testing against a target.
  *
- * Unlike `execute()` which runs predefined evaluators, `auto()` uses an
+ * Unlike `run()` which runs predefined evaluators, `hunt()` uses an
  * AI agent to autonomously discover and exploit vulnerabilities through
  * adaptive multi-turn attacks.
  *
  * @example
  * ```typescript
- * import { auto } from "@opfor/sdk";
+ * import { hunt } from "@opfor/sdk";
  *
- * const results = await auto({
+ * const results = await hunt({
  *   target: {
  *     url: "https://api.example.com/chat",
  *     apiKey: process.env.TARGET_API_KEY,
@@ -54,7 +54,7 @@ import type {
  * console.log(`Findings: ${results.findings.length}`);
  * ```
  */
-export async function auto(options: AutoOptions): Promise<AutoResults> {
+export async function hunt(options: HuntOptions): Promise<HuntResults> {
   validateOptions(options);
 
   const coreOptions = buildCoreOptions(options);
@@ -78,7 +78,7 @@ export async function auto(options: AutoOptions): Promise<AutoResults> {
   return transformReport(report, html, json);
 }
 
-function validateOptions(options: AutoOptions): void {
+function validateOptions(options: HuntOptions): void {
   if (!options.target?.url) {
     throw new Error("target.url is required");
   }
@@ -94,7 +94,7 @@ function validateOptions(options: AutoOptions): void {
   }
 }
 
-function buildCoreOptions(options: AutoOptions): CoreAutoOptions {
+function buildCoreOptions(options: HuntOptions): CoreHuntOptions {
   const targetUrl = new URL(options.target.url);
   const mode: TargetMode = options.target.stateful ? "stateful" : "stateless";
 
@@ -138,7 +138,7 @@ function buildCoreOptions(options: AutoOptions): CoreAutoOptions {
   };
 }
 
-function buildProgressReporter(onProgress: (event: AutoProgressEvent) => void): {
+function buildProgressReporter(onProgress: (event: HuntProgressEvent) => void): {
   onLine: (line: string) => void;
   onEvent: (event: unknown) => void;
 } {
@@ -198,7 +198,7 @@ function transformReport(
   report: AutonomousReport,
   htmlPath: string,
   jsonPath: string
-): AutoResults {
+): HuntResults {
   return {
     id: report.reportId,
     timestamp: report.generatedAt,
@@ -226,12 +226,12 @@ function transformReport(
   };
 }
 
-function transformFinding(finding: AutonomousReport["findings"][0]): AutoFinding {
+function transformFinding(finding: AutonomousReport["findings"][0]): HuntFinding {
   return {
     id: finding.findingId,
     vulnClassId: finding.vulnClassId,
     name: finding.name,
-    severity: finding.severity as AutoFinding["severity"],
+    severity: finding.severity as HuntFinding["severity"],
     standards: finding.standards,
     threadId: finding.threadId,
     strategy: finding.strategy,
@@ -244,7 +244,7 @@ function transformFinding(finding: AutonomousReport["findings"][0]): AutoFinding
   };
 }
 
-function transformTurn(turn: AutonomousReport["findings"][0]["turns"][0]): AutoTurn {
+function transformTurn(turn: AutonomousReport["findings"][0]["turns"][0]): HuntTurn {
   return {
     turnIndex: turn.turnIndex,
     prompt: turn.prompt,

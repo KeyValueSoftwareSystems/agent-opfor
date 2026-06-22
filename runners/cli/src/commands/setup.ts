@@ -26,7 +26,7 @@ import { ensureOpforDirs, newConfigPath } from "../lib/artifacts.js";
 
 /**
  * Run the setup wizard (or build an empty config) and write the result to disk.
- * Shared by `opfor setup` and `opfor execute` (when invoked without `--config`).
+ * Shared by `opfor setup` and `opfor run` (when invoked without `--config`).
  */
 export async function runSetupAndWrite(opts?: {
   configOutPath?: string;
@@ -81,7 +81,7 @@ export function registerSetupCommand(program: Command): void {
           hint,
           empty: opts.empty,
         });
-        log.info(`Next: opfor execute --config ${outPath}`);
+        log.info(`Next: opfor run --config ${outPath}`);
       }
     );
 }

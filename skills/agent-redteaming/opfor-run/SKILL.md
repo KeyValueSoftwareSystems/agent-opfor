@@ -1,5 +1,5 @@
 ---
-name: opfor-execute
+name: opfor-run
 description: Run red-team attacks and generate a report for an agent target.
 ---
 

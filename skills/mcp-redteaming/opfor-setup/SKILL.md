@@ -347,10 +347,10 @@ Attacks:         5 per evaluator = 50 total
 Turn Mode:       single-turn
 
 Config Location: .opfor/configs/<uuid>/
-Next Step:       Run /opfor-mcp-execute to start the assessment
+Next Step:       Run /opfor-mcp-run to start the assessment
 
 You can:
   • Review/edit attacks at .opfor/configs/<uuid>/inputs/
-  • Run the assessment: use /opfor-mcp-execute
+  • Run the assessment: use /opfor-mcp-run
   • Create more configs: run /opfor-mcp-setup again
 ```

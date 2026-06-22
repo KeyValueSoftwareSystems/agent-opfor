@@ -182,7 +182,7 @@ Pick via `--evaluators jailbreaking` or list it under `agent.selection.evaluator
 | ------------------- | --------------------- | -------- | ----- |
 | `resource-exposure` | MCP Resource Exposure | critical | MCP01 |
 
-`resource-exposure` runs automatically during `opfor execute` **Phase 0** — opfor calls `resources/list` + `resources/read` on every resource and judges for secret/PII exposure. Disable with `mcp.scanResources: false` in the config.
+`resource-exposure` runs automatically during `opfor run` **Phase 0** — opfor calls `resources/list` + `resources/read` on every resource and judges for secret/PII exposure. Disable with `mcp.scanResources: false` in the config.
 
 ---
 
