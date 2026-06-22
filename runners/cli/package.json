@@ -1,7 +1,7 @@
 {
   "name": "@agent-opfor/cli",
   "version": "0.1.0",
-  "description": "Opfor CLI — security testing for AI agents and MCP servers (opfor setup|generate|execute)",
+  "description": "Opfor CLI — security testing for AI agents and MCP servers (opfor setup|run|hunt)",
   "license": "Apache-2.0",
   "type": "module",
   "bin": {

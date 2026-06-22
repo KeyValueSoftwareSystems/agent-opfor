@@ -37,7 +37,7 @@ Apache 2.0. Built from India.
 ## Quick Start
 
 ```bash
-npm install -g opfor
+npm install -g @agent-opfor/cli
 export OPENAI_API_KEY=your-key    # or GEMINI_API_KEY, ANTHROPIC_API_KEY, etc.
 ```
 
@@ -84,13 +84,13 @@ We built opfor because we needed all three.
 
 Different people on your team need different entry points. Opfor ships five.
 
-| Mode                     | How                                                                   | Best for                                                                                  |
-| ------------------------ | --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| **🖥️ CLI**               | `opfor setup` → `opfor run`                                           | Engineers, CI/CD, terminal-first workflows                                                |
-| **🌐 Browser extension** | Install the extension, click the icon on any chat interface           | Product managers, designers, QA, security analysts — anyone who can't or won't write code |
-| **🤖 MCP server**        | Register opfor in Cursor or Claude Desktop, then ask in chat          | AI coding agents that test your other agents                                              |
-| **⚡ Skills**            | `/opfor-setup` · `/opfor-run` · `/opfor-mcp-setup` · `/opfor-mcp-run` | Developers who want one-command testing inside their IDE                                  |
-| **📦 SDK**               | `npm install @opfor/sdk`, then call `run` / `hunt` from your code     | Programmatic red-teaming and custom workflows                                             |
+| Mode                     | How                                                                     | Best for                                                                                  |
+| ------------------------ | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| **🖥️ CLI**               | `opfor setup` → `opfor run`                                             | Engineers, CI/CD, terminal-first workflows                                                |
+| **🌐 Browser extension** | Install the extension, click the icon on any chat interface             | Product managers, designers, QA, security analysts — anyone who can't or won't write code |
+| **🤖 MCP server**        | Register opfor in Cursor or Claude Desktop, then ask in chat            | AI coding agents that test your other agents                                              |
+| **⚡ Skills**            | `/opfor-setup` · `/opfor-run` · `/opfor-mcp-setup` · `/opfor-mcp-run`   | Developers who want one-command testing inside their IDE                                  |
+| **📦 SDK**               | `npm install @agent-opfor/sdk`, then call `run` / `hunt` from your code | Programmatic red-teaming and custom workflows                                             |
 
 All five share the same evaluators, attack templates, and judge logic.
 
@@ -130,10 +130,10 @@ This is the path for the half of every product team that doesn't open a terminal
 
 ## SDK — embed red-teaming in your code
 
-The SDK is opfor's programmatic path. Install `@opfor/sdk`, call `run` or `hunt`, and get structured results back — no CLI, no config files, no subprocess.
+The SDK is opfor's programmatic path. Install `@agent-opfor/sdk`, call `run` or `hunt`, and get structured results back — no CLI, no config files, no subprocess.
 
 ```typescript
-import { Opfor } from "@opfor/sdk";
+import { Opfor } from "@agent-opfor/sdk";
 
 const opfor = new Opfor({ apiKey: process.env.ANTHROPIC_API_KEY });
 

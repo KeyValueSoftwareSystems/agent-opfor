@@ -1,5 +1,5 @@
 {
-  "name": "@agent-opfor/agent-mcp-server",
+  "name": "@agent-opfor/mcp",
   "version": "0.1.0",
   "description": "Opfor MCP server — expose red team tools to any MCP-compatible AI agent",
   "license": "Apache-2.0",

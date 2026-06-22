@@ -18,7 +18,7 @@ Opfor is an open-source red-teaming toolkit for AI agents and MCP servers. It ge
 | Browser extension | Click the toolbar icon on any chat UI                                                          | Non-developers — QA, PMs, security analysts  |
 | MCP server        | `opfor_setup`, `opfor_run` tools                                                               | MCP-compatible host (Cursor, Claude Desktop) |
 | Skills            | `/opfor-setup`, `/opfor-run` slash commands                                                    | AI coding agent reads markdown skill files   |
-| SDK               | `import { run, hunt } from "@opfor/sdk"`                                                       | Developers embedding opfor in their own code |
+| SDK               | `import { run, hunt } from "@agent-opfor/sdk"`                                                 | Developers embedding opfor in their own code |
 
 ---
 
@@ -26,7 +26,7 @@ Opfor is an open-source red-teaming toolkit for AI agents and MCP servers. It ge
 
 ```
 opfor/
-├── core/                          # @opfor/core — shared engine (npm workspace, compiled to core/dist/)
+├── core/                          # @agent-opfor/core — shared engine (npm workspace, compiled to core/dist/)
 │   └── src/
 │       ├── autonomous/            # Autonomous red-teaming orchestration (orchestrator, prompts, tools, state, report, knowledge)
 │       ├── catalog/               # discoverEvaluators.ts, loadCatalog.ts — YAML evaluator/suite discovery
@@ -46,7 +46,7 @@ opfor/
 │       ├── prompts/               # Inlined system prompts (attacker, judge) used by core
 │       └── util/                  # yamlFrontmatter.ts and other utility helpers
 ├── runners/
-│   ├── cli/                       # @opfor/cli — `opfor` CLI binary (npm workspace)
+│   ├── cli/                       # @agent-opfor/cli — `opfor` CLI binary (npm workspace)
 │   │   └── src/
 │   │       ├── index.ts           # CLI entrypoint (commander) — registers setup, run, and hunt
 │   │       ├── commands/
@@ -55,18 +55,18 @@ opfor/
 │   │       │   └── hunt.ts        # `opfor hunt` — autonomous red-teaming with agentic orchestration
 │   │       └── lib/
 │   │           └── artifacts.ts   # .opfor/configs/ + .opfor/reports/ path helpers
-│   ├── mcp/                       # @opfor/mcp — MCP server runner (npm workspace)
+│   ├── mcp/                       # @agent-opfor/mcp — MCP server runner (npm workspace)
 │   │   └── src/
 │   │       └── index.ts           # MCP server entrypoint — registers tools, stdio transport
-│   ├── sdk/                       # @opfor/sdk — programmatic SDK (npm workspace)
+│   ├── sdk/                       # @agent-opfor/sdk — programmatic SDK (npm workspace)
 │   │   └── src/
 │   │       └── index.ts           # SDK entrypoint
-│   └── extension/                 # @opfor/extension — Chrome MV3 browser extension (npm workspace)
+│   └── extension/                 # @agent-opfor/extension — Chrome MV3 browser extension (npm workspace)
 │       ├── service_worker.js      # Entry point — message routing only; imports modules below
 │       ├── orchestrator.js        # Main run loop: locate → attack → extract → reset → judge (calls runAllBrowser from bundled core)
 │       ├── llmUiActions.js        # DOM-specific LLM helpers (input picker, UI planner, message shortener)
 │       ├── domTarget.js           # Adapter exposing the DOM send/extract path as a core AgentTarget
-│       ├── dist/core.bundle.js    # esbuild bundle of @opfor/core/browser (attack + judge engine)
+│       ├── dist/core.bundle.js    # esbuild bundle of @agent-opfor/core/browser (attack + judge engine)
 │       ├── frameDiscovery.js      # Frame collection, scoring, chat-frame selection
 │       ├── domActions.js          # chrome.scripting wrappers (send, click, verify, vendor APIs)
 │       ├── responseExtractor.js   # Three-phase polling extractor for bot responses
@@ -135,7 +135,7 @@ opfor/
 │   ├── mcp.md                     # MCP server (runner) setup + tools reference
 │   ├── browser-extension.md       # Browser extension guide
 │   ├── skills.md                  # Skill bundle usage
-│   ├── sdk.md                     # SDK (@opfor/sdk) reference
+│   ├── sdk.md                     # SDK (@agent-opfor/sdk) reference
 │   ├── evaluators.md              # Evaluator + suite reference
 │   ├── evaluator-schema.md        # Evaluator YAML schema
 │   └── telemetry.md               # Trace-aware testing (Langfuse / Netra)
@@ -158,7 +158,7 @@ npm run format:check              # prettier --check
 npm test                          # vitest in core/
 ```
 
-`core` must compile before any runner — `runners/{cli,mcp}` import from `core/dist/`, and `runners/extension` esbuild-bundles `@opfor/core/browser` at build time. Always run `npm run build` from the repo root, never per-package.
+`core` must compile before any runner — `runners/{cli,mcp}` import from `core/dist/`, and `runners/extension` esbuild-bundles `@agent-opfor/core/browser` at build time. Always run `npm run build` from the repo root, never per-package.
 
 ---
 
@@ -197,7 +197,7 @@ npm test                          # vitest in core/
 | `runners/extension/service_worker.js`    | Extension entry point — message routing; imports from focused ES modules                                                                                                    |
 | `runners/extension/orchestrator.js`      | Full adaptive run loop — drives `runAllBrowser` against `DomTarget`                                                                                                         |
 | `runners/extension/domTarget.js`         | Implements the core `AgentTarget` interface against the live chat DOM                                                                                                       |
-| `runners/extension/dist/core.bundle.js`  | esbuild bundle of `@opfor/core/browser`; supplies `runAllBrowser` + `generateNextTurn` + judge                                                                              |
+| `runners/extension/dist/core.bundle.js`  | esbuild bundle of `@agent-opfor/core/browser`; supplies `runAllBrowser` + `generateNextTurn` + judge                                                                        |
 
 ---
 
@@ -342,7 +342,7 @@ For a new MCP _transport_ (beyond stdio/url):
 - **No barrel re-exports** — import directly from the file that owns the symbol
 - **Error messages are actionable** — tell the user what to fix, not just what went wrong
 - **Evaluator files are data** — no business logic in `.md` files; logic lives in `core/src/evaluators/`
-- **Never invoke the CLI as a subprocess from the MCP server** — call `@opfor/core` directly
+- **Never invoke the CLI as a subprocess from the MCP server** — call `@agent-opfor/core` directly
 
 ---
 
