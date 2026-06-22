@@ -39,7 +39,7 @@ Apache 2.0. Built from India.
 ```bash
 npm install -g opfor
 opfor setup
-opfor execute
+opfor run
 ```
 
 Opfor walks you through picking a target, generating attacks, running them, and producing an HTML report. Set an API key for your LLM provider first:
@@ -48,7 +48,7 @@ Opfor walks you through picking a target, generating attacks, running them, and 
 export OPENAI_API_KEY=your-key    # or GEMINI_API_KEY, ANTHROPIC_API_KEY, etc.
 ```
 
-→ [Examples](examples/) · [Browser extension](docs/browser-extension.md)
+→ [Browser extension](docs/browser-extension.md)
 
 ---
 
@@ -82,7 +82,7 @@ Different people on your team need different entry points. Opfor ships five.
 
 | Mode                     | How                                                                           | Best for                                                                                  |
 | ------------------------ | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| **🖥️ CLI**               | `opfor setup` → `opfor execute`                                               | Engineers, CI/CD, terminal-first workflows                                                |
+| **🖥️ CLI**               | `opfor setup` → `opfor run`                                                   | Engineers, CI/CD, terminal-first workflows                                                |
 | **🌐 Browser extension** | Install the extension, click the icon on any chat interface                   | Product managers, designers, QA, security analysts — anyone who can't or won't write code |
 | **🤖 MCP server**        | Register opfor in Cursor or Claude Desktop, then ask in chat                  | AI coding agents that test your other agents                                              |
 | **⚡ Skills**            | `/opfor-setup` · `/opfor-execute` · `/opfor-mcp-setup` · `/opfor-mcp-execute` | Developers who want one-command testing inside their IDE                                  |
@@ -97,7 +97,7 @@ All five share the same evaluators, attack templates, and judge logic.
 ## How it works
 
 <p align="center">
-  <img src="assets/opfor-execution-flow.svg" alt="What happens during opfor execute" width="860" />
+  <img src="assets/opfor-execution-flow.svg" alt="What happens during opfor run" width="860" />
 </p>
 
 When you run a scan, opfor:
@@ -124,18 +124,54 @@ This is the path for the half of every product team that doesn't open a terminal
 
 ---
 
+## SDK — embed red-teaming in your code
+
+The SDK is opfor's programmatic path. Install `@opfor/sdk`, call `execute` or `auto`, and get structured results back — no CLI, no config files, no subprocess.
+
+```typescript
+import { Opfor } from "@opfor/sdk";
+
+const opfor = new Opfor({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+const results = await opfor.execute({
+  target: { url: "https://api.example.com/chat" },
+  suite: "owasp-llm-top10",
+});
+```
+
+Use it in CI, in test suites, or anywhere you need red-teaming without leaving TypeScript.
+
+→ [SDK reference](docs/sdk.md)
+
+---
+
+## opfor hunt — autonomous red-teaming
+
+`opfor hunt` skips the config file entirely. Give it an endpoint and an objective, and a multi-agent system — commander, operators, scout — runs an adaptive attack campaign on its own: recon, strategy, multi-turn probing, report.
+
+```bash
+opfor hunt \
+  --endpoint "https://your-agent.com/v1/chat" \
+  --objective "Find jailbreaks, system-prompt leakage, and safety bypasses."
+```
+
+Add `--ui` to watch the attack tree unfold in a live dashboard.
+
+→ [Full reference](docs/auto.md)
+
+---
+
 ## Evaluator coverage
 
 Opfor ships with curated suites that map to industry standards. Pick a suite or run individual evaluators.
 
-| Suite ID                  | Standard                  | Focus                                                                     |
-| ------------------------- | ------------------------- | ------------------------------------------------------------------------- |
-| `owasp-llm-top10`         | OWASP LLM Top 10 (2025)   | Prompt injection, jailbreaks, sensitive disclosure, system prompt leakage |
-| `owasp-agentic-ai`        | OWASP Agentic AI Top 10   | Excessive agency, tool misuse, agent goal hijack, memory poisoning        |
-| `owasp-mcp-top10`         | OWASP MCP Top 10 (2025)   | Secret exposure, scope escalation, tool description injection, SSRF       |
-| `owasp-api`               | OWASP API Security Top 10 | BOLA, BFLA, SQL injection                                                 |
-| `eu-ai-act-bias`          | EU AI Act — Bias          | Age, gender, race, disability                                             |
-| `output-trust-and-safety` | Output trust & safety     | Hallucination, misinformation, improper output handling                   |
+| Suite ID           | Standard                  | Focus                                                                     |
+| ------------------ | ------------------------- | ------------------------------------------------------------------------- |
+| `owasp-llm-top10`  | OWASP LLM Top 10 (2025)   | Prompt injection, jailbreaks, sensitive disclosure, system prompt leakage |
+| `owasp-agentic-ai` | OWASP Agentic AI Top 10   | Excessive agency, tool misuse, agent goal hijack, memory poisoning        |
+| `owasp-mcp-top10`  | OWASP MCP Top 10 (2025)   | Secret exposure, scope escalation, tool description injection, SSRF       |
+| `owasp-api`        | OWASP API Security Top 10 | BOLA, BFLA, SQL injection                                                 |
+| `eu-ai-act-bias`   | EU AI Act — Bias          | Age, gender, race, disability                                             |
 
 → [Full evaluator reference and OWASP mapping](docs/evaluators.md)
 
@@ -165,9 +201,6 @@ This catches what input/output testing misses — PII that leaks into a tool cal
 | [vanilla-chat](tests/e2e/agents/vanilla-chat)         | Plain customer support chatbot — test LLM-level vulnerabilities |
 | [customer-support](tests/e2e/agents/customer-support) | Tool-calling agent with PostgreSQL — test BOLA, BFLA, RBAC, PII |
 | [vulnerable-server](tests/e2e/mcp/vulnerable-server)  | Sample MCP server with intentional vulnerabilities              |
-| [github-actions](examples/ci-cd/github-actions.yml)   | Run opfor in CI on every PR                                     |
-
-→ [All examples](examples/)
 
 ---
 
@@ -189,8 +222,7 @@ Highest-impact ways to contribute:
 
 1. **New evaluators** — add a `.yaml` file under `evaluators/agent/` or `evaluators/mcp/`, run `npm run build:catalog`, and commit. No TypeScript needed.
 2. **New target adapters** — extend `core/src/mcp-client/` to support new agent frameworks.
-3. **Findings** — run opfor against a public agent or MCP server and PR your writeup to `findings/`.
-4. **Bug reports** — open an [issue](https://github.com/KeyValueSoftwareSystems/opfor/issues).
+3. **Bug reports** — open an [issue](https://github.com/KeyValueSoftwareSystems/opfor/issues).
 
 Read the [Contributing Guide](CONTRIBUTING.md).
 
