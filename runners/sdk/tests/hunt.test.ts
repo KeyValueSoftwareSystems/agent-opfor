@@ -1,5 +1,5 @@
 /**
- * SDK auto() tests — verifies the autonomous mode API.
+ * SDK hunt() tests — verifies the autonomous mode API.
  *
  * Note: Full integration tests require the Anthropic Claude Agent SDK
  * which is not available in the test environment. These tests verify
@@ -15,19 +15,19 @@ import { setEnvProvider } from "@opfor/core/lib/env.js";
 setEnvProvider(() => "fake-test-api-key");
 
 import type {
-  AutoOptions,
-  AutoResults,
-  AutoTargetConfig,
-  AutoModelsConfig,
-  AutoLimitsConfig,
-  AutoProgressEvent,
-  AutoFinding,
-  AutoTurn,
+  HuntOptions,
+  HuntResults,
+  HuntTargetConfig,
+  HuntModelsConfig,
+  HuntLimitsConfig,
+  HuntProgressEvent,
+  HuntFinding,
+  HuntTurn,
 } from "../src/types.js";
 
-describe("SDK auto types", () => {
-  test("AutoTargetConfig type is correct", () => {
-    const target: AutoTargetConfig = {
+describe("SDK hunt types", () => {
+  test("HuntTargetConfig type is correct", () => {
+    const target: HuntTargetConfig = {
       url: "https://api.example.com/chat",
       name: "Test Target",
       apiKey: "test-key",
@@ -43,8 +43,8 @@ describe("SDK auto types", () => {
     assert.equal(target.stateful, true);
   });
 
-  test("AutoModelsConfig type is correct", () => {
-    const models: AutoModelsConfig = {
+  test("HuntModelsConfig type is correct", () => {
+    const models: HuntModelsConfig = {
       commander: "opus",
       operator: "sonnet",
       scout: "haiku",
@@ -55,8 +55,8 @@ describe("SDK auto types", () => {
     assert.equal(models.operator, "sonnet");
   });
 
-  test("AutoLimitsConfig type is correct", () => {
-    const limits: AutoLimitsConfig = {
+  test("HuntLimitsConfig type is correct", () => {
+    const limits: HuntLimitsConfig = {
       maxOperators: 6,
       maxTurns: 120,
       maxThreadTurns: 25,
@@ -73,8 +73,8 @@ describe("SDK auto types", () => {
     assert.equal(limits.maxOperators, 6);
   });
 
-  test("AutoOptions type is correct", () => {
-    const options: AutoOptions = {
+  test("HuntOptions type is correct", () => {
+    const options: HuntOptions = {
       target: {
         url: "https://api.example.com/chat",
       },
@@ -96,8 +96,8 @@ describe("SDK auto types", () => {
     assert.equal(options.verify, true);
   });
 
-  test("AutoProgressEvent types are correct", () => {
-    const events: AutoProgressEvent[] = [
+  test("HuntProgressEvent types are correct", () => {
+    const events: HuntProgressEvent[] = [
       { type: "line", message: "Starting..." },
       { type: "recon_start" },
       { type: "recon_done", fingerprint: "Customer support bot", weakPoints: ["jailbreak"] },
@@ -112,8 +112,8 @@ describe("SDK auto types", () => {
     assert.equal(events[7].type, "complete");
   });
 
-  test("AutoTurn type is correct", () => {
-    const turn: AutoTurn = {
+  test("HuntTurn type is correct", () => {
+    const turn: HuntTurn = {
       turnIndex: 1,
       prompt: "Attack prompt",
       response: "Target response",
@@ -126,8 +126,8 @@ describe("SDK auto types", () => {
     assert.equal(turn.persona, "frustrated-developer");
   });
 
-  test("AutoFinding type is correct", () => {
-    const finding: AutoFinding = {
+  test("HuntFinding type is correct", () => {
+    const finding: HuntFinding = {
       id: "finding-1",
       vulnClassId: "jailbreaking",
       name: "Jailbreak via DAN",
@@ -150,8 +150,8 @@ describe("SDK auto types", () => {
     assert.equal(finding.turns.length, 2);
   });
 
-  test("AutoResults type is correct", () => {
-    const results: AutoResults = {
+  test("HuntResults type is correct", () => {
+    const results: HuntResults = {
       id: "report-123",
       timestamp: new Date().toISOString(),
       target: { name: "Test Target", endpoint: "https://example.com/chat" },
@@ -184,8 +184,8 @@ describe("SDK auto types", () => {
     assert.equal(results.summary.confirmed, 3);
   });
 
-  test("AutoOptions with minimal config", () => {
-    const options: AutoOptions = {
+  test("HuntOptions with minimal config", () => {
+    const options: HuntOptions = {
       target: { url: "https://api.example.com/chat" },
       objective: "Test for vulnerabilities",
     };

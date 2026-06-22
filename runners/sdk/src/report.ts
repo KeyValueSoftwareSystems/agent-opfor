@@ -1,6 +1,6 @@
 import { writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
-import type { ExecuteResults } from "./types.js";
+import type { RunResults } from "./types.js";
 
 export interface ReportBuilder {
   /**
@@ -19,12 +19,12 @@ export interface ReportBuilder {
  *
  * @example
  * ```typescript
- * const results = await execute({ ... });
+ * const results = await run({ ... });
  * await report(results).json("./report.json");
  * await report(results).html("./report.html");
  * ```
  */
-export function report(results: ExecuteResults): ReportBuilder {
+export function report(results: RunResults): ReportBuilder {
   return {
     async json(outputPath: string): Promise<string> {
       const resolvedPath = path.resolve(outputPath);
@@ -44,7 +44,7 @@ export function report(results: ExecuteResults): ReportBuilder {
   };
 }
 
-function renderHtmlReport(results: ExecuteResults): string {
+function renderHtmlReport(results: RunResults): string {
   const findingRows = results.findings
     .map(
       (f) => `

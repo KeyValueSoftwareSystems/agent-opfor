@@ -84,13 +84,13 @@ We built opfor because we needed all three.
 
 Different people on your team need different entry points. Opfor ships five.
 
-| Mode                     | How                                                                           | Best for                                                                                  |
-| ------------------------ | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| **🖥️ CLI**               | `opfor setup` → `opfor run`                                                   | Engineers, CI/CD, terminal-first workflows                                                |
-| **🌐 Browser extension** | Install the extension, click the icon on any chat interface                   | Product managers, designers, QA, security analysts — anyone who can't or won't write code |
-| **🤖 MCP server**        | Register opfor in Cursor or Claude Desktop, then ask in chat                  | AI coding agents that test your other agents                                              |
-| **⚡ Skills**            | `/opfor-setup` · `/opfor-execute` · `/opfor-mcp-setup` · `/opfor-mcp-execute` | Developers who want one-command testing inside their IDE                                  |
-| **📦 SDK**               | `npm install @opfor/sdk`, then call `execute` / `auto` from your code         | Programmatic red-teaming and custom workflows                                             |
+| Mode                     | How                                                                   | Best for                                                                                  |
+| ------------------------ | --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| **🖥️ CLI**               | `opfor setup` → `opfor run`                                           | Engineers, CI/CD, terminal-first workflows                                                |
+| **🌐 Browser extension** | Install the extension, click the icon on any chat interface           | Product managers, designers, QA, security analysts — anyone who can't or won't write code |
+| **🤖 MCP server**        | Register opfor in Cursor or Claude Desktop, then ask in chat          | AI coding agents that test your other agents                                              |
+| **⚡ Skills**            | `/opfor-setup` · `/opfor-run` · `/opfor-mcp-setup` · `/opfor-mcp-run` | Developers who want one-command testing inside their IDE                                  |
+| **📦 SDK**               | `npm install @opfor/sdk`, then call `run` / `hunt` from your code     | Programmatic red-teaming and custom workflows                                             |
 
 All five share the same evaluators, attack templates, and judge logic.
 
@@ -130,14 +130,14 @@ This is the path for the half of every product team that doesn't open a terminal
 
 ## SDK — embed red-teaming in your code
 
-The SDK is opfor's programmatic path. Install `@opfor/sdk`, call `execute` or `auto`, and get structured results back — no CLI, no config files, no subprocess.
+The SDK is opfor's programmatic path. Install `@opfor/sdk`, call `run` or `hunt`, and get structured results back — no CLI, no config files, no subprocess.
 
 ```typescript
 import { Opfor } from "@opfor/sdk";
 
 const opfor = new Opfor({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-const results = await opfor.execute({
+const results = await opfor.run({
   target: { url: "https://api.example.com/chat" },
   suite: "owasp-llm-top10",
 });
@@ -161,7 +161,7 @@ opfor hunt \
 
 Add `--ui` to watch the attack tree unfold in a live dashboard.
 
-→ [Full reference](docs/auto.md)
+→ [Full reference](docs/hunt.md)
 
 ---
 

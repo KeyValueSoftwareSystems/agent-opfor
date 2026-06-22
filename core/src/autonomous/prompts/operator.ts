@@ -1,10 +1,10 @@
 // Operator subagent system prompt — owns ONE vulnerability vector and runs an
 // adaptive multi-turn attack, self-judging and recording findings.
 
-import type { AutoOptions } from "../lib/types.js";
+import type { HuntOptions } from "../lib/types.js";
 import { toolId, TOOL_NAMES } from "../tools/server.js";
 
-export function buildOperatorPrompt(options: AutoOptions): string {
+export function buildOperatorPrompt(options: HuntOptions): string {
   const t = TOOL_NAMES;
   return `You are an OPERATOR — an adversarial specialist in an authorized red-team operation. The commander assigns you ONE vulnerability vector and a threadId namespace. The target endpoint + credentials are pre-wired into your tools — you never see them.
 

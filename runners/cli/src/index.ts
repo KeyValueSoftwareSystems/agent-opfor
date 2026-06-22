@@ -8,8 +8,8 @@ import { readFileSync } from "node:fs";
 import { config as loadDotenv } from "dotenv";
 import { Command } from "commander";
 import { registerSetupCommand } from "./commands/setup.js";
-import { registerExecuteCommand } from "./commands/execute.js";
-import { registerAutoCommand } from "./commands/auto.js";
+import { registerRunCommand } from "./commands/run.js";
+import { registerHuntCommand } from "./commands/hunt.js";
 
 loadDotenv();
 
@@ -27,8 +27,8 @@ program
   .version(readVersion(), "-v, --version", "Print version");
 
 registerSetupCommand(program);
-registerExecuteCommand(program);
-registerAutoCommand(program);
+registerRunCommand(program);
+registerHuntCommand(program);
 
 main().catch((err: unknown) => {
   if (err instanceof Error && err.name === "ExitPromptError") process.exit(0);

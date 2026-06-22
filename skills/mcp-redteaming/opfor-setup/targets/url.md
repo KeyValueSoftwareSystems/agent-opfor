@@ -155,7 +155,7 @@ Close the SSE connection (terminate the curl process or close the EventSource). 
 
 ## Integration Example
 
-When `opfor-execute` invokes an MCP attack via URL transport:
+When `opfor-run` invokes an MCP attack via URL transport:
 
 ```
 1. Connect SSE: curl -N http://localhost:3000/sse

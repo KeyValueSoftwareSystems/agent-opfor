@@ -12,7 +12,7 @@ Run this from the **root of the project you want to test** (the agent scans the 
 npx skills add https://github.com/KeyValueSoftwareSystems/OPFOR.git
 ```
 
-The CLI walks you through a short wizard: pick which agent to install into (Claude Code, Cursor, Windsurf, Gemini CLI, GitHub Copilot, etc.) and which skills (`opfor-setup`, `opfor-execute`, or both — pick both). Skills land in your agent's skills directory (e.g. `.claude/skills/opfor-setup/` for Claude Code; path varies per agent).
+The CLI walks you through a short wizard: pick which agent to install into (Claude Code, Cursor, Windsurf, Gemini CLI, GitHub Copilot, etc.) and which skills (`opfor-setup`, `opfor-run`, or both — pick both). Skills land in your agent's skills directory (e.g. `.claude/skills/opfor-setup/` for Claude Code; path varies per agent).
 
 ---
 
@@ -20,14 +20,14 @@ The CLI walks you through a short wizard: pick which agent to install into (Clau
 
 Two skill bundles, each with setup + execute:
 
-| Skill               | What the agent does                                                                                                                                                               |
-| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `opfor-setup`       | Scans the repo (endpoints, `opfor.config*`, `.env`, telemetry SDK imports), asks only what's still unknown, picks a suite or evaluators, writes a config under `.opfor/configs/`. |
-| `opfor-execute`     | Loads the config, fires attack prompts at the target, runs the LLM-as-judge, writes an HTML + JSON report, and summarises findings in chat.                                       |
-| `opfor-mcp-setup`   | Scans the repo (mcp.json, docker configs, server source), collects transport + command/URL, picks a suite, writes an MCP config under `.opfor/configs/`.                          |
-| `opfor-mcp-execute` | Fires tool-call attacks at the MCP server, judges JSON-RPC responses, writes report.                                                                                              |
+| Skill             | What the agent does                                                                                                                                                               |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `opfor-setup`     | Scans the repo (endpoints, `opfor.config*`, `.env`, telemetry SDK imports), asks only what's still unknown, picks a suite or evaluators, writes a config under `.opfor/configs/`. |
+| `opfor-run`       | Loads the config, fires attack prompts at the target, runs the LLM-as-judge, writes an HTML + JSON report, and summarises findings in chat.                                       |
+| `opfor-mcp-setup` | Scans the repo (mcp.json, docker configs, server source), collects transport + command/URL, picks a suite, writes an MCP config under `.opfor/configs/`.                          |
+| `opfor-mcp-run`   | Fires tool-call attacks at the MCP server, judges JSON-RPC responses, writes report.                                                                                              |
 
-Flow: `opfor-setup` → `opfor-execute`. Run setup once per target; re-run execute whenever you want a fresh report.
+Flow: `opfor-setup` → `opfor-run`. Run setup once per target; re-run it whenever you want a fresh report.
 
 ---
 
@@ -50,14 +50,14 @@ Inside your IDE chat, just say:
 
 ```
 Set up an Opfor assessment for this project.     # triggers opfor-setup
-Run the Opfor assessment.                        # triggers opfor-execute
+Run the Opfor assessment.                        # triggers opfor-run
 ```
 
 For MCP server targets:
 
 ```
 Set up an Opfor MCP assessment for this server.  # triggers opfor-mcp-setup
-Run the Opfor MCP assessment.                    # triggers opfor-mcp-execute
+Run the Opfor MCP assessment.                    # triggers opfor-mcp-run
 ```
 
 ---
@@ -65,6 +65,6 @@ Run the Opfor MCP assessment.                    # triggers opfor-mcp-execute
 ## Update / remove
 
 ```bash
-npx skills update opfor-setup opfor-execute
-npx skills remove opfor-setup opfor-execute
+npx skills update opfor-setup opfor-run
+npx skills remove opfor-setup opfor-run
 ```

@@ -5,11 +5,11 @@ import type { KnowledgeBase } from "../knowledge/types.js";
 import type { RunLog } from "../state/runLog.js";
 import type { BudgetGuard } from "../lib/budget.js";
 import type { SessionGate } from "../../lib/sessionGate.js";
-import type { AutoOptions } from "../lib/types.js";
+import type { HuntOptions } from "../lib/types.js";
 import type { ProgressReporter } from "../state/hooks.js";
 
 export interface RunContext {
-  options: AutoOptions;
+  options: HuntOptions;
   target: TargetClient;
   knowledge: KnowledgeBase;
   runLog: RunLog;

@@ -4,7 +4,7 @@
 
 import { randomUUID } from "node:crypto";
 import { query, type Options, type AgentDefinition } from "@anthropic-ai/claude-agent-sdk";
-import type { AutoOptions } from "../lib/types.js";
+import type { HuntOptions } from "../lib/types.js";
 import { createTargetClient } from "../target/http.js";
 import { loadKnowledge } from "../knowledge/load.js";
 import { createRunLog } from "../state/runLog.js";
@@ -74,7 +74,7 @@ export interface RunHooks {
 }
 
 export async function runAutonomous(
-  options: AutoOptions,
+  options: HuntOptions,
   runHooks?: RunHooks
 ): Promise<AutonomousReport> {
   const target = createTargetClient(options.target);

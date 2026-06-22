@@ -86,7 +86,7 @@ server.tool(
 
 // ---------------------------------------------------------------------------
 // Tool: opfor_setup
-// Writes opfor.config.json (RunConfig) that opfor_execute will read.
+// Writes opfor.config.json (RunConfig) that opfor_run will read.
 // ---------------------------------------------------------------------------
 
 const ProviderNameSchema = z.enum(Object.values(PROVIDERS) as [ProviderName, ...ProviderName[]]);
@@ -124,7 +124,7 @@ server.tool(
     " 15. Effort: 'adaptive' (one sustained chat per evaluator) or 'comprehensive' (one attack per named pattern)?\n" +
     " 16. Turns per attack: 1 (single-turn) or 2-10 (multi-turn escalation)?\n" +
     "Only call this tool once you have confirmed all answers with the user. " +
-    "Returns the config file path — pass it to opfor_execute.",
+    "Returns the config file path — pass it to opfor_run.",
   {
     // Target
     target_name: z.string().describe("Human-readable name for the target system"),
@@ -225,7 +225,7 @@ server.tool(
               `Evaluators: ${evalCount}`,
               `Attacker : ${config.attackerLlm.provider}/${config.attackerLlm.model}`,
               ``,
-              `Next: call opfor_execute with config_path="${outputPath}"`,
+              `Next: call opfor_run with config_path="${outputPath}"`,
             ].join("\n"),
           },
         ],
@@ -240,11 +240,11 @@ server.tool(
 );
 
 // ---------------------------------------------------------------------------
-// Tool: opfor_execute
+// Tool: opfor_run
 // ---------------------------------------------------------------------------
 
 server.tool(
-  "opfor_execute",
+  "opfor_run",
   "Run the red team evaluation from a config file produced by opfor_setup. " +
     "Generates attacks on-the-fly, runs them against the target, judges responses, and writes an HTML + JSON report.",
   {
@@ -273,7 +273,7 @@ server.tool(
       config = { ...config, effort: normalizeEffort(config.effort as unknown) };
 
       const lines: string[] = [
-        `🔴 Opfor Execute`,
+        `🔴 Opfor Run`,
         `Target: ${config.target.name} (${config.target.kind})`,
         `Effort: ${config.effort}  Turns: ${config.turns}`,
         ``,

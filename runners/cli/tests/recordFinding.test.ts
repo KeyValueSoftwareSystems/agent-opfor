@@ -5,7 +5,7 @@ import { BudgetGuard } from "@opfor/core/autonomous/lib/budget.js";
 import { SessionGate } from "@opfor/core/lib/sessionGate.js";
 import { createRunLog, getOrCreateThread } from "@opfor/core/autonomous/state/runLog.js";
 import type { RunContext } from "@opfor/core/autonomous/orchestrator/context.js";
-import type { AutoOptions } from "@opfor/core/autonomous/lib/types.js";
+import type { HuntOptions } from "@opfor/core/autonomous/lib/types.js";
 import type { VulnClass } from "@opfor/core/autonomous/knowledge/types.js";
 
 function ctxWith(): RunContext {
@@ -32,7 +32,7 @@ function ctxWith(): RunContext {
     passRubric: "",
   };
   return {
-    options: {} as AutoOptions,
+    options: {} as HuntOptions,
     target: { send: async () => ({ response: "", isError: false, rateLimited: false }) },
     knowledge: { vulnClasses: [vc], personas: [], strategies: [] },
     runLog: log,

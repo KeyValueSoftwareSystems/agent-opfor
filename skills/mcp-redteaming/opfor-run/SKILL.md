@@ -1,5 +1,5 @@
 ---
-name: opfor-mcp-execute
+name: opfor-mcp-run
 description: Run red-team attacks and generate a report for an MCP server target.
 ---
 

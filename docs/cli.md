@@ -39,7 +39,7 @@ npm run install:cli   # builds + installs `opfor` globally
 ## Quickstart
 
 ```bash
-opfor execute     # wizard + run in one command
+opfor run     # wizard + run in one command
 ```
 
 That's it. With no `--config`, `execute` runs the setup wizard inline, writes the config to `.opfor/configs/`, then immediately runs it.
@@ -48,7 +48,7 @@ Prefer to split setup and execution into two steps (e.g. for CI or so you can re
 
 ```bash
 opfor setup                        # interactive wizard → writes a config
-opfor execute --config <path>      # runs attacks + judges → writes report
+opfor run --config <path>      # runs attacks + judges → writes report
 ```
 
 The setup wizard prints the exact `--config` path on its last line.
@@ -150,7 +150,7 @@ The CLI loads `.env` from the current working directory automatically. Add `.env
 **`--env` flag for a non-default path:**
 
 ```bash
-opfor execute --config .opfor/configs/opfor-config-....json --env .env.prod
+opfor run --config .opfor/configs/opfor-config-....json --env .env.prod
 ```
 
 Telemetry credentials (Langfuse, Netra) also come from env vars — see [Trace-aware testing](#trace-aware-testing-agent-only).
@@ -162,17 +162,17 @@ Telemetry credentials (Langfuse, Netra) also come from env vars — see [Trace-a
 ## Step 3 — Run the scan
 
 ```bash
-opfor execute --config .opfor/configs/opfor-config-<timestamp>-<id>.json
+opfor run --config .opfor/configs/opfor-config-<timestamp>-<id>.json
 
 # Override effort or turns at run time
-opfor execute --config ... --effort comprehensive
-opfor execute --config ... --turns 5
+opfor run --config ... --effort comprehensive
+opfor run --config ... --turns 5
 
 # Custom report directory
-opfor execute --config ... --output ./my-reports
+opfor run --config ... --output ./my-reports
 
 # Skip steps 1 + 2 entirely — wizard inline, then execute
-opfor execute
+opfor run
 ```
 
 **MCP mode adds two phases not present in agent mode:**
@@ -289,14 +289,14 @@ See [telemetry.md](telemetry.md) for Langfuse and Netra setup, config fields, an
 | `opfor setup --agent` / `--mcp`               | Skip mode prompt                                                       |
 | `opfor setup --empty`                         | Write a blank config without wizard prompts                            |
 | `opfor setup --config <path>`                 | Override the output config path                                        |
-| `opfor execute`                               | Run the setup wizard inline, then execute the resulting config         |
-| `opfor execute --config <file>`               | Read an existing config, fire attacks, judge, write HTML + JSON report |
-| `opfor execute --config <file> --effort <e>`  | Override `effort` (`adaptive` or `comprehensive`)                      |
-| `opfor execute --config <file> --turns <n>`   | Override turn count (1 forces single-turn)                             |
-| `opfor execute --config <file> --output <d>`  | Override report parent directory (default `.opfor/reports/`)           |
-| `opfor execute --config <file> --env <path>`  | Load env vars from a non-default `.env` path                           |
+| `opfor run`                                   | Run the setup wizard inline, then run the resulting config             |
+| `opfor run --config <file>`                   | Read an existing config, fire attacks, judge, write HTML + JSON report |
+| `opfor run --config <file> --effort <e>`      | Override `effort` (`adaptive` or `comprehensive`)                      |
+| `opfor run --config <file> --turns <n>`       | Override turn count (1 forces single-turn)                             |
+| `opfor run --config <file> --output <d>`      | Override report parent directory (default `.opfor/reports/`)           |
+| `opfor run --config <file> --env <path>`      | Load env vars from a non-default `.env` path                           |
 | `opfor setup --env <path>`                    | Same `--env` flag works on setup                                       |
-| `opfor auto --endpoint <url> --objective <t>` | Autonomous agentic red-team — see [auto.md](auto.md)                   |
+| `opfor hunt --endpoint <url> --objective <t>` | Autonomous agentic red-team — see [hunt.md](hunt.md)                   |
 
 ---
 

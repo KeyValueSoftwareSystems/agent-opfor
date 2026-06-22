@@ -8,16 +8,16 @@
 export { Opfor } from "./opfor.js";
 
 // Functional API
-export { execute } from "./execute.js";
-export { auto } from "./auto.js";
+export { run } from "./run.js";
+export { hunt } from "./hunt.js";
 export { report, type ReportBuilder } from "./report.js";
 export { listSuites, listEvaluators } from "./catalog.js";
 
 // Types
 export type {
-  // Execute options & results
-  ExecuteOptions,
-  ExecuteResults,
+  // Run options & results
+  RunOptions,
+  RunResults,
   ProgressEvent,
 
   // Target configuration
@@ -47,14 +47,14 @@ export type {
   ListEvaluatorsOptions,
 
   // Autonomous mode
-  AutoOptions,
-  AutoTargetConfig,
-  AutoModelsConfig,
-  AutoLimitsConfig,
-  AutoResults,
-  AutoFinding,
-  AutoTurn,
-  AutoProgressEvent,
+  HuntOptions,
+  HuntTargetConfig,
+  HuntModelsConfig,
+  HuntLimitsConfig,
+  HuntResults,
+  HuntFinding,
+  HuntTurn,
+  HuntProgressEvent,
 
   // Re-exports from core
   TelemetryConfig,
