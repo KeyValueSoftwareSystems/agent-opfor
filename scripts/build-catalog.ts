@@ -64,7 +64,6 @@ interface SuiteEntry {
 }
 
 interface Catalog {
-  generated_at: string;
   surface: Surface;
   evaluators: EvaluatorEntry[];
   suites: SuiteEntry[];
@@ -232,33 +231,19 @@ async function main(): Promise<void> {
     const suites = await loadSuites(surface);
 
     const catalog: Catalog = {
-      generated_at: new Date().toISOString(),
       surface,
       evaluators,
       suites,
     };
 
-    // Deterministic JSON (exclude generated_at from staleness comparison)
-    const catalogForHash: Omit<Catalog, "generated_at"> = {
-      surface: catalog.surface,
-      evaluators: catalog.evaluators,
-      suites: catalog.suites,
-    };
     const json = JSON.stringify(catalog, null, 2) + "\n";
-    const hashJson = JSON.stringify(catalogForHash, null, 2);
 
     const outPath = catalogPath(surface);
 
     if (CHECK_ONLY) {
       try {
         const existing = await readFile(outPath, "utf8");
-        const existingParsed = JSON.parse(existing) as Catalog;
-        const existingForHash: Omit<Catalog, "generated_at"> = {
-          surface: existingParsed.surface,
-          evaluators: existingParsed.evaluators,
-          suites: existingParsed.suites,
-        };
-        if (hashContent(JSON.stringify(existingForHash, null, 2)) !== hashContent(hashJson)) {
+        if (hashContent(existing.trim()) !== hashContent(json.trim())) {
           stale.push(path.relative(REPO_ROOT, outPath));
         }
       } catch {
