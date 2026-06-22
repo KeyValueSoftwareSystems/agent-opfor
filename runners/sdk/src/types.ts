@@ -1,5 +1,5 @@
-import type { Effort, UnifiedRunReport } from "@opfor/core";
-import type { TelemetryConfig, LlmConfig, ProviderName } from "@opfor/core/config/types.js";
+import type { Effort, UnifiedRunReport } from "@agent-opfor/core";
+import type { TelemetryConfig, LlmConfig, ProviderName } from "@agent-opfor/core/config/types.js";
 
 // ---------------------------------------------------------------------------
 // Target Configuration

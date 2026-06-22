@@ -1,12 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { sendToTargetTool } from "@opfor/core/autonomous/tools/sendToTarget.js";
-import { createTargetClient } from "@opfor/core/autonomous/target/http.js";
-import { BudgetGuard } from "@opfor/core/autonomous/lib/budget.js";
-import { SessionGate } from "@opfor/core/lib/sessionGate.js";
-import { createRunLog } from "@opfor/core/autonomous/state/runLog.js";
-import type { RunContext } from "@opfor/core/autonomous/orchestrator/context.js";
-import type { HuntOptions } from "@opfor/core/autonomous/lib/types.js";
+import { sendToTargetTool } from "@agent-opfor/core/autonomous/tools/sendToTarget.js";
+import { createTargetClient } from "@agent-opfor/core/autonomous/target/http.js";
+import { BudgetGuard } from "@agent-opfor/core/autonomous/lib/budget.js";
+import { SessionGate } from "@agent-opfor/core/lib/sessionGate.js";
+import { createRunLog } from "@agent-opfor/core/autonomous/state/runLog.js";
+import type { RunContext } from "@agent-opfor/core/autonomous/orchestrator/context.js";
+import type { HuntOptions } from "@agent-opfor/core/autonomous/lib/types.js";
 
 function stubFetch(reply: string): () => void {
   const original = globalThis.fetch;

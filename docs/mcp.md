@@ -197,7 +197,7 @@ Once published, users can run the MCP server without cloning the repo:
   "mcpServers": {
     "opfor": {
       "command": "npx",
-      "args": ["-y", "@opfor/mcp"]
+      "args": ["-y", "@agent-opfor/mcp"]
     }
   }
 }

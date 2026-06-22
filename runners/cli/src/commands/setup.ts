@@ -2,8 +2,8 @@ import type { Command } from "commander";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { input, select, checkbox, confirm } from "@inquirer/prompts";
-import { log } from "@opfor/core/lib/logger.js";
-import { loadSkillCatalog } from "@opfor/core/config/loadSkillCatalog.js";
+import { log } from "@agent-opfor/core/lib/logger.js";
+import { loadSkillCatalog } from "@agent-opfor/core/config/loadSkillCatalog.js";
 import {
   PROVIDERS,
   PROVIDER_CHOICES,
@@ -12,8 +12,8 @@ import {
   type TelemetryConfig,
   type NetraTelemetryConfig,
   type LangfuseTelemetryConfig,
-} from "@opfor/core/config/types.js";
-import { PROVIDER_DEFAULTS, PROVIDER_ENV_VARS } from "@opfor/core/providers/factory.js";
+} from "@agent-opfor/core/config/types.js";
+import { PROVIDER_DEFAULTS, PROVIDER_ENV_VARS } from "@agent-opfor/core/providers/factory.js";
 import type {
   RunConfig,
   UnifiedTargetConfig,
@@ -21,7 +21,7 @@ import type {
   McpTargetConfig,
   EvaluatorSelection,
   Effort,
-} from "@opfor/core/execute/types.js";
+} from "@agent-opfor/core/execute/types.js";
 import { ensureOpforDirs, newConfigPath } from "../lib/artifacts.js";
 
 /**

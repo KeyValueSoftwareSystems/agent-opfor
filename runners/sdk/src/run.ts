@@ -1,11 +1,11 @@
-import { runAll } from "@opfor/core";
+import { runAll } from "@agent-opfor/core";
 import type {
   RunConfig,
   AgentTargetConfig,
   McpTargetConfig,
   EvaluatorSelection,
-} from "@opfor/core";
-import type { LlmConfig, ProviderName } from "@opfor/core/config/types.js";
+} from "@agent-opfor/core";
+import type { LlmConfig, ProviderName } from "@agent-opfor/core/config/types.js";
 import type {
   RunOptions,
   RunResults,
@@ -154,7 +154,7 @@ function getDefaultApiKeyEnv(provider: ProviderName): string {
   return envVars[provider] ?? "ANTHROPIC_API_KEY";
 }
 
-function transformReport(coreReport: import("@opfor/core").UnifiedRunReport): RunResults {
+function transformReport(coreReport: import("@agent-opfor/core").UnifiedRunReport): RunResults {
   const findings = extractFindings(coreReport);
   const evaluators = coreReport.evaluators.map(transformEvaluatorResult);
 
@@ -173,7 +173,7 @@ function transformReport(coreReport: import("@opfor/core").UnifiedRunReport): Ru
   };
 }
 
-function extractFindings(report: import("@opfor/core").UnifiedRunReport): Finding[] {
+function extractFindings(report: import("@agent-opfor/core").UnifiedRunReport): Finding[] {
   const findings: Finding[] = [];
 
   for (const evaluator of report.evaluators) {
@@ -196,7 +196,9 @@ function extractFindings(report: import("@opfor/core").UnifiedRunReport): Findin
   return findings;
 }
 
-function transformEvaluatorResult(core: import("@opfor/core").EvaluatorResult): EvaluatorResult {
+function transformEvaluatorResult(
+  core: import("@agent-opfor/core").EvaluatorResult
+): EvaluatorResult {
   return {
     evaluatorId: core.evaluatorId,
     evaluatorName: core.evaluatorName,
@@ -211,7 +213,7 @@ function transformEvaluatorResult(core: import("@opfor/core").EvaluatorResult): 
   };
 }
 
-function transformAttackResult(core: import("@opfor/core").AttackResult): AttackResult {
+function transformAttackResult(core: import("@agent-opfor/core").AttackResult): AttackResult {
   return {
     attackId: core.attackId,
     evaluatorId: core.evaluatorId,

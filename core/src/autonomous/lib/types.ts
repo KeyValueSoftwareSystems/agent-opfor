@@ -1,5 +1,5 @@
 // Shared option/config types for the autonomous red-team runner.
-// This package is fully standalone — it does NOT import from @opfor/core.
+// This package is fully standalone — it does NOT import from @agent-opfor/core.
 
 /** How the target HTTP agent maintains conversation state. */
 export type TargetMode = "stateless" | "stateful";

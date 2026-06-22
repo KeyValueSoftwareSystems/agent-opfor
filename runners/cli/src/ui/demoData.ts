@@ -1,7 +1,7 @@
 // Scripted scenario for the live UI demo — no API calls, no budget spend.
 
 import type { UiRunState, UiThread } from "./snapshot.js";
-import type { Finding } from "@opfor/core/autonomous/state/runLog.js";
+import type { Finding } from "@agent-opfor/core/autonomous/state/runLog.js";
 
 export const DEMO_META = {
   objective:
