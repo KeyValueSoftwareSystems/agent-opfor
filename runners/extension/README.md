@@ -78,7 +78,7 @@ The extension will:
 | `utils.js`             | Utility functions (`sleep`, `formatTranscript`, etc.)              |
 | `popup.js`             | Extension popup UI logic                                           |
 | `sidepanel-*.js`       | Side panel UI components                                           |
-| `dist/core.bundle.js`  | Browser bundle of `@opfor/core` (attack + judge engine)            |
+| `dist/core.bundle.js`  | Browser bundle of `@agent-opfor/core` (attack + judge engine)      |
 | `frame_*.js`           | Frame scripts injected into page contexts (standalone, no imports) |
 
 Frame scripts (`frame_*.js`) are injected via `chrome.scripting.executeScript()` into page contexts and **cannot use ES module imports** — they remain standalone files.

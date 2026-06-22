@@ -374,7 +374,7 @@ Only submit findings for systems you are authorized to test, or where you have c
 ### Project structure
 
 ```
-core/                       ← @opfor/core — shared engine (npm workspace)
+core/                       ← @agent-opfor/core — shared engine (npm workspace)
   src/
     config/                 ← Zod schemas + LLM/telemetry config types
     evaluators/             ← evaluator YAML catalog parsing
@@ -386,8 +386,8 @@ core/                       ← @opfor/core — shared engine (npm workspace)
     report/                 ← HTML + JSON report renderer
     mcp-client/             ← MCP client (stdio + HTTP/SSE transports)
 runners/
-  cli/                      ← @opfor/cli — `opfor setup` + `opfor run`
-  mcp/                      ← @opfor/mcp — opfor as an MCP server
+  cli/                      ← @agent-opfor/cli — `opfor setup` + `opfor run`
+  mcp/                      ← @agent-opfor/mcp — opfor as an MCP server
   extension/                ← Chrome MV3 browser extension
 evaluators/
   agent/                      ← agent evaluators by category

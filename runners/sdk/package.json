@@ -1,5 +1,5 @@
 {
-  "name": "@opfor/sdk",
+  "name": "@agent-opfor/sdk",
   "version": "0.1.0",
   "description": "Opfor SDK — programmatic adversarial testing for AI systems",
   "license": "Apache-2.0",
@@ -22,7 +22,7 @@
     "test": "tsx --test tests/*.test.ts"
   },
   "dependencies": {
-    "@opfor/core": "*"
+    "@agent-opfor/core": "*"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

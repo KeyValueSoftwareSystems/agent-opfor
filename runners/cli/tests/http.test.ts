@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createTargetClient } from "@opfor/core/autonomous/target/http.js";
-import type { TargetConfig } from "@opfor/core/autonomous/lib/types.js";
+import { createTargetClient } from "@agent-opfor/core/autonomous/target/http.js";
+import type { TargetConfig } from "@agent-opfor/core/autonomous/lib/types.js";
 
 type CapturedRequest = { url: string; init: RequestInit };
 

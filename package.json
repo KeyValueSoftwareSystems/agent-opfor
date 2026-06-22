@@ -1,5 +1,5 @@
 {
-  "name": "opfor",
+  "name": "agent-opfor",
   "version": "0.1.0",
   "description": "Opfor — security testing for AI agents and MCP servers (workspace root)",
   "license": "Apache-2.0",
@@ -23,13 +23,13 @@
     "node": ">=18.0.0"
   },
   "scripts": {
-    "build": "npm run build:catalog && tsc -b core runners/cli runners/mcp runners/sdk && npm run build:ui && npm run extension:catalog && npm run build:core --workspace=@opfor/extension",
+    "build": "npm run build:catalog && tsc -b core runners/cli runners/mcp runners/sdk && npm run build:ui && npm run extension:catalog && npm run build:core --workspace=@agent-opfor/extension",
     "build:ui": "cd runners/cli/ui && npm install && npm run build",
     "clean": "rm -rf core/dist runners/*/dist core/*.tsbuildinfo runners/*/*.tsbuildinfo",
     "install:cli": "npm run build && npm install -g ./runners/cli",
     "test": "npm test --workspace=core",
     "typecheck": "tsc -b core runners/cli runners/mcp runners/sdk",
-    "extension:catalog": "npm run build:catalog --workspace=@opfor/extension",
+    "extension:catalog": "npm run build:catalog --workspace=@agent-opfor/extension",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",

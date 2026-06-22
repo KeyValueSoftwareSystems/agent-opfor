@@ -8,7 +8,7 @@ import { test, describe, after } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, unlinkSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { setEnvProvider } from "@opfor/core/lib/env.js";
+import { setEnvProvider } from "@agent-opfor/core/lib/env.js";
 
 setEnvProvider(() => "fake-test-api-key");
 

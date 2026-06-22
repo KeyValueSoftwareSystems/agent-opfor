@@ -10,13 +10,13 @@ import { writeFile, mkdir } from "node:fs/promises";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
-import { loadSkillCatalog } from "@opfor/core/config/loadSkillCatalog.js";
-import { loadCatalog as loadMcpCatalog } from "@opfor/core/catalog/loadCatalog.js";
-import { runAll } from "@opfor/core/execute/runAll.js";
-import { writeReport } from "@opfor/core/report/buildReport.js";
-import { PROVIDERS, type ProviderName } from "@opfor/core/config/types.js";
-import type { RunConfig } from "@opfor/core/execute/types.js";
-import { normalizeEffort } from "@opfor/core/execute/effortCompat.js";
+import { loadSkillCatalog } from "@agent-opfor/core/config/loadSkillCatalog.js";
+import { loadCatalog as loadMcpCatalog } from "@agent-opfor/core/catalog/loadCatalog.js";
+import { runAll } from "@agent-opfor/core/execute/runAll.js";
+import { writeReport } from "@agent-opfor/core/report/buildReport.js";
+import { PROVIDERS, type ProviderName } from "@agent-opfor/core/config/types.js";
+import type { RunConfig } from "@agent-opfor/core/execute/types.js";
+import { normalizeEffort } from "@agent-opfor/core/execute/effortCompat.js";
 
 const server = new McpServer({ name: "opfor", version: "0.1.0" });
 

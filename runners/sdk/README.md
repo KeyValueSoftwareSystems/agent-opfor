@@ -1,11 +1,11 @@
-# @opfor/sdk
+# @agent-opfor/sdk
 
 Opfor SDK — programmatic adversarial testing for AI systems.
 
 ## Installation
 
 ```bash
-npm install @opfor/sdk
+npm install @agent-opfor/sdk
 ```
 
 ## Quick Start
@@ -13,9 +13,9 @@ npm install @opfor/sdk
 ### Functional API
 
 ```typescript
-import { execute, report } from "@opfor/sdk";
+import { run, report } from "@agent-opfor/sdk";
 
-const results = await execute({
+const results = await run({
   target: {
     url: "https://api.example.com/chat",
     apiKey: process.env.TARGET_API_KEY,
@@ -31,13 +31,13 @@ await report(results).html("./report.html");
 ### Class-based API
 
 ```typescript
-import { Opfor } from "@opfor/sdk";
+import { Opfor } from "@agent-opfor/sdk";
 
 const opfor = new Opfor({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
-const results = await opfor.execute({
+const results = await opfor.run({
   target: { url: "https://api.example.com/chat" },
   suite: "owasp-llm-top10",
 });

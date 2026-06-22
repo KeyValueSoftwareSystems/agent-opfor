@@ -5,8 +5,8 @@ import {
   getOrCreateThread,
   evidenceFoundInThread,
   normalizeForMatch,
-} from "@opfor/core/autonomous/state/runLog.js";
-import { mapRunLogToReport } from "@opfor/core/autonomous/report/mapRunLog.js";
+} from "@agent-opfor/core/autonomous/state/runLog.js";
+import { mapRunLogToReport } from "@agent-opfor/core/autonomous/report/mapRunLog.js";
 
 function baseLog() {
   return createRunLog({
