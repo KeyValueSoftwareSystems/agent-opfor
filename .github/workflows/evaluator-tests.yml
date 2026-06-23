@@ -52,6 +52,48 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed evaluators
+        id: changed
+        run: |
+          if [ -n "${{ github.event.inputs.evaluator_filter }}" ]; then
+            echo "filter=${{ github.event.inputs.evaluator_filter }}" >> "$GITHUB_OUTPUT"
+            echo "Using manual filter: ${{ github.event.inputs.evaluator_filter }}"
+            exit 0
+          fi
+
+          BASE=${{ github.event.pull_request.base.sha || github.event.before || 'HEAD~1' }}
+          FILES=$(git diff --name-only "$BASE"...HEAD -- 'evaluators/')
+
+          IDS=""
+          for f in $FILES; do
+            # skip test fixtures and pattern files
+            case "$f" in
+              *.test.yaml|*.test.yml) continue ;;
+              */patterns/*) ;;
+              *) ;;
+            esac
+
+            dir=$(dirname "$f")
+            # folder-based: evaluators/<surface>/<category>/<vuln>/evaluator.yaml
+            # or pattern:   evaluators/<surface>/<category>/<vuln>/patterns/foo.yaml
+            # flat-file:    evaluators/<surface>/<category>/foo.yaml
+            if echo "$f" | grep -q '/patterns/'; then
+              dir=$(dirname "$dir")
+            fi
+            id=$(basename "$dir")
+            IDS="$IDS $id"
+          done
+
+          UNIQUE=$(echo "$IDS" | tr ' ' '\n' | sort -u | grep -v '^$' | tr '\n' ',' | sed 's/,$//')
+          echo "filter=$UNIQUE" >> "$GITHUB_OUTPUT"
+          if [ -z "$UNIQUE" ]; then
+            echo "No evaluator changes detected — will run all"
+          else
+            echo "Changed evaluators: $UNIQUE"
+          fi
 
       - uses: actions/setup-node@v4
         with:
@@ -68,4 +110,4 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           JUDGE_PROVIDER: groq
           JUDGE_MODEL: llama-3.3-70b-versatile
-          EVALUATOR_FILTER: ${{ github.event.inputs.evaluator_filter || '' }}
+          EVALUATOR_FILTER: ${{ steps.changed.outputs.filter }}
