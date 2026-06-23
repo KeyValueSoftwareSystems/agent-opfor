@@ -25,10 +25,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  evaluator-tests:
-    name: Fixture Check & Judge Smoke Tests
+  fixture-check:
+    name: Fixture Check
     runs-on: ubuntu-latest
-    timeout-minutes: 30
 
     steps:
       - uses: actions/checkout@v4
@@ -44,6 +43,25 @@ jobs:
 
       - name: Check every evaluator has a .test.yaml
         run: node --import tsx/esm core/tests/evaluators.fixture-check.ts
+
+  judge-smoke-tests:
+    name: Judge Smoke Tests
+    runs-on: ubuntu-latest
+    needs: fixture-check
+    environment: llm-tests
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run build
 
       - name: Run evaluator judge smoke tests
         run: node --import tsx/esm --test core/tests/evaluators.judge.test.ts

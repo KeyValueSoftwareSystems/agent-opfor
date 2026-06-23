@@ -87,10 +87,7 @@ jobs:
       - run: npm run build
 
       - name: Core tests
-        run: npm test --workspace=core
-
-      - name: CLI tests
-        run: npm test --workspace=opfor
+        run: npm test --workspace=@agent-opfor/core
 
       - name: SDK tests
-        run: npm test --workspace=@opfor/sdk
+        run: npm test --workspace=@agent-opfor/sdk
