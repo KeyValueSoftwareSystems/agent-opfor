@@ -31,265 +31,284 @@ export async function locateChatWidget(tabId, readerCfg, options = {}) {
   let lastErr = "";
 
   const collectAxSnapshots = async () => {
-    const results = await chrome.scripting.executeScript({
-      target: { tabId, allFrames: true },
-      func: () => {
-        const MAX_NODES = 1400;
-        const MAX_LINES = 700;
-        const MAX_NAME = 140;
+    let results;
+    try {
+      results = await chrome.scripting.executeScript({
+        target: { tabId, allFrames: true },
+        func: () => {
+          const MAX_NODES = 1400;
+          const MAX_LINES = 700;
+          const MAX_NAME = 140;
 
-        const escapeCss = (v) => {
-          if (typeof CSS !== "undefined" && CSS.escape) return CSS.escape(String(v));
-          return String(v).replace(/["\\]/g, "\\$&");
-        };
-
-        const short = (s, n) => {
-          const str = String(s || "");
-          return str.length > n ? str.slice(0, n) : str;
-        };
-
-        const isVisible = (el) => {
-          if (!(el instanceof Element)) return false;
-          if (!el.isConnected) return false;
-          const rect = el.getBoundingClientRect?.();
-          if (!rect || rect.width <= 0 || rect.height <= 0) return false;
-          const style = window.getComputedStyle(el);
-          if (style.display === "none") return false;
-          if (style.visibility === "hidden") return false;
-          if (style.opacity === "0") return false;
-          return true;
-        };
-
-        const selectorFromEl = (el) => {
-          if (!(el instanceof Element)) return null;
-          const testid = el.getAttribute("data-testid");
-          if (testid) return `[data-testid="${escapeCss(testid)}"]`;
-          const aria = el.getAttribute("aria-label");
-          if (aria) return `${el.tagName.toLowerCase()}[aria-label="${escapeCss(aria)}"]`;
-          const id = el.getAttribute("id");
-          if (id) return `#${escapeCss(id)}`;
-          const name = el.getAttribute("name");
-          if (name) return `${el.tagName.toLowerCase()}[name="${escapeCss(name)}"]`;
-          const ph = el.getAttribute("placeholder");
-          if (ph) return `${el.tagName.toLowerCase()}[placeholder="${escapeCss(ph)}"]`;
-
-          try {
-            const parts = [];
-            let cur = el;
-            for (let i = 0; i < 4 && cur && cur instanceof Element && cur.tagName; i++) {
-              const tag = cur.tagName.toLowerCase();
-              const parent = cur.parentElement;
-              if (!parent) {
-                parts.unshift(tag);
-                break;
-              }
-              const sibs = Array.from(parent.children).filter(
-                (c) => c instanceof Element && c.tagName.toLowerCase() === tag
-              );
-              const idx = Math.max(1, sibs.indexOf(cur) + 1);
-              parts.unshift(`${tag}:nth-of-type(${idx})`);
-              if (cur.id) break;
-              cur = parent;
-            }
-            const sel = parts.join(" > ");
-            if (sel && document.querySelector(sel)) return sel;
-          } catch {}
-
-          return el.tagName.toLowerCase();
-        };
-
-        const roleForEl = (el) => {
-          if (!(el instanceof Element)) return "";
-          const ariaRole = (el.getAttribute("role") || "").trim().toLowerCase();
-          if (ariaRole) return ariaRole;
-          const tag = el.tagName.toLowerCase();
-          if (tag === "textarea") return "textbox";
-          if (tag === "input") {
-            const t = (el.getAttribute("type") || "text").toLowerCase();
-            if (t === "search") return "searchbox";
-            if (t === "button" || t === "submit") return "button";
-            return "textbox";
-          }
-          if (tag === "button") return "button";
-          if (tag === "a") return "link";
-          if (tag === "select") return "combobox";
-          if (tag === "summary") return "button";
-          if (el.isContentEditable) return "textbox";
-          return tag;
-        };
-
-        const nameForEl = (el) => {
-          if (!(el instanceof Element)) return "";
-          const aria = el.getAttribute("aria-label");
-          if (aria) return aria;
-          const title = el.getAttribute("title");
-          if (title) return title;
-          const alt = el.getAttribute("alt");
-          if (alt) return alt;
-          const ph = el.getAttribute("placeholder");
-          if (ph) return ph;
-          const tc = (el.textContent || "").replace(/\s+/g, " ").trim();
-          if (tc) return tc;
-          return "";
-        };
-
-        const isNavigatingLink = (el) => {
-          if (!(el instanceof HTMLAnchorElement)) return false;
-          const raw = (el.getAttribute("href") || "").trim();
-          if (!raw) return false;
-          if (raw.startsWith("#")) return false;
-          if (/^javascript:/i.test(raw)) return false;
-          if (/^(https?:|\/)/i.test(raw)) return true;
-          return false;
-        };
-
-        const isInteractive = (el, role) => {
-          if (!(el instanceof Element)) return false;
-          const tag = el.tagName.toLowerCase();
-          if (tag === "button" || tag === "textarea" || tag === "select") return true;
-          if (tag === "input") return true;
-          if (tag === "a") return true;
-          if (role === "button" || role === "link" || role === "textbox" || role === "combobox")
-            return true;
-          if (el.isContentEditable) return true;
-          if (typeof el.onclick === "function") return true;
-          if (el.hasAttribute("tabindex")) return true;
-          return false;
-        };
-
-        const getShadowRoot = (el) => {
-          if (el?.shadowRoot) return el.shadowRoot;
-          if (el?.__closedShadowRoot) return el.__closedShadowRoot;
-          return null;
-        };
-
-        function* walkNodes(root) {
-          const stack = [root];
-          while (stack.length) {
-            const node = stack.pop();
-            if (!node) continue;
-            yield node;
-
-            if (node instanceof Element) {
-              const shadow = getShadowRoot(node);
-              if (shadow) stack.push(shadow);
-              const children = node.children;
-              for (let i = children.length - 1; i >= 0; i--) stack.push(children[i]);
-              continue;
-            }
-
-            if (
-              node instanceof ShadowRoot ||
-              node instanceof Document ||
-              node instanceof DocumentFragment
-            ) {
-              const children = node.children || node.childNodes;
-              if (!children) continue;
-              for (let i = children.length - 1; i >= 0; i--) stack.push(children[i]);
-            }
-          }
-        }
-
-        const deepPathSelector = (el) => {
-          if (!(el instanceof Element)) return null;
-          const parts = [selectorFromEl(el)];
-          let cur = el;
-          while (cur) {
-            const root = cur.getRootNode?.();
-            if (root instanceof ShadowRoot) {
-              const hostSel = selectorFromEl(root.host);
-              parts.unshift(`shadow(${hostSel})`);
-              cur = root.host;
-              continue;
-            }
-            break;
-          }
-          return parts.join(" >> ");
-        };
-
-        const lines = [];
-        const push = (line) => {
-          if (lines.length >= MAX_LINES) return;
-          lines.push(line);
-        };
-
-        push(`frame_url="${location.href}"`);
-        const title = document.title || "";
-        if (title) push(`title="${short(title, 140)}"`);
-
-        // Prioritize inputs first so we don't truncate them away.
-        const inputs = [];
-        const others = [];
-        let seen = 0;
-
-        for (const node of walkNodes(document)) {
-          if (!(node instanceof Element)) continue;
-          if (!isVisible(node)) continue;
-          const role = roleForEl(node);
-          if (!isInteractive(node, role)) continue;
-
-          const entry = {
-            el: node,
-            role,
+          const escapeCss = (v) => {
+            if (typeof CSS !== "undefined" && CSS.escape) return CSS.escape(String(v));
+            return String(v).replace(/["\\]/g, "\\$&");
           };
-          const roleKey = String(role || "").toLowerCase();
-          const tag = node.tagName.toLowerCase();
-          const isInput =
-            roleKey === "textbox" ||
-            roleKey === "combobox" ||
-            roleKey === "searchbox" ||
-            tag === "textarea" ||
-            tag === "input" ||
-            node.isContentEditable;
-          (isInput ? inputs : others).push(entry);
-          seen++;
-          if (seen >= MAX_NODES * 2) break;
-        }
 
-        const emit = (entry) => {
-          const el = entry.el;
-          const role = entry.role;
-          const name = short(nameForEl(el), MAX_NAME).replace(/\n/g, " ");
-          const sel = deepPathSelector(el) || selectorFromEl(el);
-          const href =
-            el instanceof HTMLAnchorElement ? short(el.getAttribute("href") || "", 160) : "";
-          const nav = el instanceof HTMLAnchorElement && isNavigatingLink(el) ? " nav=true" : "";
-          const disabled = el instanceof HTMLButtonElement && el.disabled ? " disabled=true" : "";
-          push(
-            `- role=${role || "unknown"} name="${name}" selector="${sel}"${
-              href ? ` href="${href}"` : ""
-            }${nav}${disabled}`
-          );
-        };
+          const short = (s, n) => {
+            const str = String(s || "");
+            return str.length > n ? str.slice(0, n) : str;
+          };
 
-        let emitted = 0;
-        for (const e of inputs) {
-          if (lines.length >= MAX_LINES) break;
-          emit(e);
-          emitted++;
-          if (emitted >= MAX_NODES) break;
-        }
-        for (const e of others) {
-          if (lines.length >= MAX_LINES) break;
-          emit(e);
-          emitted++;
-          if (emitted >= MAX_NODES) break;
-        }
+          const isVisible = (el) => {
+            if (!(el instanceof Element)) return false;
+            if (!el.isConnected) return false;
+            const rect = el.getBoundingClientRect?.();
+            if (!rect || rect.width <= 0 || rect.height <= 0) return false;
+            const style = window.getComputedStyle(el);
+            if (style.display === "none") return false;
+            if (style.visibility === "hidden") return false;
+            if (style.opacity === "0") return false;
+            return true;
+          };
 
-        return {
-          frameUrl: location.href,
-          axSnapshot: lines.join("\n").slice(0, 60_000),
-        };
-      },
-    });
+          const selectorFromEl = (el) => {
+            if (!(el instanceof Element)) return null;
+            const testid = el.getAttribute("data-testid");
+            if (testid) return `[data-testid="${escapeCss(testid)}"]`;
+            const aria = el.getAttribute("aria-label");
+            if (aria) return `${el.tagName.toLowerCase()}[aria-label="${escapeCss(aria)}"]`;
+            const id = el.getAttribute("id");
+            if (id) return `#${escapeCss(id)}`;
+            const name = el.getAttribute("name");
+            if (name) return `${el.tagName.toLowerCase()}[name="${escapeCss(name)}"]`;
+            const ph = el.getAttribute("placeholder");
+            if (ph) return `${el.tagName.toLowerCase()}[placeholder="${escapeCss(ph)}"]`;
 
-    return (results || [])
-      .map((r) => ({
-        frameId: r.frameId,
-        frameUrl: r.result?.frameUrl || "",
-        axSnapshot: r.result?.axSnapshot || "",
+            try {
+              const parts = [];
+              let cur = el;
+              for (let i = 0; i < 4 && cur && cur instanceof Element && cur.tagName; i++) {
+                const tag = cur.tagName.toLowerCase();
+                const parent = cur.parentElement;
+                if (!parent) {
+                  parts.unshift(tag);
+                  break;
+                }
+                const sibs = Array.from(parent.children).filter(
+                  (c) => c instanceof Element && c.tagName.toLowerCase() === tag
+                );
+                const idx = Math.max(1, sibs.indexOf(cur) + 1);
+                parts.unshift(`${tag}:nth-of-type(${idx})`);
+                if (cur.id) break;
+                cur = parent;
+              }
+              const sel = parts.join(" > ");
+              if (sel && document.querySelector(sel)) return sel;
+            } catch {}
+
+            return el.tagName.toLowerCase();
+          };
+
+          const roleForEl = (el) => {
+            if (!(el instanceof Element)) return "";
+            const ariaRole = (el.getAttribute("role") || "").trim().toLowerCase();
+            if (ariaRole) return ariaRole;
+            const tag = el.tagName.toLowerCase();
+            if (tag === "textarea") return "textbox";
+            if (tag === "input") {
+              const t = (el.getAttribute("type") || "text").toLowerCase();
+              if (t === "search") return "searchbox";
+              if (t === "button" || t === "submit") return "button";
+              return "textbox";
+            }
+            if (tag === "button") return "button";
+            if (tag === "a") return "link";
+            if (tag === "select") return "combobox";
+            if (tag === "summary") return "button";
+            if (el.isContentEditable) return "textbox";
+            return tag;
+          };
+
+          const nameForEl = (el) => {
+            if (!(el instanceof Element)) return "";
+            const aria = el.getAttribute("aria-label");
+            if (aria) return aria;
+            const title = el.getAttribute("title");
+            if (title) return title;
+            const alt = el.getAttribute("alt");
+            if (alt) return alt;
+            const ph = el.getAttribute("placeholder");
+            if (ph) return ph;
+            const tc = (el.textContent || "").replace(/\s+/g, " ").trim();
+            if (tc) return tc;
+            return "";
+          };
+
+          const isNavigatingLink = (el) => {
+            if (!(el instanceof HTMLAnchorElement)) return false;
+            const raw = (el.getAttribute("href") || "").trim();
+            if (!raw) return false;
+            if (raw.startsWith("#")) return false;
+            if (/^javascript:/i.test(raw)) return false;
+            if (/^(https?:|\/)/i.test(raw)) return true;
+            return false;
+          };
+
+          const isInteractive = (el, role) => {
+            if (!(el instanceof Element)) return false;
+            const tag = el.tagName.toLowerCase();
+            if (tag === "button" || tag === "textarea" || tag === "select") return true;
+            if (tag === "input") return true;
+            if (tag === "a") return true;
+            if (role === "button" || role === "link" || role === "textbox" || role === "combobox")
+              return true;
+            if (el.isContentEditable) return true;
+            if (typeof el.onclick === "function") return true;
+            if (el.hasAttribute("tabindex")) return true;
+            return false;
+          };
+
+          const getShadowRoot = (el) => {
+            if (el?.shadowRoot) return el.shadowRoot;
+            if (el?.__closedShadowRoot) return el.__closedShadowRoot;
+            return null;
+          };
+
+          function* walkNodes(root) {
+            const stack = [root];
+            while (stack.length) {
+              const node = stack.pop();
+              if (!node) continue;
+              yield node;
+
+              if (node instanceof Element) {
+                const shadow = getShadowRoot(node);
+                if (shadow) stack.push(shadow);
+                const children = node.children;
+                for (let i = children.length - 1; i >= 0; i--) stack.push(children[i]);
+                continue;
+              }
+
+              if (
+                node instanceof ShadowRoot ||
+                node instanceof Document ||
+                node instanceof DocumentFragment
+              ) {
+                const children = node.children || node.childNodes;
+                if (!children) continue;
+                for (let i = children.length - 1; i >= 0; i--) stack.push(children[i]);
+              }
+            }
+          }
+
+          const deepPathSelector = (el) => {
+            if (!(el instanceof Element)) return null;
+            const parts = [selectorFromEl(el)];
+            let cur = el;
+            while (cur) {
+              const root = cur.getRootNode?.();
+              if (root instanceof ShadowRoot) {
+                const hostSel = selectorFromEl(root.host);
+                parts.unshift(`shadow(${hostSel})`);
+                cur = root.host;
+                continue;
+              }
+              break;
+            }
+            return parts.join(" >> ");
+          };
+
+          const lines = [];
+          const push = (line) => {
+            if (lines.length >= MAX_LINES) return;
+            lines.push(line);
+          };
+
+          push(`frame_url="${location.href}"`);
+          const title = document.title || "";
+          if (title) push(`title="${short(title, 140)}"`);
+
+          // Prioritize inputs first so we don't truncate them away.
+          const inputs = [];
+          const others = [];
+          let seen = 0;
+
+          for (const node of walkNodes(document)) {
+            if (!(node instanceof Element)) continue;
+            if (!isVisible(node)) continue;
+            const role = roleForEl(node);
+            if (!isInteractive(node, role)) continue;
+
+            const entry = {
+              el: node,
+              role,
+            };
+            const roleKey = String(role || "").toLowerCase();
+            const tag = node.tagName.toLowerCase();
+            const isInput =
+              roleKey === "textbox" ||
+              roleKey === "combobox" ||
+              roleKey === "searchbox" ||
+              tag === "textarea" ||
+              tag === "input" ||
+              node.isContentEditable;
+            (isInput ? inputs : others).push(entry);
+            seen++;
+            if (seen >= MAX_NODES * 2) break;
+          }
+
+          const emit = (entry) => {
+            const el = entry.el;
+            const role = entry.role;
+            const name = short(nameForEl(el), MAX_NAME).replace(/\n/g, " ");
+            const sel = deepPathSelector(el) || selectorFromEl(el);
+            const href =
+              el instanceof HTMLAnchorElement ? short(el.getAttribute("href") || "", 160) : "";
+            const nav = el instanceof HTMLAnchorElement && isNavigatingLink(el) ? " nav=true" : "";
+            const disabled = el instanceof HTMLButtonElement && el.disabled ? " disabled=true" : "";
+            push(
+              `- role=${role || "unknown"} name="${name}" selector="${sel}"${
+                href ? ` href="${href}"` : ""
+              }${nav}${disabled}`
+            );
+          };
+
+          let emitted = 0;
+          for (const e of inputs) {
+            if (lines.length >= MAX_LINES) break;
+            emit(e);
+            emitted++;
+            if (emitted >= MAX_NODES) break;
+          }
+          for (const e of others) {
+            if (lines.length >= MAX_LINES) break;
+            emit(e);
+            emitted++;
+            if (emitted >= MAX_NODES) break;
+          }
+
+          return {
+            frameUrl: location.href,
+            axSnapshot: lines.join("\n").slice(0, 60_000),
+          };
+        },
+      });
+    } catch (err) {
+      console.error("[chatLocator] executeScript failed:", err);
+      return [];
+    }
+
+    console.log("[chatLocator] executeScript raw results:", results?.length, results);
+
+    const mapped = (results || []).map((r) => ({
+      frameId: r.frameId,
+      frameUrl: r.result?.frameUrl || "",
+      axSnapshot: r.result?.axSnapshot || "",
+      error: r.error || null,
+    }));
+
+    console.log(
+      "[chatLocator] mapped frames:",
+      mapped.map((m) => ({
+        frameId: m.frameId,
+        frameUrl: m.frameUrl?.slice(0, 80),
+        snapshotLen: m.axSnapshot?.length || 0,
+        error: m.error,
       }))
-      .filter((x) => typeof x.axSnapshot === "string" && x.axSnapshot.length > 0);
+    );
+
+    return mapped.filter((x) => typeof x.axSnapshot === "string" && x.axSnapshot.length > 0);
   };
 
   let chosen = null;
@@ -300,7 +319,9 @@ export async function locateChatWidget(tabId, readerCfg, options = {}) {
     let frames = [];
     try {
       frames = await collectAxSnapshots();
-    } catch {
+      console.log("[chatLocator] attempt", attempt, "collected frames:", frames.length);
+    } catch (err) {
+      console.error("[chatLocator] collectAxSnapshots threw:", err);
       frames = [];
     }
 

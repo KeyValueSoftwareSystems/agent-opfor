@@ -91,7 +91,8 @@ export type ProgressEvent =
   | { type: "evaluator_start"; evaluatorId: string; evaluatorName: string }
   | { type: "attack_start"; attackId: string; patternName: string }
   | { type: "attack_done"; attackId: string; verdict: "PASS" | "FAIL" | "ERROR" }
-  | { type: "evaluator_done"; evaluatorId: string; passed: number; failed: number; errors: number };
+  | { type: "evaluator_done"; evaluatorId: string; passed: number; failed: number; errors: number }
+  | { type: "run_stopped"; reason: string };
 
 // ---------------------------------------------------------------------------
 // Results

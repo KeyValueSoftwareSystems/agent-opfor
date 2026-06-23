@@ -14,7 +14,7 @@ import type {
 } from "./types.js";
 import { generateAttacks, type ToolInfo } from "../generate/generateAttacks.js";
 import { generateNextMcpTurn } from "../generate/generateNextTurn.js";
-import { createAgentTarget } from "../targets/agentTarget.js";
+import { createAgentTarget, TargetStopError } from "../targets/agentTarget.js";
 import type { AgentTarget } from "../targets/agentTarget.js";
 import { createMcpTarget } from "../targets/mcpTarget.js";
 import type { McpTarget } from "../targets/mcpTarget.js";
@@ -35,6 +35,7 @@ import type { LlmConfig } from "../config/types.js";
 import { getAdapter } from "../telemetry/adapter.js";
 import { runSetupTraceCuration } from "../telemetry/curation.js";
 import { log } from "../lib/logger.js";
+import { isStopError, getStopReason } from "../lib/llmRetry.js";
 
 export interface RunAllOptions {
   onProgress?: (event: ProgressEvent) => void;
@@ -47,7 +48,8 @@ export type ProgressEvent =
   | { type: "evaluator_start"; evaluatorId: string; evaluatorName: string }
   | { type: "attack_start"; attackId: string; patternName: string }
   | { type: "attack_done"; attackId: string; verdict: "PASS" | "FAIL" | "ERROR" }
-  | { type: "evaluator_done"; evaluatorId: string; passed: number; failed: number; errors: number };
+  | { type: "evaluator_done"; evaluatorId: string; passed: number; failed: number; errors: number }
+  | { type: "run_stopped"; reason: string };
 
 /**
  * Core execute loop: resolves evaluators, generates attacks per effort level,
@@ -87,6 +89,7 @@ export async function runAll(
   const ordered = topoSortEvaluators(evaluators);
   const sessionMap = new Map<string, SessionContext>();
   const evaluatorResults: EvaluatorResult[] = [];
+  let stopReason: string | undefined;
 
   try {
     // ── MCP pre-flight scans (always run for MCP targets) ──────────────
@@ -139,7 +142,7 @@ export async function runAll(
     }
 
     // ── Evaluator attack loop (topo-sorted by dependencies) ───────────
-    for (const evaluator of ordered) {
+    evaluatorLoop: for (const evaluator of ordered) {
       notify({ type: "evaluator_start", evaluatorId: evaluator.id, evaluatorName: evaluator.name });
 
       const deps = evaluator.dependsOn ?? [];
@@ -165,15 +168,26 @@ export async function runAll(
         config.turnMode ?? (config.turns > 1 ? "multi" : "single");
       const effectiveTurns = turnMode === "single" ? 1 : config.turns;
 
-      const attacks = await generateAttacks({
-        evaluator,
-        target: config.target,
-        effort: config.effort,
-        model: attackModel,
-        turns: effectiveTurns,
-        turnMode,
-        options: { tools, traceContext, upstreamSessions },
-      });
+      let attacks: AttackSpec[];
+      try {
+        attacks = await generateAttacks({
+          evaluator,
+          target: config.target,
+          effort: config.effort,
+          model: attackModel,
+          turns: effectiveTurns,
+          turnMode,
+          options: { tools, traceContext, upstreamSessions },
+        });
+      } catch (err) {
+        if (isStopError(err)) {
+          stopReason = getStopReason(err);
+          log.error(`\n🛑 Run stopped: ${stopReason}`);
+          notify({ type: "run_stopped", reason: stopReason });
+          break evaluatorLoop;
+        }
+        throw err;
+      }
 
       log.info(`  ${attacks.length} attack(s) generated [effort: ${config.effort}]`);
 
@@ -187,18 +201,111 @@ export async function runAll(
         notify({ type: "attack_start", attackId: attack.id, patternName: attack.patternName });
         log.info(`  → ${attack.patternName}`);
 
-        const result = isMcp
-          ? await runMcpAttack(attack, mcpTarget!, judgeModel, config)
-          : await runAgentAttack(
-              attack,
-              attackModel,
-              judgeModel,
-              attack.id,
-              evaluator.patterns,
-              options?.agentTarget ??
-                createAgentTarget(config.target as import("./types.js").AgentTargetConfig),
-              { targetConfig: config.target, telemetry: config.telemetry }
-            );
+        let result: AttackResult;
+        try {
+          result = isMcp
+            ? await runMcpAttack(attack, mcpTarget!, judgeModel, config)
+            : await runAgentAttack(
+                attack,
+                attackModel,
+                judgeModel,
+                attack.id,
+                evaluator.patterns,
+                options?.agentTarget ??
+                  createAgentTarget(config.target as import("./types.js").AgentTargetConfig),
+                { targetConfig: config.target, telemetry: config.telemetry }
+              );
+        } catch (err) {
+          // Handle LLM stop errors (attacker/judge)
+          if (isStopError(err)) {
+            stopReason = getStopReason(err);
+            log.error(`\n🛑 Run stopped: ${stopReason}`);
+            notify({ type: "run_stopped", reason: stopReason });
+
+            // Add the failed attack to results so it shows in the report
+            const failedAttackResult: AttackResult = {
+              attackId: attack.id,
+              evaluatorId: attack.evaluatorId,
+              patternName: attack.patternName,
+              prompt: attack.prompt ?? "(attack prompt not captured)",
+              response: `ERROR: ${stopReason}`,
+              judge: {
+                verdict: "ERROR",
+                score: 0,
+                confidence: 0,
+                evidence: "N/A",
+                reasoning: "",
+                errorMessage: stopReason,
+              },
+            };
+            attackResults.push(failedAttackResult);
+            notify({ type: "attack_done", attackId: attack.id, verdict: "ERROR" });
+
+            // Save partial results for this evaluator before breaking
+            const total = attackResults.length;
+            const passed = attackResults.filter((r) => r.judge.verdict === "PASS").length;
+            const failed = attackResults.filter((r) => r.judge.verdict === "FAIL").length;
+            const errors = attackResults.filter((r) => r.judge.verdict === "ERROR").length;
+            evaluatorResults.push({
+              evaluatorId: evaluator.id,
+              evaluatorName: evaluator.name,
+              standards: evaluator.standards,
+              severity: evaluator.severity,
+              total,
+              passed,
+              failed,
+              errors,
+              passRate: total > 0 ? passed / total : 0,
+              attacks: attackResults,
+            });
+            break evaluatorLoop;
+          }
+          // Handle target stop errors (non-retryable target errors)
+          if (err instanceof TargetStopError) {
+            stopReason = err.message;
+            log.error(`\n🛑 Run stopped: ${stopReason}`);
+            notify({ type: "run_stopped", reason: stopReason });
+
+            // Add the failed attack to results so it shows in the report
+            const failedAttackResult: AttackResult = {
+              attackId: attack.id,
+              evaluatorId: attack.evaluatorId,
+              patternName: attack.patternName,
+              prompt: attack.prompt ?? "(attack prompt not captured)",
+              response: `ERROR: ${stopReason}`,
+              judge: {
+                verdict: "ERROR",
+                score: 0,
+                confidence: 0,
+                evidence: "N/A",
+                reasoning: "",
+                errorMessage: stopReason,
+              },
+            };
+            attackResults.push(failedAttackResult);
+            notify({ type: "attack_done", attackId: attack.id, verdict: "ERROR" });
+
+            // Save partial results for this evaluator before breaking
+            const total = attackResults.length;
+            const passed = attackResults.filter((r) => r.judge.verdict === "PASS").length;
+            const failed = attackResults.filter((r) => r.judge.verdict === "FAIL").length;
+            const errors = attackResults.filter((r) => r.judge.verdict === "ERROR").length;
+            evaluatorResults.push({
+              evaluatorId: evaluator.id,
+              evaluatorName: evaluator.name,
+              standards: evaluator.standards,
+              severity: evaluator.severity,
+              total,
+              passed,
+              failed,
+              errors,
+              passRate: total > 0 ? passed / total : 0,
+              attacks: attackResults,
+            });
+            break evaluatorLoop;
+          }
+          throw err;
+        }
 
         attackResults.push(result);
         notify({ type: "attack_done", attackId: attack.id, verdict: result.judge.verdict });
@@ -234,7 +341,12 @@ export async function runAll(
     if (mcpTarget) await mcpTarget.close().catch(() => {});
   }
 
-  return buildReport(config, evaluatorResults);
+  // Build report (partial or complete) with stop reason if applicable
+  const report = buildReport(config, evaluatorResults);
+  if (stopReason) {
+    (report as UnifiedRunReport & { stopReason?: string }).stopReason = stopReason;
+  }
+  return report;
 }
 
 // ---------------------------------------------------------------------------

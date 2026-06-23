@@ -67,4 +67,6 @@ export interface ReportViewModel {
     attackSuccessRate: number;
   };
   evaluators: EvaluatorViewModel[];
+  /** Set when the run was stopped early due to a non-retryable LLM error. */
+  stopReason?: string;
 }
