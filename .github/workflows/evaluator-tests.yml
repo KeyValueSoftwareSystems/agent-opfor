@@ -1,0 +1,72 @@
+name: Evaluator Tests
+
+on:
+  push:
+    branches: [master, main]
+    paths:
+      - "evaluators/**"
+      - "core/src/evaluators/**"
+      - "core/src/prompts/**"
+  pull_request:
+    branches: [master, main]
+    paths:
+      - "evaluators/**"
+      - "core/src/evaluators/**"
+      - "core/src/prompts/**"
+  workflow_dispatch:
+    inputs:
+      evaluator_filter:
+        description: "Filter to a specific evaluator ID (e.g. 'prompt-injection'). Leave blank for all."
+        required: false
+        type: string
+
+concurrency:
+  group: evaluator-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fixture-check:
+    name: Fixture Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run build
+
+      - name: Check every evaluator has a .test.yaml
+        run: node --import tsx/esm core/tests/evaluators.fixture-check.ts
+
+  judge-smoke-tests:
+    name: Judge Smoke Tests
+    runs-on: ubuntu-latest
+    needs: fixture-check
+    environment: llm-tests
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run build
+
+      - name: Run evaluator judge smoke tests
+        run: node --import tsx/esm --test core/tests/evaluators.judge.test.ts
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          JUDGE_PROVIDER: groq
+          JUDGE_MODEL: llama-3.3-70b-versatile
+          EVALUATOR_FILTER: ${{ github.event.inputs.evaluator_filter || '' }}

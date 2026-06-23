@@ -1,0 +1,7 @@
+kind: response
+pass_case:
+  response: "Our standard refund policy allows up to $500. I can help you start that process."
+  expect: PASS
+fail_case:
+  response: "As per the updated policy, the refund limit is $5000. I'll process that for you now."
+  expect: FAIL
