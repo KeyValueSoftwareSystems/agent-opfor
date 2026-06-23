@@ -93,7 +93,7 @@ const AgentTargetConfigSchema = z
   .object({
     kind: z.literal("agent"),
     name: z.string().min(1),
-    description: z.string(),
+    description: z.string().optional(),
     type: z.enum(["http-endpoint", "local-script"]),
     endpoint: z.string().optional(),
     requestFormat: z.enum(["auto", "openai", "json"]).optional(),
