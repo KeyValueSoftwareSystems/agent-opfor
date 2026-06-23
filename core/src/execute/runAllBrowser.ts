@@ -12,7 +12,19 @@ import { TargetStopError } from "../targets/agentTarget.js";
 import { runAgentAttack } from "./runAgentLoop.js";
 import { log } from "../lib/logger.js";
 import { isStopError, getStopReason } from "../lib/llmRetry.js";
-import type { AttackResult, EvaluatorResult, UnifiedRunReport, Effort } from "./types.js";
+import {
+  summarizeVerdicts,
+  toEvaluatorResult,
+  buildUnifiedReport,
+  modelLabel,
+} from "./aggregate.js";
+import type {
+  AgentAttackSpec,
+  AttackResult,
+  EvaluatorResult,
+  UnifiedRunReport,
+  Effort,
+} from "./types.js";
 
 export interface BrowserRunConfig {
   attackerLlm: LlmConfig;
@@ -93,9 +105,18 @@ export async function runAllBrowser(
       throw err;
     }
 
-    // Attach extension-only operator-intent fields to each attack so they
-    // reach generateNextAdaptiveTurn via the AttackSpec.
-    const attacks = generated.map((a) => ({
+    // The browser target is always an agent target, so every generated spec is an
+    // AgentAttackSpec. Narrow explicitly, then attach the extension-only
+    // operator-intent fields so they reach generateNextAdaptiveTurn via the spec.
+    const agentSpecs = generated.filter((a): a is AgentAttackSpec => a.kind === "agent");
+    if (agentSpecs.length !== generated.length) {
+      // Should never happen on the browser path; make a future regression visible
+      // rather than silently dropping attacks.
+      log.warn(
+        `runAllBrowser: dropped ${generated.length - agentSpecs.length} non-agent attack spec(s) for evaluator ${evaluator.id} — the browser path only supports agent targets.`
+      );
+    }
+    const attacks: AgentAttackSpec[] = agentSpecs.map((a) => ({
       ...a,
       attackObjective: config.attackObjective,
       businessUseCase: config.businessUseCase,
@@ -124,47 +145,30 @@ export async function runAllBrowser(
         );
       } catch (err) {
         // Handle LLM stop errors (attacker/judge)
+        // Browser path is agent-only, so all attacks here are AgentAttackSpec.
+        const makeFailedResult = (reason: string): AttackResult => ({
+          kind: "agent",
+          attackId: attack.id,
+          evaluatorId: attack.evaluatorId,
+          patternName: attack.patternName,
+          prompt: attack.prompt ?? "(attack prompt not captured)",
+          response: `ERROR: ${reason}`,
+          judge: { verdict: "ERROR", score: 0, confidence: 0, evidence: "N/A", reasoning: "", errorMessage: reason },
+        });
+
         if (isStopError(err)) {
           stopReason = getStopReason(err);
           log.error(`\n🛑 Run stopped: ${stopReason}`);
           notify({ type: "run_stopped", reason: stopReason });
-
-          // Add the failed attack to results
-          const failedResult: AttackResult = {
-            attackId: attack.id,
-            evaluatorId: attack.evaluatorId,
-            patternName: attack.patternName,
-            prompt: attack.prompt ?? "(attack prompt not captured)",
-            response: `ERROR: ${stopReason}`,
-            judge: {
-              verdict: "ERROR",
-              score: 0,
-              confidence: 0,
-              evidence: "N/A",
-              reasoning: "",
-              errorMessage: stopReason,
-            },
-          };
+          const failedResult = makeFailedResult(stopReason);
           attackResults.push(failedResult);
           notify({ type: "attack_done", attackId: attack.id, result: failedResult });
-
-          // Save partial results for this evaluator
-          const total = attackResults.length;
-          const passed = attackResults.filter((r) => r.judge.verdict === "PASS").length;
-          const failed = attackResults.filter((r) => r.judge.verdict === "FAIL").length;
-          const errors = attackResults.filter((r) => r.judge.verdict === "ERROR").length;
-          evaluatorResults.push({
-            evaluatorId: evaluator.id,
-            evaluatorName: evaluator.name,
-            standards: evaluator.standards,
-            severity: evaluator.severity,
-            total,
-            passed,
-            failed,
-            errors,
-            passRate: total > 0 ? passed / total : 0,
-            attacks: attackResults,
-          });
+          evaluatorResults.push(
+            toEvaluatorResult(
+              { evaluatorId: evaluator.id, evaluatorName: evaluator.name, standards: evaluator.standards, severity: evaluator.severity },
+              attackResults
+            )
+          );
           break evaluatorLoop;
         }
         // Handle target stop errors
@@ -172,43 +176,15 @@ export async function runAllBrowser(
           stopReason = err.message;
           log.error(`\n🛑 Run stopped: ${stopReason}`);
           notify({ type: "run_stopped", reason: stopReason });
-
-          // Add the failed attack to results
-          const failedResult: AttackResult = {
-            attackId: attack.id,
-            evaluatorId: attack.evaluatorId,
-            patternName: attack.patternName,
-            prompt: attack.prompt ?? "(attack prompt not captured)",
-            response: `ERROR: ${stopReason}`,
-            judge: {
-              verdict: "ERROR",
-              score: 0,
-              confidence: 0,
-              evidence: "N/A",
-              reasoning: "",
-              errorMessage: stopReason,
-            },
-          };
+          const failedResult = makeFailedResult(stopReason);
           attackResults.push(failedResult);
           notify({ type: "attack_done", attackId: attack.id, result: failedResult });
-
-          // Save partial results for this evaluator
-          const total = attackResults.length;
-          const passed = attackResults.filter((r) => r.judge.verdict === "PASS").length;
-          const failed = attackResults.filter((r) => r.judge.verdict === "FAIL").length;
-          const errors = attackResults.filter((r) => r.judge.verdict === "ERROR").length;
-          evaluatorResults.push({
-            evaluatorId: evaluator.id,
-            evaluatorName: evaluator.name,
-            standards: evaluator.standards,
-            severity: evaluator.severity,
-            total,
-            passed,
-            failed,
-            errors,
-            passRate: total > 0 ? passed / total : 0,
-            attacks: attackResults,
-          });
+          evaluatorResults.push(
+            toEvaluatorResult(
+              { evaluatorId: evaluator.id, evaluatorName: evaluator.name, standards: evaluator.standards, severity: evaluator.severity },
+              attackResults
+            )
+          );
           break evaluatorLoop;
         }
         throw err;
@@ -222,25 +198,20 @@ export async function runAllBrowser(
       log.info(`     ${icon} ${result.judge.verdict} (score ${result.judge.score}/10)`);
     }
 
-    const total = attackResults.length;
-    const passed = attackResults.filter((r) => r.judge.verdict === "PASS").length;
-    const failed = attackResults.filter((r) => r.judge.verdict === "FAIL").length;
-    const errors = attackResults.filter((r) => r.judge.verdict === "ERROR").length;
-
+    const { passed, failed, errors } = summarizeVerdicts(attackResults);
     notify({ type: "evaluator_done", evaluatorId: evaluator.id, passed, failed, errors });
 
-    evaluatorResults.push({
-      evaluatorId: evaluator.id,
-      evaluatorName: evaluator.name,
-      standards: evaluator.standards,
-      severity: evaluator.severity,
-      total,
-      passed,
-      failed,
-      errors,
-      passRate: total > 0 ? passed / total : 0,
-      attacks: attackResults,
-    });
+    evaluatorResults.push(
+      toEvaluatorResult(
+        {
+          evaluatorId: evaluator.id,
+          evaluatorName: evaluator.name,
+          standards: evaluator.standards,
+          severity: evaluator.severity,
+        },
+        attackResults
+      )
+    );
   }
 
   return buildBrowserReport(config, evaluatorResults, stopReason);
@@ -251,29 +222,20 @@ function buildBrowserReport(
   evaluators: EvaluatorResult[],
   stopReason?: string
 ): UnifiedRunReport {
-  const allAttacks = evaluators.flatMap((e) => e.attacks);
-  const total = allAttacks.length;
-  const passed = allAttacks.filter((a) => a.judge.verdict === "PASS").length;
-  const failed = allAttacks.filter((a) => a.judge.verdict === "FAIL").length;
-  const errors = allAttacks.filter((a) => a.judge.verdict === "ERROR").length;
-  const safetyScore = total > 0 ? Math.round((passed / total) * 100) : 100;
-  const attackSuccessRate = total > 0 ? Math.round((failed / total) * 100) : 0;
-
-  const attackModel = `${config.attackerLlm.provider}/${config.attackerLlm.model}`;
-  const judgeModel = config.judgeLlm
-    ? `${config.judgeLlm.provider}/${config.judgeLlm.model}`
-    : attackModel;
-
+  const { attackModel, judgeModel } = modelLabel(config.attackerLlm, config.judgeLlm);
   return {
-    reportId: randomUUID(),
-    generatedAt: new Date().toISOString(),
-    targetName: config.targetName ?? "target",
-    targetKind: "agent",
-    effort: config.effort,
-    attackModel,
-    judgeModel,
-    summary: { total, passed, failed, errors, safetyScore, attackSuccessRate },
-    evaluators,
+    ...buildUnifiedReport(
+      {
+        reportId: randomUUID(),
+        generatedAt: new Date().toISOString(),
+        targetName: config.targetName ?? "target",
+        targetKind: "agent",
+        effort: config.effort,
+        attackModel,
+        judgeModel,
+      },
+      evaluators
+    ),
     stopReason,
   };
 }

@@ -118,6 +118,8 @@ Place your evaluator in the most relevant existing category (e.g. `injection`, `
 
 ### File format
 
+> **Single source of truth:** [docs/evaluator-schema.md](docs/evaluator-schema.md) is authoritative for every field, its type, and which are required. The example below is a quick-start skeleton, not the full spec — when the two disagree, the schema doc (and the Zod `EvaluatorFrontmatterSchema` it documents) wins. The schema is `.strict()`, so unknown/misspelled keys fail loudly at load rather than being silently ignored.
+
 **`evaluator.yaml`** (both flat and directory layouts):
 
 ```yaml

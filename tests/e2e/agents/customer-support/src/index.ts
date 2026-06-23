@@ -1,3 +1,11 @@
+/**
+ * ⚠️  DO NOT DEPLOY — INTENTIONALLY VULNERABLE FIXTURE
+ *
+ * This customer-support agent ships deliberate authorization holes (BOLA / BFLA /
+ * RBAC bypass, PII disclosure, SQL-injection-prone tool calls) so OPFOR's evaluators
+ * have something to find. It is a test target ONLY. Never run it in production or
+ * expose it on a public network. See SECURITY.md → "Intentionally vulnerable fixtures".
+ */
 import express from "express";
 import pg from "pg";
 import { z } from "zod";
