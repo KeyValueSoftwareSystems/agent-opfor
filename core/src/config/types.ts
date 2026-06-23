@@ -373,7 +373,7 @@ export interface PromptsFile {
   judgeLlm?: LlmConfig;
   target: TargetConfig;
   attacks: AttackEntry[];
-  /** Copied from setup config when present; drives telemetry adapters during `opfor execute`. */
+  /** Copied from setup config when present; drives telemetry adapters during `opfor run`. */
   telemetry?: TelemetryConfig;
   /**
    * When Langfuse curation ran during setup, the same output directory contains this markdown file

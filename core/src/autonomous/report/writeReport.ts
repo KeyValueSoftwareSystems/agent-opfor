@@ -23,11 +23,11 @@ export async function writeAutonomousReport(
       .replace(/^-+|-+$/g, "")
       .slice(0, 40) || "target";
   const shortId = report.reportId.replace(/-/g, "").slice(0, 8);
-  const dir = path.resolve(outputDir, `auto-report-${compactTs}-${slug}-${shortId}`);
+  const dir = path.resolve(outputDir, `hunt-report-${compactTs}-${slug}-${shortId}`);
   await mkdir(dir, { recursive: true });
 
-  const htmlPath = path.join(dir, "report.html");
-  const jsonPath = path.join(dir, "report.json");
+  const htmlPath = path.join(dir, `${slug}-report.html`);
+  const jsonPath = path.join(dir, `${slug}-report.json`);
 
   await writeFile(htmlPath, renderReportHtml(report), "utf8");
   await writeFile(jsonPath, JSON.stringify(report, null, 2), "utf8");

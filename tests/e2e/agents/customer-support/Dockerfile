@@ -7,7 +7,7 @@ COPY package.json package-lock.json ./
 COPY tests/e2e/agents/customer-support/package.json ./tests/e2e/agents/customer-support/
 
 # Install only this workspace package's deps (devDependencies included — needed at runtime via tsx)
-RUN npm install --workspace=@opfor/test-agent-customer-support --ignore-scripts
+RUN npm install --workspace=@agent-opfor/test-agent-customer-support --ignore-scripts
 
 # Copy agent source
 COPY tests/e2e/agents/customer-support/src ./tests/e2e/agents/customer-support/src

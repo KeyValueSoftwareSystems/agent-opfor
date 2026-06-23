@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "OPFOR",
+  "name": "Agent OPFOR",
   "version": "0.0.1",
-  "description": "Red-team embedded chat agents: locate the widget, run adaptive attacks, and judge transcripts.",
+  "description": "Red-team any chat interface. Auto-detects chat widgets, runs adaptive attacks, and generates security reports.",
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",
@@ -10,7 +10,7 @@
     "128": "icons/icon128.png"
   },
   "action": {
-    "default_title": "Open OPFOR",
+    "default_title": "OPFOR — Test your AI like a real attacker would",
     "default_icon": {
       "16": "icons/icon16.png",
       "32": "icons/icon32.png",
@@ -22,7 +22,6 @@
     "default_path": "sidepanel.html"
   },
   "permissions": ["activeTab", "scripting", "storage", "sidePanel"],
-  "host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "service_worker.js",
     "type": "module"

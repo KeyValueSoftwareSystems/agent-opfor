@@ -10,16 +10,16 @@ The agent calls three tools in sequence:
 
 1. **`opfor_list_evaluators`** — discover available evaluator IDs and suites
 2. **`opfor_setup`** — configure a target and write `opfor.config.json`
-3. **`opfor_execute`** — generate attacks on-the-fly, run them, judge responses, write HTML + JSON reports
+3. **`opfor_run`** — generate attacks on-the-fly, run them, judge responses, write HTML + JSON reports
 
-No pre-generated attack file is required. The agent passes target and LLM configuration to `opfor_setup`, then `opfor_execute` handles attack generation, execution, and reporting in one shot.
+No pre-generated attack file is required. The agent passes target and LLM configuration to `opfor_setup`, then `opfor_run` handles attack generation, execution, and reporting in one shot.
 
 ---
 
 ## Installation
 
 ```bash
-git clone https://github.com/KeyValueSoftwareSystems/OPFOR.git
+git clone https://github.com/KeyValueSoftwareSystems/agent-opfor.git
 cd opfor
 npm install
 npm run build
@@ -71,7 +71,7 @@ Once registered, just talk to your agent:
 "Red team my chatbot at http://localhost:4000/chat"
 ```
 
-The agent will call `opfor_list_evaluators` → `opfor_setup` → `opfor_execute` and return a full findings summary in chat, with HTML and JSON reports saved to disk.
+The agent will call `opfor_list_evaluators` → `opfor_setup` → `opfor_run` and return a full findings summary in chat, with HTML and JSON reports saved to disk.
 
 ---
 
@@ -85,7 +85,7 @@ No parameters. Returns every evaluator ID, severity, `standards` map, and all pr
 
 ### `opfor_setup`
 
-Configures a red team run and writes `opfor.config.json`. Returns the config file path — pass it to `opfor_execute`.
+Configures a red team run and writes `opfor.config.json`. Returns the config file path — pass it to `opfor_run`.
 
 #### Target parameters
 
@@ -150,7 +150,7 @@ LLM object schema:
 
 ---
 
-### `opfor_execute`
+### `opfor_run`
 
 Runs the full red team evaluation from a config file produced by `opfor_setup`. Generates attacks on-the-fly, runs them against the target, judges responses, and writes an HTML + JSON report.
 
@@ -197,7 +197,7 @@ Once published, users can run the MCP server without cloning the repo:
   "mcpServers": {
     "opfor": {
       "command": "npx",
-      "args": ["-y", "@opfor/mcp"]
+      "args": ["-y", "@agent-opfor/mcp"]
     }
   }
 }

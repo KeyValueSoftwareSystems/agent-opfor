@@ -1,14 +1,14 @@
-import { runAll } from "@opfor/core";
+import { runAll } from "@agent-opfor/core";
 import type {
   RunConfig,
   AgentTargetConfig,
   McpTargetConfig,
   EvaluatorSelection,
-} from "@opfor/core";
-import type { LlmConfig, ProviderName } from "@opfor/core/config/types.js";
+} from "@agent-opfor/core";
+import type { LlmConfig, ProviderName } from "@agent-opfor/core/config/types.js";
 import type {
-  ExecuteOptions,
-  ExecuteResults,
+  RunOptions,
+  RunResults,
   TargetConfig,
   ModelSpec,
   Finding,
@@ -20,11 +20,11 @@ const DEFAULT_PROVIDER: ProviderName = "anthropic";
 const DEFAULT_MODEL = "claude-sonnet-4-20250514";
 
 /**
- * Execute adversarial tests against a target.
+ * Run adversarial tests against a target.
  *
  * This is the functional API - pass all configuration in options.
  */
-export async function execute(options: ExecuteOptions): Promise<ExecuteResults> {
+export async function run(options: RunOptions): Promise<RunResults> {
   const runConfig = buildRunConfig(options);
 
   const coreReport = await runAll(runConfig, {
@@ -35,9 +35,9 @@ export async function execute(options: ExecuteOptions): Promise<ExecuteResults> 
 }
 
 /**
- * Build a RunConfig from SDK ExecuteOptions
+ * Build a RunConfig from SDK RunOptions
  */
-export function buildRunConfig(options: ExecuteOptions): RunConfig {
+export function buildRunConfig(options: RunOptions): RunConfig {
   const target = buildTargetConfig(options.target);
   const selection = buildSelection(options);
   const attackerLlm = buildLlmConfig(options.attackerModel, options.apiKey);
@@ -95,7 +95,7 @@ function buildTargetConfig(target: TargetConfig): AgentTargetConfig | McpTargetC
   };
 }
 
-function buildSelection(options: ExecuteOptions): EvaluatorSelection {
+function buildSelection(options: RunOptions): EvaluatorSelection {
   if (options.evaluators?.length) {
     return { mode: "evaluators", evaluators: options.evaluators };
   }
@@ -154,7 +154,7 @@ function getDefaultApiKeyEnv(provider: ProviderName): string {
   return envVars[provider] ?? "ANTHROPIC_API_KEY";
 }
 
-function transformReport(coreReport: import("@opfor/core").UnifiedRunReport): ExecuteResults {
+function transformReport(coreReport: import("@agent-opfor/core").UnifiedRunReport): RunResults {
   const findings = extractFindings(coreReport);
   const evaluators = coreReport.evaluators.map(transformEvaluatorResult);
 
@@ -173,7 +173,7 @@ function transformReport(coreReport: import("@opfor/core").UnifiedRunReport): Ex
   };
 }
 
-function extractFindings(report: import("@opfor/core").UnifiedRunReport): Finding[] {
+function extractFindings(report: import("@agent-opfor/core").UnifiedRunReport): Finding[] {
   const findings: Finding[] = [];
 
   for (const evaluator of report.evaluators) {
@@ -196,7 +196,9 @@ function extractFindings(report: import("@opfor/core").UnifiedRunReport): Findin
   return findings;
 }
 
-function transformEvaluatorResult(core: import("@opfor/core").EvaluatorResult): EvaluatorResult {
+function transformEvaluatorResult(
+  core: import("@agent-opfor/core").EvaluatorResult
+): EvaluatorResult {
   return {
     evaluatorId: core.evaluatorId,
     evaluatorName: core.evaluatorName,
@@ -211,7 +213,7 @@ function transformEvaluatorResult(core: import("@opfor/core").EvaluatorResult): 
   };
 }
 
-function transformAttackResult(core: import("@opfor/core").AttackResult): AttackResult {
+function transformAttackResult(core: import("@agent-opfor/core").AttackResult): AttackResult {
   return {
     attackId: core.attackId,
     evaluatorId: core.evaluatorId,

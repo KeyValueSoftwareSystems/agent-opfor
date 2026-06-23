@@ -125,7 +125,7 @@ Or send a graceful close if the server supports it.
 
 ## Integration Example
 
-When `opfor-execute` invokes an MCP attack via stdio:
+When `opfor-run` invokes an MCP attack via stdio:
 
 ```
 1. Launch server: npx @myorg/mcp-server

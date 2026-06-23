@@ -4,7 +4,7 @@ import {
   createRunLog,
   getOrCreateThread,
   computeProgressSignal,
-} from "@opfor/core/autonomous/state/runLog.js";
+} from "@agent-opfor/core/autonomous/state/runLog.js";
 
 function baseLog() {
   return createRunLog({

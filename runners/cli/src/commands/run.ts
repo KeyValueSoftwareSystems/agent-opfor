@@ -1,17 +1,17 @@
 import type { Command } from "commander";
 import path from "node:path";
 import { readFile } from "node:fs/promises";
-import { log } from "@opfor/core/lib/logger.js";
-import { runAll } from "@opfor/core/execute/runAll.js";
-import { writeReport } from "@opfor/core/report/buildReport.js";
-import type { RunConfig } from "@opfor/core/execute/types.js";
-import { normalizeEffort } from "@opfor/core/execute/effortCompat.js";
+import { log } from "@agent-opfor/core/lib/logger.js";
+import { runAll } from "@agent-opfor/core/execute/runAll.js";
+import { writeReport } from "@agent-opfor/core/report/buildReport.js";
+import type { RunConfig } from "@agent-opfor/core/execute/types.js";
+import { normalizeEffort } from "@agent-opfor/core/execute/effortCompat.js";
 import { runSetupAndWrite } from "./setup.js";
 import { ensureOpforDirs, OPFOR_DIR, OPFOR_REPORTS_DIR } from "../lib/artifacts.js";
 
-export function registerExecuteCommand(program: Command): void {
+export function registerRunCommand(program: Command): void {
   program
-    .command("execute")
+    .command("run")
     .description(
       "Run attacks against the configured target. With --config, reads an existing config; without --config, runs the setup wizard inline first."
     )
@@ -46,7 +46,7 @@ export function registerExecuteCommand(program: Command): void {
             return;
           }
         } else {
-          // No --config provided: run the setup wizard inline, then execute the resulting config.
+          // No --config provided: run the setup wizard inline, then run the resulting config.
           const result = await runSetupAndWrite();
           runConfig = result.config;
         }
@@ -73,7 +73,7 @@ export function registerExecuteCommand(program: Command): void {
           runConfig = { ...runConfig, turns: n };
         }
 
-        log.info(`\nOpfor Execute`);
+        log.info(`\nOpfor Run`);
         log.info(`  Target : ${runConfig.target.name} (${runConfig.target.kind})`);
         log.info(`  Effort : ${runConfig.effort}`);
         log.info(`  Turns  : ${runConfig.turns}`);

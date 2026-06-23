@@ -564,11 +564,11 @@ Trace Summary:         Used to ground attack prompts in real usage patterns
 Generated Inputs:      Saved to .opfor/configs/<uuid>/inputs/
 
 Config Location:       .opfor/configs/<uuid>/
-Next Step:             npx opfor execute --config .opfor/configs/<uuid>/
+Next Step:             opfor run --config .opfor/configs/<uuid>/
 
 You can:
   • Review/edit attack inputs at .opfor/configs/<uuid>/inputs/
-  • Run the assessment: npx opfor execute --config .opfor/configs/<uuid>/
+  • Run the assessment: opfor run --config .opfor/configs/<uuid>/
   • Create more configs: run /opfor-setup again
   • View examples: .opfor/configs/README.md
 ```

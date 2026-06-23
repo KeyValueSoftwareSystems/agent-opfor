@@ -1,11 +1,11 @@
-# Opfor Auto — Autonomous Red-Teaming
+# Opfor Hunt — Autonomous Red-Teaming
 
-`opfor auto` uses Claude Agent SDK to run an intelligent, adaptive attack campaign against your target. A multi-agent system performs reconnaissance, strategizes, and probes for vulnerabilities in real-time.
+`opfor hunt` uses Claude Agent SDK to run an intelligent, adaptive attack campaign against your target. A multi-agent system performs reconnaissance, strategizes, and probes for vulnerabilities in real-time.
 
 ## Quick Start
 
 ```bash
-opfor auto \
+opfor hunt \
   --endpoint "https://your-target.com/v1/chat/completions" \
   --name "My Target Bot" \
   --target-key-env TARGET_API_KEY \

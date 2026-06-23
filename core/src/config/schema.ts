@@ -59,7 +59,7 @@ export type McpScannerSection = z.infer<typeof McpScannerSectionSchema>;
 
 export const OpforConfigFileV3Schema = z.object({
   mcp: McpScannerSectionSchema.optional(),
-  /** Agent scan settings (`opfor setup --agent` / `opfor generate --config`) — parsed as `SetupConfigFile` in the CLI. */
+  /** Agent scan settings (`opfor setup --agent` / `opfor run --config`) — parsed as `SetupConfigFile` in the CLI. */
   agent: z.record(z.string(), z.unknown()).optional(),
 });
 

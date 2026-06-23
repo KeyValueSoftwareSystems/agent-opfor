@@ -27,7 +27,7 @@ export interface ReportFiles {
  * grouped together. Returns the absolute paths to the written files.
  *
  * Layout:
- *   <outputDir>/opfor-report-<compactTs>-<slug>-<shortId>/
+ *   <outputDir>/run-report-<compactTs>-<slug>-<shortId>/
  *     ├─ <slug>-report.html
  *     └─ <slug>-report.json
  */
@@ -43,7 +43,7 @@ export async function writeReport(report: UnifiedRunReport, outputDir = "."): Pr
       .replace(/^-+|-+$/g, "")
       .slice(0, 40) || "target";
   const shortId = report.reportId.replace(/-/g, "").slice(0, 8);
-  const runFolder = path.resolve(outputDir, `opfor-report-${compactTs}-${slug}-${shortId}`);
+  const runFolder = path.resolve(outputDir, `run-report-${compactTs}-${slug}-${shortId}`);
   await mkdir(runFolder, { recursive: true });
 
   const htmlPath = path.join(runFolder, `${slug}-report.html`);

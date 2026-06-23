@@ -8,8 +8,8 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 
 import type {
-  ExecuteOptions,
-  ExecuteResults,
+  RunOptions,
+  RunResults,
   HttpTargetConfig,
   LocalScriptTargetConfig,
   McpTargetConfig,
@@ -112,8 +112,8 @@ describe("SDK types", () => {
     assert.equal(strategy.turnMode, "multi");
   });
 
-  test("ExecuteOptions type is correct", () => {
-    const options: ExecuteOptions = {
+  test("RunOptions type is correct", () => {
+    const options: RunOptions = {
       target: { url: "https://example.com/chat" },
       suite: "owasp-llm-top10",
       strategy: { effort: "adaptive" },
@@ -179,8 +179,8 @@ describe("SDK types", () => {
     assert.equal(result.total, 5);
   });
 
-  test("ExecuteResults type is correct", () => {
-    const results: ExecuteResults = {
+  test("RunResults type is correct", () => {
+    const results: RunResults = {
       id: "report-123",
       timestamp: new Date().toISOString(),
       targetName: "Test",

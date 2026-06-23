@@ -12,13 +12,13 @@ Opfor is an open-source red-teaming toolkit for AI agents and MCP servers. It ge
 
 **Five usage modes — one set of evaluators:**
 
-| Mode              | Entry point                                                                                        | Who runs it                                  |
-| ----------------- | -------------------------------------------------------------------------------------------------- | -------------------------------------------- |
-| CLI               | `opfor setup` → `opfor execute --config <path>` / `opfor auto --endpoint <url> --objective <text>` | User in terminal or CI                       |
-| Browser extension | Click the toolbar icon on any chat UI                                                              | Non-developers — QA, PMs, security analysts  |
-| MCP server        | `opfor_setup`, `opfor_execute` tools                                                               | MCP-compatible host (Cursor, Claude Desktop) |
-| Skills            | `/opfor-setup`, `/opfor-execute` slash commands                                                    | AI coding agent reads markdown skill files   |
-| SDK               | `import { execute, auto } from "@opfor/sdk"`                                                       | Developers embedding opfor in their own code |
+| Mode              | Entry point                                                                                    | Who runs it                                  |
+| ----------------- | ---------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| CLI               | `opfor setup` → `opfor run --config <path>` / `opfor hunt --endpoint <url> --objective <text>` | User in terminal or CI                       |
+| Browser extension | Click the toolbar icon on any chat UI                                                          | Non-developers — QA, PMs, security analysts  |
+| MCP server        | `opfor_setup`, `opfor_run` tools                                                               | MCP-compatible host (Cursor, Claude Desktop) |
+| Skills            | `/opfor-setup`, `/opfor-run` slash commands                                                    | AI coding agent reads markdown skill files   |
+| SDK               | `import { run, hunt } from "@agent-opfor/sdk"`                                                 | Developers embedding opfor in their own code |
 
 ---
 
@@ -26,7 +26,7 @@ Opfor is an open-source red-teaming toolkit for AI agents and MCP servers. It ge
 
 ```
 opfor/
-├── core/                          # @opfor/core — shared engine (npm workspace, compiled to core/dist/)
+├── core/                          # @agent-opfor/core — shared engine (npm workspace, compiled to core/dist/)
 │   └── src/
 │       ├── autonomous/            # Autonomous red-teaming orchestration (orchestrator, prompts, tools, state, report, knowledge)
 │       ├── catalog/               # discoverEvaluators.ts, loadCatalog.ts — YAML evaluator/suite discovery
@@ -46,27 +46,27 @@ opfor/
 │       ├── prompts/               # Inlined system prompts (attacker, judge) used by core
 │       └── util/                  # yamlFrontmatter.ts and other utility helpers
 ├── runners/
-│   ├── cli/                       # @opfor/cli — `opfor` CLI binary (npm workspace)
+│   ├── cli/                       # @agent-opfor/cli — `opfor` CLI binary (npm workspace)
 │   │   └── src/
-│   │       ├── index.ts           # CLI entrypoint (commander) — registers setup, execute, and auto
+│   │       ├── index.ts           # CLI entrypoint (commander) — registers setup, run, and hunt
 │   │       ├── commands/
 │   │       │   ├── setup.ts       # `opfor setup` (interactive wizard) + --agent / --mcp / --empty flags
-│   │       │   ├── execute.ts     # `opfor execute --config <path>` — runs end-to-end
-│   │       │   └── auto.ts        # `opfor auto` — autonomous red-teaming with agentic orchestration
+│   │       │   ├── run.ts     # `opfor run --config <path>` — runs end-to-end
+│   │       │   └── hunt.ts        # `opfor hunt` — autonomous red-teaming with agentic orchestration
 │   │       └── lib/
 │   │           └── artifacts.ts   # .opfor/configs/ + .opfor/reports/ path helpers
-│   ├── mcp/                       # @opfor/mcp — MCP server runner (npm workspace)
+│   ├── mcp/                       # @agent-opfor/mcp — MCP server runner (npm workspace)
 │   │   └── src/
 │   │       └── index.ts           # MCP server entrypoint — registers tools, stdio transport
-│   ├── sdk/                       # @opfor/sdk — programmatic SDK (npm workspace)
+│   ├── sdk/                       # @agent-opfor/sdk — programmatic SDK (npm workspace)
 │   │   └── src/
 │   │       └── index.ts           # SDK entrypoint
-│   └── extension/                 # @opfor/extension — Chrome MV3 browser extension (npm workspace)
+│   └── extension/                 # @agent-opfor/extension — Chrome MV3 browser extension (npm workspace)
 │       ├── service_worker.js      # Entry point — message routing only; imports modules below
 │       ├── orchestrator.js        # Main run loop: locate → attack → extract → reset → judge (calls runAllBrowser from bundled core)
 │       ├── llmUiActions.js        # DOM-specific LLM helpers (input picker, UI planner, message shortener)
 │       ├── domTarget.js           # Adapter exposing the DOM send/extract path as a core AgentTarget
-│       ├── dist/core.bundle.js    # esbuild bundle of @opfor/core/browser (attack + judge engine)
+│       ├── dist/core.bundle.js    # esbuild bundle of @agent-opfor/core/browser (attack + judge engine)
 │       ├── frameDiscovery.js      # Frame collection, scoring, chat-frame selection
 │       ├── domActions.js          # chrome.scripting wrappers (send, click, verify, vendor APIs)
 │       ├── responseExtractor.js   # Three-phase polling extractor for bot responses
@@ -131,11 +131,11 @@ opfor/
 │           └── vulnerable-server/ # Intentionally vulnerable MCP server
 ├── docs/
 │   ├── cli.md                     # Complete CLI reference
-│   ├── auto.md                    # Autonomous mode (`opfor auto`) guide
+│   ├── hunt.md                    # Autonomous mode (`opfor hunt`) guide
 │   ├── mcp.md                     # MCP server (runner) setup + tools reference
 │   ├── browser-extension.md       # Browser extension guide
 │   ├── skills.md                  # Skill bundle usage
-│   ├── sdk.md                     # SDK (@opfor/sdk) reference
+│   ├── sdk.md                     # SDK (@agent-opfor/sdk) reference
 │   ├── evaluators.md              # Evaluator + suite reference
 │   ├── evaluator-schema.md        # Evaluator YAML schema
 │   └── telemetry.md               # Trace-aware testing (Langfuse / Netra)
@@ -158,7 +158,7 @@ npm run format:check              # prettier --check
 npm test                          # vitest in core/
 ```
 
-`core` must compile before any runner — `runners/{cli,mcp}` import from `core/dist/`, and `runners/extension` esbuild-bundles `@opfor/core/browser` at build time. Always run `npm run build` from the repo root, never per-package.
+`core` must compile before any runner — `runners/{cli,mcp}` import from `core/dist/`, and `runners/extension` esbuild-bundles `@agent-opfor/core/browser` at build time. Always run `npm run build` from the repo root, never per-package.
 
 ---
 
@@ -188,16 +188,16 @@ npm test                          # vitest in core/
 | `core/src/report/buildReport.ts`         | Writes per-run subfolder + invokes `render.ts`; maps `UnifiedRunReport` → `ReportViewModel`                                                                                 |
 | `core/src/report/render.ts`              | Renders the final HTML (cover, exec summary, findings, per-turn details)                                                                                                    |
 | `core/src/providers/factory.ts`          | `createModel(LlmConfig)` over Vercel AI SDK; `PROVIDER_DEFAULTS`, `PROVIDER_ENV_VARS`, `PROVIDER_CAPABILITIES`                                                              |
-| `runners/cli/src/index.ts`               | CLI entrypoint — registers `setup`, `execute`, and `auto`                                                                                                                   |
+| `runners/cli/src/index.ts`               | CLI entrypoint — registers `setup`, `run`, and `hunt`                                                                                                                       |
 | `runners/cli/src/commands/setup.ts`      | Interactive wizard; emits `.opfor/configs/opfor-config-<ts>-<id>.json`; supports `--agent/--mcp/--empty`                                                                    |
-| `runners/cli/src/commands/execute.ts`    | `opfor execute --config <file>` — reads config, calls `runAll`, calls `writeReport`                                                                                         |
-| `runners/cli/src/commands/auto.ts`       | `opfor auto` — autonomous red-teaming; agentic commander/operator/scout architecture; `--ui` flag for browser setup UI                                                      |
+| `runners/cli/src/commands/run.ts`        | `opfor run --config <file>` — reads config, calls `runAll`, calls `writeReport`                                                                                             |
+| `runners/cli/src/commands/hunt.ts`       | `opfor hunt` — autonomous red-teaming; agentic commander/operator/scout architecture; `--ui` flag for browser setup UI                                                      |
 | `runners/cli/src/lib/artifacts.ts`       | `.opfor/configs/` + `.opfor/reports/` path helpers (`newConfigPath()`, `ensureOpforDirs()`)                                                                                 |
-| `runners/mcp/src/index.ts`               | MCP server: registers `opfor_list_evaluators`, `opfor_setup`, `opfor_execute` tools                                                                                         |
+| `runners/mcp/src/index.ts`               | MCP server: registers `opfor_list_evaluators`, `opfor_setup`, `opfor_run` tools                                                                                             |
 | `runners/extension/service_worker.js`    | Extension entry point — message routing; imports from focused ES modules                                                                                                    |
 | `runners/extension/orchestrator.js`      | Full adaptive run loop — drives `runAllBrowser` against `DomTarget`                                                                                                         |
 | `runners/extension/domTarget.js`         | Implements the core `AgentTarget` interface against the live chat DOM                                                                                                       |
-| `runners/extension/dist/core.bundle.js`  | esbuild bundle of `@opfor/core/browser`; supplies `runAllBrowser` + `generateNextTurn` + judge                                                                              |
+| `runners/extension/dist/core.bundle.js`  | esbuild bundle of `@agent-opfor/core/browser`; supplies `runAllBrowser` + `generateNextTurn` + judge                                                                        |
 
 ---
 
@@ -242,7 +242,7 @@ patterns:
 
 ## How the run loop works
 
-There is no longer a separate `generate` step. `opfor execute --config <file>` does everything end-to-end.
+There is no longer a separate `generate` step. `opfor run --config <file>` does everything end-to-end.
 
 1. **Load config.** `runAll(config)` reads a `RunConfig` (flat schema: `target.kind`, `selection`, `attackerLlm`, `effort`, `turnMode`, `turns`, `telemetry`).
 2. **Normalize turnMode.** `effectiveTurns = config.turnMode === "single" ? 1 : config.turns`. Both fields are written through to each `AttackSpec`.
@@ -251,7 +251,7 @@ There is no longer a separate `generate` step. `opfor execute --config <file>` d
 5. **Per evaluator:** `generateAttacks({ evaluator, target, effort, model, turns, turnMode })` produces `AttackSpec[]`. `adaptive` yields one open-ended spec; `comprehensive` yields one spec per named pattern.
 6. **Per attack:** `runAgentAttack` (or `runMcpAttack` in `runAll.ts`) drives the turn loop. Each turn: build the prompt (turn 1 uses the seed; later turns use `generateNextTurn` with full history + last judge signal), send via the target, record the response. Stops early if the judge returns FAIL on a partial-judge check.
 7. **Judge once after the loop.** A single judge call sees the whole transcript + optional fetched trace data (`enrichJudgeFromTrace`) and returns `{ verdict, score, confidence, evidence, reasoning }`.
-8. **Aggregate + write report.** `writeReport(report, outputDir)` creates `.opfor/reports/opfor-report-<compactTs>-<slug>-<shortId>/` containing `<slug>-report.html` and `<slug>-report.json`.
+8. **Aggregate + write report.** `writeReport(report, outputDir)` creates `.opfor/reports/run-report-<compactTs>-<slug>-<shortId>/` containing `<slug>-report.html` and `<slug>-report.json`. (Autonomous `opfor hunt` uses the parallel `writeAutonomousReport`, which writes the same `<slug>-report.html`/`.json` into a `hunt-report-<compactTs>-<slug>-<shortId>/` subfolder.)
 
 `runAllBrowser` is the same loop in browser-safe form: takes preloaded `EvaluatorSpec[]` + a pre-built `AgentTarget` (e.g. `DomTarget`), skips disk reads.
 
@@ -275,7 +275,7 @@ cp .env.example .env          # set PROVIDER + the agent's API key
 export GROQ_API_KEY=your-key-here   # attack LLM key (separate from Docker .env)
 
 # from repo root:
-opfor execute --config tests/e2e/agents/vanilla-chat/opfor.config.json
+opfor run --config tests/e2e/agents/vanilla-chat/opfor.config.json
 ```
 
 **Covered evaluators:** OWASP LLM Top 10, Trust & Safety (bias, misinformation), system-prompt-leakage, jailbreaking.
@@ -292,7 +292,7 @@ cp .env.example .env          # set PROVIDER + the agent's API key
 export GROQ_API_KEY=your-key-here
 
 # from repo root:
-opfor execute --config tests/e2e/agents/customer-support/opfor.config.json
+opfor run --config tests/e2e/agents/customer-support/opfor.config.json
 
 # reset DB to clean seed state between runs:
 ./scripts/reset.sh
@@ -313,7 +313,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) — "Adding a test agent" section.
 1. Create `evaluators/agent/<group>/<id>.yaml` (or `evaluators/mcp/<group>/<id>.yaml`). For complex evaluators with many patterns, use the directory form: `evaluators/agent/<group>/<id>/evaluator.yaml`.
 2. Fill YAML fields: `id`, `name`, `severity`, `standards`, `description`, `pass_criteria`, `fail_criteria`, `patterns` (see `docs/evaluator-schema.md`)
 3. Optionally add the ID to a curated suite's `evaluators:` list in `suites/agent/` (or `suites/mcp/`). Standard-mapped suites (OWASP, ATLAS, etc.) pick it up automatically via the `standards:` field — no suite edit needed.
-4. Test: `opfor setup --agent --empty` (or `--mcp --empty`) → edit `selection.evaluators` in the generated config → `opfor execute --config <path>`
+4. Test: `opfor setup --agent --empty` (or `--mcp --empty`) → edit `selection.evaluators` in the generated config → `opfor run --config <path>`
 5. PR to `master` — see [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ---
@@ -342,7 +342,7 @@ For a new MCP _transport_ (beyond stdio/url):
 - **No barrel re-exports** — import directly from the file that owns the symbol
 - **Error messages are actionable** — tell the user what to fix, not just what went wrong
 - **Evaluator files are data** — no business logic in `.md` files; logic lives in `core/src/evaluators/`
-- **Never invoke the CLI as a subprocess from the MCP server** — call `@opfor/core` directly
+- **Never invoke the CLI as a subprocess from the MCP server** — call `@agent-opfor/core` directly
 
 ---
 

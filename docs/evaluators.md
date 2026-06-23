@@ -182,36 +182,24 @@ Pick via `--evaluators jailbreaking` or list it under `agent.selection.evaluator
 | ------------------- | --------------------- | -------- | ----- |
 | `resource-exposure` | MCP Resource Exposure | critical | MCP01 |
 
-`resource-exposure` runs automatically during `opfor execute` **Phase 0** — opfor calls `resources/list` + `resources/read` on every resource and judges for secret/PII exposure. Disable with `mcp.scanResources: false` in the config.
+`resource-exposure` runs automatically during `opfor run` **Phase 0** — opfor calls `resources/list` + `resources/read` on every resource and judges for secret/PII exposure. Disable with `mcp.scanResources: false` in the config.
 
 ---
 
 ## Picking evaluators by hand
 
-**CLI — generate-time override:**
+Set the evaluator IDs in your config's `selection` block, then run `opfor run --config <path>`.
 
-```bash
-opfor generate --config .opfor/configs/...json --evaluators prompt-injection sensitive-disclosure
-```
-
-**Config file (agent mode):**
+**Config file** — top-level `selection` block (same shape for agent and MCP targets; the target kind is set by `target.kind`):
 
 ```json
-"agent": {
-  "selection": {
-    "mode": "evaluators",
-    "evaluators": ["prompt-injection", "jailbreaking", "bola"]
-  }
+"selection": {
+  "mode": "evaluators",
+  "evaluators": ["prompt-injection", "jailbreaking", "bola"]
 }
 ```
 
-**Config file (MCP mode):**
-
-```json
-"mcp": {
-  "evaluators": ["tool-description-injection", "scope-escalation"]
-}
-```
+For an MCP target, use MCP-tree evaluator IDs instead, e.g. `["tool-description-injection", "scope-escalation"]`.
 
 **Opfor MCP server tool:**
 

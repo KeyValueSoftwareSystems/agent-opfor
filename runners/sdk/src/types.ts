@@ -1,5 +1,5 @@
-import type { Effort, UnifiedRunReport } from "@opfor/core";
-import type { TelemetryConfig, LlmConfig, ProviderName } from "@opfor/core/config/types.js";
+import type { Effort, UnifiedRunReport } from "@agent-opfor/core";
+import type { TelemetryConfig, LlmConfig, ProviderName } from "@agent-opfor/core/config/types.js";
 
 // ---------------------------------------------------------------------------
 // Target Configuration
@@ -69,7 +69,7 @@ export interface StrategyConfig {
 // Execute Options
 // ---------------------------------------------------------------------------
 
-export interface ExecuteOptions {
+export interface RunOptions {
   target: TargetConfig;
 
   suite?: string;
@@ -136,7 +136,7 @@ export interface EvaluatorResult {
   attacks: AttackResult[];
 }
 
-export interface ExecuteResults {
+export interface RunResults {
   id: string;
   timestamp: string;
   targetName: string;
@@ -196,7 +196,7 @@ export interface ListEvaluatorsOptions {
 // ---------------------------------------------------------------------------
 
 /** Target configuration for autonomous mode (HTTP endpoint only). */
-export interface AutoTargetConfig {
+export interface HuntTargetConfig {
   /** Target HTTP endpoint URL. */
   url: string;
   /** Display name (defaults to endpoint host). */
@@ -221,7 +221,7 @@ export interface AutoTargetConfig {
 }
 
 /** Model configuration for autonomous mode. */
-export interface AutoModelsConfig {
+export interface HuntModelsConfig {
   /** Commander model (alias like "opus"/"sonnet" or full id). Default: "opus" */
   commander?: string;
   /** Operator subagent model. Default: "sonnet" */
@@ -233,7 +233,7 @@ export interface AutoModelsConfig {
 }
 
 /** Limits configuration for autonomous mode. */
-export interface AutoLimitsConfig {
+export interface HuntLimitsConfig {
   /** Max parallel operator subagents. Default: 6 */
   maxOperators?: number;
   /** Hard ceiling on SDK agentic turns. Default: 120 */
@@ -257,15 +257,15 @@ export interface AutoLimitsConfig {
 }
 
 /** Options for autonomous red-team mode. */
-export interface AutoOptions {
+export interface HuntOptions {
   /** Target agent configuration. */
-  target: AutoTargetConfig;
+  target: HuntTargetConfig;
   /** Free-text attack objective. */
   objective: string;
   /** Model configuration. */
-  models?: AutoModelsConfig;
+  models?: HuntModelsConfig;
   /** Limits and budget configuration. */
-  limits?: AutoLimitsConfig;
+  limits?: HuntLimitsConfig;
   /** Enable the independent second-model verifier. Default: false */
   verify?: boolean;
   /** Dispatch operators one-at-a-time (for rate-limited targets). Default: false */
@@ -273,11 +273,11 @@ export interface AutoOptions {
   /** Output directory for reports. Default: ".opfor/reports" */
   outputDir?: string;
   /** Progress callback for streaming updates. */
-  onProgress?: (event: AutoProgressEvent) => void;
+  onProgress?: (event: HuntProgressEvent) => void;
 }
 
 /** Progress events during autonomous execution. */
-export type AutoProgressEvent =
+export type HuntProgressEvent =
   | { type: "line"; message: string }
   | { type: "recon_start" }
   | { type: "recon_done"; fingerprint: string; weakPoints: string[] }
@@ -288,7 +288,7 @@ export type AutoProgressEvent =
   | { type: "complete"; outcome: string };
 
 /** A turn in an autonomous attack thread. */
-export interface AutoTurn {
+export interface HuntTurn {
   turnIndex: number;
   prompt: string;
   response: string;
@@ -298,7 +298,7 @@ export interface AutoTurn {
 }
 
 /** A finding from an autonomous run. */
-export interface AutoFinding {
+export interface HuntFinding {
   id: string;
   vulnClassId: string;
   name: string;
@@ -311,11 +311,11 @@ export interface AutoFinding {
   confidence: number;
   evidence: string;
   reasoning: string;
-  turns: AutoTurn[];
+  turns: HuntTurn[];
 }
 
 /** Results from an autonomous red-team run. */
-export interface AutoResults {
+export interface HuntResults {
   id: string;
   timestamp: string;
   target: { name: string; endpoint: string };
@@ -340,7 +340,7 @@ export interface AutoResults {
     guardrails: string[];
     weakPoints: string[];
   };
-  findings: AutoFinding[];
+  findings: HuntFinding[];
   recommendations: string[];
   narrative: string;
   /** Path to generated HTML report. */

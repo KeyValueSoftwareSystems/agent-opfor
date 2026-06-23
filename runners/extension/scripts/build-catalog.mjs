@@ -400,7 +400,6 @@ async function main() {
 
   const payload = {
     version: 1,
-    generatedAt: new Date().toISOString(),
     source: "evaluators/agent",
     suites,
     evaluators,

@@ -8,9 +8,13 @@ import { createWriteStream, type WriteStream } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { exec } from "node:child_process";
 import express from "express";
-import type { RunLog } from "@opfor/core/autonomous/state/runLog.js";
-import type { AutoOptions, TargetConfig, TargetMode } from "@opfor/core/autonomous/lib/types.js";
-import type { RunEvent } from "@opfor/core/autonomous/state/observe.js";
+import type { RunLog } from "@agent-opfor/core/autonomous/state/runLog.js";
+import type {
+  HuntOptions,
+  TargetConfig,
+  TargetMode,
+} from "@agent-opfor/core/autonomous/lib/types.js";
+import type { RunEvent } from "@agent-opfor/core/autonomous/state/observe.js";
 import { UiBridge, type SseClient } from "./bridge.js";
 import type { SnapshotMeta } from "./snapshot.js";
 
@@ -194,7 +198,7 @@ export async function startUiServer(options: UiServerOptions): Promise<UiServerH
         }
       };
 
-      const autoOptions: AutoOptions = {
+      const autoOptions: HuntOptions = {
         target,
         objective: config.objective,
         commanderModel: resolveModel(config.commanderModel, "haiku"),
@@ -288,12 +292,13 @@ export async function startUiServer(options: UiServerOptions): Promise<UiServerH
 
 /** Run the autonomous assessment in-process, wired to the UI bridge. */
 async function runAssessmentInProcess(
-  autoOptions: AutoOptions,
+  autoOptions: HuntOptions,
   bridge: UiBridge,
   onLog?: (line: string) => void
 ): Promise<string | undefined> {
-  const { runAutonomous } = await import("@opfor/core/autonomous/orchestrator/run.js");
-  const { writeAutonomousReport } = await import("@opfor/core/autonomous/report/writeReport.js");
+  const { runAutonomous } = await import("@agent-opfor/core/autonomous/orchestrator/run.js");
+  const { writeAutonomousReport } =
+    await import("@agent-opfor/core/autonomous/report/writeReport.js");
 
   // Set up output directory and log files
   await mkdir(autoOptions.outputDir, { recursive: true });
@@ -301,7 +306,7 @@ async function runAssessmentInProcess(
     .toISOString()
     .replace(/[-:T.Z]/g, "")
     .slice(0, 14);
-  const liveLogPath = path.join(autoOptions.outputDir, `auto-live-${startedAt}.log`);
+  const liveLogPath = path.join(autoOptions.outputDir, `hunt-live-${startedAt}.log`);
   const liveLog: WriteStream = createWriteStream(liveLogPath, { flags: "a" });
   const eventLogPath = path.join(autoOptions.outputDir, `run-${startedAt}.jsonl`);
   const eventLog: WriteStream = createWriteStream(eventLogPath, { flags: "a" });

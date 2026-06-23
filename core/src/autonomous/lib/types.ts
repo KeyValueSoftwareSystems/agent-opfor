@@ -1,5 +1,5 @@
 // Shared option/config types for the autonomous red-team runner.
-// This package is fully standalone — it does NOT import from @opfor/core.
+// This package is fully standalone — it does NOT import from @agent-opfor/core.
 
 /** How the target HTTP agent maintains conversation state. */
 export type TargetMode = "stateless" | "stateful";
@@ -35,7 +35,7 @@ export interface TargetConfig {
 }
 
 /** Fully-resolved options for a single autonomous run. */
-export interface AutoOptions {
+export interface HuntOptions {
   target: TargetConfig;
   objective: string;
   /** Commander model (alias like "opus"/"sonnet" or full id). */

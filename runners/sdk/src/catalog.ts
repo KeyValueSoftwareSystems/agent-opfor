@@ -1,5 +1,5 @@
-import { loadSkillCatalog } from "@opfor/core/config/loadSkillCatalog.js";
-import { loadCatalog } from "@opfor/core/catalog/loadCatalog.js";
+import { loadSkillCatalog } from "@agent-opfor/core/config/loadSkillCatalog.js";
+import { loadCatalog } from "@agent-opfor/core/catalog/loadCatalog.js";
 import type { SuiteInfo, EvaluatorInfo, ListEvaluatorsOptions } from "./types.js";
 
 /**

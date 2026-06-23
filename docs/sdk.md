@@ -5,7 +5,7 @@ Adversarial testing for AI systems. TypeScript-first.
 ## Install
 
 ```bash
-npm install @opfor/sdk
+npm install @agent-opfor/sdk
 ```
 
 ## Quick Start
@@ -13,13 +13,13 @@ npm install @opfor/sdk
 ### Class-based API
 
 ```typescript
-import { Opfor } from "@opfor/sdk";
+import { Opfor } from "@agent-opfor/sdk";
 
 const opfor = new Opfor({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
-const results = await opfor.execute({
+const results = await opfor.run({
   target: {
     url: "https://api.example.com/chat",
     apiKeyEnv: "TARGET_API_KEY",
@@ -37,9 +37,9 @@ console.log(results.findings.length);
 For those who prefer functions over classes:
 
 ```typescript
-import { execute, report } from "@opfor/sdk";
+import { run, report } from "@agent-opfor/sdk";
 
-const results = await execute({
+const results = await run({
   target: {
     url: "https://api.example.com/chat",
     apiKeyEnv: "TARGET_API_KEY",
@@ -62,7 +62,7 @@ await report(results).html("./report.html");
 Run adversarial tests against a target.
 
 ```typescript
-const results = await opfor.execute({
+const results = await opfor.run({
   target: {
     url: "https://api.example.com/chat",
     apiKeyEnv: "TARGET_API_KEY",
@@ -99,7 +99,7 @@ suite: "bias"; // Discrimination testing
 Run specific evaluators instead of a suite.
 
 ```typescript
-const results = await opfor.execute({
+const results = await opfor.run({
   target: {
     url: "https://api.example.com/chat",
   },
@@ -110,12 +110,12 @@ const results = await opfor.execute({
 
 ### Autonomous Mode
 
-Let Opfor discover attack paths automatically using an AI agent. Unlike `execute()` which runs predefined evaluators, `auto()` uses adaptive multi-turn attacks to autonomously discover vulnerabilities.
+Let Opfor discover attack paths automatically using an AI agent. Unlike `run()` which runs predefined evaluators, `hunt()` uses adaptive multi-turn attacks to autonomously discover vulnerabilities.
 
 ```typescript
-import { auto } from "@opfor/sdk";
+import { hunt } from "@agent-opfor/sdk";
 
-const results = await auto({
+const results = await hunt({
   target: {
     url: "https://api.example.com/chat",
     apiKey: process.env.TARGET_API_KEY,
@@ -144,7 +144,7 @@ Or using the class-based API:
 ```typescript
 const opfor = new Opfor({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-const results = await opfor.auto({
+const results = await opfor.hunt({
   target: { url: "https://api.example.com/chat" },
   objective: "Find jailbreaks and data leaks",
   limits: { budgetUsd: 5 },
@@ -156,7 +156,7 @@ const results = await opfor.auto({
 ### HTTP Endpoint
 
 ```typescript
-const results = await opfor.execute({
+const results = await opfor.run({
   target: {
     url: "https://api.example.com/chat",
     name: "My Chatbot",
@@ -186,7 +186,7 @@ const results = await opfor.execute({
 ```typescript
 // Stateless (default) - sends full chat history each turn
 // Use for raw LLM APIs (OpenAI, Anthropic, etc.)
-const results = await opfor.execute({
+const results = await opfor.run({
   target: {
     url: "https://api.openai.com/v1/chat/completions",
     stateful: false,
@@ -196,7 +196,7 @@ const results = await opfor.execute({
 
 // Stateful - server maintains conversation history
 // Use for custom chatbots with session storage
-const results = await opfor.execute({
+const results = await opfor.run({
   target: {
     url: "https://api.example.com/chat",
     stateful: true,
@@ -211,7 +211,7 @@ const results = await opfor.execute({
 Test a local agent script (Node.js or Python).
 
 ```typescript
-const results = await opfor.execute({
+const results = await opfor.run({
   target: {
     type: "local-script",
     name: "My Local Agent",
@@ -227,7 +227,7 @@ const results = await opfor.execute({
 
 ```typescript
 // stdio transport
-const results = await opfor.execute({
+const results = await opfor.run({
   target: {
     kind: "mcp",
     name: "My MCP Server",
@@ -241,7 +241,7 @@ const results = await opfor.execute({
 });
 
 // URL transport
-const results = await opfor.execute({
+const results = await opfor.run({
   target: {
     kind: "mcp",
     name: "My MCP Server",
@@ -258,7 +258,7 @@ const results = await opfor.execute({
 Configure how attacks are executed.
 
 ```typescript
-const results = await opfor.execute({
+const results = await opfor.run({
   target: { url: "https://api.example.com/chat" },
   suite: "owasp-llm-top10",
 
@@ -279,14 +279,14 @@ const results = await opfor.execute({
 Configure attacker and judge LLMs.
 
 ```typescript
-import { Opfor } from "@opfor/sdk";
+import { Opfor } from "@agent-opfor/sdk";
 
 const opfor = new Opfor({
   // Default API key (used if not specified per-model)
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
-const results = await opfor.execute({
+const results = await opfor.run({
   target: { url: "https://api.example.com/chat" },
   suite: "owasp-llm-top10",
 
@@ -340,7 +340,7 @@ Integrate with observability platforms.
 ### Langfuse
 
 ```typescript
-const results = await opfor.execute({
+const results = await opfor.run({
   target: { url: "https://api.example.com/chat" },
   suite: "owasp-llm-top10",
 
@@ -373,7 +373,7 @@ const results = await opfor.execute({
 ### Netra
 
 ```typescript
-const results = await opfor.execute({
+const results = await opfor.run({
   target: { url: "https://api.example.com/chat" },
   suite: "owasp-llm-top10",
 
@@ -491,7 +491,7 @@ Generate reports from execution results.
 
 ```typescript
 // Class-based
-const results = await opfor.execute({
+const results = await opfor.run({
   target: { url: process.env.TARGET_URL! },
   suite: "owasp-llm-top10",
 });
@@ -501,9 +501,9 @@ await r.json("./report.json");
 await r.html("./report.html");
 
 // Functional
-import { execute, report } from "@opfor/sdk";
+import { run, report } from "@agent-opfor/sdk";
 
-const results = await execute({ ... });
+const results = await run({ ... });
 await report(results).json("./report.json");
 await report(results).html("./report.html");
 ```
@@ -568,9 +568,9 @@ await report(results).html("./report.html");
 ### Using Functional API
 
 ```typescript
-import { execute } from "@opfor/sdk";
+import { run } from "@agent-opfor/sdk";
 
-const results = await execute({
+const results = await run({
   target: {
     url: process.env.TARGET_URL!,
     apiKeyEnv: "TARGET_API_KEY",
@@ -595,13 +595,13 @@ console.log(`Safety score: ${results.score}%`);
 ### Using Class API
 
 ```typescript
-import { Opfor } from "@opfor/sdk";
+import { Opfor } from "@agent-opfor/sdk";
 
 const opfor = new Opfor({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
-const results = await opfor.execute({
+const results = await opfor.run({
   target: {
     url: process.env.TARGET_URL!,
     apiKeyEnv: "TARGET_API_KEY",
@@ -619,10 +619,10 @@ if (results.findings.length > 0) {
 ### Class-based
 
 ```typescript
-import { Opfor } from "@opfor/sdk";
+import { Opfor } from "@agent-opfor/sdk";
 
 const opfor = new Opfor({ apiKey: "..." });
-await opfor.execute({ ... });
+await opfor.run({ ... });
 opfor.report(results);
 ```
 
@@ -630,15 +630,15 @@ opfor.report(results);
 
 ```typescript
 import {
-  execute, // Run adversarial tests
-  auto, // Run autonomous red-team mode
+  run, // Run adversarial tests
+  hunt, // Run autonomous red-team mode
   report, // Generate reports from results
   listSuites, // List available suites
   listEvaluators, // List available evaluators
-} from "@opfor/sdk";
+} from "@agent-opfor/sdk";
 
 // Execute with inline config
-const results = await execute({
+const results = await run({
   target: { url: "https://api.example.com/chat" },
   suite: "owasp-llm-top10",
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -649,7 +649,7 @@ await report(results).html("./report.html");
 await report(results).json("./report.json");
 
 // Autonomous mode
-const autoResults = await auto({
+const huntResults = await hunt({
   target: { url: "https://api.example.com/chat" },
   objective: "Find vulnerabilities",
   limits: { budgetUsd: 5 },
@@ -686,12 +686,12 @@ import type {
   AutoModelsConfig,
   AutoLimitsConfig,
   AutoProgressEvent,
-} from "@opfor/sdk";
+} from "@agent-opfor/sdk";
 ```
 
 ## Autonomous Mode Reference
 
-The `auto()` function provides programmatic access to Opfor's autonomous red-teaming capabilities.
+The `hunt()` function provides programmatic access to Opfor's autonomous red-teaming capabilities.
 
 ### Options
 
@@ -792,9 +792,9 @@ type AutoProgressEvent =
 ### Example with Progress Streaming
 
 ```typescript
-import { auto } from "@opfor/sdk";
+import { hunt } from "@agent-opfor/sdk";
 
-const results = await auto({
+const results = await hunt({
   target: {
     url: "https://api.example.com/chat",
     apiKey: process.env.TARGET_API_KEY,

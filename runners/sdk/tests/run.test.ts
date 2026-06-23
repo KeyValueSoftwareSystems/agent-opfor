@@ -1,5 +1,5 @@
 /**
- * SDK execute() tests — verifies the functional API works end-to-end.
+ * SDK run() tests — verifies the functional API works end-to-end.
  *
  * Strategy:
  * - Local HTTP server acts as both target endpoint and LLM backend
@@ -14,13 +14,13 @@ import { test, after, before, describe } from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import type { Server } from "node:http";
-import { setEnvProvider } from "@opfor/core/lib/env.js";
+import { setEnvProvider } from "@agent-opfor/core/lib/env.js";
 
 // Set fake env before importing SDK (which imports core)
 setEnvProvider(() => "fake-test-api-key");
 
-import { execute, buildRunConfig } from "../src/execute.js";
-import type { ExecuteOptions } from "../src/types.js";
+import { run, buildRunConfig } from "../src/run.js";
+import type { RunOptions } from "../src/types.js";
 
 // ---------------------------------------------------------------------------
 // Test server setup
@@ -150,7 +150,7 @@ function startServer(judgeVerdict: "PASS" | "FAIL" = "PASS"): Promise<ServerStat
 // Tests
 // ---------------------------------------------------------------------------
 
-describe("SDK execute()", () => {
+describe("SDK run()", () => {
   before(async () => {
     serverState = await startServer("PASS");
   });
@@ -160,7 +160,7 @@ describe("SDK execute()", () => {
   });
 
   test("buildRunConfig transforms HTTP target correctly", () => {
-    const options: ExecuteOptions = {
+    const options: RunOptions = {
       target: {
         url: "https://api.example.com/chat",
         name: "Test Target",
@@ -190,7 +190,7 @@ describe("SDK execute()", () => {
   });
 
   test("buildRunConfig transforms local-script target correctly", () => {
-    const options: ExecuteOptions = {
+    const options: RunOptions = {
       target: {
         type: "local-script",
         name: "Local Agent",
@@ -213,7 +213,7 @@ describe("SDK execute()", () => {
   });
 
   test("buildRunConfig transforms MCP target correctly", () => {
-    const options: ExecuteOptions = {
+    const options: RunOptions = {
       target: {
         kind: "mcp",
         name: "MCP Server",
@@ -232,7 +232,7 @@ describe("SDK execute()", () => {
   });
 
   test("buildRunConfig uses default suite when none specified", () => {
-    const options: ExecuteOptions = {
+    const options: RunOptions = {
       target: { url: "https://example.com/chat" },
     };
 
@@ -243,7 +243,7 @@ describe("SDK execute()", () => {
   });
 
   test("buildRunConfig infers provider from model name", () => {
-    const options: ExecuteOptions = {
+    const options: RunOptions = {
       target: { url: "https://example.com/chat" },
       attackerModel: "gpt-4o",
     };
@@ -254,12 +254,12 @@ describe("SDK execute()", () => {
     assert.equal(config.attackerLlm.model, "gpt-4o");
   });
 
-  test("execute returns properly structured results", async () => {
+  test("run returns properly structured results", async () => {
     serverState.reset();
 
     const baseUrl = `http://127.0.0.1:${serverState.port}`;
 
-    const options: ExecuteOptions = {
+    const options: RunOptions = {
       target: {
         url: `${baseUrl}/target`,
         name: "Test Target",
@@ -282,7 +282,7 @@ describe("SDK execute()", () => {
       },
     };
 
-    const results = await execute(options);
+    const results = await run(options);
 
     // Verify result structure
     assert.ok(results.id, "should have report id");
@@ -309,13 +309,13 @@ describe("SDK execute()", () => {
     assert.ok(serverState.judgeCallCount > 0, "should call judge LLM");
   });
 
-  test("execute fires progress events", async () => {
+  test("run fires progress events", async () => {
     serverState.reset();
 
     const baseUrl = `http://127.0.0.1:${serverState.port}`;
     const events: Array<{ type: string }> = [];
 
-    const options: ExecuteOptions = {
+    const options: RunOptions = {
       target: {
         url: `${baseUrl}/target`,
         name: "Test Target",
@@ -336,7 +336,7 @@ describe("SDK execute()", () => {
       },
     };
 
-    await execute(options);
+    await run(options);
 
     const eventTypes = events.map((e) => e.type);
     assert.ok(eventTypes.includes("evaluator_start"), "should fire evaluator_start");

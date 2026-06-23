@@ -5,7 +5,7 @@
 
 import type { JudgeResult } from "../lib/judgeTypes.js";
 
-/** @deprecated Use JudgeResult from @opfor/core/lib/judgeTypes.js directly. */
+/** @deprecated Use JudgeResult from @agent-opfor/core/lib/judgeTypes.js directly. */
 export type ReportJudge = JudgeResult;
 
 export type DetailCard =
