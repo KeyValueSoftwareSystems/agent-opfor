@@ -18,6 +18,7 @@ import { buildCommanderPrompt } from "../prompts/commander.js";
 import { buildOperatorPrompt } from "../prompts/operator.js";
 import { buildScoutPrompt } from "../prompts/scout.js";
 import { mapRunLogToReport } from "../report/mapRunLog.js";
+import { generateForcedSynthesis } from "../report/forceSynthesis.js";
 import type { AutonomousReport } from "../report/types.js";
 
 const t = TOOL_NAMES;
@@ -183,6 +184,9 @@ export async function runAutonomous(
 
   reporter?.onLine("Autonomous assessment started — commander initializing…");
 
+  // Tracks last reported cost threshold so we only emit a cost line every $0.10.
+  let lastReportedCostUsd = 0;
+
   try {
     for await (const message of q) {
       if (message.type === "assistant") {
@@ -195,8 +199,47 @@ export async function runAutonomous(
           const who = message.subagent_type ? `[${message.subagent_type}]` : "[commander]";
           reporter.onLine(`${who} 💭 ${text.length > 400 ? text.slice(0, 400) + "…" : text}`);
         }
+
+        // Accumulate token cost in real time so isOverBudget() fires mid-stream.
+        const usage = message.message.usage;
+        if (usage) {
+          const modelHint =
+            message.subagent_type === "operator"
+              ? options.operatorModel
+              : message.subagent_type === "scout"
+                ? options.scoutModel
+                : options.commanderModel;
+          budget.recordTokenUsage(
+            {
+              inputTokens: usage.input_tokens,
+              outputTokens: usage.output_tokens,
+              cacheCreationInputTokens: usage.cache_creation_input_tokens ?? 0,
+              cacheReadInputTokens: usage.cache_read_input_tokens ?? 0,
+            },
+            modelHint
+          );
+        }
+
+        // Emit a cost progress line at most once per $0.10 increment.
+        if (budget.budgetUsd && reporter) {
+          const spent = budget.spentUsd;
+          if (spent - lastReportedCostUsd >= 0.1) {
+            reporter.onLine(`💰 ~$${spent.toFixed(2)} / $${budget.budgetUsd} budget used`);
+            lastReportedCostUsd = spent;
+          }
+        }
+
+        // Mid-stream budget check — fires as soon as token accumulation crosses the ceiling.
+        if (budget.isOverBudget() && !runLog.completed) {
+          runLog.truncated = true;
+          runLog.truncationReason = `USD budget ($${budget.budgetUsd}) reached`;
+          reporter?.onLine(`⚠️  budget ceiling reached — finalizing partial report`);
+          await q.interrupt().catch(() => {});
+          break;
+        }
       } else if (message.type === "result") {
         if ("total_cost_usd" in message && typeof message.total_cost_usd === "number") {
+          // Authoritative server cost — corrects any token-estimate drift.
           budget.recordCost(message.total_cost_usd);
           runLog.totalCostUsd = message.total_cost_usd;
         }
@@ -205,15 +248,15 @@ export async function runAutonomous(
           runLog.truncationReason = `run ended with: ${message.subtype}`;
           reporter?.onLine(`⚠️  run ended early: ${message.subtype}`);
         }
-      }
 
-      // Best-effort hard budget enforcement (cost is known after result messages).
-      if (budget.isOverBudget() && !runLog.completed) {
-        runLog.truncated = true;
-        runLog.truncationReason = `USD budget ($${budget.budgetUsd}) reached`;
-        reporter?.onLine(`⚠️  budget ceiling reached — finalizing partial report`);
-        await q.interrupt().catch(() => {});
-        break;
+        // Post-result budget check (catches cases where the result itself pushes us over).
+        if (budget.isOverBudget() && !runLog.completed) {
+          runLog.truncated = true;
+          runLog.truncationReason = `USD budget ($${budget.budgetUsd}) reached`;
+          reporter?.onLine(`⚠️  budget ceiling reached — finalizing partial report`);
+          await q.interrupt().catch(() => {});
+          break;
+        }
       }
     }
   } catch (err) {
@@ -241,6 +284,20 @@ export async function runAutonomous(
   if (reporter) {
     reporter.onLine(countsLine(runLog));
     reporter.onLine("Attack tree:\n" + threadTreeText(runLog));
+  }
+
+  // Generate a real synthesis narrative when the run was interrupted before the
+  // commander could call submit_report. Fires for budget exhaustion, errors, and
+  // early agent stops — any case where runLog.synthesis is still undefined.
+  if (runLog.truncated && !runLog.completed && !runLog.synthesis) {
+    const remainingBudgetUsd =
+      budget.budgetUsd !== undefined ? budget.budgetUsd - budget.spentUsd : undefined;
+    reporter?.onLine("⏳ Generating synthesis from partial run data…");
+    const synthesis = await generateForcedSynthesis(runLog, options, remainingBudgetUsd);
+    if (synthesis) {
+      runLog.synthesis = synthesis;
+      reporter?.onLine("✓ Partial synthesis complete");
+    }
   }
 
   const report = mapRunLogToReport(runLog);

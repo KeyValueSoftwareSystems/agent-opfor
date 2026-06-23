@@ -715,7 +715,7 @@ interface AutoOptions {
 
   // Model configuration (optional)
   models?: {
-    commander?: string; // Commander model (default: "opus")
+    commander?: string; // Commander model (default: "sonnet")
     operator?: string; // Operator model (default: "sonnet")
     scout?: string; // Scout model (default: "haiku")
     verifier?: string; // Verifier model
@@ -801,7 +801,7 @@ const results = await hunt({
   },
   objective: "Find jailbreaks, prompt injection, and data exfiltration vulnerabilities",
   models: {
-    commander: "opus",
+    commander: "sonnet",
     operator: "sonnet",
   },
   limits: {

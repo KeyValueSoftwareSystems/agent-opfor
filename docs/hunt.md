@@ -18,7 +18,7 @@ Add `--ui` to watch the attack tree unfold in a live dashboard.
 
 | Agent         | Role                                                            | Default Model |
 | ------------- | --------------------------------------------------------------- | ------------- |
-| **Commander** | Orchestrates strategy, dispatches operators, interprets results | `opus`        |
+| **Commander** | Orchestrates strategy, dispatches operators, interprets results | `sonnet`      |
 | **Operator**  | Executes multi-turn attack threads with personas/strategies     | `sonnet`      |
 | **Scout**     | Fingerprints target with benign recon probes                    | `haiku`       |
 
@@ -41,7 +41,7 @@ Add `--ui` to watch the attack tree unfold in a live dashboard.
 
 | Option                  | Default  |
 | ----------------------- | -------- |
-| `--model <id>`          | `opus`   |
+| `--model <id>`          | `sonnet` |
 | `--operator-model <id>` | `sonnet` |
 | `--scout-model <id>`    | `haiku`  |
 
