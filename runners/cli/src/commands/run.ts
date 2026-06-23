@@ -104,6 +104,22 @@ export function registerRunCommand(program: Command): void {
         log.info(
           `\nResults: ${summary.passed} passed, ${summary.failed} failed, ${summary.errors} errors`
         );
+
+        // Warn loudly if there were errors (infra/config issues)
+        if (summary.errors > 0 && summary.passed === 0 && summary.failed === 0) {
+          log.warn(
+            `\n⚠️  Assessment incomplete: all ${summary.errors} attack(s) failed due to errors.`
+          );
+          log.warn(
+            `   The target may be unreachable or misconfigured. No security conclusions can be drawn.`
+          );
+          process.exitCode = 2;
+        } else if (summary.errors > 0) {
+          log.warn(
+            `\n⚠️  ${summary.errors} attack(s) failed due to errors — results may be incomplete.`
+          );
+        }
+
         log.info(`Safety score: ${summary.safetyScore}%`);
         log.success(`\nReport: ${html}`);
         log.info(`   JSON: ${json}`);

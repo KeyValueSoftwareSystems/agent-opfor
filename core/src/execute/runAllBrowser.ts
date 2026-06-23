@@ -8,8 +8,10 @@ import { generateAttacks } from "../generate/generateAttacks.js";
 import { createModel } from "../providers/factory.js";
 import type { LlmConfig } from "../config/types.js";
 import type { AgentTarget } from "../targets/agentTarget.js";
+import { TargetStopError } from "../targets/agentTarget.js";
 import { runAgentAttack } from "./runAgentLoop.js";
 import { log } from "../lib/logger.js";
+import { isStopError, getStopReason } from "../lib/llmRetry.js";
 import type { AttackResult, EvaluatorResult, UnifiedRunReport, Effort } from "./types.js";
 
 export interface BrowserRunConfig {
@@ -33,7 +35,8 @@ export type BrowserProgressEvent =
   | { type: "evaluator_start"; evaluatorId: string; evaluatorName: string }
   | { type: "attack_start"; attackId: string; patternName: string }
   | { type: "attack_done"; attackId: string; result: AttackResult }
-  | { type: "evaluator_done"; evaluatorId: string; passed: number; failed: number; errors: number };
+  | { type: "evaluator_done"; evaluatorId: string; passed: number; failed: number; errors: number }
+  | { type: "run_stopped"; reason: string };
 
 export interface BrowserRunAllOptions {
   onProgress?: (event: BrowserProgressEvent) => void;
@@ -56,27 +59,39 @@ export async function runAllBrowser(
   const attackModel = createModel(config.attackerLlm);
   const judgeModel = createModel(config.judgeLlm ?? config.attackerLlm);
   const evaluatorResults: EvaluatorResult[] = [];
+  let stopReason: string | undefined;
 
-  for (const evaluator of evaluators) {
+  evaluatorLoop: for (const evaluator of evaluators) {
     notify({ type: "evaluator_start", evaluatorId: evaluator.id, evaluatorName: evaluator.name });
     log.info(`\n▶ ${evaluator.name} (${evaluator.id})`);
 
     const turnMode: "single" | "multi" = config.turnMode ?? (config.turns > 1 ? "multi" : "single");
     const effectiveTurns = turnMode === "single" ? 1 : config.turns;
 
-    const generated = await generateAttacks({
-      evaluator,
-      target: {
-        kind: "agent",
-        name: config.targetName ?? "target",
-        description: config.targetName ?? "target",
-        type: "http-endpoint",
-      },
-      effort: config.effort,
-      model: attackModel,
-      turns: effectiveTurns,
-      turnMode,
-    });
+    let generated;
+    try {
+      generated = await generateAttacks({
+        evaluator,
+        target: {
+          kind: "agent",
+          name: config.targetName ?? "target",
+          description: config.targetName ?? "target",
+          type: "http-endpoint",
+        },
+        effort: config.effort,
+        model: attackModel,
+        turns: effectiveTurns,
+        turnMode,
+      });
+    } catch (err) {
+      if (isStopError(err)) {
+        stopReason = getStopReason(err);
+        log.error(`\n🛑 Run stopped: ${stopReason}`);
+        notify({ type: "run_stopped", reason: stopReason });
+        break evaluatorLoop;
+      }
+      throw err;
+    }
 
     // Attach extension-only operator-intent fields to each attack so they
     // reach generateNextAdaptiveTurn via the AttackSpec.
@@ -96,15 +111,108 @@ export async function runAllBrowser(
       notify({ type: "attack_start", attackId: attack.id, patternName: attack.patternName });
       log.info(`  → ${attack.patternName}`);
 
-      const result = await runAgentAttack(
-        attack,
-        attackModel,
-        judgeModel,
-        attack.id,
-        evaluator.patterns,
-        agentTarget,
-        options?.initialHistory ? { initialHistory: options.initialHistory } : undefined
-      );
+      let result: AttackResult;
+      try {
+        result = await runAgentAttack(
+          attack,
+          attackModel,
+          judgeModel,
+          attack.id,
+          evaluator.patterns,
+          agentTarget,
+          options?.initialHistory ? { initialHistory: options.initialHistory } : undefined
+        );
+      } catch (err) {
+        // Handle LLM stop errors (attacker/judge)
+        if (isStopError(err)) {
+          stopReason = getStopReason(err);
+          log.error(`\n🛑 Run stopped: ${stopReason}`);
+          notify({ type: "run_stopped", reason: stopReason });
+
+          // Add the failed attack to results
+          const failedResult: AttackResult = {
+            attackId: attack.id,
+            evaluatorId: attack.evaluatorId,
+            patternName: attack.patternName,
+            prompt: attack.prompt ?? "(attack prompt not captured)",
+            response: `ERROR: ${stopReason}`,
+            judge: {
+              verdict: "ERROR",
+              score: 0,
+              confidence: 0,
+              evidence: "N/A",
+              reasoning: "",
+              errorMessage: stopReason,
+            },
+          };
+          attackResults.push(failedResult);
+          notify({ type: "attack_done", attackId: attack.id, result: failedResult });
+
+          // Save partial results for this evaluator
+          const total = attackResults.length;
+          const passed = attackResults.filter((r) => r.judge.verdict === "PASS").length;
+          const failed = attackResults.filter((r) => r.judge.verdict === "FAIL").length;
+          const errors = attackResults.filter((r) => r.judge.verdict === "ERROR").length;
+          evaluatorResults.push({
+            evaluatorId: evaluator.id,
+            evaluatorName: evaluator.name,
+            standards: evaluator.standards,
+            severity: evaluator.severity,
+            total,
+            passed,
+            failed,
+            errors,
+            passRate: total > 0 ? passed / total : 0,
+            attacks: attackResults,
+          });
+          break evaluatorLoop;
+        }
+        // Handle target stop errors
+        if (err instanceof TargetStopError) {
+          stopReason = err.message;
+          log.error(`\n🛑 Run stopped: ${stopReason}`);
+          notify({ type: "run_stopped", reason: stopReason });
+
+          // Add the failed attack to results
+          const failedResult: AttackResult = {
+            attackId: attack.id,
+            evaluatorId: attack.evaluatorId,
+            patternName: attack.patternName,
+            prompt: attack.prompt ?? "(attack prompt not captured)",
+            response: `ERROR: ${stopReason}`,
+            judge: {
+              verdict: "ERROR",
+              score: 0,
+              confidence: 0,
+              evidence: "N/A",
+              reasoning: "",
+              errorMessage: stopReason,
+            },
+          };
+          attackResults.push(failedResult);
+          notify({ type: "attack_done", attackId: attack.id, result: failedResult });
+
+          // Save partial results for this evaluator
+          const total = attackResults.length;
+          const passed = attackResults.filter((r) => r.judge.verdict === "PASS").length;
+          const failed = attackResults.filter((r) => r.judge.verdict === "FAIL").length;
+          const errors = attackResults.filter((r) => r.judge.verdict === "ERROR").length;
+          evaluatorResults.push({
+            evaluatorId: evaluator.id,
+            evaluatorName: evaluator.name,
+            standards: evaluator.standards,
+            severity: evaluator.severity,
+            total,
+            passed,
+            failed,
+            errors,
+            passRate: total > 0 ? passed / total : 0,
+            attacks: attackResults,
+          });
+          break evaluatorLoop;
+        }
+        throw err;
+      }
 
       attackResults.push(result);
       notify({ type: "attack_done", attackId: attack.id, result });
@@ -135,12 +243,13 @@ export async function runAllBrowser(
     });
   }
 
-  return buildBrowserReport(config, evaluatorResults);
+  return buildBrowserReport(config, evaluatorResults, stopReason);
 }
 
 function buildBrowserReport(
   config: BrowserRunConfig,
-  evaluators: EvaluatorResult[]
+  evaluators: EvaluatorResult[],
+  stopReason?: string
 ): UnifiedRunReport {
   const allAttacks = evaluators.flatMap((e) => e.attacks);
   const total = allAttacks.length;
@@ -165,5 +274,6 @@ function buildBrowserReport(
     judgeModel,
     summary: { total, passed, failed, errors, safetyScore, attackSuccessRate },
     evaluators,
+    stopReason,
   };
 }

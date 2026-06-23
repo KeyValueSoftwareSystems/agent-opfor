@@ -14,6 +14,39 @@ export function isTargetError(response: string): boolean {
   return response === RATE_LIMITED_SENTINEL || response.startsWith("ERROR:");
 }
 
+/**
+ * Error thrown when target returns a non-retryable error (4xx, connection refused, etc.)
+ * The run should stop immediately.
+ */
+export class TargetStopError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "TargetStopError";
+  }
+}
+
+/**
+ * Check if a target HTTP status code is retryable.
+ * - 5xx: Server errors - retryable (server might recover)
+ * - 429: Rate limited - retryable
+ * - 4xx (except 429): Client errors - NOT retryable (bad config, auth, etc.)
+ */
+function isRetryableStatus(status: number): boolean {
+  if (status === 429) return true; // Rate limited
+  if (status >= 500 && status < 600) return true; // Server errors
+  return false;
+}
+
+/**
+ * Check if an error message indicates a non-retryable condition (stop immediately).
+ */
+function isNonRetryableError(message: string): boolean {
+  const lower = message.toLowerCase();
+  return (
+    lower.includes("econnrefused") || lower.includes("enotfound") || lower.includes("getaddrinfo")
+  );
+}
+
 export interface AgentSendOptions {
   sessionId?: string;
   propagation?: TelemetryPropagationConfig;
@@ -188,6 +221,14 @@ async function callHttp(
         await new Promise((r) => setTimeout(r, 5000));
         return RATE_LIMITED_SENTINEL;
       }
+      if (!res.ok) {
+        // Non-retryable status (4xx except 429) - stop the run
+        if (!isRetryableStatus(res.status)) {
+          throw new TargetStopError(`Target returned HTTP ${res.status}`);
+        }
+        // Retryable (5xx) - return error but continue
+        return `ERROR: HTTP ${res.status}`;
+      }
       if (res.ok || targetFormat === "openai" || isStateless) return extract(await res.text());
     }
 
@@ -205,9 +246,25 @@ async function callHttp(
       await new Promise((r) => setTimeout(r, 5000));
       return RATE_LIMITED_SENTINEL;
     }
+    if (!res2.ok) {
+      // Non-retryable status (4xx except 429) - stop the run
+      if (!isRetryableStatus(res2.status)) {
+        throw new TargetStopError(`Target returned HTTP ${res2.status}`);
+      }
+      // Retryable (5xx) - return error but continue
+      return `ERROR: HTTP ${res2.status}`;
+    }
     return extract(await res2.text());
   } catch (err: unknown) {
+    // Re-throw TargetStopError
+    if (err instanceof TargetStopError) throw err;
+
     const msg = err instanceof Error ? err.message : String(err);
+    // Check if this is a non-retryable network error
+    if (isNonRetryableError(msg)) {
+      throw new TargetStopError(`Target unreachable: ${msg}`);
+    }
+    // Retryable errors (timeout, etc.) - return error but continue
     return `ERROR: ${msg}`;
   }
 }

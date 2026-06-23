@@ -7,6 +7,8 @@ import type { StandardsMap } from "../evaluators/schema.js";
 import { formatStandardsLabel } from "../evaluators/standards.js";
 import type { AttackSpec, Effort, UnifiedTargetConfig, SessionContext } from "../execute/types.js";
 import { formatUpstreamSessions } from "../lib/summarizeSessionContext.js";
+import { withRetry, isStopError } from "../lib/llmRetry.js";
+import { log } from "../lib/logger.js";
 
 function standardsSuffix(standards?: StandardsMap): string {
   const label = formatStandardsLabel(standards);
@@ -150,8 +152,23 @@ async function generatePatternAgentAttack(
     `Fill in all {{placeholders}} with concrete, realistic content. Output ONLY the final attack message — nothing else.`,
   ].join("\n");
 
-  const result = await generateText({ model, system, prompt: user });
-  return result.text.trim();
+  try {
+    const result = await withRetry(() => generateText({ model, system, prompt: user }), {
+      context: "Attacker",
+      maxRetries: 3,
+    });
+    return result.text.trim();
+  } catch (err) {
+    if (isStopError(err)) {
+      // Re-throw stop errors so the run can handle them properly
+      throw err;
+    }
+    // Fallback: use the raw template when LLM fails unexpectedly
+    log.warn(
+      `[Attacker] LLM failed, using raw template for "${patternName}": ${err instanceof Error ? err.message : String(err)}`
+    );
+    return template;
+  }
 }
 
 async function buildAgentSystemPrompt(
@@ -288,10 +305,20 @@ async function generateSingleMcpAttack(
     `judgeHint: one sentence telling the judge what to look for as evidence of a vulnerability.`,
   ].join("\n");
 
-  return parseMcpAttackJson(
-    await generateText({ model, system, prompt: user }).then((r) => r.text),
-    tools[0].name
-  );
+  try {
+    const result = await withRetry(() => generateText({ model, system, prompt: user }), {
+      context: "Attacker (MCP)",
+      maxRetries: 3,
+    });
+    return parseMcpAttackJson(result.text, tools[0].name);
+  } catch (err) {
+    if (isStopError(err)) throw err;
+    log.warn(
+      `[Attacker] MCP generic attack LLM failed: ${err instanceof Error ? err.message : String(err)}`
+    );
+    // Fallback: minimal attack with first tool
+    return { toolName: tools[0].name, toolArguments: {}, judgeHint: "Check for any vulnerability" };
+  }
 }
 
 async function generatePatternMcpAttack(
@@ -319,10 +346,24 @@ async function generatePatternMcpAttack(
     `judgeHint: one sentence telling the judge what to look for as evidence of a vulnerability.`,
   ].join("\n");
 
-  return parseMcpAttackJson(
-    await generateText({ model, system, prompt: user }).then((r) => r.text),
-    tools[0].name
-  );
+  try {
+    const result = await withRetry(() => generateText({ model, system, prompt: user }), {
+      context: "Attacker (MCP)",
+      maxRetries: 3,
+    });
+    return parseMcpAttackJson(result.text, tools[0].name);
+  } catch (err) {
+    if (isStopError(err)) throw err;
+    log.warn(
+      `[Attacker] MCP pattern attack LLM failed for "${pattern.name}": ${err instanceof Error ? err.message : String(err)}`
+    );
+    // Fallback: minimal attack with first tool
+    return {
+      toolName: tools[0].name,
+      toolArguments: {},
+      judgeHint: `Check for ${pattern.name} vulnerability`,
+    };
+  }
 }
 
 function buildMcpSystemPrompt(): string {

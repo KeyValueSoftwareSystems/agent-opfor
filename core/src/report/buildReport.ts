@@ -71,6 +71,7 @@ function toReportViewModel(report: UnifiedRunReport): ReportViewModel {
     target: { name: report.targetName },
     summary: report.summary,
     evaluators: report.evaluators.map(toEvaluatorViewModel),
+    stopReason: report.stopReason,
   };
 }
 

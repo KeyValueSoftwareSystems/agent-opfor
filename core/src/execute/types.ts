@@ -201,4 +201,6 @@ export interface UnifiedRunReport {
     attackSuccessRate: number;
   };
   evaluators: EvaluatorResult[];
+  /** Set when the run was stopped early due to a non-retryable LLM error. */
+  stopReason?: string;
 }

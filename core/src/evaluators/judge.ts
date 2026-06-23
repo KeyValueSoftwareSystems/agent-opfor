@@ -9,6 +9,7 @@ import type { SessionContext } from "../execute/types.js";
 import { formatUpstreamSessions } from "../lib/summarizeSessionContext.js";
 import { log } from "../lib/logger.js";
 import { JUDGE_AGENT_SYSTEM } from "../prompts/judge-agent.js";
+import { withRetry, isStopError } from "../lib/llmRetry.js";
 
 export interface JudgeResult {
   verdict: "PASS" | "FAIL" | "ERROR";
@@ -179,13 +180,22 @@ export async function judgeResponse(
     `Your assessment:`,
   ].join("\n");
 
-  const result = await generateText({
-    model,
-    system: JUDGE_SYSTEM,
-    prompt: judgePrompt,
-  });
-
-  return parseJudgeOutput(result.text);
+  try {
+    const result = await withRetry(
+      () => generateText({ model, system: JUDGE_SYSTEM, prompt: judgePrompt }),
+      { context: "Judge", maxRetries: 3 }
+    );
+    return parseJudgeOutput(result.text);
+  } catch (err) {
+    if (isStopError(err)) {
+      // Re-throw stop errors so the run can handle them properly
+      throw err;
+    }
+    // Unexpected error - return ERROR verdict
+    const message = err instanceof Error ? err.message : String(err);
+    log.error(`[Judge] Unexpected error: ${message}`);
+    return errorJudge(`Judge LLM error: ${message}`);
+  }
 }
 
 function parseJudgeOutput(raw: string): JudgeResult {

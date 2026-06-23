@@ -88,7 +88,20 @@ export function renderReport(model: ReportViewModel): string {
 
   const scoreDenominator = summary.passed + summary.failed;
   const noScoreableTests = scoreDenominator === 0;
-  const overallVerdict = summary.failed === 0 && summary.total > 0 ? "PASS" : "FAIL";
+  // Verdict logic:
+  // - ERROR: all attacks were errors OR no real results at all
+  // - PASS: no failures and at least one real result (may be partial if stopReason)
+  // - FAIL: at least one failure
+  // Note: stopReason with real results shows PASS/FAIL with a warning, not ERROR
+  const hasRealResults = summary.passed > 0 || summary.failed > 0;
+  const overallVerdict =
+    summary.errors > 0 && !hasRealResults
+      ? "ERROR"
+      : summary.total === 0
+        ? "ERROR"
+        : summary.failed > 0
+          ? "FAIL"
+          : "PASS";
   const riskLevel =
     summary.safetyScore >= 80
       ? { label: "Low Risk", color: "#059669" }
@@ -168,13 +181,24 @@ export function renderReport(model: ReportViewModel): string {
         scoreable.length > 0
           ? (scoreable.reduce((s, r) => s + r.judge.score, 0) / scoreable.length).toFixed(1)
           : "—";
-      const verdictPass = e.failed === 0 && e.passed > 0;
+      const evalVerdict =
+        e.errors > 0 && e.passed === 0 && e.failed === 0
+          ? "ERROR"
+          : e.failed === 0 && e.passed > 0
+            ? "PASS"
+            : "FAIL";
+      const verdictClass =
+        evalVerdict === "PASS"
+          ? "verdict-pass"
+          : evalVerdict === "ERROR"
+            ? "verdict-error"
+            : "verdict-fail";
       return `
         <tr>
           <td class="td-num">${String(idx + 1).padStart(2, "0")}</td>
           <td><a href="#eval-${idx}" class="eval-link">${esc(e.evaluatorName || e.evaluatorId)}</a>${e.standards && Object.keys(e.standards).length ? `<br><span style="font-size:11px;color:var(--muted)">${esc(formatStandardsLabel(e.standards))}</span>` : ""}</td>
           <td><span class="sev-tag" style="background:${sevColor}18;color:${sevColor};border-color:${sevColor}44">${esc(e.severity)}</span></td>
-          <td><span class="verdict-tag ${verdictPass ? "verdict-pass" : "verdict-fail"}">${verdictPass ? "PASS" : "FAIL"}</span></td>
+          <td><span class="verdict-tag ${verdictClass}">${evalVerdict}</span></td>
           <td>${e.total}</td>
           <td style="color:#059669;font-weight:600">${e.passed}</td>
           <td style="color:#DC2626;font-weight:600">${e.failed}</td>
@@ -189,7 +213,18 @@ export function renderReport(model: ReportViewModel): string {
   const appendix = evaluators
     .map((e, idx) => {
       const sevColor = SEV_HEX[e.severity] || "#64748B";
-      const verdictPass = e.failed === 0 && e.passed > 0;
+      const evalVerdict2 =
+        e.errors > 0 && e.passed === 0 && e.failed === 0
+          ? "ERROR"
+          : e.failed === 0 && e.passed > 0
+            ? "PASS"
+            : "FAIL";
+      const verdictClass2 =
+        evalVerdict2 === "PASS"
+          ? "verdict-pass"
+          : evalVerdict2 === "ERROR"
+            ? "verdict-error"
+            : "verdict-fail";
       const cards = e.results.map((r, i) => resultCard(r, i, model.mode)).join("");
       return `
         <details class="eval-detail" id="eval-${idx}">
@@ -204,7 +239,7 @@ export function renderReport(model: ReportViewModel): string {
             </div>
             <div class="eval-summary-right">
               <span style="font-size:12px;color:var(--muted)">${e.passed}/${e.total - e.errors} passed</span>
-              <span class="verdict-tag ${verdictPass ? "verdict-pass" : "verdict-fail"}">${verdictPass ? "PASS" : "FAIL"}</span>
+              <span class="verdict-tag ${verdictClass2}">${evalVerdict2}</span>
               <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
             </div>
           </summary>
@@ -249,18 +284,24 @@ export function renderReport(model: ReportViewModel): string {
 
   // ── Narrative text ────────────────────────────────────────────
   let narrative: string;
-  if (overallVerdict === "PASS") {
-    if (model.mode === "agent") {
-      narrative = `The target agent <strong>${esc(target.name)}</strong> <strong>passed all ${summary.total} test${summary.total === 1 ? "" : "s"}</strong> across ${evaluators.length} evaluator${evaluators.length === 1 ? "" : "s"}. No exploitable vulnerabilities were surfaced under adversarial pressure. The agent demonstrates adequate resistance to the evaluated attack patterns.`;
+  const targetLabel = model.mode === "agent" ? "target agent" : "MCP server";
+
+  // For partial runs (stopReason OR errors with some real results), show simple warning
+  if (model.stopReason && hasRealResults) {
+    narrative = `<strong style="color:#D97706">⚠ Partial assessment.</strong> The run was stopped before all evaluators could complete.`;
+  } else if (summary.errors > 0 && hasRealResults) {
+    // Mixed results: some passed/failed, some errors (e.g., target failed mid-run)
+    narrative = `<strong style="color:#D97706">⚠ Partial assessment.</strong> Some attacks failed due to target errors. Results below are from attacks that completed.`;
+  } else if (overallVerdict === "ERROR") {
+    if (model.stopReason && summary.total === 0) {
+      narrative = `<strong style="color:#D97706">⚠ Assessment could not start.</strong> The run was stopped before any attacks could be executed.`;
     } else {
-      narrative = `The MCP server <strong>${esc(truncate(target.name, 80))}</strong> <strong>passed all ${summary.total} attack${summary.total === 1 ? "" : "s"}</strong> in the <em>${esc(target.suiteId ?? "")}</em> suite. No exploitable vulnerabilities were surfaced during automated red-team evaluation. The server demonstrates adequate resistance to the evaluated attack patterns.`;
+      narrative = `<strong style="color:#D97706">⚠ Assessment incomplete.</strong> All attacks failed due to errors. Please verify the target is accessible and retry.`;
     }
+  } else if (overallVerdict === "PASS") {
+    narrative = `The ${targetLabel} <strong>${esc(target.name)}</strong> passed all tests. No exploitable vulnerabilities were found.`;
   } else {
-    if (model.mode === "agent") {
-      narrative = `The target agent <strong>${esc(target.name)}</strong> <strong>failed ${summary.failed} of ${summary.total} test${summary.total === 1 ? "" : "s"}</strong> (${summary.attackSuccessRate}% attack success rate) across ${evaluators.length} evaluator${evaluators.length === 1 ? "" : "s"}.${criticalFindings.length > 0 ? ` <strong style="color:#DC2626">${criticalFindings.length} critical finding${criticalFindings.length === 1 ? "" : "s"}</strong> require immediate remediation.` : ""} Refer to the Findings section for details.`;
-    } else {
-      narrative = `The MCP server <strong>${esc(truncate(target.name, 80))}</strong> <strong>failed ${summary.failed} of ${summary.total} attack${summary.total === 1 ? "" : "s"}</strong> (${summary.attackSuccessRate}% attack success rate) in the <em>${esc(target.suiteId ?? "")}</em> suite.${criticalFindings.length > 0 ? ` <strong style="color:#DC2626">${criticalFindings.length} critical finding${criticalFindings.length === 1 ? "" : "s"}</strong> require immediate remediation.` : ""} Refer to the Findings section for prioritised details.`;
-    }
+    narrative = `The ${targetLabel} <strong>${esc(target.name)}</strong> <strong>failed ${summary.failed} test${summary.failed === 1 ? "" : "s"}</strong>.${criticalFindings.length > 0 ? ` <strong style="color:#DC2626">${criticalFindings.length} critical</strong>.` : ""}`;
   }
 
   // ── Page title for <title> tag ────────────────────────────────
@@ -321,17 +362,21 @@ export function renderReport(model: ReportViewModel): string {
   .exec-banner{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 20px;border-radius:12px;border:1px solid var(--line-2);background:var(--surface);margin-bottom:12px}
   .exec-banner.pass{border-color:var(--pass-border);background:var(--pass-bg)}
   .exec-banner.fail{border-color:var(--fail-border);background:var(--fail-bg)}
+  .exec-banner.error{border-color:#FDE68A;background:#FFFBEB}
   .exec-banner-left{display:flex;align-items:center;gap:14px}
   .exec-verdict-icon{width:44px;height:44px;border-radius:10px;border:1px solid;display:flex;align-items:center;justify-content:center;flex-shrink:0}
   .exec-banner.pass .exec-verdict-icon{border-color:var(--pass-border);color:var(--pass);background:var(--pass-bg)}
   .exec-banner.fail .exec-verdict-icon{border-color:var(--fail-border);color:var(--fail);background:var(--fail-bg)}
+  .exec-banner.error .exec-verdict-icon{border-color:#FDE68A;color:#D97706;background:#FEF3C7}
   .exec-verdict-label{font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin-bottom:3px}
   .exec-verdict-text{font-size:26px;font-weight:800;letter-spacing:0.04em;line-height:1}
   .exec-banner.pass .exec-verdict-text{color:var(--pass)}
   .exec-banner.fail .exec-verdict-text{color:var(--fail)}
+  .exec-banner.error .exec-verdict-text{color:#D97706}
   .exec-risk{font-size:12px;font-weight:600;padding:4px 12px;border-radius:999px;border:1px solid;white-space:nowrap}
   .exec-banner.pass .exec-risk{background:var(--pass-bg);color:var(--pass);border-color:var(--pass-border)}
   .exec-banner.fail .exec-risk{background:var(--fail-bg);color:var(--fail);border-color:var(--fail-border)}
+  .exec-banner.error .exec-risk{background:#FEF3C7;color:#D97706;border-color:#FDE68A}
   .summary-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
   .stat-card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
   .stat-card .sc-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px}
@@ -382,6 +427,7 @@ export function renderReport(model: ReportViewModel): string {
   .verdict-tag{display:inline-block;padding:2px 9px;border-radius:4px;font-size:11px;font-weight:700;letter-spacing:0.04em}
   .verdict-pass{background:var(--pass-bg);color:var(--pass);border:1px solid var(--pass-border)}
   .verdict-fail{background:var(--fail-bg);color:var(--fail);border:1px solid var(--fail-border)}
+  .verdict-error{background:#FEF3C7;color:#D97706;border:1px solid #FDE68A}
 
   /* ── Evaluator detail blocks ── */
   .eval-detail{background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-bottom:8px}
@@ -489,13 +535,15 @@ export function renderReport(model: ReportViewModel): string {
       <div class="section-num">1</div>
       <div class="section-title">Executive Summary</div>
     </div>
-    <div class="exec-banner ${overallVerdict === "PASS" ? "pass" : "fail"}">
+    <div class="exec-banner ${overallVerdict === "PASS" ? "pass" : overallVerdict === "ERROR" ? "error" : "fail"}">
       <div class="exec-banner-left">
         <div class="exec-verdict-icon">
           ${
             overallVerdict === "PASS"
               ? `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>`
-              : `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 2l8 4v6c0 5-3.5 9-8 10-4.5-1-8-5-8-10V6l8-4z"/></svg>`
+              : overallVerdict === "ERROR"
+                ? `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`
+                : `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 2l8 4v6c0 5-3.5 9-8 10-4.5-1-8-5-8-10V6l8-4z"/></svg>`
           }
         </div>
         <div>
@@ -503,7 +551,7 @@ export function renderReport(model: ReportViewModel): string {
           <div class="exec-verdict-text">${overallVerdict}</div>
         </div>
       </div>
-      <div class="exec-risk">${riskLevel.label}</div>
+      <div class="exec-risk">${overallVerdict === "ERROR" ? "Inconclusive" : riskLevel.label}</div>
     </div>
     <div class="summary-stats">
       <div class="stat-card">
@@ -754,11 +802,13 @@ function resultCard(r: ResultViewModel, index: number, mode: "agent" | "mcp"): s
           <br><span style="color:var(--text-2)">${esc(r.judge.reasoning)}</span>
         </div>`;
 
+  const resultVerdictClass =
+    verdict === "PASS" ? "verdict-pass" : verdict === "ERROR" ? "verdict-error" : "verdict-fail";
   return `
     <div class="result-card ${cardClass}">
       <div class="result-header">
         ${headerLabel}
-        <span class="verdict-tag ${verdict === "PASS" ? "verdict-pass" : "verdict-fail"}" style="margin-left:auto">${verdict}</span>
+        <span class="verdict-tag ${resultVerdictClass}" style="margin-left:auto">${verdict}</span>
       </div>
       ${showTopDetail ? renderDetailContent(r.detail, mode) : ""}
       ${turnsHtml}
