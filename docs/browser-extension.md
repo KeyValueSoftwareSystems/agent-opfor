@@ -17,7 +17,7 @@ Everything runs **client-side in your browser**. The extension uses your own LLM
 
 Same evaluator catalog as the CLI — see [evaluators reference](evaluators.md).
 
-![Run in progress](assets/screenshots/extension-run-progress.png) <!-- TODO: screenshot -->
+![Run in progress](assets/screenshots/extension-run-progress.png)
 
 ---
 
@@ -26,8 +26,6 @@ Same evaluator catalog as the CLI — see [evaluators reference](evaluators.md).
 1. Open the [OPFOR listing on the Chrome Web Store](https://chromewebstore.google.com/).
 2. Click **Add to Chrome**.
 3. Pin the OPFOR icon to your toolbar.
-
-![Install from Chrome Web Store](assets/screenshots/extension-webstore-install.png) <!-- TODO: screenshot -->
 
 Works in any Chromium browser (Chrome, Edge, Brave, Arc). Firefox listing pending.
 
@@ -58,7 +56,7 @@ The extension uses a **single LLM configuration** for all operations (attack gen
 | **Model**    | Model name (dropdown shows common options, or type your own)                    |
 | **API Key**  | Your API key for the selected provider                                          |
 
-![Settings panel](assets/screenshots/extension-settings.png) <!-- TODO: screenshot -->
+![Settings panel](assets/screenshots/extension-settings.png)
 
 ### Advanced settings (gear icon)
 
@@ -86,9 +84,9 @@ The extension uses a **single LLM configuration** for all operations (attack gen
 6. Watch the run — the attacker types into the chat, the target replies, real-time bubbles show the conversation.
 7. When complete, view the verdict and **Download report**.
 
-![Suite picker](assets/screenshots/extension-suite-picker.png) <!-- TODO: screenshot -->
+![Suite picker](assets/screenshots/extension-suite-picker.png)
 
-![Report download](assets/screenshots/extension-report.png) <!-- TODO: screenshot -->
+![Report download](assets/screenshots/extension-report.png)
 
 The extension runs up to **20 turns per evaluator** (default 10). It stops a given evaluator early when the judge returns a definitive verdict.
 
