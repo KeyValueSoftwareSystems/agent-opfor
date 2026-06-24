@@ -57,35 +57,34 @@ Keep descriptions short (3–5 words, hyphen-separated, lowercase). No ticket nu
 
 ### Commit messages
 
-Use the format: `<type>: <what changed>`
+We follow the [Conventional Commits](https://www.conventionalcommits.org/) specification.
 
 ```
-feat: add prompt-leak evaluator
-fix: correct SSRF judge false positive on localhost responses
-docs: add branch and PR naming guidelines
-refactor: extract judge prompt builder into separate module
-chore: update @modelcontextprotocol/sdk to 1.x
+<type>(<scope>): <description>
+
+[optional body]
+
+[optional footer]
 ```
 
-**Rules:**
+**Types:** `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `perf`
 
-- Use the same type prefixes as branch names (`feat`, `fix`, `docs`, `refactor`, `chore`, `test`)
-- Describe the change, not the problem (`add X` not `X was missing`)
-- Keep the first line under 72 characters
-- Use imperative mood (`add` not `added`, `fix` not `fixed`)
-- No period at the end of the subject line
-
-**Multi-line commits** (for complex changes):
+**Examples:**
 
 ```
-feat: add BOLA evaluator for access control testing
-
-- Tests horizontal privilege escalation via user ID manipulation
-- Includes 3 attack patterns: direct ID, encoded ID, ID in path
-- Maps to OWASP LLM06 and OWASP API1
+feat(evaluators): add BOLA evaluator for access control
+fix(judge): correct false positive on localhost responses
+docs: add commit message guidelines
+chore(deps): update @modelcontextprotocol/sdk to 1.x
 ```
 
-Leave a blank line between the subject and body. The body explains _why_, not _what_.
+**Breaking changes:** Add `!` after the type:
+
+```
+feat(config)!: rename attackLlm to attackerLlm
+```
+
+See the [full spec](https://www.conventionalcommits.org/en/v1.0.0/) for details on scopes, footers, and multi-line messages.
 
 ### PR naming
 
