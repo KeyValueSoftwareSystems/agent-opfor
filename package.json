@@ -37,6 +37,7 @@
     "validate:skills": "tsx scripts/validate-skills.ts",
     "build:catalog": "tsx scripts/build-catalog.ts",
     "build:catalog:check": "tsx scripts/build-catalog.ts --check",
+    "new:evaluator": "tsx scripts/new-evaluator.ts",
     "coverage:atlas": "tsx scripts/generate-atlas-coverage.ts",
     "report:pdf": "tsx scripts/generate-pdf-report.ts",
     "prepare": "husky"
