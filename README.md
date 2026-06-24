@@ -13,16 +13,16 @@
 </p>
 
 <p align="center">
-  <a href="https://keyvalue.systems">Website</a> ·
+  <a href="https://agentopfor.ai/">Website</a> ·
   <a href="https://github.com/KeyValueSoftwareSystems/agent-opfor">GitHub</a> ·
   <a href="docs/browser-extension.md">Browser Extension</a>
 </p>
 
+OPFOR is short for _Opposition Force_ — a military term for the unit that plays the enemy in training, so the rest of the army learns what real attacks feel like before they come. We named the tool after that idea: to defend AI agents better, you have to attack them first.
+
 <p align="center">
   <img src="assets/opfor-high-level.svg" alt="How OPFOR works" width="860" />
 </p>
-
----
 
 ## Why we built this
 
@@ -31,8 +31,6 @@ We've shipped 130 products for 90 startups over the last ten years. In the last 
 So we built OPFOR. For ourselves first. Now open source.
 
 Apache 2.0. Built from India.
-
----
 
 ## Quick Start
 
@@ -54,31 +52,18 @@ opfor setup                               # wizard saves a config to .opfor/conf
 opfor run --config .opfor/configs/<file>  # run any time against the saved config
 ```
 
----
-
 ## What opfor does
 
-- 🎯 **Red-teams the whole AI agent surface** — prompts, tools, MCP servers, memory, multi-turn reasoning
-- 🧪 **Generates targeted attacks** for OWASP LLM Top 10, OWASP Agentic AI Top 10, OWASP MCP Top 10, OWASP API Security, and EU AI Act bias suites
-- 🔌 **Connects to MCP servers directly** — enumerates tools, fires real `tools/call` requests with adversarial inputs, judges responses
-- 👁️ **Trace-aware** — integrates with Langfuse and Netra so the LLM judge sees what your agent did internally, not just what it said
-- 📄 **Produces reports you can ship** — timestamped HTML for browsing, JSON for CI/CD, every prompt + response + judge verdict logged
+Opfor red-teams the full AI agent surface — prompts, tools, MCP servers, memory, and multi-turn reasoning. It generates targeted attacks for OWASP LLM Top 10, OWASP Agentic AI Top 10, OWASP MCP Top 10, OWASP API Security, and EU AI Act bias suites, fires them at your target, and judges each response with an LLM.
 
----
+Most red-team tooling in this space is excellent at one thing — a probe library, a developer evaluator, a programmatic framework. Opfor covers more ground in one tool:
 
-## Why opfor
-
-Most red-team tooling in this space is excellent at one thing — a probe library, a developer evaluator, a programmatic framework. None of them ship a browser extension. None of them run as an MCP server themselves. None of them cover all four OWASP standards in one tool.
-
-We built opfor because we needed all three.
-
-- 🌐 **Browser extension for non-developers** — anyone on your team can red-team a deployed chatbot, no code, no env vars, no YAML
-- 🤖 **Run opfor as an MCP server** — let your AI coding agent in Cursor or Claude Desktop red-team your other agents through natural language
-- 🛡️ **Full OWASP coverage in one tool** — LLM Top 10, Agentic AI Top 10, MCP Top 10, API Security Top 10
-- 🔓 **No black box** — every attack prompt, request, response, and judge verdict is logged. Reproducible, auditable, forkable.
-- 🎯 **Built for agents, not just models** — designed for tool calls, MCP, memory, and multi-turn state from day one
-
----
+- **Browser extension for non-developers** — anyone on your team can red-team a deployed chatbot, no code, no env vars, no YAML
+- **Run opfor as an MCP server** — let your AI coding agent in Cursor or Claude Desktop red-team your other agents through natural language
+- **Full OWASP coverage in one tool** — LLM Top 10, Agentic AI Top 10, MCP Top 10, API Security Top 10
+- **No black box** — every attack prompt, request, response, and judge verdict is logged; reproducible, auditable, forkable
+- **Built for agents, not just models** — designed for tool calls, MCP, memory, and multi-turn state from day one
+- **Trace-aware** — integrates with Langfuse and Netra so the LLM judge sees what your agent did internally, not just what it said
 
 ## Five ways to run opfor
 
@@ -86,17 +71,15 @@ Different people on your team need different entry points. Opfor ships five.
 
 | Mode                     | How                                                                     | Best for                                                                                  |
 | ------------------------ | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| **🖥️ CLI**               | `opfor setup` → `opfor run`                                             | Engineers, CI/CD, terminal-first workflows                                                |
-| **🌐 Browser extension** | Install the extension, click the icon on any chat interface             | Product managers, designers, QA, security analysts — anyone who can't or won't write code |
-| **🤖 MCP server**        | Register opfor in Cursor or Claude Desktop, then ask in chat            | AI coding agents that test your other agents                                              |
-| **⚡ Skills**            | `/opfor-setup` · `/opfor-run` · `/opfor-mcp-setup` · `/opfor-mcp-run`   | Developers who want one-command testing inside their IDE                                  |
-| **📦 SDK**               | `npm install @agent-opfor/sdk`, then call `run` / `hunt` from your code | Programmatic red-teaming and custom workflows                                             |
+| 🖥️ **CLI**               | `opfor setup` → `opfor run`                                             | Engineers, CI/CD, terminal-first workflows                                                |
+| 🌐 **Browser extension** | Install the extension, click the icon on any chat interface             | Product managers, designers, QA, security analysts — anyone who can't or won't write code |
+| 🤖 **MCP server**        | Register opfor in Cursor or Claude Desktop, then ask in chat            | AI coding agents that test your other agents                                              |
+| ⚡ **Skills**            | `/opfor-setup` · `/opfor-run` · `/opfor-mcp-setup` · `/opfor-mcp-run`   | Developers who want one-command testing inside their IDE                                  |
+| 📦 **SDK**               | `npm install @agent-opfor/sdk`, then call `run` / `hunt` from your code | Programmatic red-teaming and custom workflows                                             |
 
 All five share the same evaluators, attack templates, and judge logic.
 
 → [CLI reference](docs/cli.md) · [Browser extension setup](docs/browser-extension.md) · [MCP setup](docs/mcp.md) · [Skills setup](docs/skills.md) · [SDK reference](docs/sdk.md)
-
----
 
 ## How it works
 
@@ -112,9 +95,50 @@ When you run a scan, opfor:
 4. **Evaluates with a judge** — an LLM judge classifies each response with pass/fail + reasoning
 5. **Generates a report** — HTML for browsing, JSON for CI/CD, all artifacts logged for reproducibility
 
-Each run lands in its own subfolder under `.opfor/reports/run-report-<compactTs>-<slug>-<shortId>/` containing `<slug>-report.html` + `<slug>-report.json`. Autonomous `opfor hunt` runs use the same layout under `hunt-report-<compactTs>-<slug>-<shortId>/`.
+Each run lands in its own subfolder under `.opfor/reports/run-report-<compactTs>-<slug>-<shortId>/` containing `<slug>-report.html` and `<slug>-report.json`. Autonomous `opfor hunt` runs use the same layout under `hunt-report-<compactTs>-<slug>-<shortId>/`.
 
----
+## Evaluator coverage
+
+Opfor ships with curated suites that map to industry standards. Pick a suite or run individual evaluators.
+
+| Suite ID           | Standard                  | Focus                                                                     |
+| ------------------ | ------------------------- | ------------------------------------------------------------------------- |
+| `owasp-llm-top10`  | OWASP LLM Top 10 (2025)   | Prompt injection, jailbreaks, sensitive disclosure, system prompt leakage |
+| `owasp-agentic-ai` | OWASP Agentic AI Top 10   | Excessive agency, tool misuse, agent goal hijack, memory poisoning        |
+| `owasp-mcp-top10`  | OWASP MCP Top 10 (2025)   | Secret exposure, scope escalation, tool description injection, SSRF       |
+| `owasp-api`        | OWASP API Security Top 10 | BOLA, BFLA, SQL injection                                                 |
+| `eu-ai-act-bias`   | EU AI Act — Bias          | Age, gender, race, disability                                             |
+
+→ [Full evaluator reference and OWASP mapping](docs/evaluators.md)
+
+## Trace-aware testing
+
+Plug opfor into your observability stack and the LLM judge sees not just the final response — but every tool call, retrieval, and intermediate reasoning step. Out of the box, opfor integrates with **[Langfuse](https://langfuse.com)** and **[Netra](https://getnetra.ai)**.
+
+```json
+"telemetry": {
+  "provider": "langfuse",
+  "langfuse": { "baseUrl": "https://cloud.langfuse.com" }
+}
+```
+
+This catches what input/output testing misses — PII that leaks into a tool call but never reaches the user, scope escalations in MCP that don't change the response text, agents that retrieve unauthorized data but render a clean reply.
+
+→ [Trace-aware testing guide](docs/telemetry.md)
+
+## Autonomous Red-Teaming
+
+`opfor hunt` skips the config file entirely. Give it an endpoint and an objective, and a multi-agent system — commander, operators, scout — runs an adaptive attack campaign on its own: recon, strategy, multi-turn probing, report.
+
+```bash
+opfor hunt \
+  --endpoint "https://your-agent.com/v1/chat" \
+  --objective "Find jailbreaks, system-prompt leakage, and safety bypasses."
+```
+
+Add `--ui` to watch the attack tree unfold in a live dashboard.
+
+→ [Full reference](docs/hunt.md)
 
 ## Browser extension — red-team a chatbot
 
@@ -125,8 +149,6 @@ It auto-detects the chat interface, sends attack prompts as if you were typing t
 This is the path for the half of every product team that doesn't open a terminal.
 
 → [Install from the Chrome Web Store](https://chromewebstore.google.com/) · [Setup guide](docs/browser-extension.md)
-
----
 
 ## SDK — embed red-teaming in your code
 
@@ -147,57 +169,6 @@ Use it in CI, in test suites, or anywhere you need red-teaming without leaving T
 
 → [SDK reference](docs/sdk.md)
 
----
-
-## opfor hunt — autonomous red-teaming
-
-`opfor hunt` skips the config file entirely. Give it an endpoint and an objective, and a multi-agent system — commander, operators, scout — runs an adaptive attack campaign on its own: recon, strategy, multi-turn probing, report.
-
-```bash
-opfor hunt \
-  --endpoint "https://your-agent.com/v1/chat" \
-  --objective "Find jailbreaks, system-prompt leakage, and safety bypasses."
-```
-
-Add `--ui` to watch the attack tree unfold in a live dashboard.
-
-→ [Full reference](docs/hunt.md)
-
----
-
-## Evaluator coverage
-
-Opfor ships with curated suites that map to industry standards. Pick a suite or run individual evaluators.
-
-| Suite ID           | Standard                  | Focus                                                                     |
-| ------------------ | ------------------------- | ------------------------------------------------------------------------- |
-| `owasp-llm-top10`  | OWASP LLM Top 10 (2025)   | Prompt injection, jailbreaks, sensitive disclosure, system prompt leakage |
-| `owasp-agentic-ai` | OWASP Agentic AI Top 10   | Excessive agency, tool misuse, agent goal hijack, memory poisoning        |
-| `owasp-mcp-top10`  | OWASP MCP Top 10 (2025)   | Secret exposure, scope escalation, tool description injection, SSRF       |
-| `owasp-api`        | OWASP API Security Top 10 | BOLA, BFLA, SQL injection                                                 |
-| `eu-ai-act-bias`   | EU AI Act — Bias          | Age, gender, race, disability                                             |
-
-→ [Full evaluator reference and OWASP mapping](docs/evaluators.md)
-
----
-
-## Trace-aware testing
-
-Plug opfor into your observability stack and the LLM judge sees not just the final response — but every tool call, retrieval, and intermediate reasoning step. Out of the box, opfor integrates with **[Langfuse](https://langfuse.com)** and **[Netra](https://getnetra.ai)** (Netra is our paid hosted product — same team).
-
-```json
-"telemetry": {
-  "provider": "langfuse",
-  "langfuse": { "baseUrl": "https://cloud.langfuse.com" }
-}
-```
-
-This catches what input/output testing misses — PII that leaks into a tool call but never reaches the user, scope escalations in MCP that don't change the response text, agents that retrieve unauthorized data but render a clean reply.
-
-→ [Trace-aware testing guide](docs/telemetry.md)
-
----
-
 ## Examples
 
 | Example                                               | Description                                                     |
@@ -205,8 +176,6 @@ This catches what input/output testing misses — PII that leaks into a tool cal
 | [vanilla-chat](tests/e2e/agents/vanilla-chat)         | Plain customer support chatbot — test LLM-level vulnerabilities |
 | [customer-support](tests/e2e/agents/customer-support) | Tool-calling agent with PostgreSQL — test BOLA, BFLA, RBAC, PII |
 | [vulnerable-server](tests/e2e/mcp/vulnerable-server)  | Sample MCP server with intentional vulnerabilities              |
-
----
 
 ## Supported LLM providers
 
@@ -218,8 +187,6 @@ This catches what input/output testing misses — PII that leaks into a tool cal
 | Google            | `GOOGLE_GENERATIVE_AI_API_KEY` | `gemini-2.0-flash`                 |
 | OpenAI-compatible | `OPFOR_API_KEY` + `baseURL`    | LiteLLM, OpenRouter, Azure, Ollama |
 
----
-
 ## Contributing
 
 Highest-impact ways to contribute:
@@ -230,30 +197,17 @@ Highest-impact ways to contribute:
 
 Read the [Contributing Guide](CONTRIBUTING.md).
 
----
-
 ## Security
 
 Use opfor only on systems you own or are authorized to test.
 
 To report a vulnerability in opfor itself, see [SECURITY.md](SECURITY.md). Email [opfor@keyvalue.systems](mailto:opfor@keyvalue.systems) — do not open a public issue.
 
----
-
 ## License
 
 [Apache 2.0](LICENSE) — free to use, modify, and distribute.
 
 ---
-
-_OPFOR is short for Opposition Force — a military term for the dedicated unit that plays the enemy in training, so the rest of the army learns what real attacks feel like before they come. We named the tool after that idea: to defend AI agents better, you have to attack them first._
-
-<br/>
-<br/>
-
----
-
-<br/>
 
 <p align="center">
   <a href="https://keyvalue.systems">
