@@ -1,20 +1,32 @@
 # Contributing to Opfor
 
-Thanks for helping make AI red teaming better. This guide covers the three highest-impact contribution types: new evaluators, new target adapters, and findings from running Opfor against real systems.
+Thanks for helping make AI red teaming better.
+
+## The easiest way to contribute: add an evaluator
+
+**Evaluators are the heart of Opfor** — they define what vulnerabilities to test for. Adding a new evaluator requires **zero TypeScript knowledge** — just a YAML file with attack patterns and pass/fail criteria.
+
+```bash
+npm run new:evaluator   # interactive wizard creates the file for you
+```
+
+See [Adding an evaluator](#adding-an-evaluator) for the full guide.
+
+---
 
 ## Table of contents
 
 - [Before you start](#before-you-start)
-  - [Branch naming](#branch-naming)
+  - [Commit messages](#commit-messages)
   - [PR naming](#pr-naming)
-- [Adding an evaluator](#adding-an-evaluator)
+- [**Adding an evaluator**](#adding-an-evaluator) ← most common contribution
 - [Adding a suite](#adding-a-suite)
-- [Adding a target adapter](#adding-a-target-adapter)
 - [Adding a telemetry provider](#adding-a-telemetry-provider)
 - [Adding a test agent](#adding-a-test-agent)
 - [Submitting findings](#submitting-findings)
 - [Code contributions](#code-contributions)
 - [Pull request checklist](#pull-request-checklist)
+- [For reviewers](#for-reviewers)
 
 ---
 
@@ -43,7 +55,7 @@ Examples: `feat/add-prompt-leak-evaluator`, `fix/ssrf-judge-false-positive`, `do
 
 Keep descriptions short (3–5 words, hyphen-separated, lowercase). No ticket numbers in branch names.
 
-### PR naming
+### Commit messages
 
 Use the format: `<type>: <what changed>`
 
@@ -55,9 +67,31 @@ refactor: extract judge prompt builder into separate module
 chore: update @modelcontextprotocol/sdk to 1.x
 ```
 
-- Use the same type prefixes as branch names
+**Rules:**
+
+- Use the same type prefixes as branch names (`feat`, `fix`, `docs`, `refactor`, `chore`, `test`)
 - Describe the change, not the problem (`add X` not `X was missing`)
-- Keep it under 72 characters so it reads cleanly in git log
+- Keep the first line under 72 characters
+- Use imperative mood (`add` not `added`, `fix` not `fixed`)
+- No period at the end of the subject line
+
+**Multi-line commits** (for complex changes):
+
+```
+feat: add BOLA evaluator for access control testing
+
+- Tests horizontal privilege escalation via user ID manipulation
+- Includes 3 attack patterns: direct ID, encoded ID, ID in path
+- Maps to OWASP LLM06 and OWASP API1
+```
+
+Leave a blank line between the subject and body. The body explains _why_, not _what_.
+
+### PR naming
+
+Same format as commit messages: `<type>: <what changed>`
+
+PRs with multiple commits should have a title that summarizes the overall change.
 
 ### Setup
 
@@ -72,7 +106,18 @@ Want the `opfor` command globally available while developing? Use `npm run insta
 
 The pre-commit hook runs typechecking, linting, formatting, and **secret scanning via [gitleaks](https://github.com/gitleaks/gitleaks)**. It is required — commits will be blocked until it is installed:
 
-See the [official install guide](https://github.com/gitleaks/gitleaks#installing) for your OS.
+```bash
+# macOS
+brew install gitleaks
+
+# Linux (Debian/Ubuntu)
+sudo apt install gitleaks
+
+# Or download from GitHub releases
+# https://github.com/gitleaks/gitleaks/releases
+```
+
+See the [official install guide](https://github.com/gitleaks/gitleaks#installing) for other options.
 
 If gitleaks reports a false positive (e.g. a fake key in a test fixture), add an allowlist entry to `.gitleaks.toml`.
 
@@ -87,11 +132,57 @@ cp .env.example .env
 
 ## Adding an evaluator
 
-Evaluators live in `evaluators/{agent,mcp}/` at repo root as YAML files, organized under category subdirectories. No TypeScript changes are needed — `npm run build:catalog` rebuilds the catalog the engine reads.
+> **TL;DR** — Run `npm run new:evaluator`, fill in the TODO placeholders, run `npm run build:catalog`, test it, open a PR. No TypeScript needed.
 
-Pick `evaluators/agent/` for chat/HTTP-target evaluators, `evaluators/mcp/` for evaluators that fire `tools/call` against an MCP server.
+Evaluators are YAML files that define:
 
-Full schema reference: [docs/evaluator-schema.md](docs/evaluator-schema.md). Run `npm run validate:skills` before opening a PR.
+- **What to attack** — prompt templates or MCP payloads
+- **How to judge** — pass/fail criteria the LLM judge uses
+
+They live in `evaluators/agent/` (for chatbots/HTTP targets) or `evaluators/mcp/` (for MCP servers). The engine discovers them automatically — just run `npm run build:catalog` after adding one.
+
+Full schema reference: [docs/evaluator-schema.md](docs/evaluator-schema.md).
+
+### Quick start with the wizard
+
+The fastest way to create a new evaluator is with the interactive wizard:
+
+```bash
+npm run new:evaluator
+```
+
+The wizard asks 4 questions:
+
+1. **Surface** — Agent (HTTP/script targets) or MCP (tools/call targets)
+2. **Category** — Pick an existing category or create a new one
+3. **Evaluator ID** — Unique kebab-case identifier (e.g. `sql-injection`)
+4. **File layout** — Flat (single YAML) or Directory (evaluator.yaml + patterns/)
+
+It creates the file(s) with TODO placeholders you fill in:
+
+```yaml
+# Example output for: npm run new:evaluator → agent → injection → my-new-eval → flat
+schema_version: 1
+id: my-new-eval
+name: My New Eval
+severity: medium
+standards:
+  # owasp-llm: LLM01  # uncomment to auto-include in owasp-llm-top10
+description: >-
+  TODO: Describe what this evaluator tests.
+pass_criteria: |-
+  - Target refuses the malicious request
+  - TODO: Add specific safe behaviors
+fail_criteria: |-
+  - Target executes the malicious request
+  - TODO: Add specific vulnerable behaviors
+patterns:
+  - name: Example Pattern
+    template: |-
+      Your attack prompt here. Use {{placeholder}} for LLM-filled variables.
+```
+
+After editing, run `npm run build:catalog` to register the evaluator.
 
 ### File layout
 
@@ -117,8 +208,6 @@ evaluators/agent/<category>/<id>/
 Place your evaluator in the most relevant existing category (e.g. `injection`, `disclosure`, `access-control`). Create a new category folder only if none fit.
 
 ### File format
-
-> **Single source of truth:** [docs/evaluator-schema.md](docs/evaluator-schema.md) is authoritative for every field, its type, and which are required. The example below is a quick-start skeleton, not the full spec — when the two disagree, the schema doc (and the Zod `EvaluatorFrontmatterSchema` it documents) wins. The schema is `.strict()`, so unknown/misspelled keys fail loudly at load rather than being silently ignored.
 
 **`evaluator.yaml`** (both flat and directory layouts):
 
@@ -181,17 +270,22 @@ npm run build:catalog
 ### Test your evaluator
 
 ```bash
-# 1. Start any local MCP server you want to test against
-#    (or use tests/e2e/mcp/vulnerable-server for a known-buggy fixture)
+# 1. Build the catalog with your new evaluator
+npm run build:catalog
 
-# 2. Write a config selecting your new evaluator
-opfor setup --mcp --empty   # or --agent --empty
-#    Then edit the generated .opfor/configs/opfor-config-*.json:
-#    set `selection.evaluators: ["<your-evaluator-id>"]`
+# 2. Create a config that selects only your evaluator
+opfor setup --agent --empty   # or --mcp --empty
+# Edit .opfor/configs/opfor-config-*.json:
+#   "selection": { "mode": "evaluators", "evaluators": ["your-evaluator-id"] }
 
-# 3. Run it and inspect the report
+# 3. Run against a test target
 opfor run --config .opfor/configs/opfor-config-*.json
 ```
+
+**Test targets:**
+
+- `tests/e2e/agents/vanilla-chat/` — simple chatbot for agent evaluators
+- `tests/e2e/mcp/vulnerable-server/` — intentionally buggy MCP server
 
 ---
 
@@ -217,19 +311,6 @@ Reference only evaluator IDs that exist in the matching `evaluators/{agent|mcp}/
 ```bash
 npm run build:catalog
 ```
-
----
-
-## Adding a target adapter
-
-Target adapters connect Opfor to new transport types or agent frameworks. They live in `core/src/mcp-client/` (MCP transports) and related `core/` modules.
-
-When adding a new transport:
-
-- Implement the same interface as `createClient.ts` — expose a `connectMcpClient()` function that returns `{ client, close }`.
-- Add a new discriminated union branch to `McpServerConfigSchema` in `core/src/config/schema.ts`.
-- Update the CLI setup wizard (`runners/cli/src/commands/`) to offer the new transport as an option.
-- Add a fixture config so others can test it.
 
 ---
 
@@ -339,7 +420,7 @@ tests/e2e/agents/<agent-name>/
     "mode": "suite",
     "suite": "owasp-llm-top10"
   },
-  "attackLlm": {
+  "attackerLlm": {
     "provider": "groq",
     "model": "llama-3.3-70b-versatile",
     "apiKeyEnv": "GROQ_API_KEY"
@@ -378,18 +459,24 @@ Only submit findings for systems you are authorized to test, or where you have c
 ```
 core/                       ← @agent-opfor/core — shared engine (npm workspace)
   src/
+    autonomous/             ← autonomous red-teaming orchestration (opfor hunt)
+    catalog/                ← evaluator/suite discovery + loading
     config/                 ← Zod schemas + LLM/telemetry config types
-    evaluators/             ← evaluator YAML catalog parsing
+    evaluators/             ← judge prompt + evaluator YAML parsing
     execute/                ← runAll, runAgentLoop, run orchestration
     generate/               ← attack prompt generation (attacker LLM)
+    lib/                    ← shared utilities (env, logger, etc.)
+    mcp-client/             ← MCP client (stdio + HTTP/SSE transports)
     providers/              ← LLM provider factory (Vercel AI SDK)
+    report/                 ← HTML + JSON report renderer
+    run/                    ← per-attack judge wrapper, MCP helpers
+    standards/              ← ATLAS standards mapping
     targets/                ← agent + MCP target adapters
     telemetry/              ← Langfuse + Netra adapters
-    report/                 ← HTML + JSON report renderer
-    mcp-client/             ← MCP client (stdio + HTTP/SSE transports)
 runners/
-  cli/                      ← @agent-opfor/cli — `opfor setup` + `opfor run`
+  cli/                      ← @agent-opfor/cli — `opfor setup`, `opfor run`, `opfor hunt`
   mcp/                      ← @agent-opfor/mcp — opfor as an MCP server
+  sdk/                      ← @agent-opfor/sdk — programmatic SDK for embedding
   extension/                ← Chrome MV3 browser extension
 evaluators/
   agent/                      ← agent evaluators by category
@@ -399,11 +486,11 @@ suites/
   mcp/                        ← MCP suites
 skills/
   agent-redteaming/
-    opfor-setup/catalog.json  ← generated by npm run build:catalog
-    opfor-run/
+    opfor-setup/              ← config wizard skill + catalog.json
+    opfor-run/                ← run skill + report-schema.md
   mcp-redteaming/
-    opfor-setup/catalog.json  ← generated by npm run build:catalog
-    opfor-run/
+    opfor-setup/              ← config wizard skill + catalog.json
+    opfor-run/                ← run skill + report-schema.md
 tests/e2e/
   agents/
     vanilla-chat/           ← plain chatbot — LLM-level vulnerabilities
@@ -433,7 +520,50 @@ npm run install:cli   # build + install `opfor` globally (handy during dev)
 
 - [ ] `npm run build` passes with no errors
 - [ ] `npm run typecheck` passes
-- [ ] For new evaluators/suites: `npm run build:catalog:check` passes (catalog in sync)
-- [ ] For new evaluators: tested against a local MCP server (or `tests/e2e/mcp/vulnerable-server`)
+- [ ] For new evaluators/suites: `npm run build:catalog:check` passes (verifies the committed catalog matches what `build:catalog` would generate — run `npm run build:catalog` to fix if it fails)
+- [ ] For new evaluators: tested against a local target (e.g. `tests/e2e/agents/vanilla-chat/` or `tests/e2e/mcp/vulnerable-server/`)
 - [ ] No secrets, `.env` files, or `.opfor/` artifacts committed (`gitleaks protect --staged` must pass)
 - [ ] PR description explains _what_ changed and _why_
+
+---
+
+## For reviewers
+
+Guidelines for maintainers reviewing PRs.
+
+### Evaluator PRs
+
+Evaluators are the most common contribution. Focus on:
+
+| Check                                              | Why it matters                                                |
+| -------------------------------------------------- | ------------------------------------------------------------- |
+| **`id` is unique**                                 | Duplicate IDs break catalog loading                           |
+| **`pass_criteria` / `fail_criteria` are specific** | Vague criteria → noisy judge results                          |
+| **`severity` is appropriate**                      | `critical` = RCE, data breach; `low` = information disclosure |
+| **`standards` mapping is correct**                 | Wrong mapping → evaluator appears in wrong suite              |
+| **Pattern templates are realistic**                | Should reflect actual attack techniques                       |
+
+**Quick approve if:**
+
+- YAML is valid and follows the schema
+- Criteria are clear and specific
+- No obvious false positive/negative risks
+
+**Request changes if:**
+
+- `pass_criteria` or `fail_criteria` are too vague (e.g. "target behaves correctly")
+- Pattern template is generic placeholder text
+- Severity doesn't match the actual risk
+
+### Code PRs
+
+- Does the change follow existing patterns in the codebase?
+- Are error messages actionable?
+- Is Zod used for external input validation?
+- Are there any `any` types without justification?
+
+### General
+
+- Be constructive — suggest improvements, don't just reject
+- For new contributors, offer guidance on conventions
+- Approve partial progress; follow-up PRs are fine
