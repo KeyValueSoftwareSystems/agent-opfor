@@ -144,9 +144,7 @@ Add `--ui` to watch the attack tree unfold in a live dashboard.
 
 The browser extension is opfor's no-code path. Install from the Chrome Web Store, open any chat interface, click the opfor icon, pick a suite, and watch it run.
 
-<p align="center">
-  <video src="docs/assets/videos/extension-demo.mp4" width="600" autoplay loop muted playsinline></video>
-</p>
+https://github.com/user-attachments/assets/80c2692f-b18b-4899-99df-e7eb8d50b02a
 
 It auto-detects the chat interface, sends attack prompts as if you were typing them, watches the responses, and downloads an HTML report when done. No CLI, no target setup, no YAML.
 
