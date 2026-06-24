@@ -17,7 +17,7 @@ Everything runs **client-side in your browser**. The extension uses your own LLM
 
 Same evaluator catalog as the CLI — see [evaluators reference](evaluators.md).
 
-![Run in progress](assets/screenshots/extension-run-progress.png)
+<img src="assets/screenshots/extension-run-progress.png" alt="Run in progress" width="320">
 
 ---
 
@@ -56,7 +56,7 @@ The extension uses a **single LLM configuration** for all operations (attack gen
 | **Model**    | Model name (dropdown shows common options, or type your own)                    |
 | **API Key**  | Your API key for the selected provider                                          |
 
-![Settings panel](assets/screenshots/extension-settings.png)
+<img src="assets/screenshots/extension-settings.png" alt="Settings panel" width="320">
 
 ### Advanced settings (gear icon)
 
@@ -84,9 +84,9 @@ The extension uses a **single LLM configuration** for all operations (attack gen
 6. Watch the run — the attacker types into the chat, the target replies, real-time bubbles show the conversation.
 7. When complete, view the verdict and **Download report**.
 
-![Suite picker](assets/screenshots/extension-suite-picker.png)
+<img src="assets/screenshots/extension-suite-picker.png" alt="Suite picker" width="320">
 
-![Report download](assets/screenshots/extension-report.png)
+<img src="assets/screenshots/extension-report.png" alt="Report download" width="320">
 
 The extension runs up to **20 turns per evaluator** (default 10). It stops a given evaluator early when the judge returns a definitive verdict.
 
