@@ -301,13 +301,14 @@ export interface LlmConfigInput {
   baseURL?: string;
 }
 
-/** Fully resolved LLM config — all required fields present after setup resolution. */
-export interface LlmConfig {
-  provider: ProviderName;
-  model: string;
-  apiKeyEnv: string; // env var name, resolved at runtime
-  baseURL?: string; // required for "openai-compatible" and "azure"
-}
+/**
+ * The resolved LLM config. Single source of truth is `LlmConfigSchema` in
+ * config/schema.ts (zod-inferred); re-exported here so existing
+ * `import { LlmConfig } from "../config/types.js"` call sites keep working.
+ * Note: `apiKeyEnv` is optional on the schema — see the schema's doc comment.
+ */
+import type { LlmConfig } from "./schema.js";
+export type { LlmConfig };
 
 export interface TargetConfig {
   name: string;

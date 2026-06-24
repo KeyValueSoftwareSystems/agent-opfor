@@ -5,6 +5,7 @@ import { log } from "@agent-opfor/core/lib/logger.js";
 import { runAll } from "@agent-opfor/core/execute/runAll.js";
 import { writeReport } from "@agent-opfor/core/report/buildReport.js";
 import type { RunConfig } from "@agent-opfor/core/execute/types.js";
+import { parseRunConfig } from "@agent-opfor/core/config/schema.js";
 import { normalizeEffort } from "@agent-opfor/core/execute/effortCompat.js";
 import { runSetupAndWrite } from "./setup.js";
 import { ensureOpforDirs, OPFOR_DIR, OPFOR_REPORTS_DIR } from "../lib/artifacts.js";
@@ -37,11 +38,20 @@ export function registerRunCommand(program: Command): void {
 
         if (opts.config) {
           const configPath = path.resolve(opts.config);
+          let raw: string;
           try {
-            const raw = await readFile(configPath, "utf8");
-            runConfig = JSON.parse(raw) as RunConfig;
+            raw = await readFile(configPath, "utf8");
           } catch {
             log.error(`Cannot read config at ${configPath}.`);
+            process.exitCode = 1;
+            return;
+          }
+          try {
+            // Validate the hand-editable entry point (parity with the MCP path).
+            runConfig = parseRunConfig(JSON.parse(raw)) as unknown as RunConfig;
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            log.error(`${msg}\n(at ${configPath})`);
             process.exitCode = 1;
             return;
           }

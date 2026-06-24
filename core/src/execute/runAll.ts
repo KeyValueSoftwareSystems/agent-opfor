@@ -6,6 +6,7 @@ import type { LanguageModel } from "ai";
 import type {
   RunConfig,
   AttackSpec,
+  McpAttackSpec,
   AttackResult,
   EvaluatorResult,
   UnifiedRunReport,
@@ -23,6 +24,12 @@ import type { EvaluatorSpec } from "../evaluators/parseEvaluator.js";
 import { loadSkillCatalog, resolveSuiteEvaluatorIds } from "../config/loadSkillCatalog.js";
 import { loadCatalog } from "../catalog/loadCatalog.js";
 import { runAgentAttack } from "./runAgentLoop.js";
+import {
+  summarizeVerdicts,
+  toEvaluatorResult,
+  buildUnifiedReport,
+  modelLabel,
+} from "./aggregate.js";
 import {
   judgeToolResponse,
   sanitizeJudgeResult,
@@ -94,7 +101,7 @@ export async function runAll(
   try {
     // ── MCP pre-flight scans (always run for MCP targets) ──────────────
     if (isMcp && mcpTarget) {
-      const judgeModelConfig = resolveModelConfig(config.judgeLlm ?? config.attackerLlm);
+      const judgeModelConfig = config.judgeLlm ?? config.attackerLlm;
       log.info(`\n── MCP baseline scans ──`);
 
       const resourceResults = await scanResources({ target: mcpTarget, judgeModelConfig, notify });
@@ -201,63 +208,75 @@ export async function runAll(
         notify({ type: "attack_start", attackId: attack.id, patternName: attack.patternName });
         log.info(`  → ${attack.patternName}`);
 
+        // Branch on the attack discriminant (not isMcp) so the compiler narrows
+        // `attack` to the matching arm for each runner.
         let result: AttackResult;
         try {
-          result = isMcp
-            ? await runMcpAttack(attack, mcpTarget!, judgeModel, config)
-            : await runAgentAttack(
-                attack,
-                attackModel,
-                judgeModel,
-                attack.id,
-                evaluator.patterns,
-                options?.agentTarget ??
-                  createAgentTarget(config.target as import("./types.js").AgentTargetConfig),
-                { targetConfig: config.target, telemetry: config.telemetry }
-              );
+          result =
+            attack.kind === "mcp"
+              ? await runMcpAttack(attack, mcpTarget!, judgeModel, config)
+              : await runAgentAttack(
+                  attack,
+                  attackModel,
+                  judgeModel,
+                  attack.id,
+                  evaluator.patterns,
+                  options?.agentTarget ??
+                    createAgentTarget(config.target as import("./types.js").AgentTargetConfig),
+                  { targetConfig: config.target, telemetry: config.telemetry }
+                );
         } catch (err) {
+          const makeFailedResult = (reason: string): AttackResult =>
+            attack.kind === "agent"
+              ? {
+                  kind: "agent",
+                  attackId: attack.id,
+                  evaluatorId: attack.evaluatorId,
+                  patternName: attack.patternName,
+                  prompt: attack.prompt ?? "(attack prompt not captured)",
+                  response: `ERROR: ${reason}`,
+                  judge: {
+                    verdict: "ERROR",
+                    score: 0,
+                    confidence: 0,
+                    evidence: "N/A",
+                    reasoning: "",
+                    errorMessage: reason,
+                  },
+                }
+              : {
+                  kind: "mcp",
+                  attackId: attack.id,
+                  evaluatorId: attack.evaluatorId,
+                  patternName: attack.patternName,
+                  judge: {
+                    verdict: "ERROR",
+                    score: 0,
+                    confidence: 0,
+                    evidence: "N/A",
+                    reasoning: "",
+                    errorMessage: reason,
+                  },
+                };
+
           // Handle LLM stop errors (attacker/judge)
           if (isStopError(err)) {
             stopReason = getStopReason(err);
             log.error(`\n🛑 Run stopped: ${stopReason}`);
             notify({ type: "run_stopped", reason: stopReason });
-
-            // Add the failed attack to results so it shows in the report
-            const failedAttackResult: AttackResult = {
-              attackId: attack.id,
-              evaluatorId: attack.evaluatorId,
-              patternName: attack.patternName,
-              prompt: attack.prompt ?? "(attack prompt not captured)",
-              response: `ERROR: ${stopReason}`,
-              judge: {
-                verdict: "ERROR",
-                score: 0,
-                confidence: 0,
-                evidence: "N/A",
-                reasoning: "",
-                errorMessage: stopReason,
-              },
-            };
-            attackResults.push(failedAttackResult);
+            attackResults.push(makeFailedResult(stopReason));
             notify({ type: "attack_done", attackId: attack.id, verdict: "ERROR" });
-
-            // Save partial results for this evaluator before breaking
-            const total = attackResults.length;
-            const passed = attackResults.filter((r) => r.judge.verdict === "PASS").length;
-            const failed = attackResults.filter((r) => r.judge.verdict === "FAIL").length;
-            const errors = attackResults.filter((r) => r.judge.verdict === "ERROR").length;
-            evaluatorResults.push({
-              evaluatorId: evaluator.id,
-              evaluatorName: evaluator.name,
-              standards: evaluator.standards,
-              severity: evaluator.severity,
-              total,
-              passed,
-              failed,
-              errors,
-              passRate: total > 0 ? passed / total : 0,
-              attacks: attackResults,
-            });
+            evaluatorResults.push(
+              toEvaluatorResult(
+                {
+                  evaluatorId: evaluator.id,
+                  evaluatorName: evaluator.name,
+                  standards: evaluator.standards,
+                  severity: evaluator.severity,
+                },
+                attackResults
+              )
+            );
             break evaluatorLoop;
           }
           // Handle target stop errors (non-retryable target errors)
@@ -265,43 +284,19 @@ export async function runAll(
             stopReason = err.message;
             log.error(`\n🛑 Run stopped: ${stopReason}`);
             notify({ type: "run_stopped", reason: stopReason });
-
-            // Add the failed attack to results so it shows in the report
-            const failedAttackResult: AttackResult = {
-              attackId: attack.id,
-              evaluatorId: attack.evaluatorId,
-              patternName: attack.patternName,
-              prompt: attack.prompt ?? "(attack prompt not captured)",
-              response: `ERROR: ${stopReason}`,
-              judge: {
-                verdict: "ERROR",
-                score: 0,
-                confidence: 0,
-                evidence: "N/A",
-                reasoning: "",
-                errorMessage: stopReason,
-              },
-            };
-            attackResults.push(failedAttackResult);
+            attackResults.push(makeFailedResult(stopReason));
             notify({ type: "attack_done", attackId: attack.id, verdict: "ERROR" });
-
-            // Save partial results for this evaluator before breaking
-            const total = attackResults.length;
-            const passed = attackResults.filter((r) => r.judge.verdict === "PASS").length;
-            const failed = attackResults.filter((r) => r.judge.verdict === "FAIL").length;
-            const errors = attackResults.filter((r) => r.judge.verdict === "ERROR").length;
-            evaluatorResults.push({
-              evaluatorId: evaluator.id,
-              evaluatorName: evaluator.name,
-              standards: evaluator.standards,
-              severity: evaluator.severity,
-              total,
-              passed,
-              failed,
-              errors,
-              passRate: total > 0 ? passed / total : 0,
-              attacks: attackResults,
-            });
+            evaluatorResults.push(
+              toEvaluatorResult(
+                {
+                  evaluatorId: evaluator.id,
+                  evaluatorName: evaluator.name,
+                  standards: evaluator.standards,
+                  severity: evaluator.severity,
+                },
+                attackResults
+              )
+            );
             break evaluatorLoop;
           }
           throw err;
@@ -315,25 +310,20 @@ export async function runAll(
         log.info(`     ${icon} ${result.judge.verdict} (score ${result.judge.score}/10)`);
       }
 
-      const total = attackResults.length;
-      const passed = attackResults.filter((r) => r.judge.verdict === "PASS").length;
-      const failed = attackResults.filter((r) => r.judge.verdict === "FAIL").length;
-      const errors = attackResults.filter((r) => r.judge.verdict === "ERROR").length;
-
+      const { passed, failed, errors } = summarizeVerdicts(attackResults);
       notify({ type: "evaluator_done", evaluatorId: evaluator.id, passed, failed, errors });
 
-      evaluatorResults.push({
-        evaluatorId: evaluator.id,
-        evaluatorName: evaluator.name,
-        standards: evaluator.standards,
-        severity: evaluator.severity,
-        total,
-        passed,
-        failed,
-        errors,
-        passRate: total > 0 ? passed / total : 0,
-        attacks: attackResults,
-      });
+      evaluatorResults.push(
+        toEvaluatorResult(
+          {
+            evaluatorId: evaluator.id,
+            evaluatorName: evaluator.name,
+            standards: evaluator.standards,
+            severity: evaluator.severity,
+          },
+          attackResults
+        )
+      );
 
       sessionMap.set(evaluator.id, captureSessionContext(evaluator, attackResults));
     }
@@ -354,7 +344,7 @@ export async function runAll(
 // ---------------------------------------------------------------------------
 
 async function runMcpAttack(
-  attack: AttackSpec,
+  attack: McpAttackSpec,
   target: Awaited<ReturnType<typeof createMcpTarget>>,
   judgeModel: LanguageModel,
   config: RunConfig
@@ -366,6 +356,7 @@ async function runMcpAttack(
 
   if (!toolName) {
     return {
+      kind: "mcp",
       attackId: attack.id,
       evaluatorId: attack.evaluatorId,
       patternName: attack.patternName,
@@ -405,7 +396,7 @@ async function runMcpAttack(
     // Multi-turn: run a per-turn judge check and early-stop on FAIL
     if (attack.turns > 1 && t < attack.turns) {
       const midJudge = await judgeToolResponse({
-        model: resolveModelConfig(config.judgeLlm ?? config.attackerLlm),
+        model: config.judgeLlm ?? config.attackerLlm,
         evaluator: {
           id: attack.evaluatorId,
           name: attack.evaluatorName,
@@ -447,7 +438,7 @@ async function runMcpAttack(
     finalJudge = mcpErrorJudge("no turns completed");
   } else {
     finalJudge = await judgeToolResponse({
-      model: resolveModelConfig(config.judgeLlm ?? config.attackerLlm),
+      model: config.judgeLlm ?? config.attackerLlm,
       evaluator: {
         id: attack.evaluatorId,
         name: attack.evaluatorName,
@@ -474,6 +465,7 @@ async function runMcpAttack(
   }
 
   return {
+    kind: "mcp",
     attackId: attack.id,
     evaluatorId: attack.evaluatorId,
     patternName: attack.patternName,
@@ -497,27 +489,12 @@ function buildScanResult(
   severity: string,
   attacks: AttackResult[]
 ): EvaluatorResult {
-  const total = attacks.length;
-  const passed = attacks.filter((r) => r.judge.verdict === "PASS").length;
-  const failed = attacks.filter((r) => r.judge.verdict === "FAIL").length;
-  const errors = attacks.filter((r) => r.judge.verdict === "ERROR").length;
-  return {
-    evaluatorId,
-    evaluatorName,
-    standards,
-    severity,
-    total,
-    passed,
-    failed,
-    errors,
-    passRate: total > 0 ? passed / total : 0,
-    attacks,
-  };
+  return toEvaluatorResult({ evaluatorId, evaluatorName, standards, severity }, attacks);
 }
 
 async function scanResources(args: {
   target: McpTarget;
-  judgeModelConfig: import("../config/schema.js").ModelConfig;
+  judgeModelConfig: LlmConfig;
   notify: (event: ProgressEvent) => void;
 }): Promise<AttackResult[]> {
   const { target, judgeModelConfig, notify } = args;
@@ -542,6 +519,7 @@ async function scanResources(args: {
 
     if (isError) {
       results.push({
+        kind: "mcp",
         attackId,
         evaluatorId: evalId,
         patternName: `resource: ${resource.uri}`,
@@ -573,6 +551,7 @@ async function scanResources(args: {
     });
 
     results.push({
+      kind: "mcp",
       attackId,
       evaluatorId: evalId,
       patternName: `resource: ${resource.uri}`,
@@ -591,7 +570,7 @@ async function scanResources(args: {
 
 async function scanToolDescriptions(args: {
   tools: ToolInfo[];
-  judgeModelConfig: import("../config/schema.js").ModelConfig;
+  judgeModelConfig: LlmConfig;
   notify: (event: ProgressEvent) => void;
 }): Promise<AttackResult[]> {
   const { tools, judgeModelConfig, notify } = args;
@@ -625,6 +604,7 @@ async function scanToolDescriptions(args: {
     });
 
     results.push({
+      kind: "mcp",
       attackId,
       evaluatorId: evalId,
       patternName: `description: ${tool.name}`,
@@ -684,6 +664,7 @@ async function scanRugPull(args: {
     await mkdir(baselinesDir, { recursive: true });
     await writeFile(baselinePath, currentJson, "utf8");
     result = {
+      kind: "mcp",
       attackId,
       evaluatorId: evalId,
       patternName: "tool-description-drift",
@@ -703,6 +684,7 @@ async function scanRugPull(args: {
     if (currentHash === baselineHash) {
       log.info(`  ✓ No drift detected (hash: ${currentHash.slice(0, 12)}…)`);
       result = {
+        kind: "mcp",
         attackId,
         evaluatorId: evalId,
         patternName: "tool-description-drift",
@@ -730,6 +712,7 @@ async function scanRugPull(args: {
       await mkdir(baselinesDir, { recursive: true });
       await writeFile(baselinePath, currentJson, "utf8");
       result = {
+        kind: "mcp",
         attackId,
         evaluatorId: evalId,
         patternName: "tool-description-drift",
@@ -869,10 +852,10 @@ function captureSessionContext(
           history.push({ role: "assistant", content: t.response });
         }
       }
-    } else if (r.prompt && r.response) {
+    } else if (r.kind === "agent" && r.prompt && r.response) {
       history.push({ role: "user", content: r.prompt });
       history.push({ role: "assistant", content: r.response });
-    } else if (r.toolName && r.toolResponse) {
+    } else if (r.kind === "mcp" && r.toolName && r.toolResponse) {
       history.push({
         role: "user",
         content: `[tool:${r.toolName}] ${JSON.stringify(r.toolArguments)}`,
@@ -984,38 +967,18 @@ async function curateTracesIfConfigured(
   }
 }
 
-function resolveModelConfig(cfg: LlmConfig): import("../config/schema.js").ModelConfig {
-  return {
-    provider: cfg.provider,
-    model: cfg.model,
-    apiKeyEnv: cfg.apiKeyEnv,
-    baseURL: cfg.baseURL,
-  };
-}
-
 function buildReport(config: RunConfig, evaluators: EvaluatorResult[]): UnifiedRunReport {
-  const allAttacks = evaluators.flatMap((e) => e.attacks);
-  const total = allAttacks.length;
-  const passed = allAttacks.filter((a) => a.judge.verdict === "PASS").length;
-  const failed = allAttacks.filter((a) => a.judge.verdict === "FAIL").length;
-  const errors = allAttacks.filter((a) => a.judge.verdict === "ERROR").length;
-  const safetyScore = total > 0 ? Math.round((passed / total) * 100) : 100;
-  const attackSuccessRate = total > 0 ? Math.round((failed / total) * 100) : 0;
-
-  const attackModel = `${config.attackerLlm.provider}/${config.attackerLlm.model}`;
-  const judgeModel = config.judgeLlm
-    ? `${config.judgeLlm.provider}/${config.judgeLlm.model}`
-    : attackModel;
-
-  return {
-    reportId: randomUUID(),
-    generatedAt: new Date().toISOString(),
-    targetName: config.target.name,
-    targetKind: config.target.kind,
-    effort: config.effort,
-    attackModel,
-    judgeModel,
-    summary: { total, passed, failed, errors, safetyScore, attackSuccessRate },
-    evaluators,
-  };
+  const { attackModel, judgeModel } = modelLabel(config.attackerLlm, config.judgeLlm);
+  return buildUnifiedReport(
+    {
+      reportId: randomUUID(),
+      generatedAt: new Date().toISOString(),
+      targetName: config.target.name,
+      targetKind: config.target.kind,
+      effort: config.effort,
+      attackModel,
+      judgeModel,
+    },
+    evaluators
+  );
 }

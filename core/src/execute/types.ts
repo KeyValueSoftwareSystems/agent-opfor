@@ -99,7 +99,8 @@ export interface SessionContext {
 // Attack spec  (replaces AttackEntry + AttackScenario)
 // ---------------------------------------------------------------------------
 
-export interface AttackSpec {
+/** Fields common to every attack, regardless of target kind. */
+export interface BaseAttackSpec {
   id: string;
   evaluatorId: string;
   evaluatorName: string;
@@ -112,26 +113,41 @@ export interface AttackSpec {
   turns: number;
   turnMode?: "single" | "multi";
   judgeHint?: string;
-  // Operator-intent signals (DOM-driven runners). Optional everywhere — CLI/MCP
-  // don't populate these; extension threads them through from the popup.
-  attackObjective?: string;
-  businessUseCase?: string;
-  siteSnapshot?: string;
   /**
    * Telemetry-derived summary of real production traces (from `opfor setup`/curation).
    * Threaded into the attacker so adaptive turns can mirror real user phrasing and
    * target real flows. Set in generateAttacks; consumed by generateNextAdaptiveTurn.
    */
   traceContext?: string;
-  maxMessageLength?: number;
-  // agent target
-  prompt?: string;
-  // mcp target
-  toolName?: string;
-  toolArguments?: Record<string, unknown>;
   /** Resolved session contexts from evaluators this attack depends on. */
   upstreamSessions?: SessionContext[];
 }
+
+/**
+ * Attack against an agent/chatbot target — carries a prompt and (for DOM-driven
+ * runners) operator-intent signals. The compiler guarantees these fields never
+ * appear on an MCP attack, and vice versa.
+ */
+export interface AgentAttackSpec extends BaseAttackSpec {
+  kind: "agent";
+  /** Seed prompt. Empty string in adaptive mode (turn 1 is engine-generated). */
+  prompt?: string;
+  // Operator-intent signals (DOM-driven runners). Optional — CLI doesn't populate
+  // these; the extension threads them through from the popup.
+  attackObjective?: string;
+  businessUseCase?: string;
+  siteSnapshot?: string;
+  maxMessageLength?: number;
+}
+
+/** Attack against an MCP server target — carries a tool call. */
+export interface McpAttackSpec extends BaseAttackSpec {
+  kind: "mcp";
+  toolName?: string;
+  toolArguments?: Record<string, unknown>;
+}
+
+export type AttackSpec = AgentAttackSpec | McpAttackSpec;
 
 // ---------------------------------------------------------------------------
 // Result types  (unified for agent + mcp)
@@ -155,21 +171,29 @@ export interface McpTurnRecord {
 
 export type TurnRecord = AgentTurnRecord | McpTurnRecord;
 
-export interface AttackResult {
+export interface BaseAttackResult {
   attackId: string;
   evaluatorId: string;
   patternName: string;
   judge: JudgeResult;
   turns?: TurnRecord[];
-  // agent target
+}
+
+export interface AgentAttackResult extends BaseAttackResult {
+  kind: "agent";
   prompt?: string;
   response?: string;
-  // mcp target
+}
+
+export interface McpAttackResult extends BaseAttackResult {
+  kind: "mcp";
   toolName?: string;
   toolArguments?: Record<string, unknown>;
   toolResponse?: string;
   toolError?: string;
 }
+
+export type AttackResult = AgentAttackResult | McpAttackResult;
 
 export interface EvaluatorResult {
   evaluatorId: string;

@@ -2,6 +2,27 @@
 
 import { RateLimiter } from "../../lib/rateLimiter.js";
 
+// Approximate Claude pricing in USD per million tokens (as of mid-2025).
+// Used to estimate running cost from streaming token counts before the SDK
+// emits a final total_cost_usd. The result message corrects any drift.
+const MODEL_PRICES: Record<
+  string,
+  { inputPerM: number; outputPerM: number; cacheWritePerM: number; cacheReadPerM: number }
+> = {
+  opus: { inputPerM: 15, outputPerM: 75, cacheWritePerM: 18.75, cacheReadPerM: 1.5 },
+  sonnet: { inputPerM: 3, outputPerM: 15, cacheWritePerM: 3.75, cacheReadPerM: 0.3 },
+  haiku: { inputPerM: 0.8, outputPerM: 4, cacheWritePerM: 1.0, cacheReadPerM: 0.08 },
+};
+const DEFAULT_PRICES = MODEL_PRICES.sonnet;
+
+function resolvePrices(modelHint?: string) {
+  if (!modelHint) return DEFAULT_PRICES;
+  const lower = modelHint.toLowerCase();
+  if (lower.includes("opus")) return MODEL_PRICES.opus;
+  if (lower.includes("haiku")) return MODEL_PRICES.haiku;
+  return MODEL_PRICES.sonnet;
+}
+
 export interface BudgetGuardOptions {
   maxThreadTurns: number;
   budgetUsd?: number;
@@ -16,7 +37,7 @@ export interface BudgetGuardOptions {
   /**
    * Hard ceiling on total target sends across the whole run — the DETERMINISTIC, real-time cost
    * backstop. The USD ceiling is only known after SDK result messages (it lags and overshoots);
-   * this caps work as it happens. Defaults to ~50 sends per budget-USD (≈$0.02/send), or 400.
+   * this caps work as it happens. Defaults to ~20 sends per budget-USD (≈$0.05/send), or 200.
    */
   maxTotalSends?: number;
 }
@@ -30,6 +51,7 @@ export class BudgetGuard {
   readonly maxTotalSends: number;
   private readonly rateLimiter: RateLimiter;
   private lastKnownCostUsd = 0;
+  private accumulatedTokenCostUsd = 0;
   private sendsUsed = 0;
 
   constructor(opts: BudgetGuardOptions) {
@@ -39,7 +61,7 @@ export class BudgetGuard {
     this.maxForksPerThread = opts.maxForksPerThread ?? 4;
     this.maxDepth = opts.maxDepth ?? 3;
     this.maxTotalSends =
-      opts.maxTotalSends ?? (opts.budgetUsd ? Math.ceil(opts.budgetUsd * 50) : 400);
+      opts.maxTotalSends ?? (opts.budgetUsd ? Math.ceil(opts.budgetUsd * 20) : 200);
     this.rateLimiter = new RateLimiter(opts.maxTargetCallsPerMinute ?? 60);
   }
 
@@ -95,10 +117,42 @@ export class BudgetGuard {
     return { ok: true };
   }
 
-  /** Record the latest known cumulative cost (from SDK result/usage messages). */
+  /** Record the latest known cumulative cost (from SDK result/usage messages). Corrects estimation drift. */
   recordCost(costUsd: number): void {
     if (Number.isFinite(costUsd) && costUsd > this.lastKnownCostUsd) {
       this.lastKnownCostUsd = costUsd;
+      // Keep accumulated estimate in sync so it doesn't double-count after correction.
+      if (costUsd > this.accumulatedTokenCostUsd) {
+        this.accumulatedTokenCostUsd = costUsd;
+      }
+    }
+  }
+
+  /**
+   * Accumulate token usage from a streaming assistant message. Updates `lastKnownCostUsd`
+   * so `isOverBudget()` can fire mid-stream rather than only after result messages.
+   * Uses a model price table — drift is corrected when `recordCost()` receives the
+   * server's authoritative `total_cost_usd` from the final result message.
+   */
+  recordTokenUsage(
+    usage: {
+      inputTokens: number;
+      outputTokens: number;
+      cacheCreationInputTokens: number;
+      cacheReadInputTokens: number;
+    },
+    modelHint?: string
+  ): void {
+    const prices = resolvePrices(modelHint);
+    const cost =
+      (usage.inputTokens * prices.inputPerM +
+        usage.outputTokens * prices.outputPerM +
+        usage.cacheCreationInputTokens * prices.cacheWritePerM +
+        usage.cacheReadInputTokens * prices.cacheReadPerM) /
+      1_000_000;
+    this.accumulatedTokenCostUsd += cost;
+    if (this.accumulatedTokenCostUsd > this.lastKnownCostUsd) {
+      this.lastKnownCostUsd = this.accumulatedTokenCostUsd;
     }
   }
 

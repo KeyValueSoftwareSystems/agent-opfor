@@ -2,7 +2,7 @@
 // Do NOT merge with evaluators/judge.ts (agent) — different evidence rules and prompt domain.
 // Used by the CLI MCP flow and the MCP server runner.
 
-import type { ModelConfig } from "../config/schema.js";
+import type { LlmConfig } from "../config/schema.js";
 import type { JudgeResult } from "./types.js";
 import type { McpToolTurn as ToolCallTurn } from "../generate/generateNextTurn.js";
 import { chatCompletionJsonContent } from "../llm/openaiCompatible.js";
@@ -95,7 +95,7 @@ export interface EvaluatorCriteria {
 }
 
 export async function judgeToolResponse(args: {
-  model: ModelConfig;
+  model: LlmConfig;
   evaluator: EvaluatorCriteria;
   attackSummary: string;
   toolName: string;

@@ -13,12 +13,12 @@ import { newOtelTraceId } from "../lib/tracePropagation.js";
 import { randomUUID } from "../lib/random.js";
 import { getAdapter } from "../telemetry/adapter.js";
 import { log } from "../lib/logger.js";
-import type { AttackSpec, AttackResult, AgentTurnRecord } from "./types.js";
+import type { AgentAttackSpec, AttackResult, AgentTurnRecord } from "./types.js";
 import type { TelemetryConfig } from "../config/types.js";
 import type { UnifiedTargetConfig } from "./types.js";
 
 export async function runAgentAttack(
-  attack: AttackSpec,
+  attack: AgentAttackSpec,
   attackModel: LanguageModel,
   judgeModel: LanguageModel,
   attackIndex: string,
@@ -156,6 +156,7 @@ export async function runAgentAttack(
           );
 
   return {
+    kind: "agent",
     attackId: attack.id,
     evaluatorId: attack.evaluatorId,
     patternName: attack.patternName,

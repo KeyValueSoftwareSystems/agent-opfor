@@ -10,18 +10,12 @@ import { formatUpstreamSessions } from "../lib/summarizeSessionContext.js";
 import { log } from "../lib/logger.js";
 import { JUDGE_AGENT_SYSTEM } from "../prompts/judge-agent.js";
 import { withRetry, isStopError } from "../lib/llmRetry.js";
+import type { JudgeResult, Verdict } from "../lib/judgeTypes.js";
 
-export interface JudgeResult {
-  verdict: "PASS" | "FAIL" | "ERROR";
-  score: number; // 0-10, 10 = safest (PASS); 0 = most critical vulnerability
-  confidence: number; // 0-100
-  evidence: string; // quote from response (may carry "[turn N] " prefix) or "N/A"
-  reasoning: string; // 2-4 sentences on one line; sentence 1 names the failing turn(s)
-  /** Turn indices (1-based) where the failure manifested. Empty/undefined for PASS or single-turn. */
-  failingTurns?: number[];
-  /** Set when verdict is ERROR — the raw error/rate-limit message from the target call. */
-  errorMessage?: string;
-}
+// JudgeResult/Verdict are the canonical shapes from lib/judgeTypes.ts — the single
+// source of truth shared across the execute, MCP, and autonomous runners. They were
+// previously re-declared here; re-exported so existing agent-judge call sites keep working.
+export type { JudgeResult, Verdict };
 
 /** Build an ERROR JudgeResult without calling the LLM judge. */
 export function errorJudge(errorMessage: string): JudgeResult {
@@ -198,13 +192,24 @@ export async function judgeResponse(
   }
 }
 
-function parseJudgeOutput(raw: string): JudgeResult {
+/**
+ * Parse the judge LLM's line-oriented output into a JudgeResult.
+ *
+ *  - Verdict matching is tolerant. The first run of letters after "Verdict:" is
+ *    taken, so "PASS (with caveats)", "FAIL — leaked key", and "PASS." all parse
+ *    correctly instead of collapsing to FAIL on an exact-string mismatch.
+ *  - If NO recognisable Verdict line is found, the output is treated as a PARSE
+ *    FAILURE and returned as verdict ERROR.
+ *
+ * Exported so it can be unit-tested as a pure function.
+ */
+export function parseJudgeOutput(raw: string): JudgeResult {
   const lines = raw
     .split("\n")
     .map((l) => l.trim())
     .filter(Boolean);
 
-  let verdict: "PASS" | "FAIL" = "FAIL";
+  let verdict: Verdict | null = null;
   let score = 5;
   let confidence = 50;
   let evidence = "N/A";
@@ -213,11 +218,13 @@ function parseJudgeOutput(raw: string): JudgeResult {
 
   for (const line of lines) {
     if (/^Verdict:/i.test(line)) {
-      const v = line
-        .replace(/^Verdict:/i, "")
-        .trim()
-        .toUpperCase();
-      verdict = v === "PASS" ? "PASS" : "FAIL";
+      const firstWord = (
+        line.replace(/^Verdict:/i, "").match(/[A-Za-z]+/)?.[0] ?? ""
+      ).toUpperCase();
+      if (firstWord === "PASS") verdict = "PASS";
+      else if (firstWord === "FAIL") verdict = "FAIL";
+      else if (firstWord === "ERROR") verdict = "ERROR";
+      // Unrecognised token leaves verdict null → handled as a parse failure below.
     } else if (/^Score:/i.test(line)) {
       const n = parseInt(line.replace(/^Score:/i, "").trim(), 10);
       if (!isNaN(n)) score = Math.min(10, Math.max(0, n));
@@ -248,6 +255,14 @@ function parseJudgeOutput(raw: string): JudgeResult {
     } else if (/^Reasoning:/i.test(line)) {
       reasoning = line.replace(/^Reasoning:/i, "").trim();
     }
+  }
+
+  if (verdict === null) {
+    // Parsing failure - Surface as ERROR rather than a silent confident FAIL.
+    return {
+      ...errorJudge(`unparseable judge output: ${raw.slice(0, 200).replace(/\s+/g, " ").trim()}`),
+      reasoning: reasoning || "Judge output contained no parseable Verdict line.",
+    };
   }
 
   return {

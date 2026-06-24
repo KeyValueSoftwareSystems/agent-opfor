@@ -57,6 +57,12 @@ export function validateLlmConfig(llm: LlmConfig): string | null {
 }
 
 export function createModel(llm: LlmConfig): LanguageModel {
+  // apiKeyEnv is optional on the unified LlmConfig (see config/schema.ts); the agent
+  // path always needs one, so fail loud and actionable when it is missing here.
+  if (!llm.apiKeyEnv)
+    throw new Error(
+      `apiKeyEnv is required for provider '${llm.provider}' — set it in your config (the env var NAME holding the key).`
+    );
   const apiKey = getEnv(llm.apiKeyEnv)?.trim();
   if (!apiKey) throw new Error(`Missing env var: ${llm.apiKeyEnv}`);
   const { provider, model, baseURL } = llm;

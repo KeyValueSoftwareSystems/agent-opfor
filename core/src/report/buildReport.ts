@@ -102,8 +102,8 @@ function toResultViewModel(a: AttackResult): ResultViewModel {
   };
 
   const detail: DetailCard =
-    a.prompt !== undefined
-      ? { kind: "prompt", prompt: a.prompt, response: a.response ?? "" }
+    a.kind === "agent"
+      ? { kind: "prompt", prompt: a.prompt ?? "", response: a.response ?? "" }
       : {
           kind: "tool",
           toolName: a.toolName ?? "",

@@ -129,7 +129,7 @@ export function registerHuntCommand(program: Command): void {
       (v: string, acc: string[]) => [...acc, v],
       []
     )
-    .option("--model <id>", "Commander model (alias or id)", "opus")
+    .option("--model <id>", "Commander model (alias or id)", "sonnet")
     .option("--operator-model <id>", "Operator subagent model", "sonnet")
     .option("--scout-model <id>", "Scout subagent model", "haiku")
     .option("--max-operators <n>", "Max parallel operator subagents", "6")

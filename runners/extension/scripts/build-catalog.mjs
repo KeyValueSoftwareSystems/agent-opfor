@@ -67,6 +67,18 @@ async function discoverEvaluatorFiles(baseDir) {
         }
 
         await walk(fullPath);
+      } else if (
+        // Flat-file evaluator: a loose <id>.yaml sibling (not evaluator.yaml,
+        // not a *.test.yaml fixture). Patterns live inline, so no patterns/ dir.
+        /\.ya?ml$/i.test(entry) &&
+        !/\.test\.ya?ml$/i.test(entry) &&
+        entry !== "evaluator.yaml"
+      ) {
+        results.push({
+          filePath: fullPath,
+          dirPath: dir,
+          flatFile: true,
+        });
       }
     }
   }
