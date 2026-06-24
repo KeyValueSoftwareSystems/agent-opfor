@@ -47,7 +47,7 @@ See [Adding an evaluator](#adding-an-evaluator) for the full guide.
 | `feat/`     | New evaluator, suite, transport, or feature |
 | `fix/`      | Bug fix                                     |
 | `docs/`     | Documentation only                          |
-| `refactor/` | Code change with no behaviour change        |
+| `refactor/` | Code change with no behavior change         |
 | `chore/`    | Dependency updates, tooling, CI             |
 | `test/`     | Adding or updating tests                    |
 
@@ -103,7 +103,7 @@ npm run build
 
 Want the `opfor` command globally available while developing? Use `npm run install:cli` instead of `npm run build` — it builds and `npm install -g`s the CLI in one step.
 
-The pre-commit hook runs typechecking, linting, formatting, and **secret scanning via [gitleaks](https://github.com/gitleaks/gitleaks)**. It is required — commits will be blocked until it is installed:
+The pre-commit hook runs typechecking, linting, formatting, and **secret scanning via [gitleaks](https://github.com/gitleaks/gitleaks)**. Install gitleaks or the secret scanning step will fail:
 
 ```bash
 # macOS
@@ -430,7 +430,7 @@ tests/e2e/agents/<agent-name>/
 }
 ```
 
-- Include an `opfor.config.json` that points at `http://localhost:<port>/chat` and selects a relevant evaluator suite. It must use the current **flat schema** — `target.kind: "agent"` at top level, with `attackLlm`, `selection`, `effort`, `turnMode`, `turns` as siblings (not the legacy nested `{ mode, agent: {} }` shape used pre-refactor). `apiKeyEnv` takes the env var **name** (e.g. `"GROQ_API_KEY"`), never the key value itself.
+- Include an `opfor.config.json` that points at `http://localhost:<port>/chat` and selects a relevant evaluator suite. It must use the current **flat schema** — `target.kind: "agent"` at top level, with `attackerLlm`, `selection`, `effort`, `turnMode`, `turns` as siblings. `apiKeyEnv` takes the env var **name** (e.g. `"GROQ_API_KEY"`), never the key value itself.
 - For agents with session memory (multi-turn capable), add `"sessionIdField": "sessionId"` to the `target` block. With `turnMode: "multi"` opfor generates a UUID per attack, injects it into every request body, and escalates across turns.
 
 ---
@@ -528,7 +528,7 @@ npm run install:cli   # build + install `opfor` globally (handy during dev)
 
 ## For reviewers
 
-Guidelines for maintainers reviewing PRs.
+Guidelines for maintainers reviewing PRs. For general code review best practices, see [Google's Code Review Guidelines](https://google.github.io/eng-practices/review/).
 
 ### Evaluator PRs
 
