@@ -21,7 +21,6 @@ See [Adding an evaluator](#adding-an-evaluator) for the full guide.
   - [PR naming](#pr-naming)
 - [**Adding an evaluator**](#adding-an-evaluator) ← most common contribution
 - [Adding a suite](#adding-a-suite)
-- [Adding a target adapter](#adding-a-target-adapter)
 - [Adding a telemetry provider](#adding-a-telemetry-provider)
 - [Adding a test agent](#adding-a-test-agent)
 - [Submitting findings](#submitting-findings)
@@ -210,8 +209,6 @@ Place your evaluator in the most relevant existing category (e.g. `injection`, `
 
 ### File format
 
-> **Single source of truth:** [docs/evaluator-schema.md](docs/evaluator-schema.md) is authoritative for every field, its type, and which are required. The example below is a quick-start skeleton, not the full spec — when the two disagree, the schema doc (and the Zod `EvaluatorFrontmatterSchema` it documents) wins. The schema is `.strict()`, so unknown/misspelled keys fail loudly at load rather than being silently ignored.
-
 **`evaluator.yaml`** (both flat and directory layouts):
 
 ```yaml
@@ -314,19 +311,6 @@ Reference only evaluator IDs that exist in the matching `evaluators/{agent|mcp}/
 ```bash
 npm run build:catalog
 ```
-
----
-
-## Adding a target adapter
-
-Target adapters connect Opfor to new transport types or agent frameworks. They live in `core/src/mcp-client/` (MCP transports) and related `core/` modules.
-
-When adding a new transport:
-
-- Implement the same interface as `createClient.ts` — expose a `connectMcpClient()` function that returns `{ client, close }`.
-- Add a new discriminated union branch to `McpServerConfigSchema` in `core/src/config/schema.ts`.
-- Update the CLI setup wizard (`runners/cli/src/commands/`) to offer the new transport as an option.
-- Add a fixture config so others can test it.
 
 ---
 
