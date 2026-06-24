@@ -1,0 +1,51 @@
+name: Commit Lint
+
+on:
+  pull_request:
+    branches: [master]
+
+jobs:
+  branch-name:
+    name: Check branch name
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate branch name
+        run: |
+          BRANCH="${{ github.head_ref }}"
+          PATTERN="^(feat|fix|docs|refactor|chore|test|perf)/.+"
+          if [[ ! "$BRANCH" =~ $PATTERN ]]; then
+            echo "❌ Branch name '$BRANCH' does not follow the convention."
+            echo ""
+            echo "Branch names must match: <type>/<short-description>"
+            echo "Allowed types: feat, fix, docs, refactor, chore, test, perf"
+            echo ""
+            echo "Examples:"
+            echo "  feat/add-ssrf-evaluator"
+            echo "  fix/judge-false-positive"
+            echo "  docs/contributing-guide"
+            exit 1
+          fi
+          echo "✅ Branch name '$BRANCH' is valid."
+
+  commitlint:
+    name: Lint commit messages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint commits on this PR
+        run: |
+          npx commitlint \
+            --from ${{ github.event.pull_request.base.sha }} \
+            --to ${{ github.event.pull_request.head.sha }} \
+            --verbose
