@@ -139,20 +139,46 @@ const hasApiKey = Boolean(apiKeyValue);
 const model = hasApiKey
   ? createModel(llmConfig)
   : (null as unknown as ReturnType<typeof createModel>);
-const filter = process.env.EVALUATOR_FILTER?.toLowerCase();
+// EVALUATOR_FILTER may be a single evaluator ID or a comma-separated list
+// (the CI workflow emits one entry per changed evaluator). An empty/whitespace
+// value means "no filter — run everything".
+const filterIds = (process.env.EVALUATOR_FILTER ?? "")
+  .split(",")
+  .map((s) => s.trim().toLowerCase())
+  .filter((s) => s.length > 0);
+const filter = filterIds.length > 0;
 
-async function runCategoryTests(category: EvaluatorCategory): Promise<void> {
+// Track how many evaluators the active filter matched across all categories, so
+// a filter that matches nothing anywhere can fail loudly instead of silently
+// skipping every category (which previously masqueraded as a green run).
+let totalFilterMatches = 0;
+
+/** @returns the number of evaluators that matched the filter in this category. */
+async function runCategoryTests(category: EvaluatorCategory): Promise<number> {
   const fixtures = await discoverTestFixtures(category);
   assert.ok(fixtures.length > 0, `expected test fixtures in ${category}`);
 
+  // Match each filter ID against the evaluator's identity — its containing
+  // directory name (directory-form) or its base filename (flat-file). This is
+  // the same ID the CI workflow derives, so `path-traversal` won't accidentally
+  // also match `path-traversal-source`.
   const filtered = filter
-    ? fixtures.filter((f) => f.evaluatorPath.toLowerCase().includes(filter))
+    ? fixtures.filter((f) => {
+        const dirName = path.basename(path.dirname(f.evaluatorPath)).toLowerCase();
+        const fileBase = path
+          .basename(f.evaluatorPath)
+          .replace(/\.ya?ml$/i, "")
+          .toLowerCase();
+        return filterIds.some((id) => id === dirName || id === fileBase);
+      })
     : fixtures;
 
   if (filtered.length === 0 && filter) {
-    console.log(`  [skip] no ${category} evaluators match filter "${filter}"`);
-    return;
+    console.log(`  [skip] no ${category} evaluators match filter "${filterIds.join(",")}"`);
+    return 0;
   }
+
+  totalFilterMatches += filtered.length;
 
   let passed = 0;
   let failed = 0;
@@ -220,6 +246,7 @@ async function runCategoryTests(category: EvaluatorCategory): Promise<void> {
     console.log(`\n  Failures:\n    ${failures.join("\n    ")}`);
   }
   assert.equal(failed, 0, `${failed} judge test(s) failed:\n  ${failures.join("\n  ")}`);
+  return filtered.length;
 }
 
 test(
@@ -235,5 +262,28 @@ test(
   { skip: !hasApiKey && "no LLM API key set", timeout: 600_000 },
   async () => {
     await runCategoryTests("mcp");
+  }
+);
+
+// Guard against a false-green run: if EVALUATOR_FILTER is set (e.g. by CI's
+// changed-evaluator detection) but matches no evaluator in any category, the
+// category tests above each skip and the suite would otherwise pass without
+// running anything. Fail loudly so a filter/ID mismatch can't masquerade as
+// green. Runs after both category tests, so totalFilterMatches is final.
+// Skipped when there's no filter, or no API key (category tests skipped).
+test(
+  "EVALUATOR_FILTER matches at least one evaluator",
+  {
+    skip:
+      (!hasApiKey && "no LLM API key set") ||
+      (!filter && "no EVALUATOR_FILTER set — all evaluators run"),
+  },
+  () => {
+    assert.ok(
+      totalFilterMatches > 0,
+      `EVALUATOR_FILTER="${filterIds.join(",")}" matched no evaluator in any category. ` +
+        `Check that each ID equals an evaluator's directory name (directory-form) or ` +
+        `base filename (flat-file).`
+    );
   }
 );
