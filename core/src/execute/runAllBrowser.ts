@@ -153,7 +153,14 @@ export async function runAllBrowser(
           patternName: attack.patternName,
           prompt: attack.prompt ?? "(attack prompt not captured)",
           response: `ERROR: ${reason}`,
-          judge: { verdict: "ERROR", score: 0, confidence: 0, evidence: "N/A", reasoning: "", errorMessage: reason },
+          judge: {
+            verdict: "ERROR",
+            score: 0,
+            confidence: 0,
+            evidence: "N/A",
+            reasoning: "",
+            errorMessage: reason,
+          },
         });
 
         if (isStopError(err)) {
@@ -165,7 +172,12 @@ export async function runAllBrowser(
           notify({ type: "attack_done", attackId: attack.id, result: failedResult });
           evaluatorResults.push(
             toEvaluatorResult(
-              { evaluatorId: evaluator.id, evaluatorName: evaluator.name, standards: evaluator.standards, severity: evaluator.severity },
+              {
+                evaluatorId: evaluator.id,
+                evaluatorName: evaluator.name,
+                standards: evaluator.standards,
+                severity: evaluator.severity,
+              },
               attackResults
             )
           );
@@ -181,7 +193,12 @@ export async function runAllBrowser(
           notify({ type: "attack_done", attackId: attack.id, result: failedResult });
           evaluatorResults.push(
             toEvaluatorResult(
-              { evaluatorId: evaluator.id, evaluatorName: evaluator.name, standards: evaluator.standards, severity: evaluator.severity },
+              {
+                evaluatorId: evaluator.id,
+                evaluatorName: evaluator.name,
+                standards: evaluator.standards,
+                severity: evaluator.severity,
+              },
               attackResults
             )
           );

@@ -5,6 +5,7 @@ import { randomUUID } from "../lib/random.js";
 import type { LanguageModel } from "ai";
 import type {
   RunConfig,
+  AttackSpec,
   McpAttackSpec,
   AttackResult,
   EvaluatorResult,
@@ -211,18 +212,19 @@ export async function runAll(
         // `attack` to the matching arm for each runner.
         let result: AttackResult;
         try {
-          result = attack.kind === "mcp"
-            ? await runMcpAttack(attack, mcpTarget!, judgeModel, config)
-            : await runAgentAttack(
-                attack,
-                attackModel,
-                judgeModel,
-                attack.id,
-                evaluator.patterns,
-                options?.agentTarget ??
-                  createAgentTarget(config.target as import("./types.js").AgentTargetConfig),
-                { targetConfig: config.target, telemetry: config.telemetry }
-              );
+          result =
+            attack.kind === "mcp"
+              ? await runMcpAttack(attack, mcpTarget!, judgeModel, config)
+              : await runAgentAttack(
+                  attack,
+                  attackModel,
+                  judgeModel,
+                  attack.id,
+                  evaluator.patterns,
+                  options?.agentTarget ??
+                    createAgentTarget(config.target as import("./types.js").AgentTargetConfig),
+                  { targetConfig: config.target, telemetry: config.telemetry }
+                );
         } catch (err) {
           const makeFailedResult = (reason: string): AttackResult =>
             attack.kind === "agent"
@@ -233,14 +235,28 @@ export async function runAll(
                   patternName: attack.patternName,
                   prompt: attack.prompt ?? "(attack prompt not captured)",
                   response: `ERROR: ${reason}`,
-                  judge: { verdict: "ERROR", score: 0, confidence: 0, evidence: "N/A", reasoning: "", errorMessage: reason },
+                  judge: {
+                    verdict: "ERROR",
+                    score: 0,
+                    confidence: 0,
+                    evidence: "N/A",
+                    reasoning: "",
+                    errorMessage: reason,
+                  },
                 }
               : {
                   kind: "mcp",
                   attackId: attack.id,
                   evaluatorId: attack.evaluatorId,
                   patternName: attack.patternName,
-                  judge: { verdict: "ERROR", score: 0, confidence: 0, evidence: "N/A", reasoning: "", errorMessage: reason },
+                  judge: {
+                    verdict: "ERROR",
+                    score: 0,
+                    confidence: 0,
+                    evidence: "N/A",
+                    reasoning: "",
+                    errorMessage: reason,
+                  },
                 };
 
           // Handle LLM stop errors (attacker/judge)
@@ -252,7 +268,12 @@ export async function runAll(
             notify({ type: "attack_done", attackId: attack.id, verdict: "ERROR" });
             evaluatorResults.push(
               toEvaluatorResult(
-                { evaluatorId: evaluator.id, evaluatorName: evaluator.name, standards: evaluator.standards, severity: evaluator.severity },
+                {
+                  evaluatorId: evaluator.id,
+                  evaluatorName: evaluator.name,
+                  standards: evaluator.standards,
+                  severity: evaluator.severity,
+                },
                 attackResults
               )
             );
@@ -267,7 +288,12 @@ export async function runAll(
             notify({ type: "attack_done", attackId: attack.id, verdict: "ERROR" });
             evaluatorResults.push(
               toEvaluatorResult(
-                { evaluatorId: evaluator.id, evaluatorName: evaluator.name, standards: evaluator.standards, severity: evaluator.severity },
+                {
+                  evaluatorId: evaluator.id,
+                  evaluatorName: evaluator.name,
+                  standards: evaluator.standards,
+                  severity: evaluator.severity,
+                },
                 attackResults
               )
             );
