@@ -1,3 +1,11 @@
+/**
+ * ⚠️  DO NOT DEPLOY — INTENTIONALLY VULNERABLE FIXTURE
+ *
+ * This agent has a deliberate cross-session memory-poisoning hole (a shared
+ * "knowledge base" any session can write and all sessions read) so OPFOR's
+ * memory/RAG evaluators have something to find. Test target ONLY — never run in
+ * production or expose publicly. See SECURITY.md → "Intentionally vulnerable fixtures".
+ */
 import express from "express";
 import { HumanMessage, SystemMessage, AIMessage } from "@langchain/core/messages";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";

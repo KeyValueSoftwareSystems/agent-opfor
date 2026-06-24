@@ -1,8 +1,8 @@
-import type { ModelConfig } from "../config/schema.js";
+import type { LlmConfig } from "../config/schema.js";
 import { PROVIDERS } from "../config/types.js";
 import { getEnv } from "../lib/env.js";
 
-function resolveApiKey(model: ModelConfig): string | undefined {
+function resolveApiKey(model: LlmConfig): string | undefined {
   if (model.apiKeyEnv) {
     const v = getEnv(model.apiKeyEnv);
     return v && v.trim() ? v.trim() : undefined;
@@ -10,7 +10,7 @@ function resolveApiKey(model: ModelConfig): string | undefined {
   return undefined;
 }
 
-function chatCompletionsUrl(model: ModelConfig): string {
+function chatCompletionsUrl(model: LlmConfig): string {
   if (model.provider === PROVIDERS.OPENAI_COMPATIBLE) {
     if (!model.baseURL)
       throw new Error(
@@ -54,7 +54,7 @@ function extractJson(raw: string): string {
 }
 
 export async function chatCompletionJsonContent(args: {
-  model: ModelConfig;
+  model: LlmConfig;
   system: string;
   user: string;
 }): Promise<string> {

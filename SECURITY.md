@@ -34,6 +34,16 @@ We follow coordinated disclosure. We ask that you:
 
 We will credit reporters in the fix commit and changelog unless you prefer to remain anonymous.
 
+## Intentionally vulnerable fixtures
+
+This repository ships **deliberately insecure** test targets so OPFOR's evaluators have something to detect. They are for local testing only — **do not deploy them or expose them on a network**:
+
+- `tests/e2e/mcp/vulnerable-server` — intentional BOLA / secret-exposure holes in an MCP server.
+- `tests/e2e/agents/customer-support` — intentional BOLA / BFLA / RBAC bypass, PII disclosure, and SQL-injection-prone tool calls.
+- `tests/e2e/agents/vulnerable-memory` — intentional cross-session memory-poisoning (a shared knowledge base any session can write and all sessions read).
+
+These are not in scope for vulnerability reports — their weaknesses are by design.
+
 ## Responsible use
 
 Opfor is designed for authorized security testing. You are responsible for ensuring you have permission to test any system you point Opfor at. Unauthorized use of Opfor against systems you do not own or have explicit written permission to test may violate computer fraud laws in your jurisdiction.

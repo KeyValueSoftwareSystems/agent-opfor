@@ -214,12 +214,14 @@ function transformEvaluatorResult(
 }
 
 function transformAttackResult(core: import("@agent-opfor/core").AttackResult): AttackResult {
+  const prompt = core.kind === "agent" ? (core.prompt ?? "") : (core.toolName ?? "");
+  const response = core.kind === "agent" ? (core.response ?? "") : (core.toolResponse ?? "");
   return {
     attackId: core.attackId,
     evaluatorId: core.evaluatorId,
     patternName: core.patternName,
-    prompt: core.prompt ?? core.toolName ?? "",
-    response: core.response ?? core.toolResponse ?? "",
+    prompt,
+    response,
     verdict: core.judge.verdict,
     evidence: core.judge.evidence,
     turns: core.turns?.map((t) => {
