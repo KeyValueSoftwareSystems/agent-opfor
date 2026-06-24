@@ -48,7 +48,9 @@ function robustClick(el) {
   if (!(el instanceof Element)) return;
   try {
     el.scrollIntoView?.({ block: "center", inline: "center", behavior: "instant" });
-  } catch {}
+  } catch {
+    /* swallowed */
+  }
   const rect = el.getBoundingClientRect?.();
   const clientX = rect ? Math.round(rect.left + Math.min(10, rect.width / 2)) : 1;
   const clientY = rect ? Math.round(rect.top + Math.min(10, rect.height / 2)) : 1;
@@ -252,7 +254,9 @@ function findFloatingWidgetCandidates() {
     ) {
       return { ok: true, clicked: false, reason: "dedicated_chat_page" };
     }
-  } catch {}
+  } catch {
+    /* swallowed */
+  }
 
   // If a visible chat composer or dedicated chat iframe already exists, widget is open — skip.
   try {
@@ -278,7 +282,9 @@ function findFloatingWidgetCandidates() {
     if (chatIframes.length) {
       return { ok: true, clicked: false, reason: "chat_iframe_already_present" };
     }
-  } catch {}
+  } catch {
+    /* swallowed */
+  }
 
   // Salesforce Embedded Service / Agentforce widget — look for their specific launcher button
   try {
@@ -307,7 +313,9 @@ function findFloatingWidgetCandidates() {
     if (sfSidebar && isVisible(sfSidebar)) {
       return { ok: true, clicked: false, reason: "salesforce_widget_already_open" };
     }
-  } catch {}
+  } catch {
+    /* swallowed */
+  }
 
   // NOTE: Vendor-specific JS API calls (GorgiasChat.open(), zE(), Intercom(), etc.)
   // Vendor-specific opens (Salesforce, Zendesk, etc.) are handled in frame_open_chat.js heuristics.
@@ -328,7 +336,9 @@ function findFloatingWidgetCandidates() {
   try {
     try {
       best.el.click();
-    } catch {}
+    } catch {
+      /* swallowed */
+    }
     robustClick(best.el);
     return { ok: true, clicked: true, kind: best.kind, selector: selectorFromEl(best.el) };
   } catch (e) {

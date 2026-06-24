@@ -31,7 +31,9 @@
       try {
         const st = window.getComputedStyle(node);
         if (st.display === "none" || st.visibility === "hidden") return;
-      } catch {}
+      } catch {
+        /* swallowed */
+      }
       const tag = node.tagName?.toLowerCase();
       if (
         tag === "script" ||
@@ -83,7 +85,9 @@
         if (result.nodeCount > 0) return result;
         // Container found but empty — fall through to full scan
       }
-    } catch {}
+    } catch {
+      /* swallowed */
+    }
   }
 
   // ── Full scan ─────────────────────────────────────────────────────────────────
@@ -105,7 +109,9 @@
     try {
       const ov = window.getComputedStyle(el).overflowY;
       if (ov === "auto" || ov === "scroll") s += 4;
-    } catch {}
+    } catch {
+      /* swallowed */
+    }
     return s;
   }
 
@@ -119,7 +125,9 @@
         try {
           const r = el.getBoundingClientRect();
           if (r.width > 80 && r.height > 80) candidates.push({ el, score: s });
-        } catch {}
+        } catch {
+          /* swallowed */
+        }
       }
       if (el.shadowRoot) walkDOM(el.shadowRoot);
     }
@@ -154,7 +162,9 @@
         if (!attrMap.has(val)) attrMap.set(val, []);
         attrMap.get(val).push(el);
       }
-    } catch {}
+    } catch {
+      /* swallowed */
+    }
     for (const [, els] of attrMap) {
       if (els.length < 2) continue;
       const parent = els[0].parentElement;
@@ -164,7 +174,9 @@
         if (r.width > 80 && r.height > 80) {
           candidates.push({ el: parent, score: scoreEl(parent) + els.length * 5 });
         }
-      } catch {}
+      } catch {
+        /* swallowed */
+      }
     }
   }
 
@@ -188,9 +200,13 @@
           if (r.width > 80 && r.height > 80) {
             candidates.push({ el: parent, score: scoreEl(parent) + children.length * 6 });
           }
-        } catch {}
+        } catch {
+          /* swallowed */
+        }
       }
-    } catch {}
+    } catch {
+      /* swallowed */
+    }
   }
 
   candidates.sort((a, b) => {

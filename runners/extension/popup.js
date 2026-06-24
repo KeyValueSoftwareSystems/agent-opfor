@@ -1685,7 +1685,9 @@ function safeClone(obj) {
   if (typeof structuredClone === "function") {
     try {
       return structuredClone(obj);
-    } catch {}
+    } catch {
+      /* swallowed */
+    }
   }
   try {
     return JSON.parse(JSON.stringify(obj));
@@ -1763,7 +1765,9 @@ async function setReportHistory(items) {
     await chrome.storage.local.set({
       [REPORT_HISTORY_KEY]: { v: 1, updatedAt: Date.now(), items },
     });
-  } catch {}
+  } catch {
+    /* swallowed */
+  }
 }
 
 async function addReportToHistory(report) {
@@ -1789,7 +1793,9 @@ async function persistLastSuiteReport(report) {
     await chrome.storage.local.set({
       [LAST_SUITE_REPORT_KEY]: { v: 1, savedAt: Date.now(), report },
     });
-  } catch {}
+  } catch {
+    /* swallowed */
+  }
 }
 
 async function finalizeAndPersistCurrentReport() {
@@ -1830,7 +1836,9 @@ async function downloadReport() {
       downloadReportHtml(saved);
       return;
     }
-  } catch {}
+  } catch {
+    /* swallowed */
+  }
 
   // If state.results is empty (popup was reopened after run), recover from storage.
   if (!state.results.length) {
@@ -1880,7 +1888,9 @@ async function downloadReport() {
             judgeHint: state.judgeHint || "",
           });
           if (judged?.ok && judged?.judgment) judgedResult = judged;
-        } catch {}
+        } catch {
+          /* swallowed */
+        }
 
         if (judgedResult) {
           const v =
@@ -1921,7 +1931,9 @@ async function downloadReport() {
           ];
         }
       }
-    } catch {}
+    } catch {
+      /* swallowed */
+    }
   }
 
   const report = (await finalizeAndPersistCurrentReport()) || pruneReportForHistory(buildReport());
@@ -2266,7 +2278,9 @@ async function pollStorageForResult(evaluatorId) {
       try {
         const fresh = await chrome.storage.local.get(["opforLastResult"]);
         if (fresh.opforLastResult?.judgment) return fresh.opforLastResult;
-      } catch {}
+      } catch {
+        /* swallowed */
+      }
     }
 
     // 4. Completed result with judgment (re-check after settle)
@@ -2289,7 +2303,9 @@ async function pollStorageForResult(evaluatorId) {
           judgeHint: state.judgeHint || "",
         });
         if (judged?.ok && judged?.judgment) return judged;
-      } catch {}
+      } catch {
+        /* swallowed */
+      }
 
       return {
         ok: true,
@@ -2338,9 +2354,13 @@ async function pollStorageForResult(evaluatorId) {
           judgeHint: state.judgeHint || "",
         });
         if (judged?.ok && judged?.judgment) return judged;
-      } catch {}
+      } catch {
+        /* swallowed */
+      }
     }
-  } catch {}
+  } catch {
+    /* swallowed */
+  }
 
   return {
     ok: false,
@@ -2375,7 +2395,9 @@ async function startRun({ resume = false } = {}) {
 
     try {
       await chrome.storage.local.remove(["opforLastResult", "opforLiveTranscript"]);
-    } catch {}
+    } catch {
+      /* swallowed */
+    }
   }
 
   // Keep the service worker alive for the entire run duration.
@@ -2385,7 +2407,9 @@ async function startRun({ resume = false } = {}) {
       state.keepAlivePort.onDisconnect.addListener(() => {
         state.keepAlivePort = null;
       });
-    } catch {}
+    } catch {
+      /* swallowed */
+    }
   }
 
   // Capture the target tab once so subsequent evaluators don't fail
@@ -2394,7 +2418,9 @@ async function startRun({ resume = false } = {}) {
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (tab?.id) state.targetTabId = tab.id;
-    } catch {}
+    } catch {
+      /* swallowed */
+    }
   }
 
   setScreen("running");
@@ -2419,7 +2445,9 @@ async function startRun({ resume = false } = {}) {
       state.running = false;
       try {
         state.keepAlivePort?.disconnect();
-      } catch {}
+      } catch {
+        /* swallowed */
+      }
       state.keepAlivePort = null;
       stopCosmeticTicker();
       await clearPopupRunQueue();
@@ -2479,9 +2507,13 @@ async function startRun({ resume = false } = {}) {
                 raw: judged,
               };
             }
-          } catch {}
+          } catch {
+            /* swallowed */
+          }
         }
-      } catch {}
+      } catch {
+        /* swallowed */
+      }
       if (recovered) {
         state.results.push(recovered);
       } else {
@@ -2512,7 +2544,9 @@ async function startRun({ resume = false } = {}) {
           type: "OPFOR_RESET_CHAT",
           tabId: state.targetTabId || undefined,
         });
-      } catch {}
+      } catch {
+        /* swallowed */
+      }
       await new Promise((r) => setTimeout(r, 1000));
     }
   }
@@ -2521,7 +2555,9 @@ async function startRun({ resume = false } = {}) {
   state.targetTabId = null;
   try {
     state.keepAlivePort?.disconnect();
-  } catch {}
+  } catch {
+    /* swallowed */
+  }
   state.keepAlivePort = null;
   stopCosmeticTicker();
   stopRunStatusPoller();
@@ -2547,7 +2583,9 @@ async function requestPause() {
   await clearPopupRunQueue();
   try {
     await chrome.runtime.sendMessage({ type: "OPFOR_UI_STOP" });
-  } catch {}
+  } catch {
+    /* swallowed */
+  }
 }
 
 async function requestStop() {
@@ -2557,7 +2595,9 @@ async function requestStop() {
   await clearPopupRunQueue();
   try {
     await chrome.runtime.sendMessage({ type: "OPFOR_UI_STOP" });
-  } catch {}
+  } catch {
+    /* swallowed */
+  }
 
   // If the service worker saved a partial result, surface it on the Done screen.
   try {
@@ -2580,11 +2620,15 @@ async function requestStop() {
       state.running = false;
       return;
     }
-  } catch {}
+  } catch {
+    /* swallowed */
+  }
 
   try {
     await chrome.runtime.sendMessage({ type: "OPFOR_UI_DISCARD_PAUSED" });
-  } catch {}
+  } catch {
+    /* swallowed */
+  }
   stopCosmeticTicker();
   state.running = false;
   state.queue = [];
@@ -2596,7 +2640,9 @@ async function requestStop() {
 async function discardPaused() {
   try {
     await chrome.runtime.sendMessage({ type: "OPFOR_UI_DISCARD_PAUSED" });
-  } catch {}
+  } catch {
+    /* swallowed */
+  }
   state.queue = [];
   state.results = [];
   state.evIdx = 0;
@@ -2606,7 +2652,9 @@ async function discardPaused() {
 async function cancelAwaitUser() {
   try {
     await chrome.runtime.sendMessage({ type: "OPFOR_UI_STOP" });
-  } catch {}
+  } catch {
+    /* swallowed */
+  }
   stopCosmeticTicker();
   state.running = false;
   state.queue = [];
@@ -2633,7 +2681,9 @@ async function retryLocate() {
       type: "OPFOR_UI_RETRY_LOCATE",
       agentDescription: state.agentDescription || "",
     });
-  } catch {}
+  } catch {
+    /* swallowed */
+  }
   // Note: agentDescription is kept — it lives in Advanced settings and persists across retries.
 }
 
@@ -3036,13 +3086,17 @@ async function persistPopupRunQueue() {
         updatedAt: Date.now(),
       },
     });
-  } catch {}
+  } catch {
+    /* swallowed */
+  }
 }
 
 async function clearPopupRunQueue() {
   try {
     await chrome.storage.local.remove("opforPopupRun");
-  } catch {}
+  } catch {
+    /* swallowed */
+  }
 }
 
 // ── Live-run recovery from storage ──────────────────────────────
@@ -3246,7 +3300,9 @@ function startRunStatusPoller() {
           setTurnProgress(lastRound);
         }
       }
-    } catch {}
+    } catch {
+      /* swallowed */
+    }
   }, 1500);
 }
 

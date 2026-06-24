@@ -186,7 +186,9 @@ export async function resetChatSession(tabId, readerCfg) {
               target: { tabId, frameIds: [0] },
               files: ["frame_open_chat.js"],
             });
-          } catch {}
+          } catch {
+            /* swallowed */
+          }
           await sleep(3000);
           const { frames: newFrames } = await pickChatFrameWithRetry(tabId, {
             maxRetries: 5,
@@ -228,7 +230,9 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
   if (!resume) {
     try {
       await chrome.storage.local.remove(["opforLastResult", "opforLiveTranscript"]);
-    } catch {}
+    } catch {
+      /* swallowed */
+    }
   }
 
   await setRunStatus({
@@ -272,7 +276,9 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
         errorMessage: msg,
         evaluatorId: String(message?.evaluatorId || ""),
       });
-    } catch {}
+    } catch {
+      /* swallowed */
+    }
     await clearRunStatus();
     sendResponse({ ok: false, error: msg });
     endUiRunAbortController();
@@ -657,7 +663,9 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
               completed: false,
             },
           });
-        } catch {}
+        } catch {
+          /* swallowed */
+        }
       },
       onRecovery: async () => {
         broadcastProgress({
@@ -867,7 +875,9 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
         await persistPartialResult(partialResult);
         try {
           sendResponse(partialResult);
-        } catch {}
+        } catch {
+          /* swallowed */
+        }
       } else {
         await persistPartialResult({
           ok: false,
@@ -918,7 +928,9 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
     await persistPartialResult(finalResult);
     try {
       await chrome.storage.local.remove("opforLiveTranscript");
-    } catch {}
+    } catch {
+      /* swallowed */
+    }
     try {
       sendResponse(finalResult);
     } catch {

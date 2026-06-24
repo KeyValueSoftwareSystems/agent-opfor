@@ -122,7 +122,9 @@ function setInputValue(el, value) {
     // Some frameworks also listen for keyup to finalize state.
     try {
       el.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true, key: "Unidentified" }));
-    } catch {}
+    } catch {
+      /* swallowed */
+    }
     return { kind: el.tagName.toLowerCase() };
   }
 
@@ -136,14 +138,18 @@ function setInputValue(el, value) {
       const sel = window.getSelection();
       sel?.removeAllRanges();
       sel?.addRange(range);
-    } catch {}
+    } catch {
+      /* swallowed */
+    }
 
     // execCommand('insertText') is the most framework-compatible way to set
     // text in contenteditable — React, Vue, Angular all pick it up correctly.
     let inserted = false;
     try {
       inserted = document.execCommand("insertText", false, value);
-    } catch {}
+    } catch {
+      /* swallowed */
+    }
 
     // Fallback: use a clipboard-style DataTransfer InputEvent (works in Chromium).
     if (!inserted || getInputText(el).length < value.length * 0.8) {
@@ -160,7 +166,9 @@ function setInputValue(el, value) {
             dataTransfer: dt,
           })
         );
-      } catch {}
+      } catch {
+        /* swallowed */
+      }
       el.textContent = value;
       try {
         el.dispatchEvent(
@@ -184,7 +192,9 @@ function setInputValue(el, value) {
       const sel = window.getSelection();
       sel?.removeAllRanges();
       sel?.addRange(range);
-    } catch {}
+    } catch {
+      /* swallowed */
+    }
 
     return { kind: "contenteditable" };
   }

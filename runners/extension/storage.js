@@ -31,7 +31,9 @@ export async function persistPartialResult(payload) {
 export function broadcastProgress(payload) {
   try {
     chrome.runtime.sendMessage({ type: "OPFOR_UI_PROGRESS", ...payload }).catch(() => {});
-  } catch {}
+  } catch {
+    /* swallowed */
+  }
 
   try {
     chrome.storage.local.get("opforRunStatus", (data) => {
@@ -62,5 +64,7 @@ export function broadcastProgress(payload) {
       }
       chrome.storage.local.set({ opforRunStatus: { ...cur, ...patch } });
     });
-  } catch {}
+  } catch {
+    /* swallowed */
+  }
 }

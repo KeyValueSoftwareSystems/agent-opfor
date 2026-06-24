@@ -72,7 +72,9 @@ function robustClick(el) {
   if (!(el instanceof Element)) return;
   try {
     el.scrollIntoView?.({ block: "center", inline: "center", behavior: "instant" });
-  } catch {}
+  } catch {
+    /* swallowed */
+  }
   const rect = el.getBoundingClientRect?.();
   const clientX = rect ? Math.round(rect.left + Math.min(10, rect.width / 2)) : 1;
   const clientY = rect ? Math.round(rect.top + Math.min(10, rect.height / 2)) : 1;
@@ -105,7 +107,9 @@ function robustClick(el) {
 
     try {
       el.click?.();
-    } catch {}
+    } catch {
+      /* swallowed */
+    }
     robustClick(el);
     await sleep(250);
     return { ok: true };

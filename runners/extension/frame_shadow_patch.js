@@ -15,7 +15,9 @@
           configurable: true,
           enumerable: false,
         });
-      } catch {}
+      } catch {
+        /* swallowed */
+      }
     }
     return shadow;
   };

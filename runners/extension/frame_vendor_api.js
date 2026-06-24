@@ -74,7 +74,9 @@
         return result;
       }
     }
-  } catch {}
+  } catch {
+    /* swallowed */
+  }
 
   // ── Gorgias ──
   try {
@@ -99,7 +101,9 @@
         return result;
       }
     }
-  } catch {}
+  } catch {
+    /* swallowed */
+  }
 
   // ── Generic: find any input inside any custom element with shadow root ──
   try {
@@ -126,7 +130,9 @@
         }
       }
     }
-  } catch {}
+  } catch {
+    /* swallowed */
+  }
 
   return result;
 })();

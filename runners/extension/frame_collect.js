@@ -148,7 +148,9 @@ function isInFloatingContainer(el) {
         const rect = p.getBoundingClientRect();
         if (rect && rect.bottom > window.innerHeight * 0.35) return true;
       }
-    } catch {}
+    } catch {
+      /* swallowed */
+    }
   }
   return false;
 }

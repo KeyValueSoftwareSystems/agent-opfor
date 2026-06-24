@@ -8,7 +8,9 @@ export const state = {
 export function resetUiRunAbortController() {
   try {
     state.uiRunAbortController?.abort();
-  } catch {}
+  } catch {
+    /* swallowed */
+  }
   state.uiRunAbortController = null;
 }
 

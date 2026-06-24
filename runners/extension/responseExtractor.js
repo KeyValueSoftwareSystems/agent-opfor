@@ -148,7 +148,9 @@ export async function extractResponse(tabId, frameId, lastUserText = "", prevSna
         },
         args: [prev.containerSel],
       });
-    } catch {}
+    } catch {
+      /* swallowed */
+    }
   }
 
   // Returns true if `text` is a transient typing/thinking indicator, not a real reply.

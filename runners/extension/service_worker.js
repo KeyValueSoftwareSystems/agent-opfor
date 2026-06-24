@@ -73,7 +73,9 @@ function handleMainMessages(message, sendResponse) {
     state.OPFOR_STOP = true;
     try {
       state.uiRunAbortController?.abort();
-    } catch {}
+    } catch {
+      /* swallowed */
+    }
     triggerRetryLocate();
     clearRunStatus().catch(() => {});
     sendResponse({ ok: true });
@@ -256,7 +258,9 @@ function handleMainMessages(message, sendResponse) {
           let errBody = null;
           try {
             errBody = await res.json();
-          } catch {}
+          } catch {
+            /* swallowed */
+          }
           const errMsg = errBody?.error?.message || "";
           if (res.status === 401 || res.status === 403) {
             sendResponse({

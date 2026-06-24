@@ -95,7 +95,9 @@ export async function locateChatWidget(tabId, readerCfg, options = {}) {
               }
               const sel = parts.join(" > ");
               if (sel && document.querySelector(sel)) return sel;
-            } catch {}
+            } catch {
+              /* swallowed */
+            }
 
             return el.tagName.toLowerCase();
           };
@@ -342,7 +344,9 @@ export async function locateChatWidget(tabId, readerCfg, options = {}) {
           // Give the chat iframe time to mount / update state.
           await sleep(900);
         }
-      } catch {}
+      } catch {
+        /* swallowed */
+      }
     }
 
     const combinedSnapshot = [
@@ -422,7 +426,9 @@ export async function locateChatWidget(tabId, readerCfg, options = {}) {
           await sleep(1200);
           continue;
         }
-      } catch {}
+      } catch {
+        /* swallowed */
+      }
 
       let clicked = false;
       const ordered = [
@@ -470,7 +476,9 @@ export async function locateChatWidget(tabId, readerCfg, options = {}) {
       collected.find((f) => f.frameId === chosen.frameId)?.snapshot ||
       collected[0]?.snapshot ||
       "";
-  } catch {}
+  } catch {
+    /* swallowed */
+  }
 
   return {
     ok: true,

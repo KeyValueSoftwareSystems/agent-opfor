@@ -8,7 +8,9 @@ export async function injectShadowPatch(tabId) {
       files: ["frame_shadow_patch.js"],
       world: "MAIN",
     });
-  } catch {}
+  } catch {
+    /* swallowed */
+  }
 }
 
 /** Scroll main document so lazy-loaded chat widgets appear before scanning for launchers. */
@@ -19,7 +21,9 @@ export async function preparePageForChat(tabId) {
       target: { tabId, frameIds: [0] },
       files: ["frame_prepare_page.js"],
     });
-  } catch {}
+  } catch {
+    /* swallowed */
+  }
   await sleep(800);
 }
 

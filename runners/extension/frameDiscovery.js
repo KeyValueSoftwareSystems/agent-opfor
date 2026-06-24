@@ -33,7 +33,9 @@ export function embeddedChatBoost(frame) {
     ) {
       return 500;
     }
-  } catch {}
+  } catch {
+    /* swallowed */
+  }
 
   if (/chat|livechat|helpchat|chatbot|helpchatbot|support-chat|chat-widget/.test(url)) return 400;
   if (
