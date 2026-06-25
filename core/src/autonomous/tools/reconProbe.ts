@@ -7,6 +7,7 @@ import { snip, type RunContext } from "../orchestrator/context.js";
 import { getOrCreateThread } from "../state/runLog.js";
 import { noteEvent } from "../state/hooks.js";
 import { jsonResult, textResult } from "./util.js";
+import { wrapUntrustedOutput } from "../lib/untrustedOutput.js";
 
 const RECON_THREAD = "recon";
 
@@ -77,16 +78,11 @@ export function reconProbeTool(ctx: RunContext) {
         data: { turnIndex, isError: result.isError, rateLimited: result.rateLimited },
       });
 
-      // Wrap target response in untrusted-data delimiters to reinforce that
-      // content from the target is DATA, not instructions. This is a defense
-      // against adversarial targets attempting prompt injection on the hunt agent.
-      const wrappedResponse =
-        result.isError || result.rateLimited
-          ? result.response
-          : `<untrusted_target_output>\n${result.response}\n</untrusted_target_output>`;
-
       return jsonResult({
-        response: wrappedResponse,
+        response: wrapUntrustedOutput(result.response, {
+          isError: result.isError,
+          rateLimited: result.rateLimited,
+        }),
         isError: result.isError,
         rateLimited: result.rateLimited,
         errorMessage: result.errorMessage,

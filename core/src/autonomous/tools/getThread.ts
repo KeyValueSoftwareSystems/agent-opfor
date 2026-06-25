@@ -6,6 +6,7 @@ import { tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import type { RunContext } from "../orchestrator/context.js";
 import { jsonResult, textResult } from "./util.js";
+import { wrapUntrustedOutput } from "../lib/untrustedOutput.js";
 
 export function getThreadTool(ctx: RunContext) {
   return tool(
@@ -19,9 +20,6 @@ export function getThreadTool(ctx: RunContext) {
       if (!thread) {
         return textResult(`No thread "${args.threadId}".`, true);
       }
-      // Wrap target responses in untrusted-data delimiters to reinforce that
-      // content from the target is DATA, not instructions. This is a defense
-      // against adversarial targets attempting prompt injection on the hunt agent.
       return jsonResult({
         threadId: thread.threadId,
         vulnClassId: thread.vulnClassId,
@@ -33,10 +31,7 @@ export function getThreadTool(ctx: RunContext) {
           persona: t.persona,
           strategy: t.strategy,
           prompt: t.prompt,
-          response:
-            t.isError || !t.response
-              ? t.response
-              : `<untrusted_target_output>\n${t.response}\n</untrusted_target_output>`,
+          response: wrapUntrustedOutput(t.response, { isError: t.isError }),
           score: t.score,
           isError: t.isError,
         })),
