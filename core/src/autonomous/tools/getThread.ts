@@ -6,6 +6,7 @@ import { tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import type { RunContext } from "../orchestrator/context.js";
 import { jsonResult, textResult } from "./util.js";
+import { wrapUntrustedOutput } from "../lib/untrustedOutput.js";
 
 export function getThreadTool(ctx: RunContext) {
   return tool(
@@ -30,7 +31,7 @@ export function getThreadTool(ctx: RunContext) {
           persona: t.persona,
           strategy: t.strategy,
           prompt: t.prompt,
-          response: t.response,
+          response: wrapUntrustedOutput(t.response, { isError: t.isError }),
           score: t.score,
           isError: t.isError,
         })),

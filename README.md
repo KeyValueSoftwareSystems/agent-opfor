@@ -216,3 +216,9 @@ Use opfor only on systems you own or are authorized to test. To report a vulnera
 ## License
 
 Opfor is licensed under Apache 2.0 — see the [LICENSE](LICENSE) file for details.
+
+---
+
+<p align="center">
+  Built with ❤️ by <a href="https://keyvalue.systems">KeyValue</a>
+</p>

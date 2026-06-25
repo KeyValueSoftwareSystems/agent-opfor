@@ -7,6 +7,7 @@ import { snip, type RunContext } from "../orchestrator/context.js";
 import { getOrCreateThread, computeProgressSignal, type ThreadTurn } from "../state/runLog.js";
 import { noteEvent } from "../state/hooks.js";
 import { jsonResult } from "./util.js";
+import { wrapUntrustedOutput } from "../lib/untrustedOutput.js";
 
 export function sendToTargetTool(ctx: RunContext) {
   return tool(
@@ -146,7 +147,10 @@ export function sendToTargetTool(ctx: RunContext) {
 
       return jsonResult({
         turnIndex,
-        response: result.response,
+        response: wrapUntrustedOutput(result.response, {
+          isError: result.isError,
+          rateLimited: result.rateLimited,
+        }),
         isError: result.isError,
         rateLimited: result.rateLimited,
         errorMessage: result.errorMessage,
