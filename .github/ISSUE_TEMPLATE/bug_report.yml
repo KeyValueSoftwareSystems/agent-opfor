@@ -1,0 +1,118 @@
+name: Bug Report
+description: Report a bug in Opfor (CLI, MCP server, browser extension, or SDK)
+title: "bug: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Please fill in the details below so we can reproduce and fix it.
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which part of Opfor is affected?
+      options:
+        - CLI (`opfor run` / `opfor setup`)
+        - CLI — Autonomous mode (`opfor hunt`)
+        - MCP Server (`@agent-opfor/mcp`)
+        - Browser Extension
+        - SDK (`@agent-opfor/sdk`)
+        - Evaluators / Suites
+        - Judge (LLM-as-judge)
+        - Report (HTML / JSON output)
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What happened? What did you expect to happen?
+      placeholder: |
+        **What happened:**
+        The judge returned PASS for a response that clearly contained leaked PII.
+
+        **What I expected:**
+        The judge should have returned FAIL with evidence pointing to the PII.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Minimal steps to reproduce the bug. Include the command you ran and the config (redact API keys).
+      placeholder: |
+        1. `opfor setup --agent --empty`
+        2. Edit config to select `pii-direct` evaluator
+        3. `opfor run --config .opfor/configs/opfor-config-*.json`
+        4. Observe the report — false PASS on attack #2
+    validations:
+      required: true
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Config file (redacted)
+      description: Paste your `opfor.config.json` or generated config. **Remove all API keys and secrets.**
+      render: json
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output
+      description: Paste any error messages or relevant terminal output.
+      render: shell
+
+  - type: input
+    id: version
+    attributes:
+      label: Opfor version
+      description: Run `opfor --version` or check `package.json`.
+      placeholder: "0.1.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS
+        - Linux
+        - Windows (WSL)
+        - Windows
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: node-version
+    attributes:
+      label: Node.js version
+      description: Run `node --version`.
+      placeholder: "v20.11.0"
+
+  - type: dropdown
+    id: llm-provider
+    attributes:
+      label: LLM provider
+      description: Which provider are you using for the attacker/judge LLM?
+      options:
+        - OpenAI
+        - Anthropic
+        - Google
+        - Groq
+        - DeepSeek
+        - Azure OpenAI
+        - OpenAI-compatible (LiteLLM, OpenRouter, Ollama, etc.)
+        - N/A
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Anything else that might help — screenshots, report snippets, related issues.

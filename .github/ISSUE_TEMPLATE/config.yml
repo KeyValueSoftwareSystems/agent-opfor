@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation
+    url: https://github.com/KeyValueSoftwareSystems/agent-opfor/tree/master/docs
+    about: Check the docs before opening an issue — your question may already be answered.
+  - name: Contributing Guide
+    url: https://github.com/KeyValueSoftwareSystems/agent-opfor/blob/master/CONTRIBUTING.md
+    about: Want to add an evaluator, suite, or code contribution? Start here.

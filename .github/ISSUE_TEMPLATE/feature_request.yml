@@ -1,0 +1,70 @@
+name: Feature Request
+description: Suggest a new feature or improvement for Opfor
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have an idea to make Opfor better? Describe what you'd like and why it matters.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which area does this feature relate to?
+      options:
+        - CLI
+        - Autonomous mode (`opfor hunt`)
+        - MCP Server
+        - Browser Extension
+        - SDK
+        - Evaluators / Attack coverage
+        - Judge / Scoring
+        - Report output
+        - Telemetry / Observability
+        - New target adapter (transport)
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or motivation
+      description: What problem does this solve? Why is this needed?
+      placeholder: |
+        I'm trying to test my agent against SSRF attacks, but there's no evaluator
+        that covers server-side request forgery via tool-calling agents.
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: How should this work? Include CLI commands, config examples, or API sketches if relevant.
+      placeholder: |
+        Add an `ssrf` evaluator under `evaluators/agent/injection/` with patterns
+        that attempt to make the agent fetch internal URLs (169.254.169.254, localhost, etc.).
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Have you considered other approaches? Why is the proposed solution better?
+
+  - type: dropdown
+    id: willing-to-contribute
+    attributes:
+      label: Would you like to contribute this?
+      description: We welcome PRs! See [CONTRIBUTING.md](https://github.com/KeyValueSoftwareSystems/agent-opfor/blob/master/CONTRIBUTING.md).
+      options:
+        - "Yes — I'd like to submit a PR"
+        - "Yes — but I'd need guidance"
+        - "No — just suggesting"
+    validations:
+      required: true
