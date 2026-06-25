@@ -220,5 +220,5 @@ Opfor is licensed under Apache 2.0 — see the [LICENSE](LICENSE) file for detai
 ---
 
 <p align="center">
-  Built with ❤️ by <a href="https://keyvalue.systems">KeyValue</a>
+  Built with ❤️ by the <a href="https://keyvalue.systems">KeyValue</a> team, from India.
 </p>
