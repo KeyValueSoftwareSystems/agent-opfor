@@ -52,6 +52,8 @@ opfor setup                               # wizard saves a config to .opfor/conf
 opfor run --config .opfor/configs/<file>  # run any time against the saved config
 ```
 
+https://github.com/user-attachments/assets/a6a3cff2-2cf9-4486-944e-ac0163e7ea04
+
 ## What opfor does
 
 Opfor red-teams the full AI agent surface — prompts, tools, MCP servers, memory, and multi-turn reasoning. It generates targeted attacks for OWASP LLM Top 10, OWASP Agentic AI Top 10, OWASP MCP Top 10, OWASP API Security, and EU AI Act bias suites, fires them at your target, and judges each response with an LLM.
