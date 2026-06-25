@@ -23,7 +23,7 @@ Same evaluator catalog as the CLI — see [evaluators reference](evaluators.md).
 
 ## Install
 
-1. Open the [OPFOR listing on the Chrome Web Store](https://chromewebstore.google.com/).
+1. Open the [OPFOR listing on the Chrome Web Store](https://chromewebstore.google.com/detail/blkflfeicejfnbecanjaolbllmoobenp).
 2. Click **Add to Chrome**.
 3. Pin the OPFOR icon to your toolbar.
 
