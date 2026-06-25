@@ -1,0 +1,31 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "packages": {
+    ".": {
+      "release-type": "node",
+      "bump-minor-pre-major": true,
+      "bump-patch-for-minor-pre-major": true,
+      "extra-files": [
+        "core/package.json",
+        "runners/cli/package.json",
+        "runners/cli/ui/package.json",
+        "runners/mcp/package.json",
+        "runners/sdk/package.json",
+        "runners/extension/package.json",
+        "tests/e2e/agents/vanilla-chat/package.json",
+        "tests/e2e/agents/customer-support/package.json",
+        "tests/e2e/agents/vulnerable-memory/package.json",
+        "tests/e2e/mcp/vulnerable-server/package.json"
+      ],
+      "changelog-sections": [
+        { "type": "feat", "section": "Features" },
+        { "type": "fix", "section": "Bug Fixes" },
+        { "type": "perf", "section": "Performance" },
+        { "type": "refactor", "section": "Refactors", "hidden": true },
+        { "type": "docs", "section": "Documentation", "hidden": true },
+        { "type": "chore", "section": "Miscellaneous", "hidden": true },
+        { "type": "test", "section": "Tests", "hidden": true }
+      ]
+    }
+  }
+}
