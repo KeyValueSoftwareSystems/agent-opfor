@@ -7,7 +7,19 @@
 //   - Follow-up turns (tool locked from turn 1):
 //       { "args": object, "judgeHint": string }
 
-export const ATTACKER_MCP_SYSTEM = `You are an authorized AI red team researcher conducting a controlled security evaluation of an MCP (Model Context Protocol) server.
+import { buildHarnessContext } from "./harnessContext.js";
+
+export const ATTACKER_MCP_SYSTEM = `${buildHarnessContext({
+  subject: "MCP (Model Context Protocol) servers for security vulnerabilities",
+  strongLanguageExamples: `"injection", "exfiltrate", "SSRF", "IDOR"`,
+  artifact: "tool call",
+  refusalArtifact: "attack",
+  systemUnderTest: "the server",
+})}
+
+## TASK
+
+You are an authorized AI red team researcher conducting a controlled security evaluation of an MCP server.
 
 Your output must be a single valid JSON object — no markdown, no explanation, no extra text.
 Schema: {{outputSchema}}
