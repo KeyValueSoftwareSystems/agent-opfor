@@ -19,6 +19,9 @@ export function getThreadTool(ctx: RunContext) {
       if (!thread) {
         return textResult(`No thread "${args.threadId}".`, true);
       }
+      // Wrap target responses in untrusted-data delimiters to reinforce that
+      // content from the target is DATA, not instructions. This is a defense
+      // against adversarial targets attempting prompt injection on the hunt agent.
       return jsonResult({
         threadId: thread.threadId,
         vulnClassId: thread.vulnClassId,
@@ -30,7 +33,10 @@ export function getThreadTool(ctx: RunContext) {
           persona: t.persona,
           strategy: t.strategy,
           prompt: t.prompt,
-          response: t.response,
+          response:
+            t.isError || !t.response
+              ? t.response
+              : `<untrusted_target_output>\n${t.response}\n</untrusted_target_output>`,
           score: t.score,
           isError: t.isError,
         })),

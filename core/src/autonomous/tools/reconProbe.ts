@@ -77,8 +77,16 @@ export function reconProbeTool(ctx: RunContext) {
         data: { turnIndex, isError: result.isError, rateLimited: result.rateLimited },
       });
 
+      // Wrap target response in untrusted-data delimiters to reinforce that
+      // content from the target is DATA, not instructions. This is a defense
+      // against adversarial targets attempting prompt injection on the hunt agent.
+      const wrappedResponse =
+        result.isError || result.rateLimited
+          ? result.response
+          : `<untrusted_target_output>\n${result.response}\n</untrusted_target_output>`;
+
       return jsonResult({
-        response: result.response,
+        response: wrappedResponse,
         isError: result.isError,
         rateLimited: result.rateLimited,
         errorMessage: result.errorMessage,
