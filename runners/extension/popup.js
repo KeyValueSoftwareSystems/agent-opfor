@@ -537,7 +537,7 @@ async function loadSettings() {
   const s = stored[POPUP_SETTINGS_KEY] || {};
   Object.assign(state, {
     scrapeFromSite: true,
-    maxTurns: clamp(Number(s.maxTurns) || 10, 1, 20),
+    maxTurns: clamp(Number(s.maxTurns) || 10, 1, 50),
     waitSec: clamp(Number(s.waitSec) || 10, 3, 30),
     messageCharLimit: clamp(Math.round((Number(s.messageCharLimit) || 500) / 50) * 50, 100, 1500),
     attackObjective: s.attackObjective ?? "",
@@ -3036,7 +3036,7 @@ function wire() {
   $("advDoneBtn").addEventListener("click", closeAdvanced);
 
   // Steppers
-  bindStepper("maxTurns", "maxTurnsValue", "maxTurns", 1, 20);
+  bindStepper("maxTurns", "maxTurnsValue", "maxTurns", 1, 50);
   bindStepper("waitSec", "waitSecValue", "waitSec", 3, 30);
   bindStepper("messageCharLimit", "messageCharLimitValue", "messageCharLimit", 100, 1500);
 

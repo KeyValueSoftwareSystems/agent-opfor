@@ -411,7 +411,7 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
       }
       if (!tab?.id) throw new Error("No active tab found.");
 
-      maxRounds = Math.max(1, Math.min(20, Number(message.maxRounds ?? message.turns ?? 10)));
+      maxRounds = Math.max(1, Math.min(50, Number(message.maxRounds ?? message.turns ?? 10)));
       waitMs = Math.max(3000, Math.min(30000, Number(message.waitMs || 10000)));
       attackObjective = String(message.attackObjective || "").trim();
       scrapeFromSite = message.scrapeFromSite !== false;
