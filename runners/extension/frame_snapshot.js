@@ -21,8 +21,77 @@
     "menuitem",
     "option",
   ]);
-  const MIN_MSG = 20;
-  const MAX_MSG = 1000;
+  // Lowered from 20 → 2 so terse bot replies ("Done.", "Order #4521 shipped.")
+  // are captured instead of being silently dropped. MAX raised to a large sanity
+  // bound because per-message granularity now comes from block-structure (see
+  // collectText), not an arbitrary character cap.
+  const MIN_MSG = 2;
+  const MAX_MSG = 20000;
+
+  // Inline tags never count as block-level message containers — their text is
+  // part of the surrounding block, so we must NOT recurse past their parent
+  // (that would lose the plain-text siblings around <strong>, <a>, etc.).
+  const INLINE_TAGS = new Set([
+    "a",
+    "b",
+    "i",
+    "em",
+    "strong",
+    "span",
+    "code",
+    "small",
+    "sub",
+    "sup",
+    "mark",
+    "u",
+    "s",
+    "abbr",
+    "cite",
+    "q",
+    "time",
+    "label",
+    "kbd",
+    "samp",
+    "var",
+    "wbr",
+    "bdi",
+    "bdo",
+    "del",
+    "ins",
+    "br",
+    "img",
+    "svg",
+    "picture",
+  ]);
+
+  function isBlockish(el) {
+    const tag = el.tagName?.toLowerCase();
+    if (tag && INLINE_TAGS.has(tag)) return false;
+    try {
+      const d = window.getComputedStyle(el).display;
+      return !(d === "inline" || d === "inline-block" || d === "contents" || d === "none");
+    } catch {
+      return true; // assume block when style is unavailable
+    }
+  }
+
+  // Count block-level child elements that carry their own text. ≥1 means this node
+  // is a CONTAINER of sub-blocks (transcript, message list, message row) and we
+  // should recurse into it; 0 means it's a leaf text block (a single message /
+  // paragraph) safe to capture as one node. This is what stops a short transcript
+  // from collapsing into a single mega-node (which broke the diff + echo filter).
+  function blockTextChildren(node) {
+    let n = 0;
+    for (const c of node.children || []) {
+      if (!isBlockish(c)) continue;
+      const t = (c.textContent || "").replace(/\s+/g, " ").trim();
+      if (t.length >= MIN_MSG) {
+        n++;
+        if (n >= 1) break;
+      }
+    }
+    return n;
+  }
 
   // ── Text collector (shared by both fast and full paths) ──────────────────────
   function collectText(node, depth, out) {
@@ -46,7 +115,9 @@
       const role = (node.getAttribute?.("role") || "").toLowerCase();
       if (SKIP_ROLES.has(role)) return;
       const text = (node.textContent || "").replace(/\s+/g, " ").trim();
-      if (text.length >= MIN_MSG && text.length <= MAX_MSG) {
+      // Capture only LEAF text blocks (no block-level child carries its own text).
+      // Containers fall through and recurse, so each message becomes its own node.
+      if (text.length >= MIN_MSG && text.length <= MAX_MSG && blockTextChildren(node) === 0) {
         out.push(text);
         return;
       }
@@ -75,18 +146,38 @@
     };
   }
 
-  // ── Fast path: reuse selector from previous full scan ────────────────────────
+  // ── Fast path: reuse the container from a previous full scan ─────────────────
+  // Prefer a direct reference to the element over re-running querySelector on a
+  // cached string. String selectors are brittle: hashed/CSS-module class names,
+  // dynamic ids (radix-:r3:, which is also invalid CSS and throws), and
+  // first-match ambiguity all make the string resolve to the wrong element or
+  // none. Holding the node itself is stable until the framework re-renders it.
+  const cachedEl = globalThis.__OPFOR_CONTAINER_EL__;
+  if (cachedEl && cachedEl.isConnected) {
+    try {
+      const result = snapshotEl(cachedEl, globalThis.__OPFOR_CONTAINER_SEL__ || "");
+      if (result.nodeCount > 0) return result;
+      // Element still present but empty — fall through to full scan.
+    } catch {
+      /* swallowed */
+    }
+  }
+
+  // Secondary fast path: the cached selector string (used when the page-world
+  // element ref was lost, e.g. seeded by the orchestrator across calls).
   const cachedSel = globalThis.__OPFOR_CONTAINER_SEL__;
   if (cachedSel) {
     try {
       const el = document.querySelector(cachedSel);
       if (el) {
         const result = snapshotEl(el, cachedSel);
-        if (result.nodeCount > 0) return result;
-        // Container found but empty — fall through to full scan
+        if (result.nodeCount > 0) {
+          globalThis.__OPFOR_CONTAINER_EL__ = el;
+          return result;
+        }
       }
     } catch {
-      /* swallowed */
+      /* swallowed (invalid/dynamic selector) — fall through to full scan */
     }
   }
 
@@ -216,14 +307,18 @@
 
   const best = candidates[0].el;
 
-  // Build selector and cache it for fast subsequent polls
+  // Cache the element itself for fast subsequent polls (stable across re-renders
+  // that only change attributes). Keep a best-effort selector string as backup.
   let sel = best.tagName.toLowerCase();
-  if (best.id) {
+  if (best.id && /^[A-Za-z][\w-]*$/.test(best.id)) {
+    // Only use #id when it's a static, valid CSS identifier (skip dynamic ids
+    // like "radix-:r3:" / ":r0:" that change per render and break querySelector).
     sel = "#" + best.id;
   } else if (typeof best.className === "string" && best.className.trim()) {
     const parts = best.className.trim().split(/\s+/).slice(0, 2);
     sel = best.tagName.toLowerCase() + "." + parts.join(".");
   }
+  globalThis.__OPFOR_CONTAINER_EL__ = best;
   globalThis.__OPFOR_CONTAINER_SEL__ = sel;
 
   const result = snapshotEl(best, sel);

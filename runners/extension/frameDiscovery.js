@@ -13,6 +13,9 @@ export async function collectFrames(tabId) {
       frameUrl: r.result?.frameUrl,
       inputCount: r.result?.inputCount ?? 0,
       chatScore: r.result?.chatScore ?? 0,
+      bestInputSelector: r.result?.bestInputSelector ?? "",
+      bestInputScore: r.result?.bestInputScore ?? 0,
+      bestSendSelector: r.result?.bestSendSelector ?? "",
     }))
     .filter((f) => typeof f.snapshot === "string" && f.snapshot.length > 0);
 }
@@ -57,11 +60,7 @@ export async function pickChatFrame(tabId) {
   const frames = await collectFrames(tabId);
   if (!frames.length) throw new Error("No frames collected.");
 
-  frames.sort((a, b) => {
-    const boost = embeddedChatBoost(b) - embeddedChatBoost(a);
-    if (boost !== 0) return boost;
-    return (b.chatScore || 0) - (a.chatScore || 0) || (b.inputCount || 0) - (a.inputCount || 0);
-  });
+  frames.sort(sortByChatRelevance);
   return { frames, best: frames[0] };
 }
 
@@ -74,14 +73,25 @@ export async function pickChatFrameWithRetry(tabId, { maxRetries = 6, intervalMs
   for (let i = 0; i < maxRetries; i++) {
     await sleep(i === 0 ? 600 : intervalMs);
     frames = await collectFrames(tabId);
-    if (frames.some((f) => (f.chatScore || 0) > 0)) break;
+    // Wait for the chat INPUT itself, not merely a chat signal. chatScore can go
+    // positive from container markup while the composer is still mounting (open
+    // animation, lazy render, input shown only after a greeting) — breaking on
+    // chatScore alone snapshots too early and misses the input.
+    if (frames.some((f) => (f.bestInputScore || 0) > 0)) break;
   }
   if (!frames.length) throw new Error("No frames collected.");
 
-  frames.sort((a, b) => {
-    const boost = embeddedChatBoost(b) - embeddedChatBoost(a);
-    if (boost !== 0) return boost;
-    return (b.chatScore || 0) - (a.chatScore || 0) || (b.inputCount || 0) - (a.inputCount || 0);
-  });
+  frames.sort(sortByChatRelevance);
   return { frames, best: frames[0] };
+}
+
+// Shared ranking: embedded-chat URL boost, then a real input, then chat signal.
+function sortByChatRelevance(a, b) {
+  const boost = embeddedChatBoost(b) - embeddedChatBoost(a);
+  if (boost !== 0) return boost;
+  return (
+    (b.bestInputScore || 0) - (a.bestInputScore || 0) ||
+    (b.chatScore || 0) - (a.chatScore || 0) ||
+    (b.inputCount || 0) - (a.inputCount || 0)
+  );
 }

@@ -12,6 +12,17 @@ function escapeCssValue(v) {
   return String(v).replace(/["\\]/g, "\\$&");
 }
 
+function nthOfTypeSelector(el) {
+  const tag = el.tagName.toLowerCase();
+  const parent = el.parentElement || el.getRootNode?.()?.host?.shadowRoot;
+  const siblings = parent ? Array.from(parent.children || []) : [];
+  const sameTag = siblings.filter((c) => c.tagName === el.tagName);
+  if (sameTag.length <= 1) return tag;
+  const idx = sameTag.indexOf(el);
+  // :nth-of-type is 1-based among same-type element siblings — equals our index+1.
+  return idx >= 0 ? `${tag}:nth-of-type(${idx + 1})` : tag;
+}
+
 function selectorFromEl(el) {
   if (!(el instanceof Element)) return null;
   const testid = el.getAttribute("data-testid");
@@ -19,10 +30,13 @@ function selectorFromEl(el) {
   const aria = el.getAttribute("aria-label");
   if (aria) return `${el.tagName.toLowerCase()}[aria-label="${escapeCssValue(aria)}"]`;
   const id = el.getAttribute("id");
-  if (id) return `#${escapeCssValue(id)}`;
+  // Skip dynamic ids (e.g. "radix-:r3:") that aren't valid/stable CSS identifiers.
+  if (id && /^[A-Za-z][\w-]*$/.test(id)) return `#${escapeCssValue(id)}`;
   const name = el.getAttribute("name");
   if (name) return `${el.tagName.toLowerCase()}[name="${escapeCssValue(name)}"]`;
-  return el.tagName.toLowerCase();
+  // No stable attribute — fall back to a positional selector so we don't return a
+  // bare tag that matches (and later actuates) the wrong element.
+  return nthOfTypeSelector(el);
 }
 
 function getShadowRoot(el) {
@@ -602,6 +616,15 @@ function collectSanitizedDomSnapshot() {
       return true;
     });
 
+  // Track the single best non-search input deterministically, so callers can use
+  // the heuristic directly instead of relying on a (non-deterministic) LLM pick.
+  let bestInput = null;
+  for (const el of inputs) {
+    if (looksLikeSiteSearch(el)) continue;
+    const sc = scoreInput(el);
+    if (!bestInput || sc > bestInput.score) bestInput = { el, score: sc };
+  }
+
   lines.push("");
   lines.push("CANDIDATE_INPUTS:");
   for (const el of inputs.slice(0, 40)) {
@@ -700,13 +723,16 @@ function collectSanitizedDomSnapshot() {
 
   lines.push("");
   lines.push("CANDIDATE_BUTTONS:");
+  let bestSendSelector = "";
   for (const el of buttons) {
     const aria = (el.getAttribute?.("aria-label") || "").toLowerCase();
     const text = (el.textContent || "").trim().toLowerCase();
     const looksLikeSend =
       aria.includes("send") || text === "send" || text.includes("send") || text.includes("submit");
+    const selStr = deepPathSelector(el);
+    if (looksLikeSend && !bestSendSelector) bestSendSelector = selStr;
     lines.push(
-      `- ${looksLikeSend ? "sendish=1" : "sendish=0"} selector="${deepPathSelector(el)}" ${describeEl(el)}`
+      `- ${looksLikeSend ? "sendish=1" : "sendish=0"} selector="${selStr}" ${describeEl(el)}`
     );
   }
 
@@ -744,6 +770,10 @@ function collectSanitizedDomSnapshot() {
     snapshot: lines.join("\n").slice(0, 60_000),
     inputCount: inputs.length,
     chatScore,
+    // Deterministic best chat input + send button for this frame (no LLM needed).
+    bestInputSelector: bestInput ? deepPathSelector(bestInput.el) : "",
+    bestInputScore: bestInput ? bestInput.score : 0,
+    bestSendSelector,
   };
 }
 

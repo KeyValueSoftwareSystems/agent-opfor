@@ -28,16 +28,20 @@ function diffTextNodes(pre, post) {
   let i = 0;
   while (i < preNorm.length && i < postNorm.length && preNorm[i] === postNorm[i]) i++;
 
-  const candidates = post.slice(i);
-  const preNormSet = new Set(preNorm);
-  const filtered = candidates.filter((t) => !preNormSet.has(stripLeadingTimestamp(t)));
-  const result = filtered.length > 0 ? filtered : candidates;
-
-  if (result.length > post.length * 0.8 && post.length > 5) {
-    const fullFiltered = post.filter((t) => !preNormSet.has(stripLeadingTimestamp(t)));
-    return { text: fullFiltered.join("\n") };
+  // Clean append: the common prefix covered every prior node, so the new nodes
+  // are exactly the appended tail. Use this POSITIONAL diff directly — do NOT
+  // value-filter against the whole prior transcript, or a reply that repeats an
+  // earlier message verbatim (e.g. the same canned answer on two turns) gets
+  // deduped away, leaving only the user echo → "could not extract".
+  if (i >= preNorm.length) {
+    return { text: post.slice(i).join("\n") };
   }
-  return { text: result.join("\n") };
+
+  // Prefix diverged (full re-render / reordered / virtualized transcript): fall
+  // back to a value diff — surface post nodes whose text isn't present in pre.
+  const preSet = new Set(preNorm);
+  const valueNew = post.filter((t) => !preSet.has(stripLeadingTimestamp(t)));
+  return { text: (valueNew.length ? valueNew : post.slice(i)).join("\n") };
 }
 
 // ── Scan all frames, return the best container snapshot ───────────────────────
@@ -58,24 +62,47 @@ async function scanBestFrame(tabId) {
   return iframeHits.length > 0 ? iframeHits[0] : hits[0] || null;
 }
 
+// Snapshot one specific frame (the frame the message is actually sent into).
+async function snapshotFrame(tabId, frameId) {
+  const results = await chrome.scripting.executeScript({
+    target: { tabId, frameIds: [frameId] },
+    files: ["frame_snapshot.js"],
+  });
+  const r = results?.[0];
+  return r?.result ? { frameId: r.frameId, ...r.result } : null;
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
 /**
  * Take a pre-send snapshot of the chat container.
  * Returns an object suitable for passing as prevSnapshot to extractResponse.
  */
-export async function snapshotCurrentResponse(tabId, _frameId) {
+export async function snapshotCurrentResponse(tabId, frameId) {
+  const empty = (containerFrameId) => ({
+    text: "",
+    messageCount: 0,
+    botCount: 0,
+    textNodes: [],
+    nodeCount: 0,
+    containerFrameId,
+  });
   try {
-    const snap = await scanBestFrame(tabId);
-    if (!snap)
-      return {
-        text: "",
-        messageCount: 0,
-        botCount: 0,
-        textNodes: [],
-        nodeCount: 0,
-        containerFrameId: null,
-      };
+    // Anchor the response read to the SAME frame the message is sent into. The
+    // response always appears in the send frame's transcript, so reading from a
+    // different (higher-"scoring") iframe is the main cause of missed replies.
+    // Only when no send frame is known do we fall back to scanning all frames.
+    let snap = null;
+    const hasFrame = frameId !== null && frameId !== undefined;
+    if (hasFrame) {
+      snap = await snapshotFrame(tabId, frameId);
+      // Send frame has no chat container yet (e.g. empty transcript on turn 1):
+      // still anchor reads to it — polling picks up the container once a reply renders.
+      if (!snap?.ok) return empty(frameId);
+    } else {
+      snap = await scanBestFrame(tabId);
+      if (!snap) return empty(null);
+    }
     return {
       text: snap.fullText || "",
       messageCount: snap.nodeCount,
@@ -84,19 +111,16 @@ export async function snapshotCurrentResponse(tabId, _frameId) {
       nodeCount: snap.nodeCount,
       fullText: snap.fullText,
       lastNodeText: snap.lastNodeText,
-      containerFrameId: snap.frameId,
+      containerFrameId: snap.frameId ?? (hasFrame ? frameId : null),
       containerSel: snap.sel,
     };
   } catch {
-    return {
-      text: "",
-      messageCount: 0,
-      botCount: 0,
-      textNodes: [],
-      nodeCount: 0,
-      containerFrameId: null,
-    };
+    return empty(hasFrameIdSafe(frameId));
   }
+}
+
+function hasFrameIdSafe(frameId) {
+  return frameId === null || frameId === undefined ? null : frameId;
 }
 
 /**
@@ -269,7 +293,12 @@ export async function extractResponse(tabId, frameId, lastUserText = "", prevSna
     if (stableCount >= neededStable) {
       const { text: rawDiff } = diffTextNodes(baseTextNodes, snap.textNodes);
       const diffLines = rawDiff.split("\n").filter((l) => l.trim());
-      const botLines = diffLines.filter((l) => !isUserEcho(l) && !isTypingIndicator(l));
+      // Drop pure-timestamp lines (e.g. message-bubble "3:45 PM" footers) that now
+      // surface as their own nodes — they strip to empty and aren't real reply text.
+      const isTimestampOnly = (l) => stripLeadingTimestamp(l).trim() === "";
+      const botLines = diffLines.filter(
+        (l) => !isUserEcho(l) && !isTypingIndicator(l) && !isTimestampOnly(l)
+      );
 
       if (botLines.length > 0) {
         return {
