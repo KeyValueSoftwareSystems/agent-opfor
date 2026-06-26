@@ -23,13 +23,13 @@
     "node": ">=18.0.0"
   },
   "scripts": {
-    "build": "npm run build:catalog && tsc -b core runners/cli runners/mcp runners/sdk && npm run build:ui && npm run extension:catalog && npm run build:core --workspace=@agent-opfor/extension",
+    "build": "npm run build:catalog && tsc -b core runners/cli runners/mcp runners/sdk && npm run build:ui && npm run extension:catalog && npm run build:core --workspace=@keyvaluesystems/agent-opfor-extension",
     "build:ui": "cd runners/cli/ui && npm install && npm run build",
     "clean": "rm -rf core/dist runners/*/dist core/*.tsbuildinfo runners/*/*.tsbuildinfo",
     "install:cli": "npm run build && npm install -g ./runners/cli",
     "test": "npm test --workspace=core",
     "typecheck": "tsc -b core runners/cli runners/mcp runners/sdk",
-    "extension:catalog": "npm run build:catalog --workspace=@agent-opfor/extension",
+    "extension:catalog": "npm run build:catalog --workspace=@keyvaluesystems/agent-opfor-extension",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
@@ -37,6 +37,7 @@
     "validate:skills": "tsx scripts/validate-skills.ts",
     "build:catalog": "tsx scripts/build-catalog.ts",
     "build:catalog:check": "tsx scripts/build-catalog.ts --check",
+    "smoke:pack": "tsx scripts/smoke-pack.ts",
     "new:evaluator": "tsx scripts/new-evaluator.ts",
     "coverage:atlas": "tsx scripts/generate-atlas-coverage.ts",
     "report:pdf": "tsx scripts/generate-pdf-report.ts",

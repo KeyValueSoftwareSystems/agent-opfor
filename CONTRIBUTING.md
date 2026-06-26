@@ -456,7 +456,7 @@ Only submit findings for systems you are authorized to test, or where you have c
 ### Project structure
 
 ```
-core/                       ← @agent-opfor/core — shared engine (npm workspace)
+core/                       ← @keyvaluesystems/agent-opfor-core — shared engine (npm workspace)
   src/
     autonomous/             ← autonomous red-teaming orchestration (opfor hunt)
     catalog/                ← evaluator/suite discovery + loading
@@ -473,9 +473,9 @@ core/                       ← @agent-opfor/core — shared engine (npm workspa
     targets/                ← agent + MCP target adapters
     telemetry/              ← Langfuse + Netra adapters
 runners/
-  cli/                      ← @agent-opfor/cli — `opfor setup`, `opfor run`, `opfor hunt`
-  mcp/                      ← @agent-opfor/mcp — opfor as an MCP server
-  sdk/                      ← @agent-opfor/sdk — programmatic SDK for embedding
+  cli/                      ← @keyvaluesystems/agent-opfor-cli — `opfor setup`, `opfor run`, `opfor hunt`
+  mcp/                      ← @keyvaluesystems/agent-opfor-mcp — opfor as an MCP server
+  sdk/                      ← @keyvaluesystems/agent-opfor-sdk — programmatic SDK for embedding
   extension/                ← Chrome MV3 browser extension
 evaluators/
   agent/                      ← agent evaluators by category

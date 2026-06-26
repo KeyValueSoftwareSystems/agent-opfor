@@ -1,5 +1,5 @@
 {
-  "name": "@agent-opfor/core",
+  "name": "@keyvaluesystems/agent-opfor-core",
   "version": "0.9.0",
   "description": "Opfor core engine — attacker prompt generation, judge, and execution shared by all runners",
   "license": "Apache-2.0",
@@ -81,15 +81,17 @@
     "src",
     "evaluators",
     "suites",
-    "skills"
+    "skills",
+    "atlas-data",
+    "data"
   ],
   "sideEffects": false,
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --import tsx/esm --test tests/*.test.ts",
-    "prepack": "cp -r ../evaluators ./evaluators && cp -r ../suites ./suites && cp -r ../skills ./skills",
-    "postpack": "rm -rf ./evaluators ./suites ./skills"
+    "prepack": "cp -r ../evaluators ./evaluators && cp -r ../suites ./suites && cp -r ../skills ./skills && cp -r ../runners/cli/data ./data && mkdir -p ./atlas-data && cp ../third_party/atlas-data/dist/ATLAS.yaml ./atlas-data/ATLAS.yaml",
+    "postpack": "rm -rf ./evaluators ./suites ./skills ./data ./atlas-data"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^2.0.77",

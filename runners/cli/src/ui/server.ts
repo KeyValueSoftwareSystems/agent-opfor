@@ -8,13 +8,13 @@ import { createWriteStream, type WriteStream } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { exec } from "node:child_process";
 import express from "express";
-import type { RunLog } from "@agent-opfor/core/autonomous/state/runLog.js";
+import type { RunLog } from "@keyvaluesystems/agent-opfor-core/autonomous/state/runLog.js";
 import type {
   HuntOptions,
   TargetConfig,
   TargetMode,
-} from "@agent-opfor/core/autonomous/lib/types.js";
-import type { RunEvent } from "@agent-opfor/core/autonomous/state/observe.js";
+} from "@keyvaluesystems/agent-opfor-core/autonomous/lib/types.js";
+import type { RunEvent } from "@keyvaluesystems/agent-opfor-core/autonomous/state/observe.js";
 import { UiBridge, type SseClient } from "./bridge.js";
 import type { SnapshotMeta } from "./snapshot.js";
 
@@ -295,9 +295,10 @@ async function runAssessmentInProcess(
   bridge: UiBridge,
   onLog?: (line: string) => void
 ): Promise<string | undefined> {
-  const { runAutonomous } = await import("@agent-opfor/core/autonomous/orchestrator/run.js");
+  const { runAutonomous } =
+    await import("@keyvaluesystems/agent-opfor-core/autonomous/orchestrator/run.js");
   const { writeAutonomousReport } =
-    await import("@agent-opfor/core/autonomous/report/writeReport.js");
+    await import("@keyvaluesystems/agent-opfor-core/autonomous/report/writeReport.js");
 
   // Set up output directory and log files
   await mkdir(autoOptions.outputDir, { recursive: true });

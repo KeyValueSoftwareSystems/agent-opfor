@@ -1,12 +1,12 @@
 import type { Command } from "commander";
 import path from "node:path";
 import { readFile } from "node:fs/promises";
-import { log } from "@agent-opfor/core/lib/logger.js";
-import { runAll } from "@agent-opfor/core/execute/runAll.js";
-import { writeReport } from "@agent-opfor/core/report/buildReport.js";
-import type { RunConfig } from "@agent-opfor/core/execute/types.js";
-import { parseRunConfig } from "@agent-opfor/core/config/schema.js";
-import { normalizeEffort } from "@agent-opfor/core/execute/effortCompat.js";
+import { log } from "@keyvaluesystems/agent-opfor-core/lib/logger.js";
+import { runAll } from "@keyvaluesystems/agent-opfor-core/execute/runAll.js";
+import { writeReport } from "@keyvaluesystems/agent-opfor-core/report/buildReport.js";
+import type { RunConfig } from "@keyvaluesystems/agent-opfor-core/execute/types.js";
+import { parseRunConfig } from "@keyvaluesystems/agent-opfor-core/config/schema.js";
+import { normalizeEffort } from "@keyvaluesystems/agent-opfor-core/execute/effortCompat.js";
 import { runSetupAndWrite } from "./setup.js";
 import { ensureOpforDirs, OPFOR_DIR, OPFOR_REPORTS_DIR } from "../lib/artifacts.js";
 

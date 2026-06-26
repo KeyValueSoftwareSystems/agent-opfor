@@ -1,8 +1,8 @@
 // Bridges ProgressReporter callbacks to SSE clients and maintains run state for REST snapshots.
 
-import type { ProgressReporter } from "@agent-opfor/core/autonomous/state/hooks.js";
-import type { RunEvent } from "@agent-opfor/core/autonomous/state/observe.js";
-import type { RunLog } from "@agent-opfor/core/autonomous/state/runLog.js";
+import type { ProgressReporter } from "@keyvaluesystems/agent-opfor-core/autonomous/state/hooks.js";
+import type { RunEvent } from "@keyvaluesystems/agent-opfor-core/autonomous/state/observe.js";
+import type { RunLog } from "@keyvaluesystems/agent-opfor-core/autonomous/state/runLog.js";
 import { serializeRunLog, type SnapshotMeta, type UiRunState } from "./snapshot.js";
 
 export type SsePayload =

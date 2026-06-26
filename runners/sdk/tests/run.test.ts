@@ -14,7 +14,7 @@ import { test, after, before, describe } from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import type { Server } from "node:http";
-import { setEnvProvider } from "@agent-opfor/core/lib/env.js";
+import { setEnvProvider } from "@keyvaluesystems/agent-opfor-core/lib/env.js";
 
 // Set fake env before importing SDK (which imports core)
 setEnvProvider(() => "fake-test-api-key");

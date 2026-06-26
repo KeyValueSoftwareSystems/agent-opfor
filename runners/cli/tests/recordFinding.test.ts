@@ -1,12 +1,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { recordFindingTool } from "@agent-opfor/core/autonomous/tools/recordFinding.js";
-import { BudgetGuard } from "@agent-opfor/core/autonomous/lib/budget.js";
-import { SessionGate } from "@agent-opfor/core/lib/sessionGate.js";
-import { createRunLog, getOrCreateThread } from "@agent-opfor/core/autonomous/state/runLog.js";
-import type { RunContext } from "@agent-opfor/core/autonomous/orchestrator/context.js";
-import type { HuntOptions } from "@agent-opfor/core/autonomous/lib/types.js";
-import type { VulnClass } from "@agent-opfor/core/autonomous/knowledge/types.js";
+import { recordFindingTool } from "@keyvaluesystems/agent-opfor-core/autonomous/tools/recordFinding.js";
+import { BudgetGuard } from "@keyvaluesystems/agent-opfor-core/autonomous/lib/budget.js";
+import { SessionGate } from "@keyvaluesystems/agent-opfor-core/lib/sessionGate.js";
+import {
+  createRunLog,
+  getOrCreateThread,
+} from "@keyvaluesystems/agent-opfor-core/autonomous/state/runLog.js";
+import type { RunContext } from "@keyvaluesystems/agent-opfor-core/autonomous/orchestrator/context.js";
+import type { HuntOptions } from "@keyvaluesystems/agent-opfor-core/autonomous/lib/types.js";
+import type { VulnClass } from "@keyvaluesystems/agent-opfor-core/autonomous/knowledge/types.js";
 
 function ctxWith(): RunContext {
   const log = createRunLog({

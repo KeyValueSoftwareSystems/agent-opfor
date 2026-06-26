@@ -1,4 +1,4 @@
-// Browser-safe entry for @agent-opfor/core. Re-exports only the parts of the engine
+// Browser-safe entry for @keyvaluesystems/agent-opfor-core. Re-exports only the parts of the engine
 // that are reachable from a Chrome MV3 extension or any other non-Node runtime.
 //
 // What's IN: attacker prompt generation, multi-turn escalation, judge logic,

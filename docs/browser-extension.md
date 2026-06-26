@@ -37,7 +37,7 @@ For contributors or testing unreleased changes:
 git clone https://github.com/KeyValueSoftwareSystems/agent-opfor.git
 cd opfor
 npm install
-npm run build:catalog --workspace=@agent-opfor/extension
+npm run build:catalog --workspace=@keyvaluesystems/agent-opfor-extension
 ```
 
 Then `chrome://extensions` → enable **Developer mode** → **Load unpacked** → select the `runners/extension/` folder.

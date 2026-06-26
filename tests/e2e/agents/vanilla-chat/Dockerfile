@@ -7,7 +7,7 @@ COPY package.json package-lock.json ./
 COPY tests/e2e/agents/vanilla-chat/package.json ./tests/e2e/agents/vanilla-chat/
 
 # Install only this workspace package's deps (devDependencies included — needed at runtime via tsx)
-RUN npm install --workspace=@agent-opfor/test-agent-vanilla-chat --ignore-scripts
+RUN npm install --workspace=@keyvaluesystems/agent-opfor-test-agent-vanilla-chat --ignore-scripts
 
 # Copy agent source
 COPY tests/e2e/agents/vanilla-chat/src ./tests/e2e/agents/vanilla-chat/src

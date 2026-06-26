@@ -23,6 +23,14 @@ cli/node_modules/
 .opfor
 tracedata.json
 
+# Vendored into core/ at pack time by its prepack script (see core/package.json).
+# Cleaned up by postpack; ignored here so an interrupted pack can't commit copies.
+core/evaluators/
+core/suites/
+core/skills/
+core/data/
+core/atlas-data/
+
 # Pre-refactor local trees / accidental rebuilds (canonical code is cli/, core/, mcp/)
 /src/
 src/agent/**/dist/
