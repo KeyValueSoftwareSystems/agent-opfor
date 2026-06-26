@@ -12,6 +12,10 @@ jobs:
       - name: Validate branch name
         run: |
           BRANCH="${{ github.head_ref }}"
+          if [[ "$BRANCH" == release-please--* ]]; then
+            echo "✅ Skipping branch name check for release-please branch."
+            exit 0
+          fi
           PATTERN="^(feat|fix|docs|refactor|chore|test|perf)/.+"
           if [[ ! "$BRANCH" =~ $PATTERN ]]; then
             echo "❌ Branch name '$BRANCH' does not follow the convention."

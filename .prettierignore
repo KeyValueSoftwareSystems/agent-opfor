@@ -7,3 +7,4 @@ runners/mcp/dist/
 runners/extension/catalog.json
 .opfor/
 *.json
+CHANGELOG.md
