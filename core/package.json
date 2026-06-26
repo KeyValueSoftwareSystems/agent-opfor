@@ -3,7 +3,6 @@
   "version": "0.9.0",
   "description": "Opfor core engine — attacker prompt generation, judge, and execution shared by all runners",
   "license": "Apache-2.0",
-  "private": true,
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -79,13 +78,18 @@
   },
   "files": [
     "dist",
-    "src"
+    "src",
+    "evaluators",
+    "suites",
+    "skills"
   ],
   "sideEffects": false,
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --import tsx/esm --test tests/*.test.ts"
+    "test": "node --import tsx/esm --test tests/*.test.ts",
+    "prepack": "cp -r ../evaluators ./evaluators && cp -r ../suites ./suites && cp -r ../skills ./skills",
+    "postpack": "rm -rf ./evaluators ./suites ./skills"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^2.0.77",
