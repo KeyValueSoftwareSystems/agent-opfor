@@ -61,9 +61,9 @@
         --muted: #9ba3b8;
         --muted-2: rgb(106, 116, 145);
         --muted-3: #5a6478;
-        --accent: #f5ad5c;
-        --accent-soft: rgba(245, 173, 92, 0.12);
-        --accent-ring: rgba(245, 173, 92, 0.22);
+        --accent: #ff4d4f;
+        --accent-soft: rgba(255, 77, 79, 0.12);
+        --accent-ring: rgba(255, 77, 79, 0.22);
         --pass: #34d399;
         --warn: #fbbf24;
         --fail: #ff5a6e;
@@ -205,7 +205,7 @@
         background: var(--line-3);
       }
       ::selection {
-        background: rgba(245, 173, 92, 0.3);
+        background: rgba(255, 77, 79, 0.3);
         color: #fff;
       }
       ::placeholder {
@@ -295,9 +295,9 @@
         background: currentColor;
       }
       .status-pill[data-screen="running"] {
-        color: #f5ad5c;
-        background: rgba(245, 173, 92, 0.08);
-        border-color: rgba(245, 173, 92, 0.25);
+        color: #ff4d4f;
+        background: rgba(255, 77, 79, 0.08);
+        border-color: rgba(255, 77, 79, 0.25);
       }
       .status-pill[data-screen="running"] .dot {
         box-shadow: 0 0 6px currentColor;
@@ -980,7 +980,7 @@
         gap: 8px;
         letter-spacing: 0.01em;
         box-shadow:
-          0 4px 14px rgba(245, 173, 92, 0.25),
+          0 4px 14px rgba(255, 77, 79, 0.25),
           inset 0 1px 0 rgba(255, 255, 255, 0.2);
         transition:
           transform 0.08s,
@@ -1149,7 +1149,7 @@
       .turn-fill {
         position: absolute;
         inset: 0;
-        background: linear-gradient(90deg, rgba(245, 173, 92, 0.5), var(--accent));
+        background: linear-gradient(90deg, rgba(255, 77, 79, 0.5), var(--accent));
         transition: width 0.4s;
         box-shadow: 0 0 12px var(--accent);
         width: 0%;
@@ -1212,8 +1212,8 @@
         word-break: break-word;
       }
       .bubble[data-who="attacker"] .body {
-        background: rgba(245, 173, 92, 0.08);
-        border-color: rgba(245, 173, 92, 0.25);
+        background: rgba(255, 77, 79, 0.08);
+        border-color: rgba(255, 77, 79, 0.25);
         color: var(--text);
       }
       .bubble .body[data-pending="true"]::after {
@@ -1439,7 +1439,7 @@
         width: 80px;
         height: 80px;
         border-radius: 50%;
-        background: rgba(245, 173, 92, 0.13);
+        background: rgba(255, 77, 79, 0.13);
         filter: blur(30px);
       }
       .verdict-card[data-verdict="PASS"] .glow {
@@ -1455,8 +1455,8 @@
         width: 38px;
         height: 38px;
         border-radius: 10px;
-        background: rgba(245, 173, 92, 0.13);
-        border: 1px solid rgba(245, 173, 92, 0.33);
+        background: rgba(255, 77, 79, 0.13);
+        border: 1px solid rgba(255, 77, 79, 0.33);
         color: var(--accent);
         display: flex;
         align-items: center;
@@ -2012,7 +2012,12 @@
       <!-- ── Header ──────────────────────────────────── -->
       <div class="header">
         <div class="wordmark">
-          <img src="icons/logo.png" width="118" height="36" alt="OPFOR" />
+          <img
+            src="icons/logo.png"
+            height="36"
+            alt="Agent OPFOR"
+            style="height: 36px; width: auto; object-fit: contain"
+          />
         </div>
         <div class="header-right">
           <div id="statusPill" class="status-pill" data-screen="idle">

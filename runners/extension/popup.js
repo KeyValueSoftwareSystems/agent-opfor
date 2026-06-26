@@ -1321,7 +1321,7 @@ function generateHtmlReport(report) {
     --line:#E2E8F0;--line-2:#CBD5E1;
     --pass:#059669;--pass-bg:#D1FAE5;--pass-border:#6EE7B7;
     --fail:#DC2626;--fail-bg:#FEE2E2;--fail-border:#FCA5A5;
-    --accent:#f5ad5c;
+    --accent:#FF4D4F;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html{background:var(--bg)}
@@ -1337,7 +1337,7 @@ function generateHtmlReport(report) {
   .cover-inner{max-width:960px;margin:0 auto;padding:36px 24px 32px}
   .cover-top{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin-bottom:28px}
   .cover-brand{display:flex;align-items:center;gap:10px}
-  .cover-brand-icon{width:36px;height:36px;background:linear-gradient(135deg,#f5ad5c,#c47a2a);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .cover-brand-icon{width:36px;height:36px;background:linear-gradient(135deg,#FF4D4F,#c4302a);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
   .cover-brand-name{font-size:15px;font-weight:700;letter-spacing:0.04em;color:#fff}
   .cover-brand-sub{font-size:11px;color:#94A3B8;letter-spacing:0.08em;text-transform:uppercase;margin-top:1px}
   .cover-classification{padding:4px 12px;border:1px solid rgba(255,255,255,0.15);border-radius:4px;font-size:11px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:#CBD5E1}

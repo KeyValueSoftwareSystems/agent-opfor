@@ -30,6 +30,38 @@ export async function locateChatWidget(tabId, readerCfg, options = {}) {
   const clickedLaunchers = [];
   let lastErr = "";
 
+  // Deterministic fast-path: if the in-frame heuristic already surfaced a
+  // high-confidence, non-search chat input, use it directly and skip the
+  // (non-deterministic) LLM planner — this removes most run-to-run variance in
+  // input detection. Falls through to the planner on any miss (e.g. widget not
+  // open yet, or only ambiguous/low-score inputs present).
+  try {
+    const detFrames = await collectFrames(tabId);
+    const ranked = detFrames
+      .filter((f) => f.bestInputSelector && (f.bestInputScore || 0) >= 12)
+      .sort((a, b) => (b.bestInputScore || 0) - (a.bestInputScore || 0));
+    for (const f of ranked) {
+      if (state.OPFOR_STOP) return { ok: false, error: "Run stopped." };
+      const visible = await actVerifyInputVisible(tabId, f.frameId, f.bestInputSelector);
+      if (!visible) continue;
+      const siteSnapshot = detFrames.find((x) => x.frameId === 0)?.snapshot || f.snapshot || "";
+      return {
+        ok: true,
+        plan: {
+          inputSelector: f.bestInputSelector,
+          submit: f.bestSendSelector
+            ? { method: "click", buttonSelector: f.bestSendSelector }
+            : { method: "enter" },
+          confidence: 0.9,
+        },
+        best: { frameId: f.frameId, frameUrl: f.frameUrl || "", snapshot: siteSnapshot },
+        siteSnapshot,
+      };
+    }
+  } catch {
+    /* fall through to the LLM planner */
+  }
+
   const collectAxSnapshots = async () => {
     let results;
     try {
