@@ -7,6 +7,7 @@ import { snip, type RunContext } from "../orchestrator/context.js";
 import { getOrCreateThread } from "../state/runLog.js";
 import { noteEvent } from "../state/hooks.js";
 import { jsonResult, textResult } from "./util.js";
+import { wrapUntrustedOutput } from "../lib/untrustedOutput.js";
 
 const RECON_THREAD = "recon";
 
@@ -78,7 +79,10 @@ export function reconProbeTool(ctx: RunContext) {
       });
 
       return jsonResult({
-        response: result.response,
+        response: wrapUntrustedOutput(result.response, {
+          isError: result.isError,
+          rateLimited: result.rateLimited,
+        }),
         isError: result.isError,
         rateLimited: result.rateLimited,
         errorMessage: result.errorMessage,
