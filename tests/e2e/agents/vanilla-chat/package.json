@@ -1,6 +1,6 @@
 {
   "name": "@agent-opfor/test-agent-vanilla-chat",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "description": "Vanilla chat test agent — used for local developer testing of Opfor evaluators",
   "private": true,
   "type": "module",
