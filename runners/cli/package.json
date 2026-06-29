@@ -24,6 +24,28 @@
     "prepack": "rm -rf ./evaluators ./suites ./atlas-data ./LICENSE && cp -r ../../evaluators ./evaluators && cp -r ../../suites ./suites && mkdir -p ./atlas-data && cp ../../third_party/atlas-data/dist/ATLAS.yaml ./atlas-data/ATLAS.yaml && cp ../../LICENSE ./LICENSE",
     "postpack": "rm -rf ./evaluators ./suites ./atlas-data ./LICENSE"
   },
+  "homepage": "https://agentopfor.ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KeyValueSoftwareSystems/agent-opfor.git",
+    "directory": "runners/cli"
+  },
+  "bugs": {
+    "url": "https://github.com/KeyValueSoftwareSystems/agent-opfor/issues"
+  },
+  "author": "KeyValue Software Systems",
+  "keywords": [
+    "ai-security",
+    "red-team",
+    "llm",
+    "mcp",
+    "owasp",
+    "prompt-injection",
+    "agent-security"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
   "publishConfig": {
     "access": "public"
   },
