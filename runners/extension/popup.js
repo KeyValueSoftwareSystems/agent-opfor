@@ -1244,7 +1244,7 @@ function generateHtmlReport(report) {
           <div class="eval-body">
             <div class="eval-meta-grid">
               <div class="meta-item"><div class="meta-k">Verdict</div><div class="meta-v ${verdictPass ? "pass-text" : "fail-text"}">${tr.verdict || "—"}</div></div>
-              <div class="meta-item"><div class="meta-k">Risk Score</div><div class="meta-v">${tr.score ?? "—"} / 10</div></div>
+              <div class="meta-item"><div class="meta-k">Safety Score</div><div class="meta-v">${tr.score ?? "—"} / 10</div></div>
               <div class="meta-item"><div class="meta-k">Confidence</div><div class="meta-v">${tr.confidence != null ? tr.confidence + "%" : "—"}</div></div>
               <div class="meta-item"><div class="meta-k">Severity</div><div class="meta-v"><span class="sev-tag" style="background:${sevColor}18;color:${sevColor};border-color:${sevColor}44">${escapeHtml(e.severity)}</span></div></div>
               ${
@@ -1655,7 +1655,7 @@ function generateHtmlReport(report) {
     <div class="results-table-wrap" style="margin-bottom:16px">
       <table class="results">
         <thead><tr>
-          <th>#</th><th>Evaluator</th><th>Severity</th><th>Verdict</th><th>Risk Score</th>
+          <th>#</th><th>Evaluator</th><th>Severity</th><th>Verdict</th><th>Safety Score</th>
         </tr></thead>
         <tbody>${tableRows || `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:24px">No evaluators executed.</td></tr>`}</tbody>
       </table>
