@@ -33,14 +33,26 @@ interface AtlasYamlDoc {
  * - Monorepo dev: `<repo>/third_party/atlas-data/dist/ATLAS.yaml` (the git submodule), 3 levels up
  *   from `core/{src,dist}/standards/`.
  */
-function atlasYamlPath(): string {
+function atlasYamlPath(): string | undefined {
   const here = path.dirname(fileURLToPath(import.meta.url));
   const candidates = [
     path.resolve(here, "..", "atlas-data", "ATLAS.yaml"),
     path.resolve(here, "..", "..", "atlas-data", "ATLAS.yaml"),
     path.resolve(here, "..", "..", "..", "third_party", "atlas-data", "dist", "ATLAS.yaml"),
   ];
-  return candidates.find((p) => existsSync(p)) ?? candidates[candidates.length - 1];
+  return candidates.find((p) => existsSync(p));
+}
+
+function missingAtlasHelp(): string {
+  return [
+    "MITRE ATLAS data not found.",
+    "",
+    "Published package (cli / mcp / sdk): atlas-data/ is bundled at install time.",
+    "  Try reinstalling: npm install @keyvaluesystems/agent-opfor-cli  (or -mcp / -sdk)",
+    "",
+    "Monorepo checkout: initialize the atlas-data submodule with:",
+    "  git submodule update --init --recursive",
+  ].join("\n");
 }
 
 function missingSubmoduleHelp(atlasPath: string): string {
@@ -59,6 +71,9 @@ function missingSubmoduleHelp(atlasPath: string): string {
  */
 export async function loadAtlasTechniqueIndex(): Promise<Map<string, AtlasTechniqueMeta>> {
   const atlasPath = atlasYamlPath();
+  if (atlasPath === undefined) {
+    throw new Error(missingAtlasHelp());
+  }
   let raw: string;
   try {
     raw = await readFile(atlasPath, "utf8");
