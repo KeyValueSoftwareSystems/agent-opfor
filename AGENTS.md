@@ -24,7 +24,7 @@ Opfor is an open-source red-teaming toolkit for AI agents and MCP servers. It ge
 
 ## Monorepo structure
 
-```
+```text
 opfor/
 ├── core/                          # @keyvaluesystems/agent-opfor-core — shared engine (npm workspace, compiled to core/dist/)
 │   └── src/
