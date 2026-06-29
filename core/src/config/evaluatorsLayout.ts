@@ -7,12 +7,13 @@ const __dirname = path.dirname(realpathSync(fileURLToPath(import.meta.url)));
 export type EvaluatorCategory = "agent" | "mcp";
 
 export function getRepoRoot(): string {
-  // When installed from npm, data dirs are colocated at the package root (2 levels up from dist/config).
-  // In the monorepo, data dirs live at the repo root (3 levels up).
-  const packageRoot = path.resolve(__dirname, "../..");
-  if (existsSync(path.join(packageRoot, "evaluators"))) {
-    return packageRoot;
-  }
+  // Bundled runner: data dirs at package root, one level up from dist/
+  const oneUp = path.resolve(__dirname, "..");
+  if (existsSync(path.join(oneUp, "evaluators"))) return oneUp;
+  // Compiled core (npm installed): data dirs colocated at core package root, 2 levels up from dist/config/
+  const twoUp = path.resolve(__dirname, "../..");
+  if (existsSync(path.join(twoUp, "evaluators"))) return twoUp;
+  // Monorepo: data dirs at repo root, 3 levels up from core/dist/config/
   return path.resolve(__dirname, "../../..");
 }
 

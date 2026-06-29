@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-
 // Load .env from the project the MCP server is running against.
 import { config as loadDotenv } from "dotenv";
 loadDotenv();

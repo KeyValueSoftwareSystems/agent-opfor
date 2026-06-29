@@ -23,12 +23,12 @@
     "node": ">=18.0.0"
   },
   "scripts": {
-    "build": "npm run build:catalog && tsc -b core runners/cli runners/mcp runners/sdk && npm run build:ui && npm run extension:catalog && npm run build:core --workspace=@keyvaluesystems/agent-opfor-extension",
+    "build": "npm run build:catalog && tsc -b core && npm run build -w runners/cli && npm run build -w runners/mcp && npm run build -w runners/sdk && npm run extension:catalog && npm run build:core --workspace=@keyvaluesystems/agent-opfor-extension",
     "build:ui": "cd runners/cli/ui && npm install && npm run build",
     "clean": "rm -rf core/dist runners/*/dist core/*.tsbuildinfo runners/*/*.tsbuildinfo",
     "install:cli": "npm run build && npm install -g ./runners/cli",
     "test": "npm test --workspace=core",
-    "typecheck": "tsc -b core runners/cli runners/mcp runners/sdk",
+    "typecheck": "tsc -b core && npm run typecheck -w runners/cli && npm run typecheck -w runners/mcp && npm run typecheck -w runners/sdk",
     "extension:catalog": "npm run build:catalog --workspace=@keyvaluesystems/agent-opfor-extension",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

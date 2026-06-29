@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-
 // Suppress Vercel AI SDK v1/v2 spec compatibility warnings — these fire for
 // custom/openai-compatible providers and are not actionable by the user.
 (globalThis as Record<string, unknown>).AI_SDK_LOG_WARNINGS = false;

@@ -3,6 +3,7 @@
   "version": "0.9.0",
   "description": "Opfor core engine — attacker prompt generation, judge, and execution shared by all runners",
   "license": "Apache-2.0",
+  "private": true,
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -78,20 +79,13 @@
   },
   "files": [
     "dist",
-    "src",
-    "evaluators",
-    "suites",
-    "skills",
-    "atlas-data",
-    "data"
+    "src"
   ],
   "sideEffects": false,
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --import tsx/esm --test tests/*.test.ts",
-    "prepack": "cp -r ../evaluators ./evaluators && cp -r ../suites ./suites && cp -r ../skills ./skills && cp -r ../runners/cli/data ./data && mkdir -p ./atlas-data && cp ../third_party/atlas-data/dist/ATLAS.yaml ./atlas-data/ATLAS.yaml",
-    "postpack": "rm -rf ./evaluators ./suites ./skills ./data ./atlas-data"
+    "test": "node --import tsx/esm --test tests/*.test.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^2.0.77",
