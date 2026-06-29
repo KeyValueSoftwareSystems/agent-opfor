@@ -25,20 +25,22 @@ interface AtlasYamlDoc {
 }
 
 /**
- * Resolve the ATLAS YAML. Two layouts are supported:
- * - Published package: `<core>/atlas-data/ATLAS.yaml` (vendored into the tarball at pack time).
- * - Monorepo dev: `<repo>/third_party/atlas-data/dist/ATLAS.yaml` (the git submodule).
- *
- * This module is at `core/{src,dist}/standards/atlas.{ts,js}`, so the package root is 2 levels
- * up and the repo root is 3 levels up — true whether run from `src` (tsx) or `dist` (compiled).
+ * Resolve the ATLAS YAML. Three layouts are supported, tried in order:
+ * - Bundled runner (cli/mcp/sdk): the runner's esbuild/tsup bundle flattens this module to
+ *   `<pkg>/dist/*.js`, so `atlas-data/` (vendored at pack time) is 1 level up: `<pkg>/atlas-data/ATLAS.yaml`.
+ * - Published core package: this module is at `core/dist/standards/atlas.js`, so `atlas-data/`
+ *   (vendored at pack time) is 2 levels up: `<core>/atlas-data/ATLAS.yaml`.
+ * - Monorepo dev: `<repo>/third_party/atlas-data/dist/ATLAS.yaml` (the git submodule), 3 levels up
+ *   from `core/{src,dist}/standards/`.
  */
 function atlasYamlPath(): string {
   const here = path.dirname(fileURLToPath(import.meta.url));
-  const packageLocal = path.resolve(here, "..", "..", "atlas-data", "ATLAS.yaml");
-  if (existsSync(packageLocal)) {
-    return packageLocal;
-  }
-  return path.resolve(here, "..", "..", "..", "third_party", "atlas-data", "dist", "ATLAS.yaml");
+  const candidates = [
+    path.resolve(here, "..", "atlas-data", "ATLAS.yaml"),
+    path.resolve(here, "..", "..", "atlas-data", "ATLAS.yaml"),
+    path.resolve(here, "..", "..", "..", "third_party", "atlas-data", "dist", "ATLAS.yaml"),
+  ];
+  return candidates.find((p) => existsSync(p)) ?? candidates[candidates.length - 1];
 }
 
 function missingSubmoduleHelp(atlasPath: string): string {

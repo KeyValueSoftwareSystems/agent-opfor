@@ -30,6 +30,9 @@
   "publishConfig": {
     "access": "public"
   },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0"
+  },
   "devDependencies": {
     "@keyvaluesystems/agent-opfor-core": "^0.9.0",
     "@types/node": "^24.0.0",

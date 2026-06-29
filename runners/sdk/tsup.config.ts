@@ -13,4 +13,13 @@ export default defineConfig({
   target: "node20",
   external: ["node:*"],
   sourcemap: true,
+  // ESM output bundling CJS deps (yaml, etc.) that call require() at runtime needs a
+  // real require — without this shim esbuild's stub throws "Dynamic require ... not supported".
+  // Mirrors the createRequire banner in the cli/mcp esbuild bundles.
+  banner: {
+    js: [
+      "import { createRequire } from 'module';",
+      "const require = createRequire(import.meta.url);",
+    ].join("\n"),
+  },
 });
