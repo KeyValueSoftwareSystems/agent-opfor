@@ -1,5 +1,5 @@
 {
-  "name": "@agent-opfor/test-agent-customer-support",
+  "name": "@keyvaluesystems/agent-opfor-test-agent-customer-support",
   "version": "0.9.0",
   "description": "Customer support test agent with PostgreSQL — tests BOLA, BFLA, RBAC, PII, and SQL injection evaluators",
   "private": true,

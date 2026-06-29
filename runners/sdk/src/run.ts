@@ -1,11 +1,11 @@
-import { runAll } from "@agent-opfor/core";
+import { runAll } from "@keyvaluesystems/agent-opfor-core";
 import type {
   RunConfig,
   AgentTargetConfig,
   McpTargetConfig,
   EvaluatorSelection,
-} from "@agent-opfor/core";
-import type { LlmConfig, ProviderName } from "@agent-opfor/core/config/types.js";
+} from "@keyvaluesystems/agent-opfor-core";
+import type { LlmConfig, ProviderName } from "@keyvaluesystems/agent-opfor-core/config/types.js";
 import type {
   RunOptions,
   RunResults,
@@ -154,7 +154,9 @@ function getDefaultApiKeyEnv(provider: ProviderName): string {
   return envVars[provider] ?? "ANTHROPIC_API_KEY";
 }
 
-function transformReport(coreReport: import("@agent-opfor/core").UnifiedRunReport): RunResults {
+function transformReport(
+  coreReport: import("@keyvaluesystems/agent-opfor-core").UnifiedRunReport
+): RunResults {
   const findings = extractFindings(coreReport);
   const evaluators = coreReport.evaluators.map(transformEvaluatorResult);
 
@@ -173,7 +175,9 @@ function transformReport(coreReport: import("@agent-opfor/core").UnifiedRunRepor
   };
 }
 
-function extractFindings(report: import("@agent-opfor/core").UnifiedRunReport): Finding[] {
+function extractFindings(
+  report: import("@keyvaluesystems/agent-opfor-core").UnifiedRunReport
+): Finding[] {
   const findings: Finding[] = [];
 
   for (const evaluator of report.evaluators) {
@@ -197,7 +201,7 @@ function extractFindings(report: import("@agent-opfor/core").UnifiedRunReport): 
 }
 
 function transformEvaluatorResult(
-  core: import("@agent-opfor/core").EvaluatorResult
+  core: import("@keyvaluesystems/agent-opfor-core").EvaluatorResult
 ): EvaluatorResult {
   return {
     evaluatorId: core.evaluatorId,
@@ -213,7 +217,9 @@ function transformEvaluatorResult(
   };
 }
 
-function transformAttackResult(core: import("@agent-opfor/core").AttackResult): AttackResult {
+function transformAttackResult(
+  core: import("@keyvaluesystems/agent-opfor-core").AttackResult
+): AttackResult {
   const prompt = core.kind === "agent" ? (core.prompt ?? "") : (core.toolName ?? "");
   const response = core.kind === "agent" ? (core.response ?? "") : (core.toolResponse ?? "");
   return {

@@ -1,8 +1,8 @@
 /**
  * Autonomous red-team engine — public API.
  *
- * Consumers import from "@agent-opfor/core/autonomous/index.js" (or sub-paths
- * like "@agent-opfor/core/autonomous/report/types.js" for deeper access).
+ * Consumers import from "@keyvaluesystems/agent-opfor-core/autonomous/index.js" (or sub-paths
+ * like "@keyvaluesystems/agent-opfor-core/autonomous/report/types.js" for deeper access).
  */
 
 export { runAutonomous } from "./orchestrator/run.js";

@@ -7,10 +7,10 @@ import type {
   HuntOptions,
   TargetConfig,
   TargetMode,
-} from "@agent-opfor/core/autonomous/lib/types.js";
-import type { RunEvent } from "@agent-opfor/core/autonomous/state/observe.js";
-import { runAutonomous } from "@agent-opfor/core/autonomous/orchestrator/run.js";
-import { writeAutonomousReport } from "@agent-opfor/core/autonomous/report/writeReport.js";
+} from "@keyvaluesystems/agent-opfor-core/autonomous/lib/types.js";
+import type { RunEvent } from "@keyvaluesystems/agent-opfor-core/autonomous/state/observe.js";
+import { runAutonomous } from "@keyvaluesystems/agent-opfor-core/autonomous/orchestrator/run.js";
+import { writeAutonomousReport } from "@keyvaluesystems/agent-opfor-core/autonomous/report/writeReport.js";
 import { startUiServer } from "../ui/server.js";
 import { mergeReporters } from "../ui/bridge.js";
 

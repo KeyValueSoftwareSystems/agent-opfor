@@ -22,7 +22,7 @@ Use agent mode for chatbots, RAG apps, and tool-calling agents fronted by an HTT
 ## Install
 
 ```bash
-npm install -g @agent-opfor/cli
+npm install -g @keyvaluesystems/agent-opfor-cli
 ```
 
 **From source (contributors):**

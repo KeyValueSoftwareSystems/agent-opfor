@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-
 // Load .env from the project the MCP server is running against.
 import { config as loadDotenv } from "dotenv";
 loadDotenv();
@@ -11,13 +9,13 @@ import { readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
-import { loadSkillCatalog } from "@agent-opfor/core/config/loadSkillCatalog.js";
-import { loadCatalog as loadMcpCatalog } from "@agent-opfor/core/catalog/loadCatalog.js";
-import { runAll } from "@agent-opfor/core/execute/runAll.js";
-import { writeReport } from "@agent-opfor/core/report/buildReport.js";
-import { PROVIDERS, type ProviderName } from "@agent-opfor/core/config/types.js";
-import type { RunConfig } from "@agent-opfor/core/execute/types.js";
-import { normalizeEffort } from "@agent-opfor/core/execute/effortCompat.js";
+import { loadSkillCatalog } from "@keyvaluesystems/agent-opfor-core/config/loadSkillCatalog.js";
+import { loadCatalog as loadMcpCatalog } from "@keyvaluesystems/agent-opfor-core/catalog/loadCatalog.js";
+import { runAll } from "@keyvaluesystems/agent-opfor-core/execute/runAll.js";
+import { writeReport } from "@keyvaluesystems/agent-opfor-core/report/buildReport.js";
+import { PROVIDERS, type ProviderName } from "@keyvaluesystems/agent-opfor-core/config/types.js";
+import type { RunConfig } from "@keyvaluesystems/agent-opfor-core/execute/types.js";
+import { normalizeEffort } from "@keyvaluesystems/agent-opfor-core/execute/effortCompat.js";
 
 function readVersion(): string {
   const pkgUrl = new URL("../package.json", import.meta.url);

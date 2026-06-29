@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -23,21 +24,28 @@ interface AtlasYamlDoc {
   matrices?: AtlasYamlMatrix[];
 }
 
-function repoRootFromHere(): string {
-  const here = path.dirname(fileURLToPath(import.meta.url));
-  // core/src/standards -> repo root
-  return path.resolve(here, "..", "..", "..");
-}
-
+/**
+ * Resolve the ATLAS YAML. Two layouts are supported:
+ * - Published package: `<core>/atlas-data/ATLAS.yaml` (vendored into the tarball at pack time).
+ * - Monorepo dev: `<repo>/third_party/atlas-data/dist/ATLAS.yaml` (the git submodule).
+ *
+ * This module is at `core/{src,dist}/standards/atlas.{ts,js}`, so the package root is 2 levels
+ * up and the repo root is 3 levels up — true whether run from `src` (tsx) or `dist` (compiled).
+ */
 function atlasYamlPath(): string {
-  return path.join(repoRootFromHere(), "third_party", "atlas-data", "dist", "ATLAS.yaml");
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const packageLocal = path.resolve(here, "..", "..", "atlas-data", "ATLAS.yaml");
+  if (existsSync(packageLocal)) {
+    return packageLocal;
+  }
+  return path.resolve(here, "..", "..", "..", "third_party", "atlas-data", "dist", "ATLAS.yaml");
 }
 
 function missingSubmoduleHelp(atlasPath: string): string {
   return [
-    `MITRE ATLAS submodule not found at ${atlasPath}.`,
+    `MITRE ATLAS data not found at ${atlasPath}.`,
     "",
-    "Initialize submodules with:",
+    "In a monorepo checkout, initialize submodules with:",
     "  git submodule update --init --recursive",
   ].join("\n");
 }

@@ -1,5 +1,5 @@
 {
-  "name": "@agent-opfor/test-mcp-vulnerable",
+  "name": "@keyvaluesystems/agent-opfor-test-mcp-vulnerable",
   "version": "0.9.0",
   "description": "Intentionally vulnerable MCP server for opfor testing — DO NOT deploy",
   "private": true,

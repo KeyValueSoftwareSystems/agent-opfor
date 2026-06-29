@@ -2,6 +2,7 @@
 // Uses core's shared frontmatter parser. Resolves the bundled `data/`
 // directory relative to this module so it works regardless of the caller's cwd.
 
+import { existsSync } from "node:fs";
 import { readFile, readdir, writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,13 +13,18 @@ import type { KnowledgeBase, VulnClass, Persona, Strategy, KnowledgeKind } from 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /**
- * Resolve the seed data directory. At runtime this module lives in
- * `core/dist/autonomous/knowledge/load.js`, so the bundled seeds are at
- * `../../../../runners/cli/data` (the CLI's `data/` dir shipped via
- * package.json `files`). Callers should always pass `seedDir`
- * explicitly; this fallback is a best-effort for in-repo dev use.
+ * Resolve the seed data directory. Two layouts are supported:
+ * - Published package: `<core>/data` (vendored into the tarball at pack time). This module
+ *   lives at `core/dist/autonomous/knowledge/load.js`, so the package root is 3 levels up.
+ * - Monorepo dev: `<repo>/runners/cli/data` (the source of truth, 4 levels up).
+ *
+ * Callers may still pass `seedDir` explicitly to override.
  */
 function defaultSeedDir(): string {
+  const packageLocal = path.resolve(__dirname, "../../../data");
+  if (existsSync(packageLocal)) {
+    return packageLocal;
+  }
   return path.resolve(__dirname, "../../../../runners/cli/data");
 }
 

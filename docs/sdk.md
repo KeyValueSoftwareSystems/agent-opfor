@@ -5,7 +5,7 @@ Adversarial testing for AI systems. TypeScript-first.
 ## Install
 
 ```bash
-npm install @agent-opfor/sdk
+npm install @keyvaluesystems/agent-opfor-sdk
 ```
 
 ## Quick Start
@@ -13,7 +13,7 @@ npm install @agent-opfor/sdk
 ### Class-based API
 
 ```typescript
-import { Opfor } from "@agent-opfor/sdk";
+import { Opfor } from "@keyvaluesystems/agent-opfor-sdk";
 
 const opfor = new Opfor({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -37,7 +37,7 @@ console.log(results.findings.length);
 For those who prefer functions over classes:
 
 ```typescript
-import { run, report } from "@agent-opfor/sdk";
+import { run, report } from "@keyvaluesystems/agent-opfor-sdk";
 
 const results = await run({
   target: {
@@ -113,7 +113,7 @@ const results = await opfor.run({
 Let Opfor discover attack paths automatically using an AI agent. Unlike `run()` which runs predefined evaluators, `hunt()` uses adaptive multi-turn attacks to autonomously discover vulnerabilities.
 
 ```typescript
-import { hunt } from "@agent-opfor/sdk";
+import { hunt } from "@keyvaluesystems/agent-opfor-sdk";
 
 const results = await hunt({
   target: {
@@ -279,7 +279,7 @@ const results = await opfor.run({
 Configure attacker and judge LLMs.
 
 ```typescript
-import { Opfor } from "@agent-opfor/sdk";
+import { Opfor } from "@keyvaluesystems/agent-opfor-sdk";
 
 const opfor = new Opfor({
   // Default API key (used if not specified per-model)
@@ -501,7 +501,7 @@ await r.json("./report.json");
 await r.html("./report.html");
 
 // Functional
-import { run, report } from "@agent-opfor/sdk";
+import { run, report } from "@keyvaluesystems/agent-opfor-sdk";
 
 const results = await run({ ... });
 await report(results).json("./report.json");
@@ -568,7 +568,7 @@ await report(results).html("./report.html");
 ### Using Functional API
 
 ```typescript
-import { run } from "@agent-opfor/sdk";
+import { run } from "@keyvaluesystems/agent-opfor-sdk";
 
 const results = await run({
   target: {
@@ -595,7 +595,7 @@ console.log(`Safety score: ${results.score}%`);
 ### Using Class API
 
 ```typescript
-import { Opfor } from "@agent-opfor/sdk";
+import { Opfor } from "@keyvaluesystems/agent-opfor-sdk";
 
 const opfor = new Opfor({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -619,7 +619,7 @@ if (results.findings.length > 0) {
 ### Class-based
 
 ```typescript
-import { Opfor } from "@agent-opfor/sdk";
+import { Opfor } from "@keyvaluesystems/agent-opfor-sdk";
 
 const opfor = new Opfor({ apiKey: "..." });
 await opfor.run({ ... });
@@ -635,7 +635,7 @@ import {
   report, // Generate reports from results
   listSuites, // List available suites
   listEvaluators, // List available evaluators
-} from "@agent-opfor/sdk";
+} from "@keyvaluesystems/agent-opfor-sdk";
 
 // Execute with inline config
 const results = await run({
@@ -686,7 +686,7 @@ import type {
   AutoModelsConfig,
   AutoLimitsConfig,
   AutoProgressEvent,
-} from "@agent-opfor/sdk";
+} from "@keyvaluesystems/agent-opfor-sdk";
 ```
 
 ## Autonomous Mode Reference
@@ -792,7 +792,7 @@ type AutoProgressEvent =
 ### Example with Progress Streaming
 
 ```typescript
-import { hunt } from "@agent-opfor/sdk";
+import { hunt } from "@keyvaluesystems/agent-opfor-sdk";
 
 const results = await hunt({
   target: {

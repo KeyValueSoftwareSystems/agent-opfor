@@ -4,6 +4,7 @@ import { type EvaluatorCategory } from "../config/evaluatorsLayout.js";
 import { discoverEvaluatorFiles, discoverSuiteFiles } from "./discoverEvaluators.js";
 import { resolveStandardsFromFrontmatter } from "../evaluators/standards.js";
 import { loadAtlasTechniqueIdSet } from "../standards/atlas.js";
+import { log } from "../lib/logger.js";
 import type { StandardsMap } from "../evaluators/schema.js";
 
 export interface EvaluatorMeta {
@@ -111,7 +112,18 @@ export async function loadEvaluatorCatalog(category: EvaluatorCategory): Promise
   suites: SuiteMeta[];
 }> {
   const validateAtlas = process.env.OPFOR_VALIDATE_ATLAS !== "0"; // On by default now
-  const atlasTechniqueIds = validateAtlas ? await loadAtlasTechniqueIdSet() : null;
+  let atlasTechniqueIds: Set<string> | null = null;
+  if (validateAtlas) {
+    try {
+      atlasTechniqueIds = await loadAtlasTechniqueIdSet();
+    } catch (e: unknown) {
+      // ATLAS data is an authoring-time validation aid. If it's unavailable at runtime
+      // (e.g. a published install where the data wasn't bundled), skip validation rather
+      // than crash a scan. Set OPFOR_VALIDATE_ATLAS=0 to silence this.
+      const msg = e instanceof Error ? e.message : String(e);
+      log.warn(`Skipping ATLAS technique-id validation: ${msg.split("\n")[0]}`);
+    }
+  }
 
   // Discover and load evaluators
   const discoveredEvaluators = await discoverEvaluatorFiles(category);

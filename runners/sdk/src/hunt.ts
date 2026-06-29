@@ -7,14 +7,14 @@
 
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
-import { runAutonomous } from "@agent-opfor/core/autonomous/orchestrator/run.js";
-import { writeAutonomousReport } from "@agent-opfor/core/autonomous/report/writeReport.js";
+import { runAutonomous } from "@keyvaluesystems/agent-opfor-core/autonomous/orchestrator/run.js";
+import { writeAutonomousReport } from "@keyvaluesystems/agent-opfor-core/autonomous/report/writeReport.js";
 import type {
   HuntOptions as CoreHuntOptions,
   TargetConfig as CoreTargetConfig,
   TargetMode,
-} from "@agent-opfor/core/autonomous/lib/types.js";
-import type { AutonomousReport } from "@agent-opfor/core/autonomous/report/types.js";
+} from "@keyvaluesystems/agent-opfor-core/autonomous/lib/types.js";
+import type { AutonomousReport } from "@keyvaluesystems/agent-opfor-core/autonomous/report/types.js";
 import type {
   HuntOptions,
   HuntResults,
@@ -32,7 +32,7 @@ import type {
  *
  * @example
  * ```typescript
- * import { hunt } from "@agent-opfor/sdk";
+ * import { hunt } from "@keyvaluesystems/agent-opfor-sdk";
  *
  * const results = await hunt({
  *   target: {

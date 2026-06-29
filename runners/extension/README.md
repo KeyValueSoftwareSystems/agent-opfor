@@ -58,28 +58,28 @@ The extension will:
 
 ## Module Structure
 
-| File                   | Responsibility                                                     |
-| ---------------------- | ------------------------------------------------------------------ |
-| `service_worker.js`    | Entry point — message routing                                      |
-| `orchestrator.js`      | Main run loop: locate → attack → extract → judge                   |
-| `chatLocator.js`       | LLM-driven chat widget detection using accessibility tree          |
-| `frameDiscovery.js`    | Frame collection, scoring, and chat-frame selection                |
-| `domTarget.js`         | Wraps DOM send/extract as a core `AgentTarget`                     |
-| `domActions.js`        | DOM interaction via `chrome.scripting.executeScript`               |
-| `responseExtractor.js` | Smart polling extractor for bot responses                          |
-| `llmUiActions.js`      | DOM-specific LLM helpers                                           |
-| `llm.js`               | Direct LLM API calls for extension context                         |
-| `agentContext.js`      | Resolves agent business context from page content                  |
-| `catalog.js`           | `catalog.json` loading and evaluator/suite lookups                 |
-| `config.js`            | LLM profile loading from storage                                   |
-| `storage.js`           | `chrome.storage.local` read/write helpers                          |
-| `state.js`             | Shared mutable run state (`OPFOR_STOP`, abort controller)          |
-| `providers.js`         | LLM provider configurations                                        |
-| `utils.js`             | Utility functions (`sleep`, `formatTranscript`, etc.)              |
-| `popup.js`             | Extension popup UI logic                                           |
-| `sidepanel-*.js`       | Side panel UI components                                           |
-| `dist/core.bundle.js`  | Browser bundle of `@agent-opfor/core` (attack + judge engine)      |
-| `frame_*.js`           | Frame scripts injected into page contexts (standalone, no imports) |
+| File                   | Responsibility                                                                |
+| ---------------------- | ----------------------------------------------------------------------------- |
+| `service_worker.js`    | Entry point — message routing                                                 |
+| `orchestrator.js`      | Main run loop: locate → attack → extract → judge                              |
+| `chatLocator.js`       | LLM-driven chat widget detection using accessibility tree                     |
+| `frameDiscovery.js`    | Frame collection, scoring, and chat-frame selection                           |
+| `domTarget.js`         | Wraps DOM send/extract as a core `AgentTarget`                                |
+| `domActions.js`        | DOM interaction via `chrome.scripting.executeScript`                          |
+| `responseExtractor.js` | Smart polling extractor for bot responses                                     |
+| `llmUiActions.js`      | DOM-specific LLM helpers                                                      |
+| `llm.js`               | Direct LLM API calls for extension context                                    |
+| `agentContext.js`      | Resolves agent business context from page content                             |
+| `catalog.js`           | `catalog.json` loading and evaluator/suite lookups                            |
+| `config.js`            | LLM profile loading from storage                                              |
+| `storage.js`           | `chrome.storage.local` read/write helpers                                     |
+| `state.js`             | Shared mutable run state (`OPFOR_STOP`, abort controller)                     |
+| `providers.js`         | LLM provider configurations                                                   |
+| `utils.js`             | Utility functions (`sleep`, `formatTranscript`, etc.)                         |
+| `popup.js`             | Extension popup UI logic                                                      |
+| `sidepanel-*.js`       | Side panel UI components                                                      |
+| `dist/core.bundle.js`  | Browser bundle of `@keyvaluesystems/agent-opfor-core` (attack + judge engine) |
+| `frame_*.js`           | Frame scripts injected into page contexts (standalone, no imports)            |
 
 Frame scripts (`frame_*.js`) are injected via `chrome.scripting.executeScript()` into page contexts and **cannot use ES module imports** — they remain standalone files.
 

@@ -1,5 +1,5 @@
 {
-  "name": "@agent-opfor/sdk",
+  "name": "@keyvaluesystems/agent-opfor-sdk",
   "version": "0.9.0",
   "description": "Opfor SDK — programmatic adversarial testing for AI systems",
   "license": "Apache-2.0",
@@ -13,19 +13,27 @@
     }
   },
   "files": [
-    "dist/"
+    "dist/",
+    "data/",
+    "evaluators/",
+    "suites/",
+    "atlas-data/"
   ],
   "scripts": {
     "dev": "tsx src/index.ts",
-    "build": "tsc -p tsconfig.json",
+    "build": "tsup",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "tsx --test tests/*.test.ts"
+    "test": "tsx --test tests/*.test.ts",
+    "prepack": "rm -rf ./evaluators ./suites ./data ./atlas-data ./LICENSE && cp -r ../../evaluators ./evaluators && cp -r ../../suites ./suites && cp -r ../cli/data ./data && mkdir -p ./atlas-data && cp ../../third_party/atlas-data/dist/ATLAS.yaml ./atlas-data/ATLAS.yaml && cp ../../LICENSE ./LICENSE",
+    "postpack": "rm -rf ./evaluators ./suites ./data ./atlas-data ./LICENSE"
   },
-  "dependencies": {
-    "@agent-opfor/core": "*"
+  "publishConfig": {
+    "access": "public"
   },
   "devDependencies": {
+    "@keyvaluesystems/agent-opfor-core": "^0.9.0",
     "@types/node": "^24.0.0",
+    "tsup": "^8.0.0",
     "tsx": "^4.20.0",
     "typescript": "^5.8.3"
   },

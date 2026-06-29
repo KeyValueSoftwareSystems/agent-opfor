@@ -1,5 +1,5 @@
 {
-  "name": "@agent-opfor/cli",
+  "name": "@keyvaluesystems/agent-opfor-cli",
   "version": "0.9.0",
   "description": "Opfor CLI — security testing for AI agents and MCP servers (opfor setup|run|hunt)",
   "license": "Apache-2.0",
@@ -9,18 +9,25 @@
   },
   "files": [
     "dist/",
-    "data/"
+    "data/",
+    "evaluators/",
+    "suites/",
+    "atlas-data/"
   ],
   "scripts": {
     "dev": "tsx src/index.ts",
-    "build": "npm run build:ui && tsc -p tsconfig.json",
+    "build": "rm -rf dist && npm run build:ui && node scripts/bundle.mjs",
     "build:ui": "cd ui && npm install && npm run build",
     "start": "node dist/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --import tsx/esm --test tests/*.test.ts"
+    "test": "node --import tsx/esm --test tests/*.test.ts",
+    "prepack": "rm -rf ./evaluators ./suites ./atlas-data ./LICENSE && cp -r ../../evaluators ./evaluators && cp -r ../../suites ./suites && mkdir -p ./atlas-data && cp ../../third_party/atlas-data/dist/ATLAS.yaml ./atlas-data/ATLAS.yaml && cp ../../LICENSE ./LICENSE",
+    "postpack": "rm -rf ./evaluators ./suites ./atlas-data ./LICENSE"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "dependencies": {
-    "@agent-opfor/core": "*",
     "@anthropic-ai/claude-agent-sdk": "^0.3.165",
     "@anthropic-ai/sdk": "^0.100.1",
     "@ai-sdk/anthropic": "^2.0.77",
@@ -40,8 +47,10 @@
     "zod": "^3.0.0"
   },
   "devDependencies": {
+    "@keyvaluesystems/agent-opfor-core": "^0.9.0",
     "@types/express": "^5.0.3",
     "@types/node": "^24.0.0",
+    "esbuild": "^0.25.0",
     "tsx": "^4.20.0",
     "typescript": "^5.8.3"
   }

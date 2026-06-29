@@ -1,6 +1,3 @@
-import type { Effort, UnifiedRunReport } from "@agent-opfor/core";
-import type { TelemetryConfig, LlmConfig, ProviderName } from "@agent-opfor/core/config/types.js";
-
 // ---------------------------------------------------------------------------
 // Target Configuration
 // ---------------------------------------------------------------------------
@@ -351,7 +348,102 @@ export interface HuntResults {
 }
 
 // ---------------------------------------------------------------------------
-// Re-exports from core
+// Types inlined from core — keeps the published .d.ts free of
+// @keyvaluesystems/agent-opfor-core references (core is not published to npm)
 // ---------------------------------------------------------------------------
 
-export type { TelemetryConfig, LlmConfig, ProviderName, Effort, UnifiedRunReport };
+export type Effort = "adaptive" | "comprehensive";
+
+export type ProviderName =
+  | "openai"
+  | "anthropic"
+  | "groq"
+  | "google"
+  | "deepseek"
+  | "azure"
+  | "openai-compatible";
+
+export interface LlmConfig {
+  provider: ProviderName;
+  model: string;
+  apiKeyEnv?: string;
+  baseURL?: string;
+}
+
+export type TelemetryProviderId = "none" | "langfuse" | "netra";
+
+export interface TelemetryPropagationConfig {
+  headers?: Record<string, string>;
+  traceIdBodyField?: string;
+  traceIdStrategy?: "per-attack" | "per-run";
+  traceIdPrefix?: string;
+}
+
+export interface LangfuseTraceSelectionConfig {
+  setupTraceIds?: string[];
+  lookbackHours?: number;
+  fromTimestamp?: string;
+  toTimestamp?: string;
+  userId?: string;
+  sessionId?: string;
+  name?: string;
+  version?: string;
+  release?: string;
+  tags?: string[];
+  environment?: string | string[];
+  orderBy?: string;
+  filter?: Record<string, unknown>[];
+  observationName?: string;
+  observationType?: "GENERATION" | "SPAN" | "EVENT";
+  listLimit?: number;
+  listMaxPages?: number;
+  fields?: string;
+}
+
+export interface NetraTraceSelectionConfig {
+  setupTraceIds?: string[];
+  lookbackHours?: number;
+  fromTime?: string;
+  toTime?: string;
+  sessionId?: string;
+  userId?: string;
+  environment?: string;
+  listLimit?: number;
+  listMaxPages?: number;
+}
+
+export interface LangfuseTelemetryConfig {
+  baseUrl?: string;
+  baseUrlEnv?: string;
+  publicKeyEnv?: string;
+  secretKeyEnv?: string;
+  traceSelection?: LangfuseTraceSelectionConfig;
+  traceDetailFields?: string;
+  observationV2Fields?: string;
+  observationV2MaxPages?: number;
+  traceCurationListJsonMaxChars?: number;
+  traceSummarySourceJsonMaxChars?: number;
+  traceSummaryForAttackMaxChars?: number;
+}
+
+export interface NetraTelemetryConfig {
+  baseUrl?: string;
+  baseUrlEnv?: string;
+  apiKeyEnv?: string;
+  traceSelection?: NetraTraceSelectionConfig;
+  traceCurationListJsonMaxChars?: number;
+  traceSummarySourceJsonMaxChars?: number;
+  traceSummaryForAttackMaxChars?: number;
+}
+
+export interface TelemetryConfig {
+  provider: TelemetryProviderId;
+  langfuse?: LangfuseTelemetryConfig;
+  netra?: NetraTelemetryConfig;
+  enrichJudgeFromTrace?: boolean;
+  traceFetchInitialDelayMs?: number;
+  traceFetchMaxAttempts?: number;
+  traceFetchRetryDelayMs?: number;
+  enrichJudgeTraceJsonMaxChars?: number;
+  propagation?: TelemetryPropagationConfig;
+}
