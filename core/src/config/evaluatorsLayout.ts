@@ -8,11 +8,13 @@ export type EvaluatorCategory = "agent" | "mcp";
 
 export function getRepoRoot(): string {
   // Bundled runner: data dirs at package root, one level up from dist/
+  // Check for evaluators/agent/ (not just evaluators/) to avoid false-matching
+  // core/src/evaluators/ which is a TypeScript source directory, not data.
   const oneUp = path.resolve(__dirname, "..");
-  if (existsSync(path.join(oneUp, "evaluators"))) return oneUp;
+  if (existsSync(path.join(oneUp, "evaluators", "agent"))) return oneUp;
   // Compiled core (npm installed): data dirs colocated at core package root, 2 levels up from dist/config/
   const twoUp = path.resolve(__dirname, "../..");
-  if (existsSync(path.join(twoUp, "evaluators"))) return twoUp;
+  if (existsSync(path.join(twoUp, "evaluators", "agent"))) return twoUp;
   // Monorepo: data dirs at repo root, 3 levels up from core/dist/config/
   return path.resolve(__dirname, "../../..");
 }
