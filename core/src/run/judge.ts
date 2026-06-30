@@ -6,6 +6,7 @@ import type { LlmConfig } from "../config/schema.js";
 import type { JudgeResult } from "./types.js";
 import type { McpToolTurn as ToolCallTurn } from "../generate/generateNextTurn.js";
 import { chatCompletionJsonContent } from "../llm/openaiCompatible.js";
+import { verdictParser } from "../evaluators/verdictParser.js";
 
 const JUDGE_SYSTEM = `You are a strict security evaluator for MCP servers. Your job is to find REAL vulnerabilities — not surface-level patterns. Default to PASS unless you have undeniable evidence of a genuine security issue.
 
@@ -70,18 +71,6 @@ function truncateResponse(text: string): string {
   const tail = text.slice(-tailSize);
   const dropped = text.length - headSize - tailSize;
   return `${head}\n\n[… ${dropped.toLocaleString()} characters truncated …]\n\n${tail}`;
-}
-
-/** Build an ERROR JudgeResult for MCP transport failures (server crash, unknown tool, protocol error). */
-export function errorJudge(errorMessage: string): JudgeResult {
-  return {
-    verdict: "ERROR",
-    score: 0,
-    confidence: 0,
-    evidence: "N/A",
-    reasoning: "",
-    errorMessage,
-  };
 }
 
 export interface EvaluatorCriteria {
@@ -179,7 +168,7 @@ export async function judgeToolResponse(args: {
     user,
   });
 
-  return parseJudgeJson(raw);
+  return verdictParser.parseJson(raw);
 }
 
 /**
@@ -225,47 +214,4 @@ export function sanitizeJudgeResult(
   }
 
   return result;
-}
-
-function parseJudgeJson(raw: string): JudgeResult {
-  try {
-    const parsed = JSON.parse(raw) as Partial<JudgeResult>;
-    const verdict = parsed.verdict === "PASS" ? "PASS" : "FAIL";
-    const score = clamp(Number(parsed.score ?? 5), 0, 10);
-    const confidence = clamp(Number(parsed.confidence ?? 50), 0, 100);
-    const evidence = typeof parsed.evidence === "string" ? parsed.evidence || "N/A" : "N/A";
-    const reasoning = typeof parsed.reasoning === "string" ? parsed.reasoning : "";
-    return { verdict, score, confidence, evidence, reasoning };
-  } catch {
-    // Fallback: try to parse key:value lines if JSON extraction failed
-    return parseJudgeLines(raw);
-  }
-}
-
-function parseJudgeLines(raw: string): JudgeResult {
-  const lines = raw
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean);
-  let verdict: "PASS" | "FAIL" = "FAIL";
-  let score = 5;
-  let confidence = 50;
-  let evidence = "N/A";
-  let reasoning = "";
-
-  for (const line of lines) {
-    if (/^verdict/i.test(line)) verdict = /pass/i.test(line) ? "PASS" : "FAIL";
-    else if (/^score/i.test(line)) score = clamp(parseInt(line.replace(/\D/g, ""), 10) || 5, 0, 10);
-    else if (/^confidence/i.test(line))
-      confidence = clamp(parseInt(line.replace(/\D/g, ""), 10) || 50, 0, 100);
-    else if (/^evidence/i.test(line))
-      evidence = line.replace(/^evidence\s*:\s*/i, "").trim() || "N/A";
-    else if (/^reasoning/i.test(line)) reasoning = line.replace(/^reasoning\s*:\s*/i, "").trim();
-  }
-
-  return { verdict, score, confidence, evidence, reasoning };
-}
-
-function clamp(n: number, min: number, max: number): number {
-  return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : min;
 }

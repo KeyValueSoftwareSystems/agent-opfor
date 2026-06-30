@@ -10,24 +10,14 @@ import { formatUpstreamSessions } from "../lib/summarizeSessionContext.js";
 import { log } from "../lib/logger.js";
 import { JUDGE_AGENT_SYSTEM } from "../prompts/judge-agent.js";
 import { withRetry, isStopError } from "../lib/llmRetry.js";
-import type { JudgeResult, Verdict } from "../lib/judgeTypes.js";
+import { errorJudge, type JudgeResult, type Verdict } from "../lib/judgeTypes.js";
+import { verdictParser } from "./verdictParser.js";
 
 // JudgeResult/Verdict are the canonical shapes from lib/judgeTypes.ts — the single
-// source of truth shared across the execute, MCP, and autonomous runners. They were
-// previously re-declared here; re-exported so existing agent-judge call sites keep working.
+// source of truth shared across the execute, MCP, and autonomous runners. Re-exported
+// as types for existing call sites. `errorJudge` is NOT re-exported — import it directly
+// from lib/judgeTypes.js (no barrel re-exports).
 export type { JudgeResult, Verdict };
-
-/** Build an ERROR JudgeResult without calling the LLM judge. */
-export function errorJudge(errorMessage: string): JudgeResult {
-  return {
-    verdict: "ERROR",
-    score: 0,
-    confidence: 0,
-    evidence: "N/A",
-    reasoning: "",
-    errorMessage,
-  };
-}
 
 /** A single turn in a multi-turn conversation. */
 export interface ConversationTurn {
@@ -193,84 +183,12 @@ export async function judgeResponse(
 }
 
 /**
- * Parse the judge LLM's line-oriented output into a JudgeResult.
+ * Parse the agent judge's line-oriented output into a JudgeResult.
  *
- *  - Verdict matching is tolerant. The first run of letters after "Verdict:" is
- *    taken, so "PASS (with caveats)", "FAIL — leaked key", and "PASS." all parse
- *    correctly instead of collapsing to FAIL on an exact-string mismatch.
- *  - If NO recognisable Verdict line is found, the output is treated as a PARSE
- *    FAILURE and returned as verdict ERROR.
- *
- * Exported so it can be unit-tested as a pure function.
+ * Thin wrapper over the shared {@link verdictParser}; kept as a named export so
+ * existing call sites and unit tests stay stable. Tolerant verdict matching and
+ * ERROR-on-no-verdict now live in one place (verdictParser.ts).
  */
 export function parseJudgeOutput(raw: string): JudgeResult {
-  const lines = raw
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean);
-
-  let verdict: Verdict | null = null;
-  let score = 5;
-  let confidence = 50;
-  let evidence = "N/A";
-  let reasoning = "";
-  let failingTurns: number[] | undefined;
-
-  for (const line of lines) {
-    if (/^Verdict:/i.test(line)) {
-      const firstWord = (
-        line.replace(/^Verdict:/i, "").match(/[A-Za-z]+/)?.[0] ?? ""
-      ).toUpperCase();
-      if (firstWord === "PASS") verdict = "PASS";
-      else if (firstWord === "FAIL") verdict = "FAIL";
-      else if (firstWord === "ERROR") verdict = "ERROR";
-      // Unrecognised token leaves verdict null → handled as a parse failure below.
-    } else if (/^Score:/i.test(line)) {
-      const n = parseInt(line.replace(/^Score:/i, "").trim(), 10);
-      if (!isNaN(n)) score = Math.min(10, Math.max(0, n));
-    } else if (/^Confidence:/i.test(line)) {
-      const n = parseInt(
-        line
-          .replace(/^Confidence:/i, "")
-          .replace("%", "")
-          .trim(),
-        10
-      );
-      if (!isNaN(n)) confidence = Math.min(100, Math.max(0, n));
-    } else if (/^Evidence:/i.test(line)) {
-      evidence = line.replace(/^Evidence:/i, "").trim() || "N/A";
-    } else if (/^FailingTurns?:/i.test(line)) {
-      const raw = line.replace(/^FailingTurns?:/i, "").trim();
-      if (raw && !/^n\/?a$/i.test(raw)) {
-        const nums = Array.from(
-          new Set(
-            raw
-              .split(/[,\s]+/)
-              .map((s) => parseInt(s, 10))
-              .filter((n) => Number.isFinite(n) && n > 0)
-          )
-        ).sort((a, b) => a - b);
-        if (nums.length > 0) failingTurns = nums;
-      }
-    } else if (/^Reasoning:/i.test(line)) {
-      reasoning = line.replace(/^Reasoning:/i, "").trim();
-    }
-  }
-
-  if (verdict === null) {
-    // Parsing failure - Surface as ERROR rather than a silent confident FAIL.
-    return {
-      ...errorJudge(`unparseable judge output: ${raw.slice(0, 200).replace(/\s+/g, " ").trim()}`),
-      reasoning: reasoning || "Judge output contained no parseable Verdict line.",
-    };
-  }
-
-  return {
-    verdict,
-    score,
-    confidence,
-    evidence,
-    reasoning,
-    failingTurns: verdict === "FAIL" ? failingTurns : undefined,
-  };
+  return verdictParser.parseLines(raw);
 }

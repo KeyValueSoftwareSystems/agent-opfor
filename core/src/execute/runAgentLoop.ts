@@ -5,7 +5,8 @@
 import type { LanguageModel } from "ai";
 import { generateNextAdaptiveTurn } from "../generate/generateNextTurn.js";
 import type { AttackPattern } from "../evaluators/parseEvaluator.js";
-import { judgeResponse, errorJudge } from "../evaluators/judge.js";
+import { judgeResponse } from "../evaluators/judge.js";
+import { errorJudge } from "../lib/judgeTypes.js";
 import type { JudgeObservabilityContext } from "../evaluators/judge.js";
 import { isTargetError } from "../targets/agentTarget.js";
 import type { AgentTarget } from "../targets/agentTarget.js";

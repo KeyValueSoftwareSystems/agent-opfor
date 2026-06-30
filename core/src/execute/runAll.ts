@@ -30,11 +30,8 @@ import {
   buildUnifiedReport,
   modelLabel,
 } from "./aggregate.js";
-import {
-  judgeToolResponse,
-  sanitizeJudgeResult,
-  errorJudge as mcpErrorJudge,
-} from "../run/judge.js";
+import { judgeToolResponse, sanitizeJudgeResult } from "../run/judge.js";
+import { errorJudge as mcpErrorJudge } from "../lib/judgeTypes.js";
 // scanResources is available for direct client usage; scan-mode evaluators
 // use target.listResources()/readResource() through the McpTarget interface.
 import { createModel } from "../providers/factory.js";

@@ -36,7 +36,8 @@ export type {
 export type { EvaluatorSpec, AttackPattern } from "./evaluators/parseEvaluator.js";
 export type { AgentTarget } from "./targets/agentTarget.js";
 
-export { judgeResponse, errorJudge } from "./evaluators/judge.js";
+export { judgeResponse } from "./evaluators/judge.js";
+export { errorJudge } from "./lib/judgeTypes.js";
 export type {
   JudgeResult,
   JudgeObservabilityContext,
