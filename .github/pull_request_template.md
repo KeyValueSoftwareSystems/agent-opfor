@@ -1,26 +1,23 @@
 ## Problem
 
-Briefly describe the issue or feature being addressed.
+<!-- What was broken or missing? -->
 
 ## Solution
 
-Explain your approach and any important design decisions.
+<!-- How does this PR fix it? -->
 
-<!-- Required: explain what this PR does and the motivation behind it. -->
+## Changes
 
-## Checklist
+<!-- Packages and files affected -->
 
-- [ ] `npm run build` passes
-- [ ] `npm run typecheck` passes
-- [ ] `npm run build:catalog:check` passes _(if evaluators or suites changed)_
-- [ ] Tested against a local target _(if evaluator added or changed)_
-- [ ] No secrets, `.env`, or `.opfor/` artifacts committed
-- [ ] PR title follows `<type>: <what changed>` — e.g. `feat: add SSRF evaluator`
+## Issue
 
-## Evaluator checklist _(skip if no evaluator added)_
+<!-- Closes #123 / N/A -->
 
-- [ ] `id` is unique across all evaluators
-- [ ] `pass_criteria` and `fail_criteria` are specific, not vague
-- [ ] `severity` matches actual risk (`critical` = RCE / data breach)
-- [ ] `standards` mapping is correct
-- [ ] `.test.yaml` fixture included
+## How to test
+
+<!-- Steps for the maintainer to verify this works -->
+
+## Screenshots
+
+<!-- If applicable — report HTML, extension UI, CLI output -->
