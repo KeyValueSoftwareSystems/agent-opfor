@@ -27,9 +27,11 @@ function assertReasoningBeforeVerdict(block: string, label: string) {
 
 function section(text: string, start: string, end?: string): string {
   const s = text.indexOf(start);
-  assert.ok(s >= 0, `section start not found: ${start}`);
-  const e = end ? text.indexOf(end, s + start.length) : text.length;
-  return text.slice(s, e < 0 ? text.length : e);
+  assert.ok(s >= 0, `section start not found: "${start}"`);
+  if (end === undefined) return text.slice(s);
+  const e = text.indexOf(end, s + start.length);
+  assert.ok(e >= 0, `section end not found: "${end}" (in section starting with "${start}")`);
+  return text.slice(s, e);
 }
 
 test("output-format contract puts Reasoning before Verdict", () => {
