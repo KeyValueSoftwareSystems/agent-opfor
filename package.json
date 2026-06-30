@@ -20,7 +20,7 @@
     "LICENSE"
   ],
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=20"
   },
   "scripts": {
     "build": "npm run build:catalog && tsc -b core && npm run build -w runners/cli && npm run build -w runners/mcp && npm run build -w runners/sdk && npm run extension:catalog && npm run build:core --workspace=@keyvaluesystems/agent-opfor-extension",
