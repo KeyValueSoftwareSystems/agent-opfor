@@ -117,9 +117,9 @@ test("sendAllowed caps total sends and refuses NEW threads past the tree ceiling
   assert.equal(budget.sendAllowed(false, 1).ok, false, "all sends refused past the send budget");
 });
 
-test("maxTotalSends defaults to ~50× budgetUsd when unset", () => {
-  assert.equal(new BudgetGuard({ maxThreadTurns: 25, budgetUsd: 6 }).maxTotalSends, 300);
-  assert.equal(new BudgetGuard({ maxThreadTurns: 25 }).maxTotalSends, 400, "no budget → 400");
+test("maxTotalSends defaults to ~20× budgetUsd when unset", () => {
+  assert.equal(new BudgetGuard({ maxThreadTurns: 25, budgetUsd: 6 }).maxTotalSends, 120);
+  assert.equal(new BudgetGuard({ maxThreadTurns: 25 }).maxTotalSends, 200, "no budget → 200");
 });
 
 function finding(threadId: string, evidence: string, confidence: number): Finding {
