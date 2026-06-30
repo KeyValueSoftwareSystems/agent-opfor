@@ -15,6 +15,7 @@ import { runAll } from "@keyvaluesystems/agent-opfor-core/execute/runAll.js";
 import { writeReport } from "@keyvaluesystems/agent-opfor-core/report/buildReport.js";
 import { PROVIDERS, type ProviderName } from "@keyvaluesystems/agent-opfor-core/config/types.js";
 import type { RunConfig } from "@keyvaluesystems/agent-opfor-core/execute/types.js";
+import { parseRunConfig } from "@keyvaluesystems/agent-opfor-core/config/schema.js";
 import { normalizeEffort } from "@keyvaluesystems/agent-opfor-core/execute/effortCompat.js";
 
 function readVersion(): string {
@@ -82,7 +83,12 @@ server.tool(
       };
     } catch (err: unknown) {
       return {
-        content: [{ type: "text" as const, text: `Error loading catalog: ${String(err)}` }],
+        content: [
+          {
+            type: "text" as const,
+            text: `Error loading catalog: ${err instanceof Error ? err.message : String(err)}`,
+          },
+        ],
         isError: true,
       };
     }
@@ -138,7 +144,7 @@ server.tool(
       .describe("'agent' for HTTP/chatbot targets, 'mcp' for MCP servers"),
 
     // Agent target fields (required when target_kind = agent)
-    agent_endpoint: z.string().optional().describe("HTTP endpoint URL (agent targets)"),
+    agent_endpoint: z.string().url().optional().describe("HTTP endpoint URL (agent targets)"),
     agent_request_format: z
       .enum(["auto", "openai", "json"])
       .optional()
@@ -167,7 +173,7 @@ server.tool(
     mcp_command: z.string().optional().describe("Command to start MCP server (stdio transport)"),
     mcp_args: z.array(z.string()).optional().describe("Args for MCP server command"),
     mcp_env: z.record(z.string()).optional().describe("Env vars for MCP server process"),
-    mcp_url: z.string().optional().describe("MCP server URL (url transport)"),
+    mcp_url: z.string().url().optional().describe("MCP server URL (url transport)"),
 
     // Evaluators
     suite_id: z
@@ -206,6 +212,58 @@ server.tool(
     config_path: z.string().optional().describe("Full path for config file (overrides output_dir)"),
   },
   async (args) => {
+    // Validate required-field matrix based on target_kind
+    const setupInputSchema = z
+      .object({
+        target_kind: z.enum(["agent", "mcp"]),
+        agent_endpoint: z.string().url().optional(),
+        agent_script_path: z.string().optional(),
+        mcp_transport: z.enum(["stdio", "url"]).optional(),
+        mcp_url: z.string().url().optional(),
+        mcp_command: z.string().optional(),
+      })
+      .superRefine((data, ctx) => {
+        if (data.target_kind === "agent") {
+          if (!data.agent_endpoint && !data.agent_script_path) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ["agent_endpoint"],
+              message:
+                "agent targets require either agent_endpoint (HTTP URL) or agent_script_path (local script path)",
+            });
+          }
+        } else if (data.target_kind === "mcp") {
+          const transport = data.mcp_transport ?? "stdio";
+          if (transport === "url" && !data.mcp_url) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ["mcp_url"],
+              message: "mcp targets with transport='url' require mcp_url",
+            });
+          }
+          if (transport === "stdio" && !data.mcp_command) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ["mcp_command"],
+              message: "mcp targets with transport='stdio' require mcp_command",
+            });
+          }
+        }
+      });
+
+    const refinedValidation = setupInputSchema.safeParse(args);
+    if (!refinedValidation.success) {
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: `Setup validation failed: ${refinedValidation.error.issues.map((i) => i.message).join("; ")}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+
     try {
       const config = buildRunConfig(args);
       const outputPath = args.config_path
@@ -240,7 +298,12 @@ server.tool(
       };
     } catch (err: unknown) {
       return {
-        content: [{ type: "text" as const, text: `Setup failed: ${String(err)}` }],
+        content: [
+          {
+            type: "text" as const,
+            text: `Setup failed: ${err instanceof Error ? err.message : String(err)}`,
+          },
+        ],
         isError: true,
       };
     }
@@ -273,7 +336,7 @@ server.tool(
   async (args) => {
     try {
       const raw = await readFile(path.resolve(args.config_path), "utf8");
-      let config = JSON.parse(raw) as RunConfig;
+      let config = parseRunConfig(JSON.parse(raw)) as unknown as RunConfig;
 
       if (args.effort_override) config = { ...config, effort: args.effort_override };
       if (args.turns_override) config = { ...config, turns: args.turns_override };
@@ -324,7 +387,12 @@ server.tool(
       return { content: [{ type: "text" as const, text: lines.join("\n") }] };
     } catch (err: unknown) {
       return {
-        content: [{ type: "text" as const, text: `Execute failed: ${String(err)}` }],
+        content: [
+          {
+            type: "text" as const,
+            text: `Execute failed: ${err instanceof Error ? err.message : String(err)}`,
+          },
+        ],
         isError: true,
       };
     }
