@@ -1,5 +1,7 @@
 # Opfor — Trace-aware testing
 
+> Using the SDK? See [SDK telemetry](sdk.md#telemetry).
+
 Plugging in a telemetry provider (Langfuse or Netra) unlocks two capabilities:
 
 - **Grounded attack generation** — opfor fetches real production traces before generating attacks. The attacker LLM sees actual user flows, tool calls, and data the agent handles, making attacks targeted rather than generic.
