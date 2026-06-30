@@ -18,3 +18,19 @@ export const JudgeResultSchema = z.object({
 });
 
 export type JudgeResult = z.infer<typeof JudgeResultSchema>;
+
+/**
+ * Build an ERROR JudgeResult without calling an LLM judge. Used for transport
+ * failures (MCP server crash, unknown tool) and unparseable judge output.
+ * Canonical home so the agent and MCP judges share one definition.
+ */
+export function errorJudge(errorMessage: string): JudgeResult {
+  return {
+    verdict: "ERROR",
+    score: 0,
+    confidence: 0,
+    evidence: "N/A",
+    reasoning: "",
+    errorMessage,
+  };
+}
