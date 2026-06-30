@@ -17,7 +17,7 @@ body:
         - CLI (`opfor run` / `opfor setup`)
         - CLI — Autonomous mode (`opfor hunt`)
         - MCP Server (`@keyvaluesystems/agent-opfor-mcp`)
-        - Browser Extension
+        - Browser Extension (`@keyvaluesystems/agent-opfor-extension`)
         - SDK (`@keyvaluesystems/agent-opfor-sdk`)
         - Evaluators / Suites
         - Judge (LLM-as-judge)
