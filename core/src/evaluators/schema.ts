@@ -92,7 +92,7 @@ export const SourceAnalysisFrontmatterSchema = z
     correlates_with: z.string().min(1),
     description: z.string().optional(),
     /** SAST config (languages, sink/source patterns, taint question) — freeform internally. */
-    source_scan: z.record(z.unknown()).optional(),
+    source_scan: z.record(z.string(), z.unknown()).optional(),
     pass_criteria: z.string().min(1),
     fail_criteria: z.string().min(1),
     /** Static evaluators carry no attack patterns; an empty list is expected. */
