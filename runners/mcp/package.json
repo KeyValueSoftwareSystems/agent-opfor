@@ -58,7 +58,7 @@
     "consola": "^3.4.2",
     "dotenv": "^17.4.2",
     "yaml": "^2.8.3",
-    "zod": "^3.0.0"
+    "zod": "^4.0.0"
   },
   "devDependencies": {
     "@keyvaluesystems/agent-opfor-core": "^0.9.0",
