@@ -53,6 +53,26 @@ test("a trailing unpaired user turn is ignored", () => {
   assert.deepStrictEqual(turns, [{ user: "u1", assistant: "a1" }]);
 });
 
+test("recovers a valid pair after a misaligned entry instead of dropping it", () => {
+  // user / assistant / assistant / user / assistant — the stray second assistant
+  // desyncs a fixed step-by-2 loop, which would drop the trailing user/assistant
+  // pair. The resync skips the stray and still captures both real pairs.
+  const turns = pairTurnsForJudge(
+    [
+      { role: "user", content: "u1" },
+      { role: "assistant", content: "a1" },
+      { role: "assistant", content: "stray" },
+      { role: "user", content: "u2" },
+      { role: "assistant", content: "a2" },
+    ],
+    FALLBACK
+  );
+  assert.deepStrictEqual(turns, [
+    { user: "u1", assistant: "a1" },
+    { user: "u2", assistant: "a2" },
+  ]);
+});
+
 test("real pairs are used, not the fallback", () => {
   const turns = pairTurnsForJudge(
     [

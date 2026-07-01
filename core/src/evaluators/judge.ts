@@ -48,28 +48,45 @@ export interface AttackContext {
   judgeHint?: string;
 }
 
+/** One paired conversational turn as rendered for the judge. */
+export type JudgeTurn = { user: string; assistant: string };
+
 /**
  * Pair a conversation transcript into user/assistant turns for the judge prompt.
  *
  * Filters to user/assistant entries first so a stray system/tool entry (the TS
  * union bans them, but a JS caller could bypass it) can't shift the pair window
- * and silently collapse the transcript. When no pairs can be formed, falls back
- * to a single synthetic turn (the single-turn HTTP path) and warns if a
- * non-trivial history was dropped — a signal the caller's role alternation is off.
+ * and silently collapse the transcript. Pairs greedily, resyncing by one entry
+ * on a role mismatch so a valid pair after a misaligned entry is still captured
+ * (a fixed step-by-2 would drop it), and warns when misalignment forced a
+ * resync. When no pairs can be formed, falls back to a single synthetic turn
+ * (the single-turn HTTP path) and warns if a non-trivial history was dropped —
+ * both are signals the caller's role alternation is off.
  */
 export function pairTurnsForJudge(
   conversationHistory: ConversationTurn[] | undefined,
-  fallback: { user: string; assistant: string }
-): { user: string; assistant: string }[] {
+  fallback: JudgeTurn
+): JudgeTurn[] {
   const pairable = (conversationHistory ?? []).filter(
     (m) => m.role === "user" || m.role === "assistant"
   );
-  const turns: { user: string; assistant: string }[] = [];
-  for (let i = 0; i + 1 < pairable.length; i += 2) {
+  const turns: JudgeTurn[] = [];
+  // Greedily pair adjacent user→assistant entries. On a mismatch, advance by a
+  // single entry to resync rather than skipping a whole window — otherwise a
+  // stray/misaligned entry would desync every subsequent pair. `resynced` marks
+  // that at least one entry was dropped to realign (distinct from a benign
+  // trailing odd turn, which ends the loop without a resync).
+  let i = 0;
+  let resynced = false;
+  while (i + 1 < pairable.length) {
     const u = pairable[i];
     const a = pairable[i + 1];
     if (u.role === "user" && a.role === "assistant") {
       turns.push({ user: u.content, assistant: a.content });
+      i += 2;
+    } else {
+      resynced = true;
+      i += 1;
     }
   }
   if (turns.length === 0) {
@@ -79,6 +96,10 @@ export function pairTurnsForJudge(
       );
     }
     turns.push(fallback);
+  } else if (resynced) {
+    log.warn(
+      `judge: conversationHistory had role misalignment — one or more user/assistant entries were skipped to re-pair the transcript. Check role alternation in the caller.`
+    );
   }
   return turns;
 }
