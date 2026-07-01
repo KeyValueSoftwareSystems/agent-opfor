@@ -17,6 +17,7 @@ import { log } from "../lib/logger.js";
 import type { AgentAttackSpec, AttackResult, AgentTurnRecord } from "./types.js";
 import type { TelemetryConfig } from "../config/types.js";
 import type { UnifiedTargetConfig } from "./types.js";
+import { ConversationHistory } from "./conversationHistory.js";
 
 export async function runAgentAttack(
   attack: AgentAttackSpec,
@@ -33,9 +34,7 @@ export async function runAgentAttack(
   }
 ): Promise<AttackResult> {
   const turns: AgentTurnRecord[] = [];
-  const history: { role: "user" | "assistant"; content: string }[] = [
-    ...(context?.initialHistory ?? []),
-  ];
+  const history = new ConversationHistory(context?.initialHistory);
   // Parallel meta channel for attacker tag output (not sent to target).
   // Used to thread PREVIOUS_TECHNIQUE into the next turn's user-block.
   // Resume limitation: on resumed runs (initialHistory non-empty), this
@@ -48,10 +47,10 @@ export async function runAgentAttack(
   let finalPrompt = attack.prompt ?? "";
   let finalResponse = "";
 
-  // For resume: if we already have history, seed finalPrompt/Response from it
-  if (history.length >= 2) {
-    finalPrompt = [...history].reverse().find((m) => m.role === "user")?.content ?? "";
-    finalResponse = [...history].reverse().find((m) => m.role === "assistant")?.content ?? "";
+  // For resume: if we already have a completed turn, seed finalPrompt/Response from it
+  if (history.turnCount >= 1) {
+    finalPrompt = history.lastUser();
+    finalResponse = history.lastAssistant();
   }
 
   const propagation = context?.telemetry?.propagation;
@@ -68,7 +67,7 @@ export async function runAgentAttack(
   // Agents that don't read sessionIdField just ignore it.
   const attackSessionId = randomUUID();
 
-  const startTurn = Math.floor(history.length / 2) + 1;
+  const startTurn = history.turnCount + 1;
   for (let t = startTurn; t <= attack.turns; t++) {
     let prompt: string;
     // Mode discriminator. Comprehensive mode seeds `attack.prompt` from the
@@ -82,7 +81,7 @@ export async function runAgentAttack(
       attackerMeta.push({});
     } else {
       const result = await generateNextAdaptiveTurn({
-        history,
+        history: history.messages,
         attack,
         patterns,
         target: context?.targetConfig ?? {
@@ -113,14 +112,13 @@ export async function runAgentAttack(
 
     const response = await target.send(prompt, {
       sessionId: attackSessionId,
-      history,
+      history: history.messages,
       propagation,
       attackTraceId,
       attackIndex: Number.isFinite(Number(attackIndex)) ? Number(attackIndex) : undefined,
     });
 
-    history.push({ role: "user", content: prompt });
-    history.push({ role: "assistant", content: response });
+    history.push(prompt, response);
 
     finalPrompt = prompt;
     finalResponse = response;
@@ -151,7 +149,7 @@ export async function runAgentAttack(
             finalResponse,
             judgeModel,
             await buildJudgeObservability(context?.telemetry, attackTraceId, finalResponse),
-            history.length > 2 ? history : undefined,
+            history.size > 2 ? history.messages : undefined,
             { patternName: attack.patternName, judgeHint: attack.judgeHint },
             attack.upstreamSessions
           );

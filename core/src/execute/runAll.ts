@@ -40,6 +40,7 @@ import { getAdapter } from "../telemetry/adapter.js";
 import { runSetupTraceCuration } from "../telemetry/curation.js";
 import { log } from "../lib/logger.js";
 import { isStopError, getStopReason } from "../lib/llmRetry.js";
+import { TurnPlan } from "./turnPlan.js";
 
 export interface RunAllOptions {
   onProgress?: (event: ProgressEvent) => void;
@@ -168,9 +169,7 @@ export async function runAll(
         log.info(`\n▶ ${evaluator.name} (${evaluator.id})`);
       }
 
-      const turnMode: "single" | "multi" =
-        config.turnMode ?? (config.turns > 1 ? "multi" : "single");
-      const effectiveTurns = turnMode === "single" ? 1 : config.turns;
+      const { turnMode, effectiveTurns } = TurnPlan.from(config);
 
       let attacks: AttackSpec[];
       try {
