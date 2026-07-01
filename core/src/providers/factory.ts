@@ -1,3 +1,8 @@
+// Suppress Vercel AI SDK spec-compatibility warnings — @ai-sdk/openai-compatible
+// still implements the older provider spec than the installed `ai` major, and
+// the warning fires once per model instance created below; it's not actionable.
+(globalThis as Record<string, unknown>).AI_SDK_LOG_WARNINGS = false;
+
 import type { LanguageModel } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createAnthropic } from "@ai-sdk/anthropic";

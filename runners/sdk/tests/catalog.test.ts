@@ -35,6 +35,20 @@ describe("SDK catalog", () => {
     );
   });
 
+  test("listSuites respects kind option", async () => {
+    const agentSuites = await listSuites({ kind: "agent" });
+    const mcpSuites = await listSuites({ kind: "mcp" });
+
+    assert.ok(agentSuites.length > 0, "should have agent suites");
+    assert.ok(mcpSuites.length > 0, "should have mcp suites");
+
+    const agentIds = new Set(agentSuites.map((s) => s.id));
+    const mcpIds = new Set(mcpSuites.map((s) => s.id));
+
+    assert.ok(agentIds.size > 0);
+    assert.ok(mcpIds.size > 0);
+  });
+
   test("listEvaluators returns array of evaluators", async () => {
     const evaluators = await listEvaluators();
 

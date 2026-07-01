@@ -8,11 +8,14 @@ import type { SuiteInfo, EvaluatorInfo, ListEvaluatorsOptions } from "./types.js
  * @example
  * ```typescript
  * const suites = await listSuites();
+ * const mcpSuites = await listSuites({ kind: "mcp" });
  * // [{ id: "owasp-llm-top10", name: "OWASP LLM Top 10", evaluatorCount: 10 }, ...]
  * ```
  */
-export async function listSuites(): Promise<SuiteInfo[]> {
-  const catalog = await loadSkillCatalog();
+export async function listSuites(options?: ListEvaluatorsOptions): Promise<SuiteInfo[]> {
+  const kind = options?.kind ?? "agent";
+
+  const catalog = kind === "mcp" ? await loadCatalog() : await loadSkillCatalog();
 
   return catalog.suites.map((suite) => ({
     id: suite.id,
