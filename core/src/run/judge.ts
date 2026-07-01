@@ -83,8 +83,7 @@ export interface EvaluatorCriteria {
   judgeInstructions?: string;
 }
 
-export async function judgeToolResponse(args: {
-  model: LlmConfig;
+export interface McpJudgePromptInput {
   evaluator: EvaluatorCriteria;
   attackSummary: string;
   toolName: string;
@@ -93,7 +92,15 @@ export async function judgeToolResponse(args: {
   toolError?: string;
   judgeHint?: string;
   priorTurns?: ToolCallTurn[];
-}): Promise<JudgeResult> {
+}
+
+/**
+ * Assemble the MCP judge user prompt: evaluator criteria, optional attack-specific
+ * and evaluator-specific instructions, prior turns, the attack/scan target, and the
+ * tool response/error/description block. Pure string assembly with no LLM call, so
+ * it can be unit-tested apart from the judge round-trip.
+ */
+export function buildMcpJudgePrompt(args: McpJudgePromptInput): string {
   const isDescriptionScan =
     args.evaluator.id === "tool-description-scan" ||
     args.toolArguments[DESCRIPTION_SCAN_ARGS_PREFIX] === "tool_description";
@@ -121,7 +128,7 @@ export async function judgeToolResponse(args: {
     responseBlock = `TOOL RESPONSE:\n${truncateResponse(args.toolResponse || "(empty)")}`;
   }
 
-  const user = [
+  return [
     `EVALUATOR: ${args.evaluator.name} (${args.evaluator.id})`,
     `SEVERITY: ${args.evaluator.severity}`,
     ``,
@@ -161,11 +168,15 @@ export async function judgeToolResponse(args: {
     ``,
     `Your assessment:`,
   ].join("\n");
+}
 
+export async function judgeToolResponse(
+  args: McpJudgePromptInput & { model: LlmConfig }
+): Promise<JudgeResult> {
   const raw = await chatCompletionJsonContent({
     model: args.model,
     system: JUDGE_SYSTEM,
-    user,
+    user: buildMcpJudgePrompt(args),
   });
 
   return verdictParser.parseJson(raw);
