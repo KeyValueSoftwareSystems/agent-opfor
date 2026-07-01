@@ -12,6 +12,7 @@ import { TargetStopError } from "../targets/agentTarget.js";
 import { runAgentAttack } from "./runAgentLoop.js";
 import { log } from "../lib/logger.js";
 import { isStopError, getStopReason } from "../lib/llmRetry.js";
+import { TurnPlan } from "./turnPlan.js";
 import {
   summarizeVerdicts,
   toEvaluatorResult,
@@ -77,8 +78,7 @@ export async function runAllBrowser(
     notify({ type: "evaluator_start", evaluatorId: evaluator.id, evaluatorName: evaluator.name });
     log.info(`\n▶ ${evaluator.name} (${evaluator.id})`);
 
-    const turnMode: "single" | "multi" = config.turnMode ?? (config.turns > 1 ? "multi" : "single");
-    const effectiveTurns = turnMode === "single" ? 1 : config.turns;
+    const { turnMode, effectiveTurns } = TurnPlan.from(config);
 
     let generated;
     try {
