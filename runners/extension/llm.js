@@ -146,7 +146,14 @@ export async function callLlm({ provider, baseUrl, apiKey, model, messages, sign
     case PROVIDERS.AZURE: {
       // Add the /openai path when the endpoint has none, then the deployment segment.
       const base = baseUrl.replace(/\/+$/, "");
-      const root = new URL(base).pathname === "/" ? `${base}/openai` : base;
+      let root;
+      try {
+        root = new URL(base).pathname === "/" ? `${base}/openai` : base;
+      } catch {
+        throw new Error(
+          `Azure baseUrl is not a valid URL (e.g. https://<resource>.openai.azure.com)`
+        );
+      }
       return callOpenAiCompat({
         baseUrl: `${root}/deployments/${model}`,
         apiKey,

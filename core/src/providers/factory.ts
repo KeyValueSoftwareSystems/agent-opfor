@@ -83,7 +83,14 @@ export const providerRegistry: Record<ProviderName, ProviderAdapter> = {
     // Add the /openai path when the endpoint has none; leave proxy/custom paths as-is.
     build: ({ apiKey, model, baseURL }) => {
       const base = baseURL!.replace(/\/+$/, "");
-      const resolved = new URL(base).pathname === "/" ? `${base}/openai` : base;
+      let resolved: string;
+      try {
+        resolved = new URL(base).pathname === "/" ? `${base}/openai` : base;
+      } catch {
+        throw new Error(
+          `baseURL is not a valid URL for provider '${PROVIDERS.AZURE}' (Azure resource endpoint, e.g. https://<resource>.openai.azure.com)`
+        );
+      }
       return createAzure({ apiKey, baseURL: resolved })(model);
     },
   },

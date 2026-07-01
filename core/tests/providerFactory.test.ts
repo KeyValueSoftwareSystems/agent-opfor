@@ -109,6 +109,20 @@ test("azure without baseURL throws its specific message", () => {
   );
 });
 
+test("azure with a malformed baseURL throws a clear message, not a raw TypeError", () => {
+  envValues = { KEY: "fake-key" };
+  assert.throws(
+    () =>
+      createModel({
+        provider: PROVIDERS.AZURE,
+        model: "m",
+        apiKeyEnv: "KEY",
+        baseURL: "my-resource",
+      }),
+    /baseURL is not a valid URL for provider 'azure'/
+  );
+});
+
 test("openai-compatible without baseURL throws", () => {
   envValues = { KEY: "fake-key" };
   assert.throws(
