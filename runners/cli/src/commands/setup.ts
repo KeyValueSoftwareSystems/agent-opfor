@@ -227,9 +227,13 @@ async function collectLlmConfig(label: string): Promise<LlmConfig> {
 
   let baseURL: string | undefined;
   if (provider === PROVIDERS.AZURE || provider === PROVIDERS.OPENAI_COMPATIBLE) {
+    const message =
+      provider === PROVIDERS.AZURE
+        ? "Azure resource endpoint (e.g. https://my-resource.openai.azure.com)"
+        : "Base URL (required for this provider)";
     baseURL = await input({
-      message: "Base URL (required for this provider)",
-      validate: (v) => (v.trim() ? true : "Base URL is required"),
+      message,
+      validate: (v) => (v.trim() ? true : "A value is required"),
     });
   }
 
