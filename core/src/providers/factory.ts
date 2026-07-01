@@ -80,8 +80,12 @@ export const providerRegistry: Record<ProviderName, ProviderAdapter> = {
     envVar: "AZURE_OPENAI_API_KEY",
     capabilities: { supportsJsonMode: true, requiresBaseURL: true },
     baseUrlError: `baseURL is required for provider '${PROVIDERS.AZURE}' (Azure resource endpoint, e.g. https://<resource>.openai.azure.com)`,
-    // baseURL presence is enforced centrally in createModel via requiresBaseURL.
-    build: ({ apiKey, model, baseURL }) => createAzure({ apiKey, resourceName: baseURL! })(model),
+    // Add the /openai path when the endpoint has none; leave proxy/custom paths as-is.
+    build: ({ apiKey, model, baseURL }) => {
+      const base = baseURL!.replace(/\/+$/, "");
+      const resolved = new URL(base).pathname === "/" ? `${base}/openai` : base;
+      return createAzure({ apiKey, baseURL: resolved })(model);
+    },
   },
   [PROVIDERS.OPENAI_COMPATIBLE]: {
     defaultModel: "",
@@ -140,7 +144,10 @@ export function createModel(llm: LlmConfig): LanguageModel {
   if (!apiKey) throw new Error(`Missing env var: ${llm.apiKeyEnv}`);
 
   const adapter = providerRegistry[llm.provider];
-  if (!adapter) throw new Error(`Unknown provider: ${llm.provider}`);
+  if (!adapter)
+    throw new Error(
+      `Unknown provider: ${llm.provider}. Set 'provider' in your LLM config to one of: ${Object.keys(providerRegistry).join(", ")}.`
+    );
   // One source of truth for the baseURL rule: the capability flag drives it, so a
   // provider added with requiresBaseURL gets the actionable error for free.
   if (adapter.capabilities.requiresBaseURL && !llm.baseURL) {
