@@ -107,10 +107,11 @@ async function scanResources(ctx: BaselineScanContext): Promise<AttackResult[]> 
     notify({ type: "attack_start", attackId, patternName: `resource: ${resource.uri}` });
     log.info(`  → resource: ${resource.uri}`);
 
-    const content = await target.readResource(resource.uri);
-    const isError = content.startsWith("ERROR: ");
-
-    if (isError) {
+    let content: string;
+    try {
+      content = await target.readResource(resource.uri);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
       results.push({
         kind: "mcp",
         attackId,
@@ -119,8 +120,8 @@ async function scanResources(ctx: BaselineScanContext): Promise<AttackResult[]> 
         toolName: "resources/read",
         toolArguments: { uri: resource.uri },
         toolResponse: "",
-        toolError: content,
-        judge: mcpErrorJudge(content),
+        toolError: message,
+        judge: mcpErrorJudge(message),
       });
       notify({ type: "attack_done", attackId, verdict: "ERROR" });
       continue;
@@ -238,14 +239,22 @@ async function scanRugPull(ctx: BaselineScanContext): Promise<AttackResult[]> {
     /* no baseline yet */
   }
 
+  const recordBaseline = async () => {
+    await mkdir(baselinesDir, { recursive: true });
+    await writeFile(baselinePath, currentJson, "utf8");
+  };
+
+  // Parse any stored baseline up front: null means no file, empty, or corrupt.
+  const baseline = baselineJson === null ? null : parseBaselineSnapshot(baselineJson);
+
   let result: AttackResult;
 
-  if (!baselineJson) {
+  if (baselineJson === null) {
+    // Genuine first run — no prior state to protect, so record and pass.
     log.info(
       `  No baseline found — recording current state (${tools.length} tools, hash: ${currentHash.slice(0, 12)}…)`
     );
-    await mkdir(baselinesDir, { recursive: true });
-    await writeFile(baselinePath, currentJson, "utf8");
+    await recordBaseline();
     result = {
       kind: "mcp",
       attackId,
@@ -260,6 +269,31 @@ async function scanRugPull(ctx: BaselineScanContext): Promise<AttackResult[]> {
         confidence: 100,
         evidence: "N/A",
         reasoning: `First run — baseline recorded. No previous state to compare against.`,
+      },
+    };
+  } else if (baseline === null) {
+    // Baseline file exists but is empty or unparseable. We cannot verify drift,
+    // and silently re-recording would let a corrupt-then-drift sequence launder
+    // itself into a trusted baseline. Fail closed: flag it and leave the file
+    // untouched so an operator re-baselines explicitly (delete it to re-record).
+    log.warn(`  Baseline file is empty or unparseable — cannot verify drift`);
+    result = {
+      kind: "mcp",
+      attackId,
+      evaluatorId: evalId,
+      patternName: "tool-description-drift",
+      toolName: "tools/list",
+      toolArguments: {},
+      toolResponse: "",
+      toolError: `Baseline file ${baselinePath} is empty or corrupt`,
+      judge: {
+        verdict: "ERROR",
+        score: 0,
+        confidence: 0,
+        evidence: "N/A",
+        reasoning:
+          "Stored baseline is empty or unparseable — tool-description drift could not be verified. Delete the baseline file to record a fresh one.",
+        errorMessage: "corrupt or empty baseline",
       },
     };
   } else {
@@ -283,17 +317,16 @@ async function scanRugPull(ctx: BaselineScanContext): Promise<AttackResult[]> {
         },
       };
     } else {
-      const baselineSnapshot = JSON.parse(baselineJson) as Array<{
-        name: string;
-        description: string;
-        inputSchema: unknown;
-      }>;
-      const diffs = computeToolDiffs(baselineSnapshot, currentSnapshot);
+      // DRIFT — do NOT overwrite the trusted baseline. Auto-accepting the changed
+      // snapshot would let the next run PASS silently (the rug pull launders
+      // itself). Keep flagging every run until an operator re-baselines.
+      const diffs = computeToolDiffs(baseline, currentSnapshot);
       const diffSummary = diffs.join("\n");
       log.info(`  ✗ DRIFT DETECTED — ${diffs.length} change(s)`);
       for (const d of diffs) log.info(`    ${d}`);
-      await mkdir(baselinesDir, { recursive: true });
-      await writeFile(baselinePath, currentJson, "utf8");
+      log.warn(
+        `  Baseline NOT updated — re-run keeps flagging until you re-baseline (delete ${baselinePath} to accept).`
+      );
       result = {
         kind: "mcp",
         attackId,
@@ -310,7 +343,7 @@ async function scanRugPull(ctx: BaselineScanContext): Promise<AttackResult[]> {
           score: 1,
           confidence: 100,
           evidence: diffSummary.slice(0, 500),
-          reasoning: `Tool descriptions changed since baseline: ${diffs.length} difference(s) detected. Baseline updated.`,
+          reasoning: `Tool descriptions changed since baseline: ${diffs.length} difference(s) detected. Baseline left unchanged — delete it to accept the new state.`,
         },
       };
     }
@@ -320,6 +353,25 @@ async function scanRugPull(ctx: BaselineScanContext): Promise<AttackResult[]> {
   const icon = result.judge.verdict === "PASS" ? "✓" : "✗";
   log.info(`     ${icon} ${result.judge.verdict}`);
   return [result];
+}
+
+/**
+ * Parse a stored tool-snapshot baseline. Returns null when the file is empty or
+ * not a valid JSON array (corrupt), so the caller can fail closed instead of
+ * crashing — a bare `JSON.parse` on a truncated file throws and would abort the
+ * entire run with no report.
+ */
+function parseBaselineSnapshot(
+  json: string
+): Array<{ name: string; description: string; inputSchema: unknown }> | null {
+  if (!json.trim()) return null;
+  try {
+    const parsed: unknown = JSON.parse(json);
+    if (!Array.isArray(parsed)) return null;
+    return parsed as Array<{ name: string; description: string; inputSchema: unknown }>;
+  } catch {
+    return null;
+  }
 }
 
 function computeToolDiffs(
