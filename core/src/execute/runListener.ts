@@ -12,17 +12,22 @@ import { log } from "../lib/logger.js";
 type Payload<T extends ProgressEvent["type"]> = Omit<Extract<ProgressEvent, { type: T }>, "type">;
 
 export interface RunListener {
-  /** Fired once before the first evaluator runs. */
+  // Lifecycle: onRunStart fires once at the start and is always paired with exactly
+  // one terminal hook — onRunFinish (the run produced a report, complete or partial)
+  // or onRunError (the run threw). onRunStopped is a non-terminal notice: onRunFinish
+  // still follows it with the partial report.
+
+  /** Fired once at the start, before the target connects. */
   onRunStart?(info: { evaluatorCount: number }): void;
   onEvaluatorStart?(info: Payload<"evaluator_start">): void;
   onAttackStart?(info: Payload<"attack_start">): void;
   onAttackDone?(info: Payload<"attack_done">): void;
   onEvaluatorDone?(info: Payload<"evaluator_done">): void;
-  /** Fired when a non-retryable error halts the run gracefully (partial report). */
+  /** Non-terminal notice that a non-retryable error cut the run short; onRunFinish still follows. */
   onRunStopped?(info: Payload<"run_stopped">): void;
-  /** Fired if the run throws an unexpected error (terminal; pairs with onRunStart). */
+  /** Terminal: the run threw. onRunFinish does NOT fire on this path. */
   onRunError?(info: { error: unknown }): void;
-  /** Fired once after the report is assembled (terminal; pairs with onRunStart). */
+  /** Terminal: fired once with the final report (complete, or partial after a stop). */
   onRunFinish?(report: UnifiedRunReport): void;
 }
 

@@ -65,24 +65,18 @@ export async function runAll(
     config.selection.dependsOn
   );
 
-  // For MCP targets, connect once and discover tools
+  // Declared before the try so the finally can always close the MCP target —
+  // including when listTools() throws after a successful connect.
   let mcpTarget: Awaited<ReturnType<typeof createMcpTarget>> | null = null;
   let tools: ToolInfo[] = [];
-
-  if (isMcp) {
-    mcpTarget = await createMcpTarget(config.target as import("./types.js").McpTargetConfig);
-    tools = await mcpTarget.listTools();
-    log.info(`MCP target connected — ${tools.length} tool(s) available`);
-  }
-
-  // Optional: pull real production traces and summarise them so attack
-  // generation can be grounded in actual usage patterns.
-  const traceContext = await curateTracesIfConfigured(config, attackModel, options?.outputDir);
 
   const ordered = topoSortEvaluators(evaluators);
   const evaluatorResults: EvaluatorResult[] = [];
   let stopReason: string | undefined;
 
+  // Fire onRunStart at the true start — before the (possibly slow) MCP connect and
+  // trace curation — so watchers see the run begin during those steps. Everything
+  // after it runs inside the try, so onRunStart always pairs with a terminal hook.
   // evaluatorCount is the attack-evaluator count; MCP baseline pre-flight scans
   // (run below) contribute extra results not reflected here.
   notifyListeners(listeners, (listener) =>
@@ -90,6 +84,17 @@ export async function runAll(
   );
 
   try {
+    // For MCP targets, connect once and discover tools.
+    if (isMcp) {
+      mcpTarget = await createMcpTarget(config.target as import("./types.js").McpTargetConfig);
+      tools = await mcpTarget.listTools();
+      log.info(`MCP target connected — ${tools.length} tool(s) available`);
+    }
+
+    // Optional: pull real production traces and summarise them so attack
+    // generation can be grounded in actual usage patterns.
+    const traceContext = await curateTracesIfConfigured(config, attackModel, options?.outputDir);
+
     // ── MCP pre-flight scans (always run for MCP targets) ──────────────
     if (isMcp && mcpTarget) {
       evaluatorResults.push(
@@ -119,24 +124,25 @@ export async function runAll(
     });
     evaluatorResults.push(...loop.evaluatorResults);
     stopReason = loop.stopReason;
+
+    // Build report (partial or complete) with stop reason if applicable.
+    const report = buildReport(config, evaluatorResults);
+    if (stopReason) {
+      (report as UnifiedRunReport & { stopReason?: string }).stopReason = stopReason;
+    }
+
+    // Terminal success signal — always the last hook (report may be partial if the
+    // run stopped early; onRunStopped fired earlier is a non-terminal notice).
+    notifyListeners(listeners, (listener) => listener.onRunFinish?.(report));
+    return report;
   } catch (err) {
-    // Terminal error signal so listeners that opened state in onRunStart can
-    // finalize (pairs with onRunStart, symmetric with onRunFinish).
+    // Terminal error signal — pairs with onRunStart on the throwing path (report
+    // building, MCP connect, and the loop are all covered).
     notifyListeners(listeners, (listener) => listener.onRunError?.({ error: err }));
     throw err;
   } finally {
     if (mcpTarget) await mcpTarget.close().catch(() => {});
   }
-
-  // Build report (partial or complete) with stop reason if applicable
-  const report = buildReport(config, evaluatorResults);
-  if (stopReason) {
-    (report as UnifiedRunReport & { stopReason?: string }).stopReason = stopReason;
-  }
-
-  notifyListeners(listeners, (listener) => listener.onRunFinish?.(report));
-
-  return report;
 }
 
 // ---------------------------------------------------------------------------
