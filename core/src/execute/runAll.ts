@@ -1,6 +1,6 @@
 import { randomUUID } from "../lib/random.js";
 import type { LanguageModel } from "ai";
-import type { RunConfig, EvaluatorResult, UnifiedRunReport } from "./types.js";
+import type { RunConfig, EvaluatorResult, UnifiedRunReport, ProgressEvent } from "./types.js";
 import type { ToolInfo } from "../generate/generateAttacks.js";
 import type { AgentTarget } from "../targets/agentTarget.js";
 import { createMcpTarget } from "../targets/mcpTarget.js";
@@ -9,6 +9,7 @@ import type { EvaluatorSpec } from "../evaluators/parseEvaluator.js";
 import { loadSkillCatalog, resolveSuiteEvaluatorIds } from "../config/loadSkillCatalog.js";
 import { loadCatalog } from "../catalog/loadCatalog.js";
 import { runBaselineScans } from "./baselineScanner.js";
+import { dispatchProgress, notifyListeners, type RunListener } from "./runListener.js";
 import { runEvaluatorAttacks } from "./evaluatorLoop.js";
 import { buildUnifiedReport, modelLabel } from "./aggregate.js";
 import { createModel } from "../providers/factory.js";
@@ -19,17 +20,19 @@ import { log } from "../lib/logger.js";
 
 export interface RunAllOptions {
   onProgress?: (event: ProgressEvent) => void;
+  /**
+   * Lifecycle observers (reporters, telemetry). Receive the same per-attack
+   * events as onProgress, plus run-level onRunStart/onRunFinish/onRunError hooks.
+   */
+  listeners?: RunListener[];
   outputDir?: string;
   /** Pre-built agent target. When omitted, createAgentTarget is called using config.target. */
   agentTarget?: AgentTarget;
 }
 
-export type ProgressEvent =
-  | { type: "evaluator_start"; evaluatorId: string; evaluatorName: string }
-  | { type: "attack_start"; attackId: string; patternName: string }
-  | { type: "attack_done"; attackId: string; verdict: "PASS" | "FAIL" | "ERROR" }
-  | { type: "evaluator_done"; evaluatorId: string; passed: number; failed: number; errors: number }
-  | { type: "run_stopped"; reason: string };
+// Re-exported for callers importing it from this module; defined in ./types.js
+// (the single source of truth) so the listener SPI doesn't cycle back here.
+export type { ProgressEvent } from "./types.js";
 
 /**
  * Core execute loop: resolves evaluators, generates attacks per effort level,
@@ -40,7 +43,13 @@ export async function runAll(
   config: RunConfig,
   options?: RunAllOptions
 ): Promise<UnifiedRunReport> {
-  const notify = options?.onProgress ?? (() => {});
+  // Fan every progress event to the legacy onProgress callback (backward-compat)
+  // and to any registered lifecycle listeners.
+  const listeners = options?.listeners ?? [];
+  const notify = (event: ProgressEvent) => {
+    options?.onProgress?.(event);
+    notifyListeners(listeners, (listener) => dispatchProgress(listener, event));
+  };
 
   const attackModel = resolveModel(config.attackerLlm);
   // Single source of truth for the judge LLM: explicit judge model, else the
@@ -74,6 +83,12 @@ export async function runAll(
   const evaluatorResults: EvaluatorResult[] = [];
   let stopReason: string | undefined;
 
+  // evaluatorCount is the attack-evaluator count; MCP baseline pre-flight scans
+  // (run below) contribute extra results not reflected here.
+  notifyListeners(listeners, (listener) =>
+    listener.onRunStart?.({ evaluatorCount: ordered.length })
+  );
+
   try {
     // ── MCP pre-flight scans (always run for MCP targets) ──────────────
     if (isMcp && mcpTarget) {
@@ -104,6 +119,11 @@ export async function runAll(
     });
     evaluatorResults.push(...loop.evaluatorResults);
     stopReason = loop.stopReason;
+  } catch (err) {
+    // Terminal error signal so listeners that opened state in onRunStart can
+    // finalize (pairs with onRunStart, symmetric with onRunFinish).
+    notifyListeners(listeners, (listener) => listener.onRunError?.({ error: err }));
+    throw err;
   } finally {
     if (mcpTarget) await mcpTarget.close().catch(() => {});
   }
@@ -113,6 +133,9 @@ export async function runAll(
   if (stopReason) {
     (report as UnifiedRunReport & { stopReason?: string }).stopReason = stopReason;
   }
+
+  notifyListeners(listeners, (listener) => listener.onRunFinish?.(report));
+
   return report;
 }
 
