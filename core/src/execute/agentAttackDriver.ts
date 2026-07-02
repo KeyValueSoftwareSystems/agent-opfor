@@ -65,6 +65,19 @@ export class AgentAttackDriver implements AttackDriver<string, string> {
       this.finalPrompt = this.history.lastUser();
       this.finalResponse = this.history.lastAssistant();
     }
+    // Resume: seed turns already in the transcript so the result reports the
+    // full conversation, not just turns run after resume.
+    const seeded = this.history.messages;
+    for (let i = 0; i + 1 < seeded.length; i += 2) {
+      if (seeded[i].role === "user" && seeded[i + 1].role === "assistant") {
+        this.turns.push({
+          kind: "agent",
+          turnIndex: this.turns.length + 1,
+          prompt: seeded[i].content,
+          response: seeded[i + 1].content,
+        });
+      }
+    }
 
     this.propagation = context?.telemetry?.propagation;
     const hasPropagation =
