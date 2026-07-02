@@ -111,10 +111,12 @@ class ConnectedMcpTarget implements McpTarget {
       return parts.join("\n").trim();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      // Signal read failures out-of-band (throw) rather than returning an
-      // "ERROR: …" string — that in-band sentinel collides with a resource whose
-      // legitimate content happens to start with "ERROR: ". Callers try/catch.
-      throw new Error(msg.slice(0, 300), { cause: err });
+      // Throw rather than return an "ERROR: …" string (that in-band sentinel
+      // collides with legit content starting "ERROR: "). Callers try/catch.
+      throw new Error(
+        `Failed to read MCP resource "${uri.slice(0, 200)}": ${msg.slice(0, 300)}. Verify the resource URI is valid and the MCP server can serve it.`,
+        { cause: err }
+      );
     }
   }
 

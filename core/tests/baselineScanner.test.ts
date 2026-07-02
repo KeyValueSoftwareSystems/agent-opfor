@@ -203,6 +203,20 @@ test("corrupt baseline file yields ERROR instead of crashing the run", async () 
   }
 });
 
+test("baseline that is a JSON array of malformed entries yields ERROR, not a crash", async () => {
+  const dir = await tmp();
+  try {
+    // Valid JSON array, but the element is not a well-formed tool entry. A plain
+    // Array.isArray check would pass this through and crash computeToolDiffs on
+    // t.name; per-element validation must fail closed to ERROR instead.
+    await seedBaseline(dir, "[null]");
+    const results = await scan(dir); // must not throw
+    assert.strictEqual(rugPull(results).attacks[0].judge.verdict, "ERROR");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("unreadable baseline (I/O error, not missing) fails closed with ERROR", async () => {
   const dir = await tmp();
   try {
@@ -211,6 +225,22 @@ test("unreadable baseline (I/O error, not missing) fails closed with ERROR", asy
     await mkdir(baselinePath(dir), { recursive: true });
     const results = await scan(dir); // must not throw, must not record over it
     assert.strictEqual(rugPull(results).attacks[0].judge.verdict, "ERROR");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("baseline that differs only in formatting is not flagged as drift", async () => {
+  const dir = await tmp();
+  try {
+    const tools = [{ name: "t", description: "d", inputSchema: null }];
+    // Same tool content the scanner records, but minified — different bytes, so
+    // the hash won't match, yet computeToolDiffs finds nothing. Must PASS (not a
+    // permanently sticky FAIL over a cosmetic reformat of the baseline file).
+    await seedBaseline(dir, JSON.stringify(tools));
+    const results = await scan(dir, { tools });
+    assert.strictEqual(rugPull(results).attacks[0].judge.verdict, "PASS");
+    assert.match(rugPull(results).attacks[0].judge.reasoning, /no drift/i);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

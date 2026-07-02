@@ -5,6 +5,7 @@
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { createHash } from "node:crypto";
+import { z } from "zod";
 import { randomUUID } from "../lib/random.js";
 import { judgeToolResponse } from "../run/judge.js";
 import { errorJudge as mcpErrorJudge } from "../lib/judgeTypes.js";
@@ -273,7 +274,7 @@ async function scanRugPull(ctx: BaselineScanContext): Promise<AttackResult[]> {
         confidence: 0,
         evidence: "N/A",
         reasoning:
-          "Existing baseline could not be read (permission or I/O error) — tool-description drift could not be verified. Baseline left untouched.",
+          "Existing baseline could not be read (permission or I/O error) — tool-description drift could not be verified. Fix the file permissions/path, or delete the baseline file to record a fresh one.",
         errorMessage: readError.code ?? "baseline read error",
       },
     };
@@ -282,23 +283,48 @@ async function scanRugPull(ctx: BaselineScanContext): Promise<AttackResult[]> {
     log.info(
       `  No baseline found — recording current state (${tools.length} tools, hash: ${currentHash.slice(0, 12)}…)`
     );
-    await recordBaseline();
-    result = {
-      kind: "mcp",
-      attackId,
-      evaluatorId: evalId,
-      patternName: "tool-description-drift",
-      toolName: "tools/list",
-      toolArguments: {},
-      toolResponse: `Baseline recorded: ${tools.length} tool(s), hash ${currentHash.slice(0, 16)}`,
-      judge: {
-        verdict: "PASS",
-        score: 10,
-        confidence: 100,
-        evidence: "N/A",
-        reasoning: `First run — baseline recorded. No previous state to compare against.`,
-      },
-    };
+    try {
+      await recordBaseline();
+      result = {
+        kind: "mcp",
+        attackId,
+        evaluatorId: evalId,
+        patternName: "tool-description-drift",
+        toolName: "tools/list",
+        toolArguments: {},
+        toolResponse: `Baseline recorded: ${tools.length} tool(s), hash ${currentHash.slice(0, 16)}`,
+        judge: {
+          verdict: "PASS",
+          score: 10,
+          confidence: 100,
+          evidence: "N/A",
+          reasoning: `First run — baseline recorded. No previous state to compare against.`,
+        },
+      };
+    } catch (err) {
+      // Write failed (read-only dir, disk full) — report ERROR, don't crash.
+      const message = err instanceof Error ? err.message : String(err);
+      log.warn(`  Failed to record baseline: ${message}`);
+      result = {
+        kind: "mcp",
+        attackId,
+        evaluatorId: evalId,
+        patternName: "tool-description-drift",
+        toolName: "tools/list",
+        toolArguments: {},
+        toolResponse: "",
+        toolError: `Could not write baseline file ${baselinePath}: ${message}`,
+        judge: {
+          verdict: "ERROR",
+          score: 0,
+          confidence: 0,
+          evidence: "N/A",
+          reasoning:
+            "First run, but the baseline could not be written (permission or disk error) — no baseline was recorded. Fix the output directory and re-run.",
+          errorMessage: "baseline write error",
+        },
+      };
+    }
   } else if (baseline === null) {
     // Baseline file exists but is empty or unparseable. We cannot verify drift,
     // and silently re-recording would let a corrupt-then-drift sequence launder
@@ -344,6 +370,27 @@ async function scanRugPull(ctx: BaselineScanContext): Promise<AttackResult[]> {
           reasoning: "tools/list output matches stored baseline — no drift detected.",
         },
       };
+    } else if (computeToolDiffs(baseline, currentSnapshot).length === 0) {
+      // Hash differs but content is identical — file was only reformatted.
+      // Not a rug pull; pass without rewriting the trusted file.
+      log.info(`  ✓ No drift — baseline differs only in formatting`);
+      result = {
+        kind: "mcp",
+        attackId,
+        evaluatorId: evalId,
+        patternName: "tool-description-drift",
+        toolName: "tools/list",
+        toolArguments: {},
+        toolResponse: `Content match (formatting-only difference): ${currentHash.slice(0, 16)}`,
+        judge: {
+          verdict: "PASS",
+          score: 10,
+          confidence: 100,
+          evidence: "N/A",
+          reasoning:
+            "tools/list content matches the stored baseline (the file differs only in formatting) — no drift detected.",
+        },
+      };
     } else {
       // DRIFT — do NOT overwrite the trusted baseline. Auto-accepting the changed
       // snapshot would let the next run PASS silently (the rug pull launders
@@ -383,23 +430,34 @@ async function scanRugPull(ctx: BaselineScanContext): Promise<AttackResult[]> {
   return [result];
 }
 
+const ToolSnapshotSchema = z.array(
+  z.object({
+    name: z.string(),
+    description: z.string(),
+    inputSchema: z.unknown(),
+  })
+);
+
 /**
- * Parse a stored tool-snapshot baseline. Returns null when the file is empty or
- * not a valid JSON array (corrupt), so the caller can fail closed instead of
- * crashing — a bare `JSON.parse` on a truncated file throws and would abort the
- * entire run with no report.
+ * Parse a stored tool-snapshot baseline. Returns null for an empty, non-JSON,
+ * or malformed file (e.g. `[null]`) so the caller can fail closed instead of
+ * crashing `computeToolDiffs`.
  */
 function parseBaselineSnapshot(
   json: string
 ): Array<{ name: string; description: string; inputSchema: unknown }> | null {
   if (!json.trim()) return null;
+  let parsed: unknown;
   try {
-    const parsed: unknown = JSON.parse(json);
-    if (!Array.isArray(parsed)) return null;
-    return parsed as Array<{ name: string; description: string; inputSchema: unknown }>;
+    parsed = JSON.parse(json);
   } catch {
     return null;
   }
+  const result = ToolSnapshotSchema.safeParse(parsed);
+  // Cast: z.unknown() infers inputSchema as optional, but it's validated here.
+  return result.success
+    ? (result.data as Array<{ name: string; description: string; inputSchema: unknown }>)
+    : null;
 }
 
 function computeToolDiffs(
