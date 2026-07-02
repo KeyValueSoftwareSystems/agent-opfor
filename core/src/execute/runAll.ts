@@ -51,39 +51,40 @@ export async function runAll(
     notifyListeners(listeners, (listener) => dispatchProgress(listener, event));
   };
 
-  const attackModel = resolveModel(config.attackerLlm);
-  // Single source of truth for the judge LLM: explicit judge model, else the
-  // attacker model. Reused by the baseline scans and the MCP dispatch below so
-  // the fallback can't drift between paths.
-  const judgeLlmConfig = config.judgeLlm ?? config.attackerLlm;
-  const judgeModel = resolveModel(judgeLlmConfig);
-
-  const isMcp = config.target.kind === "mcp";
-  const evaluators = await resolveEvaluators(
-    config.selection,
-    isMcp ? "mcp" : "agent",
-    config.selection.dependsOn
-  );
-
-  // Declared before the try so the finally can always close the MCP target —
-  // including when listTools() throws after a successful connect.
+  // Declared before the try so the finally can always close the MCP target (even
+  // if listTools() throws after connect). Everything else — model + evaluator
+  // resolution included — runs inside the try so any failure reaches onRunError.
   let mcpTarget: Awaited<ReturnType<typeof createMcpTarget>> | null = null;
-  let tools: ToolInfo[] = [];
-
-  const ordered = topoSortEvaluators(evaluators);
-  const evaluatorResults: EvaluatorResult[] = [];
-  let stopReason: string | undefined;
-
-  // Fire onRunStart at the true start — before the (possibly slow) MCP connect and
-  // trace curation — so watchers see the run begin during those steps. Everything
-  // after it runs inside the try, so onRunStart always pairs with a terminal hook.
-  // evaluatorCount is the attack-evaluator count; MCP baseline pre-flight scans
-  // (run below) contribute extra results not reflected here.
-  notifyListeners(listeners, (listener) =>
-    listener.onRunStart?.({ evaluatorCount: ordered.length })
-  );
 
   try {
+    const attackModel = resolveModel(config.attackerLlm);
+    // Single source of truth for the judge LLM: explicit judge model, else the
+    // attacker model. Reused by the baseline scans and the MCP dispatch below so
+    // the fallback can't drift between paths.
+    const judgeLlmConfig = config.judgeLlm ?? config.attackerLlm;
+    const judgeModel = resolveModel(judgeLlmConfig);
+
+    const isMcp = config.target.kind === "mcp";
+    const evaluators = await resolveEvaluators(
+      config.selection,
+      isMcp ? "mcp" : "agent",
+      config.selection.dependsOn
+    );
+
+    let tools: ToolInfo[] = [];
+    const ordered = topoSortEvaluators(evaluators);
+    const evaluatorResults: EvaluatorResult[] = [];
+
+    // Fire onRunStart once the evaluator count is known but before the (possibly
+    // slow) MCP connect and trace curation, so watchers see the run begin during
+    // those steps. onRunStart always pairs with a terminal hook (onRunFinish or
+    // onRunError). A failure in the setup above throws before onRunStart, so
+    // listeners get onRunError with no preceding onRunStart. evaluatorCount is the
+    // attack-evaluator count; MCP baseline pre-flight scans add extra results.
+    notifyListeners(listeners, (listener) =>
+      listener.onRunStart?.({ evaluatorCount: ordered.length })
+    );
+
     // For MCP targets, connect once and discover tools.
     if (isMcp) {
       mcpTarget = await createMcpTarget(config.target as import("./types.js").McpTargetConfig);
@@ -123,7 +124,7 @@ export async function runAll(
       notify,
     });
     evaluatorResults.push(...loop.evaluatorResults);
-    stopReason = loop.stopReason;
+    const stopReason = loop.stopReason;
 
     // Build report (partial or complete) with stop reason if applicable.
     const report = buildReport(config, evaluatorResults);
@@ -136,8 +137,8 @@ export async function runAll(
     notifyListeners(listeners, (listener) => listener.onRunFinish?.(report));
     return report;
   } catch (err) {
-    // Terminal error signal — pairs with onRunStart on the throwing path (report
-    // building, MCP connect, and the loop are all covered).
+    // Terminal error signal — reached by any failure in the run, including model /
+    // evaluator resolution, MCP connect, the loop, and report building.
     notifyListeners(listeners, (listener) => listener.onRunError?.({ error: err }));
     throw err;
   } finally {

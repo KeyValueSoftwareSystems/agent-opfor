@@ -12,12 +12,13 @@ import { log } from "../lib/logger.js";
 type Payload<T extends ProgressEvent["type"]> = Omit<Extract<ProgressEvent, { type: T }>, "type">;
 
 export interface RunListener {
-  // Lifecycle: onRunStart fires once at the start and is always paired with exactly
-  // one terminal hook — onRunFinish (the run produced a report, complete or partial)
-  // or onRunError (the run threw). onRunStopped is a non-terminal notice: onRunFinish
-  // still follows it with the partial report.
+  // Lifecycle: when onRunStart fires it is always paired with exactly one terminal
+  // hook — onRunFinish (the run produced a report, complete or partial) or
+  // onRunError (the run threw). A failure during run setup throws before onRunStart,
+  // so onRunError can also fire on its own. onRunStopped is a non-terminal notice:
+  // onRunFinish still follows it with the partial report.
 
-  /** Fired once at the start, before the target connects. */
+  /** Fired once at the start, before the target connects. Skipped if run setup fails first. */
   onRunStart?(info: { evaluatorCount: number }): void;
   onEvaluatorStart?(info: Payload<"evaluator_start">): void;
   onAttackStart?(info: Payload<"attack_start">): void;
@@ -25,26 +26,39 @@ export interface RunListener {
   onEvaluatorDone?(info: Payload<"evaluator_done">): void;
   /** Non-terminal notice that a non-retryable error cut the run short; onRunFinish still follows. */
   onRunStopped?(info: Payload<"run_stopped">): void;
-  /** Terminal: the run threw. onRunFinish does NOT fire on this path. */
+  /** Terminal: the run threw (may fire without a preceding onRunStart on a setup failure). */
   onRunError?(info: { error: unknown }): void;
   /** Terminal: fired once with the final report (complete, or partial after a stop). */
   onRunFinish?(report: UnifiedRunReport): void;
 }
 
+function warnListenerFailed(err: unknown): void {
+  log.warn(
+    `A RunListener hook failed and was skipped — fix the listener implementation: ${
+      err instanceof Error ? err.message : String(err)
+    }`
+  );
+}
+
 /**
- * Invoke a hook on every listener with error isolation: a listener that throws is
- * logged and skipped so a buggy reporter/telemetry adapter can never abort the
- * run itself. Centralizes the fan-out so every notification site is uniform.
+ * Invoke a hook on every listener with error isolation: a listener that throws —
+ * synchronously OR by rejecting an async hook — is logged and skipped, so a buggy
+ * reporter/telemetry adapter can never abort the run. Hooks are declared `void`
+ * (fire-and-forget); a returned promise is not awaited, but its rejection is caught.
+ * Centralizes the fan-out so every notification site is uniform.
  */
 export function notifyListeners(
   listeners: readonly RunListener[],
-  invoke: (listener: RunListener) => void
+  invoke: (listener: RunListener) => void | Promise<void>
 ): void {
   for (const listener of listeners) {
     try {
-      invoke(listener);
+      const result = invoke(listener);
+      if (result && typeof (result as Promise<void>).then === "function") {
+        void (result as Promise<void>).then(undefined, warnListenerFailed);
+      }
     } catch (err) {
-      log.warn(`RunListener threw and was skipped: ${err instanceof Error ? err.message : err}`);
+      warnListenerFailed(err);
     }
   }
 }
