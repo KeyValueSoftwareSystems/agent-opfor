@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Agent OPFOR",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "description": "Red-team any chat interface. Auto-detects chat widgets, runs adaptive attacks, and generates security reports.",
   "icons": {
     "16": "icons/icon16.png",
@@ -21,8 +21,15 @@
   "side_panel": {
     "default_path": "sidepanel.html"
   },
-  "permissions": ["activeTab", "scripting", "storage", "sidePanel"],
-  "host_permissions": ["<all_urls>"],
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "sidePanel"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
   "background": {
     "service_worker": "service_worker.js",
     "type": "module"
