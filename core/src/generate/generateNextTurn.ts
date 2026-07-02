@@ -6,6 +6,7 @@ import {
 } from "../prompts/attacker-adaptive.js";
 import { ATTACKER_MCP_SYSTEM } from "../prompts/attacker-mcp.js";
 import { log } from "../lib/logger.js";
+import { AttackGenerationError, assertAttackGenerated } from "./attackGeneration.js";
 import type { AttackSpec, UnifiedTargetConfig, SessionContext } from "../execute/types.js";
 import type { AttackPattern } from "../evaluators/parseEvaluator.js";
 import { formatUpstreamSessions } from "../lib/summarizeSessionContext.js";
@@ -151,7 +152,10 @@ export async function generateNextAdaptiveTurn(params: {
 
   const result = await generateText({ model, system, prompt: userBlock });
   const parsed = parseAttackerOutput(result.text);
-  if (!parsed.message) throw new Error("generateNextAdaptiveTurn: empty model response");
+  // A refusal / content-filter / empty completion is a *successful* generateText
+  // call — flag it so the runner records ERROR instead of sending a refusal to the
+  // target (which would judge as a silent PASS). See P0.1.
+  assertAttackGenerated(result.finishReason, parsed.message, `adaptive turn ${currentTurn}`);
   const message =
     parsed.message.length > maxLength ? parsed.message.slice(0, maxLength) : parsed.message;
   return { message, technique: parsed.technique, lastReplyHook: parsed.lastReplyHook };
@@ -295,6 +299,8 @@ export async function generateNextMcpTurn(
   ].join("\n");
 
   const result = await generateText({ model, system, prompt: user });
+  // Refusal / content-filter → not a usable attack; flag it. See P0.1.
+  assertAttackGenerated(result.finishReason, result.text, "MCP adaptive turn");
 
   try {
     const cleaned = result.text
@@ -309,6 +315,10 @@ export async function generateNextMcpTurn(
     const judgeHint = typeof parsed.judgeHint === "string" ? parsed.judgeHint : undefined;
     return { args, judgeHint };
   } catch {
-    return { args: {} };
+    // Non-JSON (typically a refusal) is not a usable attack. Surface it as a
+    // generation error rather than an empty-args call that judges PASS. See P0.1.
+    throw new AttackGenerationError(
+      "attacker model did not return valid MCP turn JSON — no attack generated"
+    );
   }
 }

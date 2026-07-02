@@ -121,6 +121,13 @@ export interface BaseAttackSpec {
   traceContext?: string;
   /** Resolved session contexts from evaluators this attack depends on. */
   upstreamSessions?: SessionContext[];
+  /**
+   * Set when attack *generation* failed (the attacker model refused or was
+   * content-filtered). The runner short-circuits such a spec to an ERROR verdict
+   * instead of shipping a refusal/template to the target — which would otherwise
+   * judge as a silent PASS and hide a missed test. See P0.1.
+   */
+  generationError?: string;
 }
 
 /**

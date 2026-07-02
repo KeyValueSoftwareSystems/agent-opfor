@@ -3,6 +3,7 @@
 
 import { generateNextMcpTurn } from "../generate/generateNextTurn.js";
 import type { McpToolTurn } from "../generate/generateNextTurn.js";
+import { AttackGenerationError } from "../generate/attackGeneration.js";
 import { judgeToolResponse, sanitizeJudgeResult } from "../run/judge.js";
 import { errorJudge as mcpErrorJudge, type JudgeResult } from "../lib/judgeTypes.js";
 import { log } from "../lib/logger.js";
@@ -156,9 +157,24 @@ export class McpAttackDriver implements AttackDriver<Record<string, unknown>, Mc
   }
 }
 
+/** ERROR result for an MCP attack that could not be generated or run. */
+function mcpErrorResult(attack: McpAttackSpec, reason: string): AttackResult {
+  return {
+    kind: "mcp",
+    attackId: attack.id,
+    evaluatorId: attack.evaluatorId,
+    patternName: attack.patternName,
+    toolName: attack.toolName ?? "",
+    toolArguments: attack.toolArguments ?? {},
+    toolResponse: "",
+    toolError: reason,
+    judge: mcpErrorJudge(reason),
+  };
+}
+
 /**
- * Run one MCP attack. Short-circuits to an ERROR result when the spec carries no
- * tool name (nothing to call); otherwise drives the shared attack loop.
+ * Run one MCP attack. Short-circuits to an ERROR result when the attack could not
+ * be generated (refusal) or carries no tool name; otherwise drives the shared loop.
  */
 export async function runMcpAttack(
   attack: McpAttackSpec,
@@ -166,18 +182,24 @@ export async function runMcpAttack(
   attackModel: LanguageModel,
   judgeLlm: LlmConfig
 ): Promise<AttackResult> {
-  if (!attack.toolName) {
-    return {
-      kind: "mcp",
-      attackId: attack.id,
-      evaluatorId: attack.evaluatorId,
-      patternName: attack.patternName,
-      toolName: "",
-      toolArguments: {},
-      toolResponse: "",
-      toolError: "no toolName in attack spec",
-      judge: mcpErrorJudge("no toolName in attack spec"),
-    };
+  // Attack generation failed (attacker refused / content-filtered / non-JSON tool
+  // call). Short-circuit to ERROR without contacting the server. See P0.1.
+  if (attack.generationError) {
+    return mcpErrorResult(attack, attack.generationError);
   }
-  return runAttack(new McpAttackDriver(attack, target, attack.toolName, attackModel, judgeLlm));
+  if (!attack.toolName) {
+    return mcpErrorResult(attack, "no toolName in attack spec");
+  }
+  try {
+    return await runAttack(
+      new McpAttackDriver(attack, target, attack.toolName, attackModel, judgeLlm)
+    );
+  } catch (err) {
+    // Adaptive MCP turns generate at runtime; a refusal there throws
+    // AttackGenerationError — record ERROR rather than crashing the run. See P0.1.
+    if (err instanceof AttackGenerationError) {
+      return mcpErrorResult(attack, err.message);
+    }
+    throw err;
+  }
 }
