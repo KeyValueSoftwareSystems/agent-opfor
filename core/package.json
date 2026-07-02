@@ -6,6 +6,9 @@
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
+  "engines": {
+    "node": ">=20"
+  },
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
@@ -96,7 +99,6 @@
     "@ai-sdk/openai-compatible": "^1.0.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "ai": "^6.0.0",
-    "consola": "^3.4.2",
     "yaml": "^2.8.3",
     "zod": "^3.0.0"
   },

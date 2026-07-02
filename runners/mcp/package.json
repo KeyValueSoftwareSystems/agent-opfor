@@ -49,22 +49,15 @@
     "access": "public"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^2.0.77",
-    "@ai-sdk/google": "^2.0.70",
-    "@ai-sdk/openai": "^2.0.103",
-    "@ai-sdk/openai-compatible": "^1.0.0",
-    "@modelcontextprotocol/sdk": "^1.29.0",
-    "ai": "^6.0.0",
-    "consola": "^3.4.2",
-    "dotenv": "^17.4.2",
-    "yaml": "^2.8.3",
-    "zod": "^3.0.0"
+    "@modelcontextprotocol/sdk": "^1.29.0"
   },
   "devDependencies": {
     "@keyvaluesystems/agent-opfor-core": "^0.9.0",
     "@types/node": "^24.0.0",
+    "dotenv": "^17.4.2",
     "esbuild": "^0.25.0",
     "tsx": "^4.20.0",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "zod": "^3.0.0"
   }
 }

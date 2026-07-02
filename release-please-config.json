@@ -13,6 +13,11 @@
         "runners/mcp/package.json",
         "runners/sdk/package.json",
         "runners/extension/package.json",
+        {
+          "type": "json",
+          "path": "runners/extension/manifest.json",
+          "jsonpath": "$.version"
+        },
         "tests/e2e/agents/vanilla-chat/package.json",
         "tests/e2e/agents/customer-support/package.json",
         "tests/e2e/agents/vulnerable-memory/package.json",
