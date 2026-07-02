@@ -233,10 +233,15 @@ async function scanRugPull(ctx: BaselineScanContext): Promise<AttackResult[]> {
   const baselinePath = path.join(baselinesDir, `${safeSlug}-tools.json`);
 
   let baselineJson: string | null = null;
+  let readError: NodeJS.ErrnoException | null = null;
   try {
     baselineJson = await readFile(baselinePath, "utf8");
-  } catch {
-    /* no baseline yet */
+  } catch (err) {
+    // Only a genuinely missing file (ENOENT) is a first run. Any other read
+    // failure — permission, I/O, a directory in the way — means an existing
+    // baseline could not be read, so we must not silently re-record and pass.
+    const e = err as NodeJS.ErrnoException;
+    if (e.code !== "ENOENT") readError = e;
   }
 
   const recordBaseline = async () => {
@@ -249,8 +254,31 @@ async function scanRugPull(ctx: BaselineScanContext): Promise<AttackResult[]> {
 
   let result: AttackResult;
 
-  if (baselineJson === null) {
-    // Genuine first run — no prior state to protect, so record and pass.
+  if (readError) {
+    // An existing baseline could not be read (permission / I/O). Fail closed:
+    // report ERROR and leave the file untouched rather than masking drift.
+    log.warn(`  Baseline could not be read (${readError.code ?? "unknown"}) — cannot verify drift`);
+    result = {
+      kind: "mcp",
+      attackId,
+      evaluatorId: evalId,
+      patternName: "tool-description-drift",
+      toolName: "tools/list",
+      toolArguments: {},
+      toolResponse: "",
+      toolError: `Baseline file ${baselinePath} could not be read: ${readError.message}`,
+      judge: {
+        verdict: "ERROR",
+        score: 0,
+        confidence: 0,
+        evidence: "N/A",
+        reasoning:
+          "Existing baseline could not be read (permission or I/O error) — tool-description drift could not be verified. Baseline left untouched.",
+        errorMessage: readError.code ?? "baseline read error",
+      },
+    };
+  } else if (baselineJson === null) {
+    // Genuine first run (ENOENT) — no prior state to protect, so record and pass.
     log.info(
       `  No baseline found — recording current state (${tools.length} tools, hash: ${currentHash.slice(0, 12)}…)`
     );

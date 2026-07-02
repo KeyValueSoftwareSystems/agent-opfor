@@ -203,6 +203,19 @@ test("corrupt baseline file yields ERROR instead of crashing the run", async () 
   }
 });
 
+test("unreadable baseline (I/O error, not missing) fails closed with ERROR", async () => {
+  const dir = await tmp();
+  try {
+    // A directory where the baseline file should be → readFile throws EISDIR
+    // (code !== ENOENT). This must NOT be treated as a clean first run.
+    await mkdir(baselinePath(dir), { recursive: true });
+    const results = await scan(dir); // must not throw, must not record over it
+    assert.strictEqual(rugPull(results).attacks[0].judge.verdict, "ERROR");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("matching baseline passes with no drift", async () => {
   const dir = await tmp();
   try {
