@@ -166,7 +166,10 @@ server.tool(
     mcp_transport: z.enum(["stdio", "url"]).optional().describe("MCP transport type"),
     mcp_command: z.string().optional().describe("Command to start MCP server (stdio transport)"),
     mcp_args: z.array(z.string()).optional().describe("Args for MCP server command"),
-    mcp_env: z.record(z.string()).optional().describe("Env vars for MCP server process"),
+    mcp_env: z
+      .record(z.string(), z.string())
+      .optional()
+      .describe("Env vars for MCP server process"),
     mcp_url: z.string().optional().describe("MCP server URL (url transport)"),
 
     // Evaluators
