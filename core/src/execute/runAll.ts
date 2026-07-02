@@ -66,7 +66,11 @@ export async function runAll(
   const notify = options?.onProgress ?? (() => {});
 
   const attackModel = resolveModel(config.attackerLlm);
-  const judgeModel = resolveModel(config.judgeLlm ?? config.attackerLlm);
+  // Single source of truth for the judge LLM: explicit judge model, else the
+  // attacker model. Reused by the baseline scans and the MCP dispatch below so
+  // the fallback can't drift between paths.
+  const judgeLlmConfig = config.judgeLlm ?? config.attackerLlm;
+  const judgeModel = resolveModel(judgeLlmConfig);
 
   const isMcp = config.target.kind === "mcp";
   const evaluators = await resolveEvaluators(
@@ -97,7 +101,7 @@ export async function runAll(
   try {
     // ── MCP pre-flight scans (always run for MCP targets) ──────────────
     if (isMcp && mcpTarget) {
-      const judgeModelConfig = config.judgeLlm ?? config.attackerLlm;
+      const judgeModelConfig = judgeLlmConfig;
       log.info(`\n── MCP baseline scans ──`);
 
       const resourceResults = await scanResources({ target: mcpTarget, judgeModelConfig, notify });
@@ -208,12 +212,7 @@ export async function runAll(
         try {
           result =
             attack.kind === "mcp"
-              ? await runMcpAttack(
-                  attack,
-                  mcpTarget!,
-                  attackModel,
-                  config.judgeLlm ?? config.attackerLlm
-                )
+              ? await runMcpAttack(attack, mcpTarget!, attackModel, judgeLlmConfig)
               : await runAgentAttack(
                   attack,
                   attackModel,

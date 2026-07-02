@@ -3,13 +3,13 @@
  *
  * The MCP attack loop had no test coverage before it was extracted from runAll
  * into an AttackDriver. These pin the behaviors that must be preserved: the
- * empty-tool short-circuit, a single-turn call → judge → result, and the
- * multi-turn per-turn judge that early-stops on the first FAIL.
+ * empty-tool short-circuit, a single-turn call → judge → result, the multi-turn
+ * per-turn judge that early-stops on the first FAIL, and the continuation path
+ * where a PASS turn runs the turn generator and the loop judges the last turn.
  *
- * A single-turn attack never calls the turn generator (turn 1 uses the seed
- * args), and a 2-turn attack that FAILs at turn 1 early-stops before turn 2's
- * generator — so a fake target + a local judge server exercise the loop without
- * a real MCP server or attacker LLM.
+ * A fake target plus a local server exercise the loop without a real MCP server
+ * or attacker LLM: the server backs both the judge and the attacker turn
+ * generator on one endpoint, routing by a marker unique to the generator prompt.
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -22,36 +22,49 @@ interface ServerState {
   server: Server;
   port: number;
   llmCalls: number;
+  /** Requests routed to the MCP turn generator (buildTurn's turn>1 branch). */
+  turnGenCalls: number;
   nextVerdict: "PASS" | "FAIL";
   reset(verdict: "PASS" | "FAIL"): void;
 }
 
 let srv: ServerState;
 
-function judgeJson(verdict: "PASS" | "FAIL"): string {
-  const body =
-    verdict === "FAIL"
-      ? { verdict: "FAIL", score: 2, confidence: 90, evidence: "AKIA", reasoning: "leaked" }
-      : { verdict: "PASS", score: 10, confidence: 90, evidence: "N/A", reasoning: "safe" };
+/** Wrap a model's completion text in an OpenAI chat.completion envelope. */
+function chatCompletion(content: string): string {
   return JSON.stringify({
     id: "t",
     object: "chat.completion",
     created: 0,
     model: "m",
-    choices: [
-      {
-        index: 0,
-        message: { role: "assistant", content: JSON.stringify(body) },
-        finish_reason: "stop",
-      },
-    ],
+    choices: [{ index: 0, message: { role: "assistant", content }, finish_reason: "stop" }],
     usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
   });
 }
 
+function judgeJson(verdict: "PASS" | "FAIL"): string {
+  const body =
+    verdict === "FAIL"
+      ? { verdict: "FAIL", score: 2, confidence: 90, evidence: "AKIA", reasoning: "leaked" }
+      : { verdict: "PASS", score: 10, confidence: 90, evidence: "N/A", reasoning: "safe" };
+  return chatCompletion(JSON.stringify(body));
+}
+
+/** The attacker's next-turn generator expects a JSON object with args + judgeHint. */
+function turnGenJson(): string {
+  return chatCompletion(
+    JSON.stringify({ args: { q: "escalated" }, judgeHint: "probe the boundary" })
+  );
+}
+
+// Unique marker in generateNextMcpTurn's prompt — lets the fake server tell a
+// turn-generation request apart from a judge request on the shared endpoint.
+const TURN_GEN_MARKER = "escalate the attack";
+
 before(async () => {
   srv = await new Promise<ServerState>((resolve) => {
     let llmCalls = 0;
+    let turnGenCalls = 0;
     let nextVerdict: "PASS" | "FAIL" = "PASS";
     const server = createServer((req, res) => {
       let body = "";
@@ -60,7 +73,14 @@ before(async () => {
         if ((req.url ?? "").startsWith("/v1/chat/completions")) {
           llmCalls++;
           res.writeHead(200, { "Content-Type": "application/json" });
-          res.end(judgeJson(nextVerdict));
+          // One endpoint backs both the attacker turn generator and the judge;
+          // route by the attacker prompt's unique marker.
+          if (body.includes(TURN_GEN_MARKER)) {
+            turnGenCalls++;
+            res.end(turnGenJson());
+          } else {
+            res.end(judgeJson(nextVerdict));
+          }
           return;
         }
         res.writeHead(404);
@@ -75,6 +95,9 @@ before(async () => {
         get llmCalls() {
           return llmCalls;
         },
+        get turnGenCalls() {
+          return turnGenCalls;
+        },
         get nextVerdict() {
           return nextVerdict;
         },
@@ -83,6 +106,7 @@ before(async () => {
         },
         reset(v) {
           llmCalls = 0;
+          turnGenCalls = 0;
           nextVerdict = v;
         },
       });
@@ -177,4 +201,39 @@ test("multi-turn attack early-stops on the first FAIL (no turn-2 generator call)
   // Exactly one LLM call — the mid-turn judge at turn 1. Turn 2 (generator +
   // final judge) never runs, proving the early stop.
   assert.strictEqual(srv.llmCalls, 1);
+});
+
+test("multi-turn attack continues past a PASS turn — runs the turn-2 generator, then judges the last turn", async () => {
+  srv.reset("PASS");
+  let toolCalls = 0;
+  const target: FakeTarget = {
+    async callTool() {
+      toolCalls++;
+      return { response: `turn ${toolCalls} response` };
+    },
+    async listTools() {
+      return [];
+    },
+    async listResources() {
+      return [];
+    },
+    async readResource() {
+      return "";
+    },
+    async close() {},
+  };
+
+  const result = await runMcpAttack(mcpAttack({ turns: 2 }), target, ...deps());
+
+  assert.strictEqual(result.judge.verdict, "PASS");
+  // Turn 1's mid-judge PASSed, so the loop continued: buildTurn's turn>1 branch
+  // called the generator, and both turns hit the tool.
+  assert.strictEqual(srv.turnGenCalls, 1);
+  assert.strictEqual(toolCalls, 2);
+  // Multi-turn attack records the full turn list; the final result surfaces the
+  // last turn's response (judged once at the end).
+  assert.strictEqual(result.turns?.length, 2);
+  assert.strictEqual(result.kind === "mcp" ? result.toolResponse : undefined, "turn 2 response");
+  // Turn-1 mid judge + turn-2 generator + turn-2 final judge = 3 LLM calls.
+  assert.strictEqual(srv.llmCalls, 3);
 });
