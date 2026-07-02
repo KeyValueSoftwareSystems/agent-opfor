@@ -13,6 +13,7 @@ import { runAgentAttack } from "./runAgentLoop.js";
 import { runMcpAttack } from "./mcpAttackDriver.js";
 import { summarizeVerdicts, toEvaluatorResult } from "./aggregate.js";
 import { errorJudge } from "../lib/judgeTypes.js";
+import { verdictIcon } from "../lib/verdictIcon.js";
 import { TurnPlan } from "./turnPlan.js";
 import { isStopError, getStopReason } from "../lib/llmRetry.js";
 import { log } from "../lib/logger.js";
@@ -182,9 +183,9 @@ export async function runEvaluatorAttacks(
       attackResults.push(result);
       notify({ type: "attack_done", attackId: attack.id, verdict: result.judge.verdict });
 
-      const icon =
-        result.judge.verdict === "PASS" ? "✓" : result.judge.verdict === "FAIL" ? "✗" : "⚠";
-      log.info(`     ${icon} ${result.judge.verdict} (score ${result.judge.score}/10)`);
+      log.info(
+        `     ${verdictIcon(result.judge.verdict)} ${result.judge.verdict} (score ${result.judge.score}/10)`
+      );
     }
 
     const { passed, failed, errors } = summarizeVerdicts(attackResults);

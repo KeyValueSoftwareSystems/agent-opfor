@@ -228,3 +228,14 @@ export interface UnifiedRunReport {
   /** Set when the run was stopped early due to a non-retryable LLM error. */
   stopReason?: string;
 }
+
+/**
+ * Per-attack progress events emitted by the run engine — the single source of
+ * truth for run lifecycle payloads. {@link RunListener} hooks derive from it.
+ */
+export type ProgressEvent =
+  | { type: "evaluator_start"; evaluatorId: string; evaluatorName: string }
+  | { type: "attack_start"; attackId: string; patternName: string }
+  | { type: "attack_done"; attackId: string; verdict: "PASS" | "FAIL" | "ERROR" }
+  | { type: "evaluator_done"; evaluatorId: string; passed: number; failed: number; errors: number }
+  | { type: "run_stopped"; reason: string };

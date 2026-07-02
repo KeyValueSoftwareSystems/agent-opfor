@@ -1,0 +1,94 @@
+// RunListener — an observer over a run's lifecycle (Observer / SPI).
+//
+// The engine emits lifecycle events; reporters, progress UIs, and telemetry
+// adapters consume them by implementing this interface, so a new output format
+// becomes a new listener with no engine edits. Every hook is optional — a
+// listener implements only what it needs.
+
+import type { UnifiedRunReport, ProgressEvent } from "./types.js";
+import { log } from "../lib/logger.js";
+
+/** The payload of a ProgressEvent variant, minus its `type` discriminant. */
+type Payload<T extends ProgressEvent["type"]> = Omit<Extract<ProgressEvent, { type: T }>, "type">;
+
+export interface RunListener {
+  // Lifecycle: when onRunStart fires it is always paired with exactly one terminal
+  // hook — onRunFinish (the run produced a report, complete or partial) or
+  // onRunError (the run threw). A failure during run setup throws before onRunStart,
+  // so onRunError can also fire on its own. onRunStopped is a non-terminal notice:
+  // onRunFinish still follows it with the partial report.
+
+  /** Fired once at the start, before the target connects. Skipped if run setup fails first. */
+  onRunStart?(info: { evaluatorCount: number }): void;
+  onEvaluatorStart?(info: Payload<"evaluator_start">): void;
+  onAttackStart?(info: Payload<"attack_start">): void;
+  onAttackDone?(info: Payload<"attack_done">): void;
+  onEvaluatorDone?(info: Payload<"evaluator_done">): void;
+  /** Non-terminal notice that a non-retryable error cut the run short; onRunFinish still follows. */
+  onRunStopped?(info: Payload<"run_stopped">): void;
+  /** Terminal: the run threw (may fire without a preceding onRunStart on a setup failure). */
+  onRunError?(info: { error: unknown }): void;
+  /** Terminal: fired once with the final report (complete, or partial after a stop). */
+  onRunFinish?(report: UnifiedRunReport): void;
+}
+
+function warnListenerFailed(err: unknown): void {
+  log.warn(
+    `A RunListener hook failed and was skipped — fix the listener implementation: ${
+      err instanceof Error ? err.message : String(err)
+    }`
+  );
+}
+
+/**
+ * Invoke a hook on every listener with error isolation: a listener that throws —
+ * synchronously OR by rejecting an async hook — is logged and skipped, so a buggy
+ * reporter/telemetry adapter can never abort the run. Hooks are declared `void`
+ * (fire-and-forget); a returned promise is not awaited, but its rejection is caught.
+ * Centralizes the fan-out so every notification site is uniform.
+ */
+export function notifyListeners(
+  listeners: readonly RunListener[],
+  invoke: (listener: RunListener) => void | Promise<void>
+): void {
+  for (const listener of listeners) {
+    try {
+      const result = invoke(listener);
+      if (result && typeof (result as Promise<void>).then === "function") {
+        void (result as Promise<void>).then(undefined, warnListenerFailed);
+      }
+    } catch (err) {
+      warnListenerFailed(err);
+    }
+  }
+}
+
+/**
+ * Route one ProgressEvent to the matching RunListener hook. The engine keeps a
+ * single ProgressEvent stream as the source of per-attack events; this adapts it
+ * to the typed listener interface so callers don't switch on `event.type`.
+ */
+export function dispatchProgress(listener: RunListener, event: ProgressEvent): void {
+  switch (event.type) {
+    case "evaluator_start":
+      listener.onEvaluatorStart?.(event);
+      break;
+    case "attack_start":
+      listener.onAttackStart?.(event);
+      break;
+    case "attack_done":
+      listener.onAttackDone?.(event);
+      break;
+    case "evaluator_done":
+      listener.onEvaluatorDone?.(event);
+      break;
+    case "run_stopped":
+      listener.onRunStopped?.(event);
+      break;
+    default: {
+      // Compile-time exhaustiveness: a new ProgressEvent variant forces a case.
+      const _exhaustive: never = event;
+      void _exhaustive;
+    }
+  }
+}

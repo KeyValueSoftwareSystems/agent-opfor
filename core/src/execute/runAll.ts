@@ -1,6 +1,6 @@
 import { randomUUID } from "../lib/random.js";
 import type { LanguageModel } from "ai";
-import type { RunConfig, EvaluatorResult, UnifiedRunReport } from "./types.js";
+import type { RunConfig, EvaluatorResult, UnifiedRunReport, ProgressEvent } from "./types.js";
 import type { ToolInfo } from "../generate/generateAttacks.js";
 import type { AgentTarget } from "../targets/agentTarget.js";
 import { createMcpTarget } from "../targets/mcpTarget.js";
@@ -9,6 +9,7 @@ import type { EvaluatorSpec } from "../evaluators/parseEvaluator.js";
 import { loadSkillCatalog, resolveSuiteEvaluatorIds } from "../config/loadSkillCatalog.js";
 import { loadCatalog } from "../catalog/loadCatalog.js";
 import { runBaselineScans } from "./baselineScanner.js";
+import { dispatchProgress, notifyListeners, type RunListener } from "./runListener.js";
 import { runEvaluatorAttacks } from "./evaluatorLoop.js";
 import { buildUnifiedReport, modelLabel } from "./aggregate.js";
 import { createModel } from "../providers/factory.js";
@@ -19,17 +20,19 @@ import { log } from "../lib/logger.js";
 
 export interface RunAllOptions {
   onProgress?: (event: ProgressEvent) => void;
+  /**
+   * Lifecycle observers (reporters, telemetry). Receive the same per-attack
+   * events as onProgress, plus run-level onRunStart/onRunFinish/onRunError hooks.
+   */
+  listeners?: RunListener[];
   outputDir?: string;
   /** Pre-built agent target. When omitted, createAgentTarget is called using config.target. */
   agentTarget?: AgentTarget;
 }
 
-export type ProgressEvent =
-  | { type: "evaluator_start"; evaluatorId: string; evaluatorName: string }
-  | { type: "attack_start"; attackId: string; patternName: string }
-  | { type: "attack_done"; attackId: string; verdict: "PASS" | "FAIL" | "ERROR" }
-  | { type: "evaluator_done"; evaluatorId: string; passed: number; failed: number; errors: number }
-  | { type: "run_stopped"; reason: string };
+// Re-exported for callers importing it from this module; defined in ./types.js
+// (the single source of truth) so the listener SPI doesn't cycle back here.
+export type { ProgressEvent } from "./types.js";
 
 /**
  * Core execute loop: resolves evaluators, generates attacks per effort level,
@@ -40,41 +43,59 @@ export async function runAll(
   config: RunConfig,
   options?: RunAllOptions
 ): Promise<UnifiedRunReport> {
-  const notify = options?.onProgress ?? (() => {});
+  // Fan every progress event to the legacy onProgress callback (backward-compat)
+  // and to any registered lifecycle listeners.
+  const listeners = options?.listeners ?? [];
+  const notify = (event: ProgressEvent) => {
+    options?.onProgress?.(event);
+    notifyListeners(listeners, (listener) => dispatchProgress(listener, event));
+  };
 
-  const attackModel = resolveModel(config.attackerLlm);
-  // Single source of truth for the judge LLM: explicit judge model, else the
-  // attacker model. Reused by the baseline scans and the MCP dispatch below so
-  // the fallback can't drift between paths.
-  const judgeLlmConfig = config.judgeLlm ?? config.attackerLlm;
-  const judgeModel = resolveModel(judgeLlmConfig);
-
-  const isMcp = config.target.kind === "mcp";
-  const evaluators = await resolveEvaluators(
-    config.selection,
-    isMcp ? "mcp" : "agent",
-    config.selection.dependsOn
-  );
-
-  // For MCP targets, connect once and discover tools
+  // Declared before the try so the finally can always close the MCP target (even
+  // if listTools() throws after connect). Everything else — model + evaluator
+  // resolution included — runs inside the try so any failure reaches onRunError.
   let mcpTarget: Awaited<ReturnType<typeof createMcpTarget>> | null = null;
-  let tools: ToolInfo[] = [];
-
-  if (isMcp) {
-    mcpTarget = await createMcpTarget(config.target as import("./types.js").McpTargetConfig);
-    tools = await mcpTarget.listTools();
-    log.info(`MCP target connected — ${tools.length} tool(s) available`);
-  }
-
-  // Optional: pull real production traces and summarise them so attack
-  // generation can be grounded in actual usage patterns.
-  const traceContext = await curateTracesIfConfigured(config, attackModel, options?.outputDir);
-
-  const ordered = topoSortEvaluators(evaluators);
-  const evaluatorResults: EvaluatorResult[] = [];
-  let stopReason: string | undefined;
 
   try {
+    const attackModel = resolveModel(config.attackerLlm);
+    // Single source of truth for the judge LLM: explicit judge model, else the
+    // attacker model. Reused by the baseline scans and the MCP dispatch below so
+    // the fallback can't drift between paths.
+    const judgeLlmConfig = config.judgeLlm ?? config.attackerLlm;
+    const judgeModel = resolveModel(judgeLlmConfig);
+
+    const isMcp = config.target.kind === "mcp";
+    const evaluators = await resolveEvaluators(
+      config.selection,
+      isMcp ? "mcp" : "agent",
+      config.selection.dependsOn
+    );
+
+    let tools: ToolInfo[] = [];
+    const ordered = topoSortEvaluators(evaluators);
+    const evaluatorResults: EvaluatorResult[] = [];
+
+    // Fire onRunStart once the evaluator count is known but before the (possibly
+    // slow) MCP connect and trace curation, so watchers see the run begin during
+    // those steps. onRunStart always pairs with a terminal hook (onRunFinish or
+    // onRunError). A failure in the setup above throws before onRunStart, so
+    // listeners get onRunError with no preceding onRunStart. evaluatorCount is the
+    // attack-evaluator count; MCP baseline pre-flight scans add extra results.
+    notifyListeners(listeners, (listener) =>
+      listener.onRunStart?.({ evaluatorCount: ordered.length })
+    );
+
+    // For MCP targets, connect once and discover tools.
+    if (isMcp) {
+      mcpTarget = await createMcpTarget(config.target as import("./types.js").McpTargetConfig);
+      tools = await mcpTarget.listTools();
+      log.info(`MCP target connected — ${tools.length} tool(s) available`);
+    }
+
+    // Optional: pull real production traces and summarise them so attack
+    // generation can be grounded in actual usage patterns.
+    const traceContext = await curateTracesIfConfigured(config, attackModel, options?.outputDir);
+
     // ── MCP pre-flight scans (always run for MCP targets) ──────────────
     if (isMcp && mcpTarget) {
       evaluatorResults.push(
@@ -103,17 +124,26 @@ export async function runAll(
       notify,
     });
     evaluatorResults.push(...loop.evaluatorResults);
-    stopReason = loop.stopReason;
+    const stopReason = loop.stopReason;
+
+    // Build report (partial or complete) with stop reason if applicable.
+    const report = buildReport(config, evaluatorResults);
+    if (stopReason) {
+      (report as UnifiedRunReport & { stopReason?: string }).stopReason = stopReason;
+    }
+
+    // Terminal success signal — always the last hook (report may be partial if the
+    // run stopped early; onRunStopped fired earlier is a non-terminal notice).
+    notifyListeners(listeners, (listener) => listener.onRunFinish?.(report));
+    return report;
+  } catch (err) {
+    // Terminal error signal — reached by any failure in the run, including model /
+    // evaluator resolution, MCP connect, the loop, and report building.
+    notifyListeners(listeners, (listener) => listener.onRunError?.({ error: err }));
+    throw err;
   } finally {
     if (mcpTarget) await mcpTarget.close().catch(() => {});
   }
-
-  // Build report (partial or complete) with stop reason if applicable
-  const report = buildReport(config, evaluatorResults);
-  if (stopReason) {
-    (report as UnifiedRunReport & { stopReason?: string }).stopReason = stopReason;
-  }
-  return report;
 }
 
 // ---------------------------------------------------------------------------

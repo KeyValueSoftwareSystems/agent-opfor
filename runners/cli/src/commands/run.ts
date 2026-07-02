@@ -9,6 +9,7 @@ import { parseRunConfig } from "@keyvaluesystems/agent-opfor-core/config/schema.
 import { normalizeEffort } from "@keyvaluesystems/agent-opfor-core/execute/effortCompat.js";
 import { runSetupAndWrite } from "./setup.js";
 import { ensureOpforDirs, OPFOR_DIR, OPFOR_REPORTS_DIR } from "../lib/artifacts.js";
+import { ConsoleProgressListener } from "../lib/consoleProgressListener.js";
 
 export function registerRunCommand(program: Command): void {
   program
@@ -96,14 +97,7 @@ export function registerRunCommand(program: Command): void {
         await ensureOpforDirs();
         const report = await runAll(runConfig, {
           outputDir: path.resolve(OPFOR_DIR),
-          onProgress: (event) => {
-            if (event.type === "evaluator_start") {
-              log.info(`\n▶ ${event.evaluatorName}`);
-            } else if (event.type === "attack_done") {
-              const icon = event.verdict === "PASS" ? "✓" : event.verdict === "FAIL" ? "✗" : "⚠";
-              process.stdout.write(` ${icon}`);
-            }
-          },
+          listeners: [new ConsoleProgressListener()],
         });
 
         log.info("\n\nWriting report...");
