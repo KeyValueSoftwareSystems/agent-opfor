@@ -10,7 +10,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache_2.0-444441?style=flat&labelColor=3d3d3a" alt="License: Apache 2.0"></a>
   <a href="https://github.com/KeyValueSoftwareSystems/agent-opfor/stargazers"><img src="https://img.shields.io/github/stars/KeyValueSoftwareSystems/agent-opfor?style=flat&labelColor=3d3d3a&color=444441" alt="GitHub stars"></a>
-  <a href="https://discord.gg/DsJ6qm3V"><img src="https://img.shields.io/badge/Discord-join-5865F2?style=flat&logo=discord&logoColor=white&labelColor=3d3d3a" alt="Discord"></a>
+  <a href="https://discord.gg/Sb8xfmrjjW"><img src="https://img.shields.io/badge/Discord-join-5865F2?style=flat&logo=discord&logoColor=white&labelColor=3d3d3a" alt="Discord"></a>
   <a href="#evaluator-coverage"><img src="https://img.shields.io/badge/OWASP-LLM%20%2B%20Agentic%20%2B%20MCP%20%2B%20API-185FA5?style=flat&labelColor=3d3d3a" alt="OWASP coverage"></a>
 </p>
 
@@ -19,7 +19,7 @@
   <a href="https://docs.agentopfor.ai">Docs</a> ·
   <a href="https://github.com/KeyValueSoftwareSystems/agent-opfor">GitHub</a> ·
   <a href="https://chromewebstore.google.com/detail/blkflfeicejfnbecanjaolbllmoobenp">Browser Extension</a> ·
-  <a href="https://discord.gg/DsJ6qm3V">Discord</a>
+  <a href="https://discord.gg/Sb8xfmrjjW">Discord</a>
 </p>
 
 OPFOR is short for _Opposition Force_ — a military term for the unit that plays the enemy in training, so the rest of the army learns what real attacks feel like before they come. We named the tool after that idea: to defend AI agents better, you have to attack them first.
