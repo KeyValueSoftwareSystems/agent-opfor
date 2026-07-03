@@ -10,6 +10,8 @@ import { normalizeEffort } from "@keyvaluesystems/agent-opfor-core/execute/effor
 import { runSetupAndWrite } from "./setup.js";
 import { ensureOpforDirs, OPFOR_DIR, OPFOR_REPORTS_DIR } from "../lib/artifacts.js";
 import { ConsoleProgressListener } from "../lib/consoleProgressListener.js";
+import { JsonlEventListener } from "../lib/jsonlEventListener.js";
+import type { RunListener } from "@keyvaluesystems/agent-opfor-core/execute/runListener.js";
 
 export function registerRunCommand(program: Command): void {
   program
@@ -22,6 +24,10 @@ export function registerRunCommand(program: Command): void {
     .option("--turns <n>", "Override turns per attack (1 = single turn)")
     .option("--output <dir>", "Directory for HTML + JSON reports (default: .opfor/reports/)")
     .option("--env <path>", "Path to .env file to load")
+    .option(
+      "--events <path>",
+      "Stream run lifecycle events as newline-delimited JSON (NDJSON) to <path>"
+    )
     .action(
       async (opts: {
         config?: string;
@@ -29,6 +35,7 @@ export function registerRunCommand(program: Command): void {
         turns?: string;
         output?: string;
         env?: string;
+        events?: string;
       }) => {
         if (opts.env) {
           const { config: loadDotenv } = await import("dotenv");
@@ -95,9 +102,25 @@ export function registerRunCommand(program: Command): void {
         log.info("");
 
         await ensureOpforDirs();
+        // Terminal progress always; NDJSON event stream only when --events is set.
+        // A new output format is just a new listener — no engine change.
+        const listeners: RunListener[] = [new ConsoleProgressListener()];
+        if (opts.events) {
+          const eventsPath = path.resolve(opts.events);
+          try {
+            // Fail fast, before the assessment runs, if the path isn't writable.
+            listeners.push(new JsonlEventListener(eventsPath));
+          } catch (err) {
+            log.error(
+              `Cannot open --events file ${eventsPath}: ${err instanceof Error ? err.message : String(err)}`
+            );
+            process.exitCode = 1;
+            return;
+          }
+        }
         const report = await runAll(runConfig, {
           outputDir: path.resolve(OPFOR_DIR),
-          listeners: [new ConsoleProgressListener()],
+          listeners,
         });
 
         log.info("\n\nWriting report...");
