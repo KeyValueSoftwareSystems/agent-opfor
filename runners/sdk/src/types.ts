@@ -1,3 +1,9 @@
+import type { RunListener } from "@keyvaluesystems/agent-opfor-core/execute/runListener.js";
+
+// Re-export the run lifecycle observer so SDK users can implement onRunStart /
+// onRunFinish / onRunError, not just per-attack onProgress events.
+export type { RunListener };
+
 // ---------------------------------------------------------------------------
 // Target Configuration
 // ---------------------------------------------------------------------------
@@ -82,6 +88,12 @@ export interface RunOptions {
   apiKey?: string;
 
   onProgress?: (event: ProgressEvent) => void;
+
+  /**
+   * Run lifecycle observers. Receive the same per-attack events as onProgress plus
+   * run-level onRunStart / onRunFinish / onRunError hooks.
+   */
+  listeners?: RunListener[];
 }
 
 export type ProgressEvent =

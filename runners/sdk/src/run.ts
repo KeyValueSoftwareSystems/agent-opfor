@@ -29,6 +29,7 @@ export async function run(options: RunOptions): Promise<RunResults> {
 
   const coreReport = await runAll(runConfig, {
     onProgress: options.onProgress,
+    listeners: options.listeners,
   });
 
   return transformReport(coreReport);

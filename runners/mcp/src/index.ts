@@ -352,13 +352,13 @@ server.tool(
       ];
 
       const report = await runAll(config, {
-        onProgress: (event) => {
-          if (event.type === "evaluator_start") {
-            lines.push(`\n▶ ${event.evaluatorName}`);
-          } else if (event.type === "evaluator_done") {
-            lines.push(`  ${event.passed} passed, ${event.failed} failed, ${event.errors} errors`);
-          }
-        },
+        listeners: [
+          {
+            onEvaluatorStart: (e) => lines.push(`\n▶ ${e.evaluatorName}`),
+            onEvaluatorDone: (e) =>
+              lines.push(`  ${e.passed} passed, ${e.failed} failed, ${e.errors} errors`),
+          },
+        ],
       });
 
       const outputDir = path.resolve(args.output_dir ?? path.dirname(args.config_path));

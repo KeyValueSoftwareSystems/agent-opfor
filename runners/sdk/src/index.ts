@@ -19,6 +19,7 @@ export type {
   RunOptions,
   RunResults,
   ProgressEvent,
+  RunListener,
 
   // Target configuration
   TargetConfig,
