@@ -20,6 +20,9 @@ const {
   PROVIDER_DEFAULTS,
   PROVIDER_ENV_VARS,
   PROVIDER_CAPABILITIES,
+  PROVIDER_DISPLAY_NAMES,
+  PROVIDER_BASE_URL_PROMPTS,
+  PROVIDER_CHOICES,
 } = await import("../src/providers/factory.js");
 const { PROVIDERS } = await import("../src/config/types.js");
 
@@ -84,6 +87,33 @@ test("the three lookup tables keep their exact values", () => {
     azure: { supportsJsonMode: true, requiresBaseURL: true },
     "openai-compatible": { supportsJsonMode: true, requiresBaseURL: true },
   });
+});
+
+test("every provider has a display name; only baseURL-requiring providers may have a prompt message", () => {
+  for (const provider of Object.values(PROVIDERS)) {
+    assert.ok(
+      PROVIDER_DISPLAY_NAMES[provider] && PROVIDER_DISPLAY_NAMES[provider].length > 0,
+      `${provider} is missing a displayName`
+    );
+    if (PROVIDER_BASE_URL_PROMPTS[provider] !== undefined) {
+      assert.ok(
+        PROVIDER_CAPABILITIES[provider].requiresBaseURL,
+        `${provider} has a baseUrlPromptMessage but doesn't require a baseURL`
+      );
+    }
+  }
+  assert.ok(PROVIDER_CAPABILITIES.azure.requiresBaseURL && PROVIDER_BASE_URL_PROMPTS.azure);
+});
+
+test("PROVIDER_CHOICES lists every provider once, matching PROVIDER_DISPLAY_NAMES", () => {
+  assert.strictEqual(PROVIDER_CHOICES.length, Object.values(PROVIDERS).length);
+  assert.deepStrictEqual(
+    new Set(PROVIDER_CHOICES.map((c) => c.value)),
+    new Set(Object.values(PROVIDERS))
+  );
+  for (const choice of PROVIDER_CHOICES) {
+    assert.strictEqual(choice.name, PROVIDER_DISPLAY_NAMES[choice.value]);
+  }
 });
 
 test("createModel throws when apiKeyEnv is missing", () => {

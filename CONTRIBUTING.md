@@ -21,6 +21,7 @@ See [Adding an evaluator](#adding-an-evaluator) for the full guide.
   - [PR naming](#pr-naming)
 - [**Adding an evaluator**](#adding-an-evaluator) ← most common contribution
 - [Adding a suite](#adding-a-suite)
+- [Adding an LLM provider](#adding-an-llm-provider)
 - [Adding a telemetry provider](#adding-a-telemetry-provider)
 - [Adding a test agent](#adding-a-test-agent)
 - [Submitting findings](#submitting-findings)
@@ -370,6 +371,34 @@ Opfor can fetch recorded traces from an observability platform and give them to 
    - Add a `myProvider?: MyProviderTelemetryConfig` block to `TelemetryConfig`.
 
 5. **Polling defaults** — `POLL_DEFAULTS` in `core/src/telemetry/pollingUtils.ts` gives you sensible starting values (`1000 ms` initial delay, `8` attempts, `1500 ms` between). Pass them through `fetchTraceForJudge`'s `opts` argument — callers can override per `TelemetryConfig`.
+
+---
+
+## Adding an LLM provider
+
+All provider metadata (default model, API key env var, capabilities, model builder) lives in one object: `providerRegistryData` in `core/src/providers/factory.ts`. CLI, MCP, and the browser extension all derive from it directly.
+
+### Checklist
+
+1. **Add an entry** to `providerRegistryData`:
+
+   ```typescript
+   "my-provider": {
+     displayName: "My Provider",
+     defaultModel: "my-provider-default-model",
+     envVar: "MY_PROVIDER_API_KEY",
+     capabilities: { supportsJsonMode: true, requiresBaseURL: false },
+     build: ({ apiKey, model }): LanguageModel => createMyProvider({ apiKey })(model),
+   },
+   ```
+
+   Set `requiresBaseURL: true` if the provider needs a user-supplied endpoint (e.g. Azure), and add `baseUrlPromptMessage` if the generic prompt copy isn't clear enough.
+
+2. **Add the key to the `PROVIDERS` named-constant** in the same file (`{ MY_PROVIDER: "my-provider" }`). This `{ NAME: value }` object stays hand-written on purpose: it gives call sites literal-typed named access (`PROVIDERS.MY_PROVIDER`) and compile-time key checking that a derived `Object.fromEntries` view would lose. It's the one registry mirror not auto-derived — skip it and the `PROVIDER_CHOICES` test fails, and the extension popup dropdown / MCP tool-description list silently omit your provider.
+3. **Add the env var row** to `AGENTS.md` and `.env.example`.
+4. **Add the SDK dependency** to `core/package.json` if the provider needs a new `@ai-sdk/*` package.
+5. **Extend `core/tests/providerFactory.test.ts`**'s `EXPECTED_PROVIDER_TAG` map with the new provider's SDK `.provider` tag (run the test once to see what the AI SDK reports).
+6. **Add the provider to `runners/sdk/src/types.ts`**'s `ProviderName` union. The SDK can't import core's types directly (core isn't published to npm), so this one hand-copied union is the exception — everything else derives from the registry automatically.
 
 ---
 

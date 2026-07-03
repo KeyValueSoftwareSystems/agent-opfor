@@ -1,13 +1,4 @@
-import { PROVIDERS } from "./providers.js";
-
-/** Providers whose endpoint is hardcoded — no baseUrl required from the user. */
-const PROVIDERS_WITH_FIXED_URL = new Set([
-  PROVIDERS.OPENAI,
-  PROVIDERS.ANTHROPIC,
-  PROVIDERS.GROQ,
-  PROVIDERS.GOOGLE,
-  PROVIDERS.DEEPSEEK,
-]);
+import { PROVIDERS, PROVIDER_CAPABILITIES } from "./dist/core.bundle.js";
 
 /**
  * Load per-task LLM configs from Options storage.
@@ -38,7 +29,7 @@ export async function getLlmProfile(kind) {
 
 export function assertLlmCfg(cfg, { kind }) {
   if (!cfg?.enabled) throw new Error(`${kind} LLM is disabled (enable it in extension Options).`);
-  if (!PROVIDERS_WITH_FIXED_URL.has(cfg.provider) && !cfg.baseUrl) {
+  if (PROVIDER_CAPABILITIES[cfg.provider]?.requiresBaseURL && !cfg.baseUrl) {
     throw new Error(`${kind} LLM missing baseUrl in Options.`);
   }
   if (!cfg.model) throw new Error(`${kind} LLM missing model in Options.`);

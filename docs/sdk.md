@@ -308,7 +308,7 @@ attackerModel: { provider: "openai", model: "gpt-4o", apiKeyEnv: "OPENAI_API_KEY
 attackerModel: { provider: "anthropic", model: "claude-sonnet-4", apiKeyEnv: "ANTHROPIC_API_KEY" }
 
 // Google
-attackerModel: { provider: "google", model: "gemini-2.0-flash", apiKeyEnv: "GOOGLE_API_KEY" }
+attackerModel: { provider: "google", model: "gemini-2.0-flash", apiKeyEnv: "GOOGLE_GENERATIVE_AI_API_KEY" }
 
 // Groq
 attackerModel: { provider: "groq", model: "llama-3.3-70b", apiKeyEnv: "GROQ_API_KEY" }
@@ -320,7 +320,7 @@ attackerModel: { provider: "deepseek", model: "deepseek-chat", apiKeyEnv: "DEEPS
 attackerModel: {
   provider: "azure",
   model: "gpt-4o",
-  apiKeyEnv: "AZURE_API_KEY",
+  apiKeyEnv: "AZURE_OPENAI_API_KEY",
   baseUrl: "https://my-resource.openai.azure.com"
 }
 

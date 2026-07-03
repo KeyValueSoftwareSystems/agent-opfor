@@ -5,7 +5,6 @@ import { input, select, checkbox, confirm } from "@inquirer/prompts";
 import { log } from "@keyvaluesystems/agent-opfor-core/lib/logger.js";
 import { loadSkillCatalog } from "@keyvaluesystems/agent-opfor-core/config/loadSkillCatalog.js";
 import {
-  PROVIDERS,
   PROVIDER_CHOICES,
   type LlmConfig,
   type ProviderName,
@@ -16,6 +15,8 @@ import {
 import {
   PROVIDER_DEFAULTS,
   PROVIDER_ENV_VARS,
+  PROVIDER_CAPABILITIES,
+  PROVIDER_BASE_URL_PROMPTS,
 } from "@keyvaluesystems/agent-opfor-core/providers/factory.js";
 import type {
   RunConfig,
@@ -226,11 +227,8 @@ async function collectLlmConfig(label: string): Promise<LlmConfig> {
   });
 
   let baseURL: string | undefined;
-  if (provider === PROVIDERS.AZURE || provider === PROVIDERS.OPENAI_COMPATIBLE) {
-    const message =
-      provider === PROVIDERS.AZURE
-        ? "Azure resource endpoint (e.g. https://my-resource.openai.azure.com)"
-        : "Base URL (required for this provider)";
+  if (PROVIDER_CAPABILITIES[provider].requiresBaseURL) {
+    const message = PROVIDER_BASE_URL_PROMPTS[provider] ?? "Base URL (required for this provider)";
     baseURL = await input({
       message,
       validate: (v) => (v.trim() ? true : "A value is required"),

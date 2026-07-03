@@ -6,18 +6,14 @@
 // OPFOR_UI_RUN / RESUME / STOP / DISCARD_PAUSED message contracts.
 // ─────────────────────────────────────────────────────────────────
 
-import { PROVIDERS } from "./providers.js";
+import { PROVIDERS, PROVIDER_CAPABILITIES, PROVIDER_DISPLAY_NAMES } from "./dist/core.bundle.js";
 
-const PROVIDER_OPTIONS = [
-  { value: PROVIDERS.OPENAI, label: "OpenAI" },
-  { value: PROVIDERS.ANTHROPIC, label: "Anthropic" },
-  { value: PROVIDERS.GOOGLE, label: "Google (Gemini)" },
-  { value: PROVIDERS.GROQ, label: "Groq" },
-  { value: PROVIDERS.DEEPSEEK, label: "DeepSeek" },
-  { value: PROVIDERS.AZURE, label: "Azure OpenAI" },
-  { value: PROVIDERS.OPENAI_COMPATIBLE, label: "Custom (OpenAI-compatible)" },
-];
+const PROVIDER_OPTIONS = Object.values(PROVIDERS).map((value) => ({
+  value,
+  label: PROVIDER_DISPLAY_NAMES[value],
+}));
 
+// Extension-only model lists/defaults — deliberately not sourced from core's PROVIDER_DEFAULTS.
 const MODELS_BY_PROVIDER = {
   [PROVIDERS.OPENAI]: ["gpt-4o-mini", "gpt-4o", "gpt-4.1", "gpt-5"],
   [PROVIDERS.ANTHROPIC]: [
@@ -44,7 +40,9 @@ const PROVIDER_DEFAULT_MODELS = {
 };
 
 /** Providers that require a user-supplied baseUrl. */
-const PROVIDERS_NEEDING_BASE_URL = new Set([PROVIDERS.AZURE, PROVIDERS.OPENAI_COMPATIBLE]);
+const PROVIDERS_NEEDING_BASE_URL = new Set(
+  Object.values(PROVIDERS).filter((p) => PROVIDER_CAPABILITIES[p].requiresBaseURL)
+);
 
 /** Providers whose models are fetched dynamically from a known endpoint. */
 const SIMPLE_PROVIDER_FETCH_CONFIG = {
