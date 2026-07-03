@@ -19,6 +19,10 @@ paths = [
   '''evaluators/.*\.md''',
   '''suites/.*\.md''',
   '''skills/.*/opfor-setup/_generated/.*\.md''',
+  # Unit-test fixtures (*.test.yaml) carry intentional fake keys, e.g. the
+  # source-analysis secret-exposure fixtures. Discovery ignores them at runtime;
+  # the scanner should too. Covers repo-root fixtures and _generated skill mirrors.
+  '''.*\.test\.yaml''',
   # Extension catalog contains attack patterns with fake reference numbers
   '''runners/extension/catalog\.json''',
 ]
