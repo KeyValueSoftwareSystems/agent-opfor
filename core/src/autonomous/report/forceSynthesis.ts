@@ -22,8 +22,8 @@ Respond with ONLY a JSON object — no prose, no markdown fences:
 Be concise but accurate. Note that the run was incomplete — do not overstate coverage.`;
 
 /**
- * Resolve a model alias to a full Anthropic API model id, honoring
- * ANTHROPIC_DEFAULT_*_MODEL env vars set by configureBrainAuth() for OpenRouter.
+ * Resolve a model alias to a full Anthropic API model id, honoring any
+ * ANTHROPIC_DEFAULT_*_MODEL overrides the caller has set.
  */
 function resolveModelId(model: string): string {
   if (model === "opus") return process.env.ANTHROPIC_DEFAULT_OPUS_MODEL ?? "claude-opus-4-8";
@@ -177,10 +177,7 @@ export async function generateForcedSynthesis(
   // cost another ~$0.002–$0.09 depending on model, not worth it at this depth.
   if (remainingBudgetUsd !== undefined && remainingBudgetUsd < -2.0) return null;
 
-  const apiKey =
-    process.env.ANTHROPIC_API_KEY?.trim() ||
-    process.env.ANTHROPIC_AUTH_TOKEN?.trim() ||
-    process.env.OPENROUTER_API_KEY?.trim();
+  const apiKey = process.env.ANTHROPIC_API_KEY?.trim() || process.env.ANTHROPIC_AUTH_TOKEN?.trim();
   if (!apiKey) return null;
 
   // Downgrade to haiku when budget is nearly exhausted — synthesis costs ~$0.002 on haiku.
