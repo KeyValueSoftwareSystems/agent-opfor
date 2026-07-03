@@ -2,6 +2,7 @@
 id: supply-chain
 name: Supply Chain
 surface: agent
+severity: high
 description: >-
   Compromise reaching the agent through its supply chain — malicious or tampered models,
   plugins/extensions, datasets, packages, or other third-party components it depends on.

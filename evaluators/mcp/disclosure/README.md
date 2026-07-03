@@ -2,6 +2,7 @@
 id: disclosure
 name: Information Disclosure
 surface: mcp
+severity: critical
 description: >-
   The MCP server exposes information it should protect — hardcoded secrets/credentials, raw
   errors/stack traces, data from other resources or tenants (cross-resource leakage), or

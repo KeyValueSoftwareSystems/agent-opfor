@@ -2,6 +2,7 @@
 id: access-control
 name: Access Control & Authorization
 surface: agent
+severity: critical
 description: >-
   The agent acts across an authorization boundary — accessing another user's objects or
   records (BOLA), invoking functions/roles it is not entitled to (BFLA), ignoring RBAC, or

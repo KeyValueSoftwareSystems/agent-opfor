@@ -1,12 +1,14 @@
 import { build } from "esbuild";
 import { fileURLToPath } from "url";
 import { dirname, resolve } from "path";
+import { chmodSync } from "fs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const outfile = resolve(__dirname, "../dist/index.js");
 
 await build({
   entryPoints: [resolve(__dirname, "../src/index.ts")],
-  outfile: resolve(__dirname, "../dist/index.js"),
+  outfile,
   bundle: true,
   format: "esm",
   platform: "node",
@@ -23,3 +25,8 @@ await build({
     ].join("\n"),
   },
 });
+
+// esbuild doesn't preserve/set the executable bit; without it `npm install -g`
+// symlinks a non-executable file into bin/, and running `opfor` fails with
+// "Permission denied" despite the shebang above.
+chmodSync(outfile, 0o755);

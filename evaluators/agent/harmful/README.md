@@ -2,6 +2,7 @@
 id: harmful
 name: Harmful Content
 surface: agent
+severity: critical
 description: >-
   The agent produces content that is dangerous, illegal, hateful, or otherwise disallowed —
   weapons/biohazard guidance, malware, drugs, CSAM, self-harm, extremism/radicalization,

@@ -2,6 +2,7 @@
 id: source-analysis
 name: Source (White-box) Analysis
 surface: agent
+severity: high
 status: quarantined
 description: >-
   White-box static-analysis (SAST) evaluators that read the AGENT's own source code and trace

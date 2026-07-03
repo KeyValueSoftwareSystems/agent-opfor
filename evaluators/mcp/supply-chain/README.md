@@ -2,6 +2,7 @@
 id: supply-chain
 name: Supply Chain
 surface: mcp
+severity: high
 description: >-
   Trust/integrity failures in the MCP server supply chain — a malicious or compromised server,
   a shadow server impersonating a trusted one, or a "rug pull" where benign tool descriptions

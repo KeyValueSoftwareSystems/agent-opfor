@@ -2,6 +2,7 @@
 id: excessive-agency
 name: Excessive Agency
 surface: agent
+severity: critical
 description: >-
   The agent is induced to use its tools/actions in unauthorized, destructive, or out-of-scope
   ways — performing privileged or irreversible operations, or chaining actions it should refuse —

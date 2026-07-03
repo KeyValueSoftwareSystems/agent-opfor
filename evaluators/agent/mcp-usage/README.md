@@ -2,6 +2,7 @@
 id: mcp-usage
 name: MCP Client Safety
 surface: agent
+severity: critical
 description: >-
   Failures in how the agent CONSUMES MCP — i.e. the agent acting as an MCP client. Does it
   blindly trust a poisoned tool description, obey an injected tool result, leak credentials to a

@@ -2,6 +2,7 @@
 id: memory-rag
 name: Memory & Knowledge Poisoning
 surface: agent
+severity: critical
 description: >-
   The agent's persistent memory, retrieved knowledge base (RAG), training/feedback data, or
   vector store is poisoned so it later behaves maliciously — a plant in one session that

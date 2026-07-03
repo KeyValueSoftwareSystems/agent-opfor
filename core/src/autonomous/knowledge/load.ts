@@ -1,31 +1,27 @@
 // Loader for the seed knowledge libraries (YAML-frontmatter .md files).
-// Uses core's shared frontmatter parser. Resolves the bundled `data/`
-// directory relative to this module so it works regardless of the caller's cwd.
+// Personas and strategies come from the shared `data/` directory; vulnerability
+// classes are derived from the evaluator taxonomy (see ./vulnClasses.ts).
 
-import { existsSync } from "node:fs";
 import { readFile, readdir, writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { parse as parseYaml } from "yaml";
+import { getRepoRoot } from "../../config/evaluatorsLayout.js";
 import { splitYamlFrontmatter } from "../../util/yamlFrontmatter.js";
-import type { KnowledgeBase, VulnClass, Persona, Strategy, KnowledgeKind } from "./types.js";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+import type { KnowledgeBase, Persona, Strategy } from "./types.js";
+import { loadVulnClasses } from "./vulnClasses.js";
 
 /**
- * Resolve the seed data directory. Two layouts are supported:
- * - Published package: `<core>/data` (vendored into the tarball at pack time). This module
- *   lives at `core/dist/autonomous/knowledge/load.js`, so the package root is 3 levels up.
- * - Monorepo dev: `<repo>/runners/cli/data` (the source of truth, 4 levels up).
+ * Resolve the seed `data/` directory (personas, strategies). Delegates to
+ * `getRepoRoot()` — the same resolver evaluators/suites use — instead of a
+ * second, independently-drifting path-candidate list: `data/` is copied into
+ * every published package right beside `evaluators/`, so wherever getRepoRoot()
+ * anchors on `evaluators/agent`, `data/` is its sibling. Works identically for
+ * monorepo dev and bundled CLI/SDK installs.
  *
- * Callers may still pass `seedDir` explicitly to override.
+ * Callers may still pass `seedDir` explicitly to override (personas/strategies only).
  */
 function defaultSeedDir(): string {
-  const packageLocal = path.resolve(__dirname, "../../../data");
-  if (existsSync(packageLocal)) {
-    return packageLocal;
-  }
-  return path.resolve(__dirname, "../../../../runners/cli/data");
+  return path.join(getRepoRoot(), "data");
 }
 
 async function readMdDir(dir: string): Promise<Array<Record<string, unknown>>> {
@@ -60,25 +56,6 @@ function str(v: unknown, fallback = ""): string {
   return typeof v === "string" ? v.trim() : fallback;
 }
 
-function toVulnClass(d: Record<string, unknown>): VulnClass | null {
-  const id = str(d.id);
-  if (!id) return null;
-  const severity = str(d.severity, "medium") as VulnClass["severity"];
-  return {
-    id,
-    name: str(d.name, id),
-    severity: ["critical", "high", "medium", "low"].includes(severity) ? severity : "medium",
-    standards:
-      d.standards && typeof d.standards === "object"
-        ? (d.standards as Record<string, string>)
-        : undefined,
-    description: str(d.description),
-    failRubric: str(d.fail_rubric),
-    passRubric: str(d.pass_rubric),
-    inspiration: str(d.inspiration) || undefined,
-  };
-}
-
 function toPersona(d: Record<string, unknown>): Persona | null {
   const id = str(d.id);
   if (!id) return null;
@@ -103,25 +80,29 @@ function toStrategy(d: Record<string, unknown>): Strategy | null {
   };
 }
 
-/** Load all seed knowledge libraries. */
+/**
+ * Load all seed knowledge libraries. Personas/strategies are read from `seedDir`
+ * (or the default shared `data/` dir); vulnerability classes are always derived
+ * from the evaluator taxonomy and are not affected by `seedDir`.
+ */
 export async function loadKnowledge(seedDir?: string): Promise<KnowledgeBase> {
   const base = seedDir ? path.resolve(seedDir) : defaultSeedDir();
-  const [vulnDocs, personaDocs, strategyDocs] = await Promise.all([
-    readMdDir(path.join(base, "vuln-classes")),
+  const [vulnClasses, personaDocs, strategyDocs] = await Promise.all([
+    loadVulnClasses(),
     readMdDir(path.join(base, "personas")),
     readMdDir(path.join(base, "strategies")),
   ]);
   return {
-    vulnClasses: vulnDocs.map(toVulnClass).filter((v): v is VulnClass => v !== null),
+    vulnClasses,
     personas: personaDocs.map(toPersona).filter((p): p is Persona => p !== null),
     strategies: strategyDocs.map(toStrategy).filter((s): s is Strategy => s !== null),
   };
 }
 
 /** Resolve the on-disk directory for a given knowledge kind (for persisting inventions). */
-export function seedSubdir(kind: KnowledgeKind, seedDir?: string): string {
+export function seedSubdir(kind: "persona" | "strategy", seedDir?: string): string {
   const base = seedDir ? path.resolve(seedDir) : defaultSeedDir();
-  const sub = kind === "persona" ? "personas" : kind === "strategy" ? "strategies" : "vuln-classes";
+  const sub = kind === "persona" ? "personas" : "strategies";
   return path.join(base, sub);
 }
 

@@ -2,6 +2,7 @@
 id: injection
 name: Injection
 surface: mcp
+severity: critical
 description: >-
   Tool-call arguments reach dangerous sinks in the MCP server — shell/exec (command injection)
   or outbound network requests (SSRF) — without sanitization or destination validation.

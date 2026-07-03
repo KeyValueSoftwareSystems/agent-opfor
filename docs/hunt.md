@@ -75,7 +75,9 @@ ANTHROPIC_API_KEY=sk-or-v1-...
 
 ## Vulnerability Classes
 
-`jailbreak` · `prompt-injection` · `system-prompt-leak` · `sensitive-disclosure` · `harmful-content` · `tool-misuse` · `business-integrity` · `misinformation` · `bias`
+`bias` · `harmful` · `accuracy` · `disclosure` · `injection` · `excessive-agency` · `brand-conduct` · `access-control` · `mcp-usage`
+
+These are the same category ids `opfor run` uses under `evaluators/agent/` — hunt draws from a hand-picked subset of that taxonomy (see `HUNT_VULN_CLASS_CATEGORIES` in `core/src/autonomous/knowledge/vulnClasses.ts`), reading each category's `README.md`, so the two stay in sync.
 
 ## Personas
 
