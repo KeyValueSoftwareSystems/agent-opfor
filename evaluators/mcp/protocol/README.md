@@ -2,6 +2,7 @@
 id: protocol
 name: Protocol & Telemetry
 surface: mcp
+severity: high
 description: >-
   Abuses of the MCP protocol layer and observability — malformed/abusive protocol messages,
   intent subversion of the request/response flow, timing side channels, and audit/telemetry

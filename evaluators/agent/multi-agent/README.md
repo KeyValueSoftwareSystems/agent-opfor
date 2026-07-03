@@ -2,6 +2,7 @@
 id: multi-agent
 name: Multi-Agent & Trust
 surface: agent
+severity: critical
 description: >-
   Failures in agent-to-agent or agent-to-human trust — one agent manipulating another via
   inter-agent messages, a rogue/compromised agent in a collaboration, cascading failures

@@ -134,7 +134,7 @@ This catches what input/output testing misses — PII that leaks into a tool cal
 
 ## Autonomous Red-Teaming
 
-`opfor hunt` skips the config file entirely. Give it an endpoint and an objective, and a multi-agent system — commander, operators, scout — runs an adaptive attack campaign on its own: recon, strategy, multi-turn probing, report.
+`opfor hunt` skips the config file entirely. Give it an endpoint and an objective, and a multi-agent system — commander, operators, scout — runs an adaptive attack campaign on its own: recon, strategy, multi-turn probing, report. Unlike `opfor run`, the agents run on Claude only (via a Claude API key, `claude setup-token`, or your local `claude login` session) — your target can be anything.
 
 ```bash
 opfor hunt \

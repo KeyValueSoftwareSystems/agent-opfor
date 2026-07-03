@@ -2,6 +2,7 @@
 id: injection
 name: Prompt Injection & Jailbreak
 surface: agent
+severity: critical
 description: >-
   Attacker-crafted input that overrides the agent's instructions/task or bypasses its
   safety guardrails — direct overrides, indirect/embedded instructions (in documents,

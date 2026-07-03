@@ -2,6 +2,7 @@
 id: resource
 name: Resource & Availability
 surface: agent
+severity: high
 description: >-
   The agent can be driven to consume unbounded resources — tokens, compute, tool calls, cost —
   or pushed into expensive reasoning loops, degrading availability or running up spend (DoS).

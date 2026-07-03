@@ -2,6 +2,7 @@
 id: code-execution
 name: Code & Output Execution
 surface: agent
+severity: critical
 description: >-
   Untrusted input — or the agent's own unsanitized output — reaches a dangerous downstream
   sink: shell/exec, SQL, template/markup (XSS), or file writes. Model output is

@@ -2,6 +2,7 @@
 id: tool-poisoning
 name: Tool Poisoning
 surface: mcp
+severity: critical
 description: >-
   The MCP server presents malicious or manipulative tool metadata/results — hidden instructions
   in tool descriptions, content injected via tool output, or return values crafted to subvert the

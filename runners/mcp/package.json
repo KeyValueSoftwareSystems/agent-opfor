@@ -9,7 +9,6 @@
   },
   "files": [
     "dist/",
-    "data/",
     "evaluators/",
     "suites/",
     "atlas-data/"
@@ -20,8 +19,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "prepare": "echo 'run npm run build from the repo root'",
     "start": "node dist/index.js",
-    "prepack": "rm -rf ./evaluators ./suites ./data ./atlas-data ./LICENSE && cp -r ../../evaluators ./evaluators && cp -r ../../suites ./suites && cp -r ../cli/data ./data && mkdir -p ./atlas-data && cp ../../third_party/atlas-data/dist/ATLAS.yaml ./atlas-data/ATLAS.yaml && cp ../../LICENSE ./LICENSE",
-    "postpack": "rm -rf ./evaluators ./suites ./data ./atlas-data ./LICENSE"
+    "prepack": "rm -rf ./evaluators ./suites ./atlas-data ./LICENSE && cp -r ../../evaluators ./evaluators && cp -r ../../suites ./suites && mkdir -p ./atlas-data && cp ../../third_party/atlas-data/dist/ATLAS.yaml ./atlas-data/ATLAS.yaml && cp ../../LICENSE ./LICENSE",
+    "postpack": "rm -rf ./evaluators ./suites ./atlas-data ./LICENSE"
   },
   "homepage": "https://agentopfor.ai",
   "repository": {

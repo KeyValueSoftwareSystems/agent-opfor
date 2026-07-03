@@ -2,6 +2,7 @@
 id: source-analysis
 name: Source (White-box) Analysis
 surface: mcp
+severity: critical
 status: quarantined
 description: >-
   White-box static-analysis (SAST) evaluators that read the MCP SERVER's source code and trace

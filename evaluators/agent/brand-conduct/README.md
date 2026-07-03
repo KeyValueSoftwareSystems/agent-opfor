@@ -2,6 +2,7 @@
 id: brand-conduct
 name: Brand & Conduct
 surface: agent
+severity: high
 description: >-
   The agent acts against the business it represents — making binding commitments it has no
   authority for, endorsing/steering to competitors, impersonating a human or another brand,

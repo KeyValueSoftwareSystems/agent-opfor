@@ -106,6 +106,49 @@ export const SourceAnalysisFrontmatterSchema = z
 
 export type SourceAnalysisFrontmatter = z.infer<typeof SourceAnalysisFrontmatterSchema>;
 
+/**
+ * Frontmatter contract for `evaluators/{agent|mcp}/<category>/README.md` category
+ * overview files — the family-level description, boundary, and rubric.
+ *
+ * Consumed by the autonomous hunt vuln-class loader
+ * (`core/src/autonomous/knowledge/vulnClasses.ts`) for the allow-listed agent
+ * categories, so hunt's vulnerability-class menu stays in sync with the same
+ * taxonomy `opfor run` uses instead of a separate hand-maintained library.
+ *
+ * `severity` is a deliberate one-time editorial addition to each category README
+ * (see AGENTS.md) — it is NOT auto-derived from child `evaluator.yaml` files.
+ * Kept `.strict()` to match the sibling evaluator schemas so a typo is caught.
+ */
+/**
+ * Category-level standards allow a single id or a list per framework
+ * (e.g. `owasp-llm: [LLM02, LLM07]`), unlike leaf evaluators which map one id
+ * per framework. Consumers that need a flat string join the list.
+ */
+export const CategoryStandardsSchema = z.record(
+  z.string().min(1),
+  z.union([z.string().min(1), z.array(z.string().min(1))])
+);
+
+export const CategoryFrontmatterSchema = z
+  .object({
+    id: z.string().min(1),
+    name: z.string().min(1),
+    surface: SurfaceSchema,
+    severity: SeveritySchema,
+    description: z.string().min(1),
+    boundary: z.string().optional(),
+    standards: CategoryStandardsSchema.optional(),
+    applies_to: z.array(z.string()).optional(),
+    status: z.string().optional(),
+    scan_mode: z.enum(["source_code", "tool_description"]).optional(),
+    metric_kind: z.boolean().optional(),
+    fail_rubric: z.string().min(1),
+    pass_rubric: z.string().min(1),
+  })
+  .strict();
+
+export type CategoryFrontmatter = z.infer<typeof CategoryFrontmatterSchema>;
+
 export const SuiteFrontmatterSchema = z
   .object({
     id: z.string().min(1),

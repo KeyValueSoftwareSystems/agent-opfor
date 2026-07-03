@@ -1,7 +1,8 @@
 import type { Command } from "commander";
 import path from "node:path";
 import { readFile, mkdir } from "node:fs/promises";
-import { createWriteStream, type WriteStream } from "node:fs";
+import { createWriteStream, existsSync, type WriteStream } from "node:fs";
+import { homedir } from "node:os";
 import { consola } from "consola";
 import type {
   HuntOptions,
@@ -68,30 +69,33 @@ function parseHeaders(raw?: string[]): Record<string, string> | undefined {
   return Object.keys(headers).length ? headers : undefined;
 }
 
-function configureBrainAuth(): void {
-  const base = process.env.ANTHROPIC_BASE_URL?.trim();
-  if (!base?.includes("openrouter.ai")) return;
+const NO_BRAIN_AUTH_MESSAGE =
+  "No Claude credentials found. Set ANTHROPIC_API_KEY, or run `claude login` / `claude setup-token` to use a Claude subscription.";
 
-  // OpenRouter Anthropic-skin: https://openrouter.ai/docs/guides/community/anthropic-agent-sdk
-  process.env.ANTHROPIC_BASE_URL = "https://openrouter.ai/api";
-  const token =
-    process.env.ANTHROPIC_AUTH_TOKEN?.trim() ||
-    process.env.OPENROUTER_API_KEY?.trim() ||
-    process.env.ANTHROPIC_API_KEY?.trim();
-  if (token) process.env.ANTHROPIC_AUTH_TOKEN = token;
-
-  // Route all SDK model tiers to the cheapest Claude on OpenRouter unless overridden.
-  process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL ??= "anthropic/claude-haiku-4.5";
-  process.env.ANTHROPIC_DEFAULT_SONNET_MODEL ??= "anthropic/claude-haiku-4.5";
-  process.env.ANTHROPIC_DEFAULT_OPUS_MODEL ??= "anthropic/claude-haiku-4.5";
-}
-
-function brainApiKeyConfigured(): boolean {
-  return Boolean(
-    process.env.ANTHROPIC_API_KEY?.trim() ||
-    process.env.OPENROUTER_API_KEY?.trim() ||
-    process.env.ANTHROPIC_AUTH_TOKEN?.trim()
-  );
+/**
+ * Resolve which credential the Claude Agent SDK will authenticate with, for a
+ * user-facing log line — or null if none is configured.
+ *
+ * The SDK resolves credentials itself (first match wins): ANTHROPIC_API_KEY →
+ * CLAUDE_CODE_OAUTH_TOKEN → a stored `~/.claude/.credentials.json` from a Claude
+ * subscription login (`claude setup-token` / `claude login`). This is a courtesy
+ * pre-check so we can emit an actionable message instead of a cryptic SDK error;
+ * it must therefore recognize the subscription path, not just env vars.
+ */
+function resolveBrainAuth(): string | null {
+  if (process.env.ANTHROPIC_API_KEY?.trim()) return "ANTHROPIC_API_KEY";
+  // ANTHROPIC_AUTH_TOKEN only counts alongside ANTHROPIC_BASE_URL: buildChildEnv()
+  // strips a bare token (it's treated as an inherited session token), so counting
+  // it here without a gateway URL would pass the gate then lose the credential.
+  if (process.env.ANTHROPIC_AUTH_TOKEN?.trim() && process.env.ANTHROPIC_BASE_URL?.trim()) {
+    return `gateway (${process.env.ANTHROPIC_BASE_URL})`;
+  }
+  if (process.env.CLAUDE_CODE_OAUTH_TOKEN?.trim()) return "CLAUDE_CODE_OAUTH_TOKEN";
+  // Claude subscription: credentials stored on disk by `claude setup-token` / `claude login`.
+  if (existsSync(path.join(homedir(), ".claude", ".credentials.json"))) {
+    return "Claude subscription (~/.claude/.credentials.json)";
+  }
+  return null;
 }
 
 function intOr(value: string | undefined, fallback: number): number {
@@ -173,7 +177,10 @@ export function registerHuntCommand(program: Command): void {
     .option("--verifier-model <id>", "Verifier model id (defaults to commander model)")
     .option("--sequential", "Dispatch operators one at a time (rate-limited targets)")
     .option("--persist-inventions", "Persist novel personas/strategies back to the seed library")
-    .option("--seed-dir <path>", "Override the seed knowledge directory")
+    .option(
+      "--seed-dir <path>",
+      "Override the personas/strategies seed directory (vuln-classes always come from evaluators/agent/)"
+    )
     .option("--output <dir>", "Report output directory", ".opfor/reports")
     .option("--env <path>", "Path to a .env file to load")
     .option("--ui", "Launch live dashboard UI in the browser")
@@ -184,17 +191,15 @@ export function registerHuntCommand(program: Command): void {
         loadDotenv({ path: path.resolve(opts.env), override: true });
       }
 
-      configureBrainAuth();
-
       // If --ui is set and endpoint is missing, launch setup UI
       if (opts.ui && !opts.endpoint) {
-        if (!brainApiKeyConfigured()) {
-          consola.error(
-            "Set ANTHROPIC_API_KEY (or OPENROUTER_API_KEY for OpenRouter) to drive the agent."
-          );
+        const brainAuth = resolveBrainAuth();
+        if (!brainAuth) {
+          consola.error(NO_BRAIN_AUTH_MESSAGE);
           process.exitCode = 1;
           return;
         }
+        consola.info(`Authenticating via: ${brainAuth}`);
 
         const uiPort = intOr(opts.uiPort, 3847);
 
@@ -254,13 +259,13 @@ export function registerHuntCommand(program: Command): void {
         return;
       }
 
-      if (!brainApiKeyConfigured()) {
-        consola.error(
-          "Set ANTHROPIC_API_KEY (or OPENROUTER_API_KEY for OpenRouter) to drive the agent."
-        );
+      const brainAuth = resolveBrainAuth();
+      if (!brainAuth) {
+        consola.error(NO_BRAIN_AUTH_MESSAGE);
         process.exitCode = 1;
         return;
       }
+      consola.info(`Authenticating via: ${brainAuth}`);
 
       // Check endpoint is provided when not using setup UI
       if (!opts.endpoint) {

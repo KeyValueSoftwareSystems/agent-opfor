@@ -2,6 +2,7 @@
 id: auth
 name: Authentication & Authorization
 surface: mcp
+severity: critical
 description: >-
   The MCP server fails to authenticate or authorize callers before sensitive tool actions —
   missing auth on handlers, OAuth token passthrough/confused-deputy, or scope escalation beyond

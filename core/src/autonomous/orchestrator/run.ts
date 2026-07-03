@@ -37,14 +37,16 @@ const DISPATCH_TOOLS = ["Agent", "Task"];
  */
 function buildChildEnv(): Record<string, string> {
   const stripPrefixes = ["CLAUDECODE", "CLAUDE_CODE_", "CLAUDE_AGENT_SDK", "CLAUDE_EFFORT"];
+  // CLAUDE_CODE_OAUTH_TOKEN is a user-supplied subscription token (`claude setup-token`),
+  // not an inherited session marker — preserve it so the SDK can authenticate with it.
+  const preserveExact = new Set(["CLAUDE_CODE_OAUTH_TOKEN"]);
   const stripExact = new Set([
     "AI_AGENT",
     "CURSOR_SPAWNED_BY_EXTENSION_ID",
     "CURSOR_SPAWN_CHAIN",
     "CLAUDE_CODE_SSE_PORT",
   ]);
-  const usingOpenRouter = process.env.ANTHROPIC_BASE_URL?.includes("openrouter.ai");
-  // Strip inherited OAuth tokens unless routing through an explicit gateway (OpenRouter, LiteLLM, …).
+  // Strip inherited OAuth tokens unless routing through an explicit gateway (LiteLLM, …).
   if (!process.env.ANTHROPIC_BASE_URL?.trim()) {
     stripExact.add("ANTHROPIC_AUTH_TOKEN");
   }
@@ -52,18 +54,8 @@ function buildChildEnv(): Record<string, string> {
   for (const [k, v] of Object.entries(process.env)) {
     if (v === undefined) continue;
     if (stripExact.has(k)) continue;
-    if (stripPrefixes.some((p) => k.startsWith(p))) continue;
+    if (!preserveExact.has(k) && stripPrefixes.some((p) => k.startsWith(p))) continue;
     out[k] = v;
-  }
-  if (usingOpenRouter) {
-    // OpenRouter expects Bearer auth, not Anthropic x-api-key.
-    out.ANTHROPIC_BASE_URL = "https://openrouter.ai/api";
-    const token =
-      process.env.ANTHROPIC_AUTH_TOKEN?.trim() ||
-      process.env.OPENROUTER_API_KEY?.trim() ||
-      process.env.ANTHROPIC_API_KEY?.trim();
-    if (token) out.ANTHROPIC_AUTH_TOKEN = token;
-    out.ANTHROPIC_API_KEY = "";
   }
   return out;
 }
