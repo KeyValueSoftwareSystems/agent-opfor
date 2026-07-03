@@ -10,7 +10,7 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createDeepSeek } from "@ai-sdk/deepseek";
 import { createAzure } from "@ai-sdk/azure";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
-import { PROVIDERS, type LlmConfig, type ProviderName } from "../config/types.js";
+import type { LlmConfig } from "../config/types.js";
 import { getEnv } from "../lib/env.js";
 
 export interface ProviderCapabilities {
@@ -32,9 +32,13 @@ export interface ProviderBuildContext {
  * editing a switch plus three parallel lookup tables (the old "5 files" problem).
  */
 export interface ProviderAdapter {
+  /** Human-readable label for provider-picker UIs (CLI wizard, extension popup). */
+  displayName: string;
   defaultModel: string;
   envVar: string;
   capabilities: ProviderCapabilities;
+  /** Prompt copy for `capabilities.requiresBaseURL`; falls back to a generic message when omitted. */
+  baseUrlPromptMessage?: string;
   /**
    * Custom message thrown by createModel when `capabilities.requiresBaseURL` is
    * set but no baseURL is supplied. Defaults to a generic message when omitted.
@@ -43,70 +47,96 @@ export interface ProviderAdapter {
   build(ctx: ProviderBuildContext): LanguageModel;
 }
 
-/** Table-driven provider dispatch — the single source of truth for all providers. */
-export const providerRegistry: Record<ProviderName, ProviderAdapter> = {
-  [PROVIDERS.OPENAI]: {
+// Unexported so `ProviderName` below can infer the literal key union; `providerRegistry`
+// re-declares it with an explicit `Record<ProviderName, ProviderAdapter>` annotation,
+// which avoids a non-portable nested `@ai-sdk/provider` type in the declaration emit.
+const providerRegistryData = {
+  openai: {
+    displayName: "OpenAI",
     defaultModel: "gpt-4o-mini",
     envVar: "OPENAI_API_KEY",
     capabilities: { supportsJsonMode: true, requiresBaseURL: false },
-    build: ({ apiKey, model }) => createOpenAI({ apiKey })(model),
+    build: ({ apiKey, model }): LanguageModel => createOpenAI({ apiKey })(model),
   },
-  [PROVIDERS.ANTHROPIC]: {
+  anthropic: {
+    displayName: "Anthropic (Claude)",
     defaultModel: "claude-3-5-haiku-20241022",
     envVar: "ANTHROPIC_API_KEY",
     capabilities: { supportsJsonMode: false, requiresBaseURL: false },
-    build: ({ apiKey, model }) => createAnthropic({ apiKey })(model),
+    build: ({ apiKey, model }): LanguageModel => createAnthropic({ apiKey })(model),
   },
-  [PROVIDERS.GROQ]: {
+  groq: {
+    displayName: "Groq",
     defaultModel: "llama-3.3-70b-versatile",
     envVar: "GROQ_API_KEY",
     capabilities: { supportsJsonMode: true, requiresBaseURL: false },
-    build: ({ apiKey, model }) =>
+    build: ({ apiKey, model }): LanguageModel =>
       createOpenAICompatible({
         name: "groq",
         apiKey,
         baseURL: "https://api.groq.com/openai/v1",
       }).chatModel(model),
   },
-  [PROVIDERS.GOOGLE]: {
+  google: {
+    displayName: "Google (Gemini)",
     defaultModel: "gemini-2.0-flash",
     envVar: "GOOGLE_GENERATIVE_AI_API_KEY",
     capabilities: { supportsJsonMode: false, requiresBaseURL: false },
-    build: ({ apiKey, model }) => createGoogleGenerativeAI({ apiKey })(model),
+    build: ({ apiKey, model }): LanguageModel => createGoogleGenerativeAI({ apiKey })(model),
   },
-  [PROVIDERS.DEEPSEEK]: {
+  deepseek: {
+    displayName: "DeepSeek",
     defaultModel: "deepseek-chat",
     envVar: "DEEPSEEK_API_KEY",
     capabilities: { supportsJsonMode: true, requiresBaseURL: false },
-    build: ({ apiKey, model }) => createDeepSeek({ apiKey })(model),
+    build: ({ apiKey, model }): LanguageModel => createDeepSeek({ apiKey })(model),
   },
-  [PROVIDERS.AZURE]: {
+  azure: {
+    displayName: "Azure OpenAI",
     defaultModel: "gpt-4o-mini",
     envVar: "AZURE_OPENAI_API_KEY",
     capabilities: { supportsJsonMode: true, requiresBaseURL: true },
-    baseUrlError: `baseURL is required for provider '${PROVIDERS.AZURE}' (Azure resource endpoint, e.g. https://<resource>.openai.azure.com)`,
+    baseUrlPromptMessage: "Azure resource endpoint (e.g. https://my-resource.openai.azure.com)",
+    baseUrlError: `baseURL is required for provider 'azure' (Azure resource endpoint, e.g. https://<resource>.openai.azure.com)`,
     // Add the /openai path when the endpoint has none; leave proxy/custom paths as-is.
-    build: ({ apiKey, model, baseURL }) => {
+    build: ({ apiKey, model, baseURL }): LanguageModel => {
       const base = baseURL!.replace(/\/+$/, "");
       let resolved: string;
       try {
         resolved = new URL(base).pathname === "/" ? `${base}/openai` : base;
       } catch {
         throw new Error(
-          `baseURL is not a valid URL for provider '${PROVIDERS.AZURE}' (Azure resource endpoint, e.g. https://<resource>.openai.azure.com)`
+          `baseURL is not a valid URL for provider 'azure' (Azure resource endpoint, e.g. https://<resource>.openai.azure.com)`
         );
       }
       return createAzure({ apiKey, baseURL: resolved })(model);
     },
   },
-  [PROVIDERS.OPENAI_COMPATIBLE]: {
+  "openai-compatible": {
+    displayName: "Custom (OpenAI-compatible)",
     defaultModel: "",
     envVar: "OPFOR_API_KEY",
     capabilities: { supportsJsonMode: true, requiresBaseURL: true },
-    build: ({ apiKey, model, baseURL }) =>
+    build: ({ apiKey, model, baseURL }): LanguageModel =>
       createOpenAICompatible({ name: "custom", apiKey, baseURL: baseURL! }).chatModel(model),
   },
-};
+} satisfies Record<string, ProviderAdapter>;
+
+/** Canonical provider key union, derived from the registry — no hand-maintained copy elsewhere. */
+export type ProviderName = keyof typeof providerRegistryData;
+
+export const providerRegistry: Record<ProviderName, ProviderAdapter> = providerRegistryData;
+
+/** `{ OPENAI: "openai", ... }`-style constant for call sites that prefer named access. */
+export const PROVIDERS = {
+  OPENAI: "openai",
+  ANTHROPIC: "anthropic",
+  GROQ: "groq",
+  GOOGLE: "google",
+  DEEPSEEK: "deepseek",
+  AZURE: "azure",
+  OPENAI_COMPATIBLE: "openai-compatible",
+} as const satisfies Record<string, ProviderName>;
 
 // Freeze the capability objects: the derived PROVIDER_CAPABILITIES aliases them,
 // so this keeps a stray `PROVIDER_CAPABILITIES.x.requiresBaseURL = …` from leaking
@@ -131,6 +161,17 @@ export const PROVIDER_ENV_VARS: Record<ProviderName, string> = projectRegistry((
 export const PROVIDER_CAPABILITIES: Record<ProviderName, ProviderCapabilities> = projectRegistry(
   (a) => a.capabilities
 );
+export const PROVIDER_DISPLAY_NAMES: Record<ProviderName, string> = projectRegistry(
+  (a) => a.displayName
+);
+export const PROVIDER_BASE_URL_PROMPTS: Record<ProviderName, string | undefined> = projectRegistry(
+  (a) => a.baseUrlPromptMessage
+);
+
+/** `{ name, value }[]` shape consumed directly by the CLI wizard's `select()` prompt. */
+export const PROVIDER_CHOICES: { name: string; value: ProviderName }[] = (
+  Object.keys(providerRegistry) as ProviderName[]
+).map((value) => ({ name: PROVIDER_DISPLAY_NAMES[value], value }));
 
 /** Returns an error message string if the config is invalid, or null if valid. */
 export function validateLlmConfig(llm: LlmConfig): string | null {

@@ -173,7 +173,7 @@ Runs the full red team evaluation from a config file produced by `opfor_setup`. 
 | Groq               | `groq`              | `GROQ_API_KEY`                       |
 | Google (Gemini)    | `google`            | `GOOGLE_GENERATIVE_AI_API_KEY`       |
 | DeepSeek           | `deepseek`          | `DEEPSEEK_API_KEY`                   |
-| Azure OpenAI       | `azure`             | `AZURE_API_KEY`                      |
+| Azure OpenAI       | `azure`             | `AZURE_OPENAI_API_KEY`               |
 | OpenAI-compatible  | `openai-compatible` | (set via `api_key_env` + `base_url`) |
 
 ---

@@ -271,27 +271,9 @@ export interface TelemetryConfig {
   propagation?: TelemetryPropagationConfig;
 }
 
-export const PROVIDERS = {
-  OPENAI: "openai",
-  ANTHROPIC: "anthropic",
-  GROQ: "groq",
-  GOOGLE: "google",
-  DEEPSEEK: "deepseek",
-  AZURE: "azure",
-  OPENAI_COMPATIBLE: "openai-compatible",
-} as const;
-
-export type ProviderName = (typeof PROVIDERS)[keyof typeof PROVIDERS];
-
-export const PROVIDER_CHOICES: { name: string; value: ProviderName }[] = [
-  { name: "OpenAI", value: PROVIDERS.OPENAI },
-  { name: "Anthropic (Claude)", value: PROVIDERS.ANTHROPIC },
-  { name: "Google (Gemini)", value: PROVIDERS.GOOGLE },
-  { name: "Groq", value: PROVIDERS.GROQ },
-  { name: "DeepSeek", value: PROVIDERS.DEEPSEEK },
-  { name: "Azure OpenAI", value: PROVIDERS.AZURE },
-  { name: "Custom (OpenAI-compatible)", value: PROVIDERS.OPENAI_COMPATIBLE },
-];
+// Canonical definitions live in providers/factory.ts; re-exported so existing importers keep working.
+export { PROVIDERS, PROVIDER_CHOICES, type ProviderName } from "../providers/factory.js";
+import type { ProviderName } from "../providers/factory.js";
 
 /** Partial LLM config used in setup/config file inputs — all fields optional before resolution. */
 export interface LlmConfigInput {

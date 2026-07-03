@@ -6,6 +6,10 @@ import type {
   EvaluatorSelection,
 } from "@keyvaluesystems/agent-opfor-core";
 import type { LlmConfig, ProviderName } from "@keyvaluesystems/agent-opfor-core/config/types.js";
+import {
+  PROVIDER_ENV_VARS,
+  PROVIDER_DEFAULTS,
+} from "@keyvaluesystems/agent-opfor-core/providers/factory.js";
 import type {
   RunOptions,
   RunResults,
@@ -17,7 +21,7 @@ import type {
 } from "./types.js";
 
 const DEFAULT_PROVIDER: ProviderName = "anthropic";
-const DEFAULT_MODEL = "claude-sonnet-4-20250514";
+const DEFAULT_MODEL = PROVIDER_DEFAULTS[DEFAULT_PROVIDER];
 
 /**
  * Run adversarial tests against a target.
@@ -109,7 +113,7 @@ function buildLlmConfig(model: ModelSpec | undefined, defaultApiKey?: string): L
     return {
       provider: DEFAULT_PROVIDER,
       model: DEFAULT_MODEL,
-      apiKeyEnv: defaultApiKey ? "" : "ANTHROPIC_API_KEY",
+      apiKeyEnv: defaultApiKey ? "" : PROVIDER_ENV_VARS[DEFAULT_PROVIDER],
     };
   }
 
@@ -118,14 +122,14 @@ function buildLlmConfig(model: ModelSpec | undefined, defaultApiKey?: string): L
     return {
       provider,
       model,
-      apiKeyEnv: defaultApiKey ? "" : getDefaultApiKeyEnv(provider),
+      apiKeyEnv: defaultApiKey ? "" : PROVIDER_ENV_VARS[provider],
     };
   }
 
   return {
     provider: model.provider,
     model: model.model,
-    apiKeyEnv: model.apiKeyEnv ?? (defaultApiKey ? "" : getDefaultApiKeyEnv(model.provider)),
+    apiKeyEnv: model.apiKeyEnv ?? (defaultApiKey ? "" : PROVIDER_ENV_VARS[model.provider]),
     baseURL: model.baseUrl,
   };
 }
@@ -140,19 +144,6 @@ function inferProvider(model: string): ProviderName {
   if (lower.includes("deepseek")) return "deepseek";
 
   return "anthropic";
-}
-
-function getDefaultApiKeyEnv(provider: ProviderName): string {
-  const envVars: Record<ProviderName, string> = {
-    anthropic: "ANTHROPIC_API_KEY",
-    openai: "OPENAI_API_KEY",
-    google: "GOOGLE_API_KEY",
-    groq: "GROQ_API_KEY",
-    deepseek: "DEEPSEEK_API_KEY",
-    azure: "AZURE_API_KEY",
-    "openai-compatible": "LLM_API_KEY",
-  };
-  return envVars[provider] ?? "ANTHROPIC_API_KEY";
 }
 
 function transformReport(

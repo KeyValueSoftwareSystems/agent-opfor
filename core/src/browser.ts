@@ -57,7 +57,16 @@ export { setEnvProvider, getEnv } from "./lib/env.js";
 export { randomUUID, randomTraceHex } from "./lib/random.js";
 export { newOtelTraceId } from "./lib/tracePropagation.js";
 
-export { createModel, PROVIDER_ENV_VARS, PROVIDER_DEFAULTS } from "./providers/factory.js";
-export type { LlmConfig } from "./config/types.js";
+export {
+  createModel,
+  PROVIDERS,
+  PROVIDER_ENV_VARS,
+  PROVIDER_DEFAULTS,
+  PROVIDER_CAPABILITIES,
+  PROVIDER_DISPLAY_NAMES,
+  PROVIDER_BASE_URL_PROMPTS,
+  PROVIDER_CHOICES,
+} from "./providers/factory.js";
+export type { LlmConfig, ProviderName } from "./config/types.js";
 
 export { getAdapter } from "./telemetry/adapter.js";

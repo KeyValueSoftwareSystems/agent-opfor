@@ -125,7 +125,7 @@ server.tool(
     "EVALUATORS\n" +
     "  9. Call opfor_list_evaluators with the chosen target_kind, present the suites and evaluators to the user, then ask: run a full suite or specific evaluators?\n" +
     "ATTACKER LLM\n" +
-    " 10. Provider — options: openai, anthropic, groq, google, deepseek, azure, openai-compatible.\n" +
+    ` 10. Provider — options: ${Object.values(PROVIDERS).join(", ")}.\n` +
     " 11. Model name for that provider.\n" +
     " 12. Name of the environment variable that holds the API key (e.g. OPENAI_API_KEY).\n" +
     " 13. (openai-compatible or azure only) Base URL.\n" +
