@@ -37,23 +37,10 @@ import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync, readFileSy
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { HUNT_VULN_CLASS_CATEGORIES } from "../core/src/autonomous/knowledge/vulnClasses.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "..");
-
-/** The 9 agent categories opfor hunt derives its vuln-classes from — must match
- * HUNT_VULN_CLASS_CATEGORIES in core/src/autonomous/knowledge/vulnClasses.ts. */
-const HUNT_VULN_CLASS_CATEGORIES = [
-  "bias",
-  "harmful",
-  "accuracy",
-  "disclosure",
-  "injection",
-  "excessive-agency",
-  "brand-conduct",
-  "access-control",
-  "mcp-usage",
-];
 
 function run(cmd: string, args: string[], cwd: string): string {
   return execFileSync(cmd, args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });

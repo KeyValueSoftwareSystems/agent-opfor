@@ -67,9 +67,12 @@ export async function loadVulnClasses(evaluatorsDir?: string): Promise<VulnClass
       const issues = parsed.error.issues
         .map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
         .join("; ");
+      const missingSeverity = parsed.error.issues.some((i) => i.path.join(".") === "severity");
       throw new Error(
-        `${readmePath}: category frontmatter invalid: ${issues}. ` +
-          `Category READMEs consumed by opfor hunt require a severity: field.`
+        `${readmePath}: category frontmatter invalid: ${issues}.` +
+          (missingSeverity
+            ? " Category READMEs consumed by opfor hunt require a severity: field."
+            : "")
       );
     }
     const fm = parsed.data;
