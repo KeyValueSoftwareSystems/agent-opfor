@@ -73,6 +73,13 @@ export async function loadVulnClasses(evaluatorsDir?: string): Promise<VulnClass
       );
     }
     const fm = parsed.data;
+    // Fail loud on a README whose frontmatter id drifts from its directory/allowlist
+    // key, rather than silently minting a VulnClass under the wrong id.
+    if (fm.id !== id) {
+      throw new Error(
+        `${readmePath}: frontmatter id "${fm.id}" does not match expected category "${id}"`
+      );
+    }
     // Category standards may list multiple ids per framework; VulnClass.standards
     // is a flat string map, so join lists into a comma-separated string.
     const standards = fm.standards

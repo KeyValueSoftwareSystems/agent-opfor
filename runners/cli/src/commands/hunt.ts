@@ -79,9 +79,14 @@ function parseHeaders(raw?: string[]): Record<string, string> | undefined {
  * it must therefore recognize the subscription path, not just env vars.
  */
 function brainAuthConfigured(): boolean {
+  // ANTHROPIC_AUTH_TOKEN only counts alongside ANTHROPIC_BASE_URL: buildChildEnv()
+  // strips a bare token (it's treated as an inherited session token), so counting
+  // it here without a gateway URL would pass the gate then lose the credential.
+  const gatewayToken =
+    process.env.ANTHROPIC_AUTH_TOKEN?.trim() && process.env.ANTHROPIC_BASE_URL?.trim();
   if (
     process.env.ANTHROPIC_API_KEY?.trim() ||
-    process.env.ANTHROPIC_AUTH_TOKEN?.trim() ||
+    gatewayToken ||
     process.env.CLAUDE_CODE_OAUTH_TOKEN?.trim()
   ) {
     return true;

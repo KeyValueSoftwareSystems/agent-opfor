@@ -177,6 +177,11 @@ export async function generateForcedSynthesis(
   // cost another ~$0.002–$0.09 depending on model, not worth it at this depth.
   if (remainingBudgetUsd !== undefined && remainingBudgetUsd < -2.0) return null;
 
+  // This uses the raw @anthropic-ai/sdk (not the Agent SDK), which needs an explicit
+  // key. Runs authenticated only via a Claude subscription (CLAUDE_CODE_OAUTH_TOKEN or
+  // ~/.claude/.credentials.json) therefore skip LLM synthesis by design and fall back
+  // to the deterministic summary; routing this through the Agent SDK would be needed
+  // to support subscription auth here.
   const apiKey = process.env.ANTHROPIC_API_KEY?.trim() || process.env.ANTHROPIC_AUTH_TOKEN?.trim();
   if (!apiKey) return null;
 
