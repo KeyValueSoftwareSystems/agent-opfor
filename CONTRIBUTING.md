@@ -394,10 +394,11 @@ All provider metadata (default model, API key env var, capabilities, model build
 
    Set `requiresBaseURL: true` if the provider needs a user-supplied endpoint (e.g. Azure), and add `baseUrlPromptMessage` if the generic prompt copy isn't clear enough.
 
-2. **Add the env var row** to `AGENTS.md` and `.env.example`.
-3. **Add the SDK dependency** to `core/package.json` if the provider needs a new `@ai-sdk/*` package.
-4. **Extend `core/tests/providerFactory.test.ts`**'s `EXPECTED_PROVIDER_TAG` map with the new provider's SDK `.provider` tag (run the test once to see what the AI SDK reports).
-5. **Add the provider to `runners/sdk/src/types.ts`**'s `ProviderName` union. The SDK can't import core's types directly (core isn't published to npm), so this one hand-copied union is the exception — everything else derives from the registry automatically.
+2. **Add the key to the `PROVIDERS` named-constant** in the same file (`{ MY_PROVIDER: "my-provider" }`). This `{ NAME: value }` object stays hand-written on purpose: it gives call sites literal-typed named access (`PROVIDERS.MY_PROVIDER`) and compile-time key checking that a derived `Object.fromEntries` view would lose. It's the one registry mirror not auto-derived — skip it and the `PROVIDER_CHOICES` test fails, and the extension popup dropdown / MCP tool-description list silently omit your provider.
+3. **Add the env var row** to `AGENTS.md` and `.env.example`.
+4. **Add the SDK dependency** to `core/package.json` if the provider needs a new `@ai-sdk/*` package.
+5. **Extend `core/tests/providerFactory.test.ts`**'s `EXPECTED_PROVIDER_TAG` map with the new provider's SDK `.provider` tag (run the test once to see what the AI SDK reports).
+6. **Add the provider to `runners/sdk/src/types.ts`**'s `ProviderName` union. The SDK can't import core's types directly (core isn't published to npm), so this one hand-copied union is the exception — everything else derives from the registry automatically.
 
 ---
 

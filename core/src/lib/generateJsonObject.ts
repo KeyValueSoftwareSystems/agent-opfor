@@ -15,7 +15,7 @@ export interface JsonLlmMessage {
 export async function generateJsonObject(
   model: LanguageModel,
   messages: JsonLlmMessage[],
-  options?: { abortSignal?: AbortSignal }
+  options?: { abortSignal?: AbortSignal; temperature?: number }
 ): Promise<Record<string, unknown>> {
   const systemMsg = messages.find((m) => m.role === "system")?.content;
   const conversationMessages = messages
@@ -27,6 +27,7 @@ export async function generateJsonObject(
     output: "no-schema",
     ...(systemMsg ? { system: systemMsg } : {}),
     messages: conversationMessages,
+    ...(options?.temperature !== undefined ? { temperature: options.temperature } : {}),
     ...(options?.abortSignal ? { abortSignal: options.abortSignal } : {}),
   });
 
