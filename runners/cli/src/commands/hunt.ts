@@ -69,8 +69,12 @@ function parseHeaders(raw?: string[]): Record<string, string> | undefined {
   return Object.keys(headers).length ? headers : undefined;
 }
 
+const NO_BRAIN_AUTH_MESSAGE =
+  "No Claude credentials found. Set ANTHROPIC_API_KEY, or run `claude login` / `claude setup-token` to use a Claude subscription.";
+
 /**
- * Whether the Claude Agent SDK will be able to authenticate.
+ * Resolve which credential the Claude Agent SDK will authenticate with, for a
+ * user-facing log line — or null if none is configured.
  *
  * The SDK resolves credentials itself (first match wins): ANTHROPIC_API_KEY →
  * CLAUDE_CODE_OAUTH_TOKEN → a stored `~/.claude/.credentials.json` from a Claude
@@ -78,21 +82,20 @@ function parseHeaders(raw?: string[]): Record<string, string> | undefined {
  * pre-check so we can emit an actionable message instead of a cryptic SDK error;
  * it must therefore recognize the subscription path, not just env vars.
  */
-function brainAuthConfigured(): boolean {
+function resolveBrainAuth(): string | null {
+  if (process.env.ANTHROPIC_API_KEY?.trim()) return "ANTHROPIC_API_KEY";
   // ANTHROPIC_AUTH_TOKEN only counts alongside ANTHROPIC_BASE_URL: buildChildEnv()
   // strips a bare token (it's treated as an inherited session token), so counting
   // it here without a gateway URL would pass the gate then lose the credential.
-  const gatewayToken =
-    process.env.ANTHROPIC_AUTH_TOKEN?.trim() && process.env.ANTHROPIC_BASE_URL?.trim();
-  if (
-    process.env.ANTHROPIC_API_KEY?.trim() ||
-    gatewayToken ||
-    process.env.CLAUDE_CODE_OAUTH_TOKEN?.trim()
-  ) {
-    return true;
+  if (process.env.ANTHROPIC_AUTH_TOKEN?.trim() && process.env.ANTHROPIC_BASE_URL?.trim()) {
+    return `gateway (${process.env.ANTHROPIC_BASE_URL})`;
   }
+  if (process.env.CLAUDE_CODE_OAUTH_TOKEN?.trim()) return "CLAUDE_CODE_OAUTH_TOKEN";
   // Claude subscription: credentials stored on disk by `claude setup-token` / `claude login`.
-  return existsSync(path.join(homedir(), ".claude", ".credentials.json"));
+  if (existsSync(path.join(homedir(), ".claude", ".credentials.json"))) {
+    return "Claude subscription (~/.claude/.credentials.json)";
+  }
+  return null;
 }
 
 function intOr(value: string | undefined, fallback: number): number {
@@ -190,13 +193,13 @@ export function registerHuntCommand(program: Command): void {
 
       // If --ui is set and endpoint is missing, launch setup UI
       if (opts.ui && !opts.endpoint) {
-        if (!brainAuthConfigured()) {
-          consola.error(
-            "Set ANTHROPIC_API_KEY, or run `claude setup-token` to drive the agent with a Claude subscription."
-          );
+        const brainAuth = resolveBrainAuth();
+        if (!brainAuth) {
+          consola.error(NO_BRAIN_AUTH_MESSAGE);
           process.exitCode = 1;
           return;
         }
+        consola.info(`Authenticating via: ${brainAuth}`);
 
         const uiPort = intOr(opts.uiPort, 3847);
 
@@ -256,13 +259,13 @@ export function registerHuntCommand(program: Command): void {
         return;
       }
 
-      if (!brainAuthConfigured()) {
-        consola.error(
-          "Set ANTHROPIC_API_KEY, or run `claude setup-token` to drive the agent with a Claude subscription."
-        );
+      const brainAuth = resolveBrainAuth();
+      if (!brainAuth) {
+        consola.error(NO_BRAIN_AUTH_MESSAGE);
         process.exitCode = 1;
         return;
       }
+      consola.info(`Authenticating via: ${brainAuth}`);
 
       // Check endpoint is provided when not using setup UI
       if (!opts.endpoint) {

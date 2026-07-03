@@ -1,6 +1,6 @@
 # Opfor Hunt — Autonomous Red-Teaming
 
-`opfor hunt` uses Claude Agent SDK to run an intelligent, adaptive attack campaign against your target. A multi-agent system performs reconnaissance, strategizes, and probes for vulnerabilities in real-time.
+`opfor hunt` runs an adaptive attack campaign via a multi-agent system (commander, operators, scout). Unlike `opfor run`, the agents run on **Claude only** — your target can be anything. See [Authentication](#authentication) below.
 
 ## Quick Start
 
@@ -65,12 +65,21 @@ Add `--ui` to watch the attack tree unfold in a live dashboard.
 | `--ui`             | Launch live dashboard |
 | `--ui-port <port>` | `3847`                |
 
-## Environment Variables
+## Authentication
+
+Credentials are resolved in order:
+
+1. `ANTHROPIC_API_KEY` — pay-per-token Anthropic API key.
+2. `CLAUDE_CODE_OAUTH_TOKEN` — token from `claude setup-token`.
+3. Local Claude subscription — falls back to your `claude login` session (Pro/Max) if neither is set. Runs against your subscription's usage/rate limits, not a separate API bill.
+
+Options 2 and 3 require the [Claude Code CLI](https://docs.claude.com/claude-code) (`npm install -g @anthropic-ai/claude-code`).
+
+**Gateway / self-hosted proxy** — set both together (a token without a base URL is ignored):
 
 ```bash
-ANTHROPIC_BASE_URL=https://openrouter.ai/api
-ANTHROPIC_AUTH_TOKEN=sk-or-v1-...
-ANTHROPIC_API_KEY=sk-or-v1-...
+ANTHROPIC_BASE_URL=https://your-gateway.example.com
+ANTHROPIC_AUTH_TOKEN=...
 ```
 
 ## Vulnerability Classes
@@ -91,4 +100,4 @@ These are the same category ids `opfor run` uses under `evaluators/agent/` — h
 
 **Model not found?** Check `ANTHROPIC_API_KEY` and `ANTHROPIC_BASE_URL`.
 
-**Rate limited?** Reduce `--max-operators` or `--budget-usd`.
+**Rate limited?** Reduce `--max-operators` or `--budget-usd`. If running on a subscription (no `ANTHROPIC_API_KEY`), you may be hitting the subscription's own rate limit — use an API key for heavier runs.
