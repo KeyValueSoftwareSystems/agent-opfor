@@ -26,13 +26,22 @@ node --import tsx/esm runners/sdk/examples/catalog-list.ts
 
 When pointing at real LLM providers / targets, pass the API keys in the `attackerModel` / `judgeModel` configs (or via the top-level `apiKey` fallback).
 
-- **Anthropic**: `ANTHROPIC_API_KEY`
-- **OpenAI**: `OPENAI_API_KEY`
-- **Google**: `GOOGLE_GENERATIVE_AI_API_KEY`
-- **Groq**: `GROQ_API_KEY`
-- **DeepSeek**: `DEEPSEEK_API_KEY`
-- **Azure**: `AZURE_OPENAI_API_KEY` (and `baseUrl` in model config)
-- **OpenAI-compatible**: pass `apiKey` and optionally `baseUrl`
+- **LiteLLM / OpenAI-compatible**: `LITELLM_BASE_URL` + `LITELLM_API_KEY` (see `run-suite.real.ts`)
+- **Anthropic**: `apiKey` in model config
+- **OpenAI**: `apiKey` in model config
+- **Groq / Google / DeepSeek / Azure**: pass `apiKey` and optionally `baseUrl`
+
+```bash
+# Terminal 1 — start the test agent
+cd tests/e2e/agents/vanilla-chat
+cp .env.example .env   # set PROVIDER=openai, BASE_URL, OPENAI_API_KEY
+npm run dev
+
+# Terminal 2 — real SDK run (from repo root)
+export LITELLM_BASE_URL=https://llm.keyvalue.systems/v1
+export LITELLM_API_KEY=...
+node --import tsx/esm runners/sdk/examples/run-suite.real.ts
+```
 
 Examples that are templates (require extra setup): MCP targets and autonomous `hunt()`.
 

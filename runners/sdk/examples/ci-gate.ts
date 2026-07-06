@@ -25,10 +25,9 @@ try {
     console.error(`${results.findings.length} finding(s) detected`);
     for (const f of results.findings) console.error(`- [${f.severity}] ${f.title}`);
     process.exitCode = 1;
-    return;
+  } else {
+    console.log(`OK score=${results.score} total=${results.summary.total}`);
   }
-
-  console.log(`OK score=${results.score} total=${results.summary.total}`);
 } finally {
   await lane.close();
 }

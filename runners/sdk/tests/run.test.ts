@@ -249,6 +249,28 @@ describe("SDK run()", () => {
     assert.equal(config.attackerLlm.model, "gpt-4o");
   });
 
+  test("buildRunConfig forwards structured session config for server-owned targets", () => {
+    const session = {
+      send: { in: "header" as const, name: "Cookie" },
+      receive: { in: "set-cookie" as const, name: "sid" },
+    };
+
+    const { runConfig: config } = buildRunConfig({
+      target: {
+        url: "https://api.example.com/chat",
+        session,
+      },
+    });
+
+    const agentTarget = config.target as {
+      session?: typeof session;
+      sessionIdField?: string;
+    };
+
+    assert.deepEqual(agentTarget.session, session);
+    assert.equal(agentTarget.sessionIdField, undefined);
+  });
+
   test("run returns properly structured results", async () => {
     serverState.reset();
 
