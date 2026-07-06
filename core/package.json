@@ -1,6 +1,6 @@
 {
   "name": "@keyvaluesystems/agent-opfor-core",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "Opfor core engine — attacker prompt generation, judge, and execution shared by all runners",
   "license": "Apache-2.0",
   "private": true,
