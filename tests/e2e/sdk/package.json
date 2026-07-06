@@ -6,13 +6,14 @@
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
-    "test": "node --import tsx/esm --test src/**/*.e2e.test.ts",
+    "test": "node --import tsx/esm --test \"src/**/*.e2e.test.ts\"",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
-    "@keyvaluesystems/agent-opfor-sdk": "^0.9.0",
+    "@keyvaluesystems/agent-opfor-sdk": "workspace:*",
     "@types/node": "^24.0.0",
     "tsx": "^4.20.0",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "zod": "^4.0.0"
   }
 }

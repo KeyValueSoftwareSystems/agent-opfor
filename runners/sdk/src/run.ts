@@ -1,6 +1,8 @@
 import { runAll } from "@keyvaluesystems/agent-opfor-core";
-import type { UnifiedRunReport } from "@keyvaluesystems/agent-opfor-core";
-import type { RunConfig } from "@keyvaluesystems/agent-opfor-core";
+import type {
+  RunConfig,
+  UnifiedRunReport,
+} from "@keyvaluesystems/agent-opfor-core/execute/types.js";
 import type { RunListener as CoreRunListener } from "@keyvaluesystems/agent-opfor-core/execute/runListener.js";
 import type {
   RunOptions,
@@ -11,6 +13,7 @@ import type {
   EvaluatorResult,
 } from "./types.js";
 import { buildRunConfig as buildRunConfigInternal } from "./internal/buildRunConfig.js";
+import { withEnvLock } from "./internal/envLock.js";
 
 /**
  * Run adversarial tests against a target.
@@ -20,25 +23,27 @@ import { buildRunConfig as buildRunConfigInternal } from "./internal/buildRunCon
 export async function run(options: RunOptions): Promise<RunResults> {
   const { runConfig, env } = buildRunConfigInternal(options);
 
-  const prev: Record<string, string | undefined> = {};
-  for (const [k, v] of Object.entries(env)) {
-    prev[k] = process.env[k];
-    process.env[k] = v;
-  }
-
-  try {
-    const coreReport = await runAll(runConfig, {
-      onProgress: options.onProgress,
-      listeners: options.listeners?.map(wrapListener),
-    });
-
-    return transformReport(coreReport);
-  } finally {
-    for (const [k, v] of Object.entries(prev)) {
-      if (v === undefined) delete process.env[k];
-      else process.env[k] = v;
+  return await withEnvLock(async () => {
+    const prev: Record<string, string | undefined> = {};
+    for (const [k, v] of Object.entries(env)) {
+      prev[k] = process.env[k];
+      process.env[k] = v;
     }
-  }
+
+    try {
+      const coreReport = await runAll(runConfig, {
+        onProgress: options.onProgress,
+        listeners: options.listeners?.map(wrapListener),
+      });
+
+      return transformReport(coreReport);
+    } finally {
+      for (const [k, v] of Object.entries(prev)) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+    }
+  });
 }
 
 /**

@@ -63,10 +63,21 @@ export async function startMockLane(): Promise<MockLane> {
 
   const server: Server = createServer((req, res) => {
     let raw = "";
+    let streamErrored = false;
     req.on("data", (c: Buffer) => {
       raw += c.toString("utf8");
     });
+    req.on("error", () => {
+      streamErrored = true;
+      try {
+        res.writeHead(400, { "Content-Type": "text/plain" });
+        res.end("bad request");
+      } catch {
+        // ignore
+      }
+    });
     req.on("end", () => {
+      if (streamErrored) return;
       const url = req.url ?? "";
 
       // Target endpoint (agent target)

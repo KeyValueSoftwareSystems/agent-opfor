@@ -24,7 +24,8 @@ try {
   if (results.findings.length > 0) {
     console.error(`${results.findings.length} finding(s) detected`);
     for (const f of results.findings) console.error(`- [${f.severity}] ${f.title}`);
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
 
   console.log(`OK score=${results.score} total=${results.summary.total}`);

@@ -1,6 +1,7 @@
 import { createServer } from "node:http";
 import type { Server } from "node:http";
 import type { RunOptions } from "@keyvaluesystems/agent-opfor-sdk";
+import { z } from "zod";
 
 export interface MockServerState {
   server: Server;
@@ -79,15 +80,21 @@ export function startMockServer(options: MockServerOptions = {}): Promise<MockSe
         if (url === "/v1/chat/completions" || url.startsWith("/v1/chat/completions?")) {
           llmCallCount++;
 
-          let parsed: { messages?: Array<{ role: string; content: string }> } = {};
+          const chatBodySchema = z.object({
+            model: z.string().optional(),
+            messages: z.array(z.object({ role: z.string(), content: z.string() })).optional(),
+          });
+          let parsed: z.infer<typeof chatBodySchema> = {};
           try {
-            parsed = JSON.parse(body) as typeof parsed;
+            const candidate = JSON.parse(body) as unknown;
+            const result = chatBodySchema.safeParse(candidate);
+            if (result.success) parsed = result.data;
           } catch {
             // ignore malformed body
           }
 
-          const systemMsg = parsed.messages?.find((m) => m.role === "system")?.content ?? "";
-          const isJudge = systemMsg.includes("security evaluator");
+          // Stable judge detection: use model identity, not prompt text.
+          const isJudge = parsed.model === "judge-model";
 
           if (isJudge) {
             judgeCallCount++;
@@ -155,13 +162,13 @@ export function buildMockRunOptions(
     },
     attackerModel: {
       provider: "openai-compatible",
-      model: "test-model",
+      model: "attacker-model",
       apiKey: "fake-test-api-key",
       baseUrl: `${baseUrl}/v1`,
     },
     judgeModel: {
       provider: "openai-compatible",
-      model: "test-model",
+      model: "judge-model",
       apiKey: "fake-test-api-key",
       baseUrl: `${baseUrl}/v1`,
     },

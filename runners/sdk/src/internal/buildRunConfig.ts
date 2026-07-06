@@ -7,7 +7,7 @@ import type {
   AgentTargetConfig,
   McpTargetConfig as CoreMcpTargetConfig,
   EvaluatorSelection,
-} from "@keyvaluesystems/agent-opfor-core";
+} from "@keyvaluesystems/agent-opfor-core/execute/types.js";
 import type { LlmConfig, ProviderName } from "@keyvaluesystems/agent-opfor-core/config/types.js";
 import {
   PROVIDER_ENV_VARS,
@@ -140,7 +140,10 @@ function inferProvider(model: string): ProviderName {
   if (lower.includes("llama") || lower.includes("mixtral")) return "groq";
   if (lower.includes("deepseek")) return "deepseek";
 
-  return "anthropic";
+  throw new Error(
+    `Unrecognized model shorthand "${model}". ` +
+      `Provide an explicit provider config like { provider: "openai-compatible", model: "${model}", ... }.`
+  );
 }
 
 function mergeEnvMaps(
