@@ -79,6 +79,10 @@ describe("SDK hunt types", () => {
         url: "https://api.example.com/chat",
       },
       objective: "Find jailbreaks and data leaks",
+      brain: {
+        apiKey: "test-api-key",
+        baseUrl: "https://proxy.example.com",
+      },
       models: {
         commander: "opus",
         operator: "sonnet",
@@ -94,6 +98,7 @@ describe("SDK hunt types", () => {
 
     assert.equal(options.objective, "Find jailbreaks and data leaks");
     assert.equal(options.verify, true);
+    assert.equal(options.brain?.apiKey, "test-api-key");
   });
 
   test("HuntProgressEvent types are correct", () => {

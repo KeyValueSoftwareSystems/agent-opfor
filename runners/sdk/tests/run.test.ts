@@ -5,7 +5,6 @@
  * - Local HTTP server acts as both target endpoint and LLM backend
  * - Uses openai-compatible provider pointing to local server
  * - Real evaluators loaded from disk
- * - setEnvProvider returns fake keys so createModel never throws
  *
  * Run: npm test --workspace=runners/sdk
  */
@@ -14,12 +13,8 @@ import { test, after, before, describe } from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import type { Server } from "node:http";
-import { setEnvProvider } from "@keyvaluesystems/agent-opfor-core/lib/env.js";
-
-// Set fake env before importing SDK (which imports core)
-setEnvProvider(() => "fake-test-api-key");
-
-import { run, buildRunConfig } from "../src/run.js";
+import { run } from "../src/run.js";
+import { buildRunConfig } from "../src/internal/buildRunConfig.js";
 import type { RunOptions } from "../src/types.js";
 
 // ---------------------------------------------------------------------------
@@ -165,7 +160,7 @@ describe("SDK run()", () => {
         url: "https://api.example.com/chat",
         name: "Test Target",
         description: "A test target",
-        apiKey: "test-key",
+        apiKey: "test-target-key",
         model: "gpt-4o",
         headers: { "X-Custom": "value" },
       },
@@ -178,7 +173,7 @@ describe("SDK run()", () => {
       attackerModel: "claude-sonnet-4",
     };
 
-    const config = buildRunConfig(options);
+    const { runConfig: config } = buildRunConfig(options);
 
     assert.equal(config.target.kind, "agent");
     assert.equal((config.target as { name: string }).name, "Test Target");
@@ -200,7 +195,7 @@ describe("SDK run()", () => {
       evaluators: ["jailbreaking", "prompt-injection"],
     };
 
-    const config = buildRunConfig(options);
+    const { runConfig: config } = buildRunConfig(options);
 
     assert.equal(config.target.kind, "agent");
     assert.equal((config.target as { type: string }).type, "local-script");
@@ -224,7 +219,7 @@ describe("SDK run()", () => {
       suite: "owasp-mcp",
     };
 
-    const config = buildRunConfig(options);
+    const { runConfig: config } = buildRunConfig(options);
 
     assert.equal(config.target.kind, "mcp");
     assert.equal((config.target as { transport: string }).transport, "stdio");
@@ -236,7 +231,7 @@ describe("SDK run()", () => {
       target: { url: "https://example.com/chat" },
     };
 
-    const config = buildRunConfig(options);
+    const { runConfig: config } = buildRunConfig(options);
 
     assert.equal(config.selection.mode, "suite");
     assert.equal((config.selection as { suite: string }).suite, "owasp-llm-top10");
@@ -248,7 +243,7 @@ describe("SDK run()", () => {
       attackerModel: "gpt-4o",
     };
 
-    const config = buildRunConfig(options);
+    const { runConfig: config } = buildRunConfig(options);
 
     assert.equal(config.attackerLlm.provider, "openai");
     assert.equal(config.attackerLlm.model, "gpt-4o");
@@ -273,11 +268,13 @@ describe("SDK run()", () => {
       attackerModel: {
         provider: "openai-compatible",
         model: "test-model",
+        apiKey: "fake-test-api-key",
         baseUrl: `${baseUrl}/v1`,
       },
       judgeModel: {
         provider: "openai-compatible",
         model: "test-model",
+        apiKey: "fake-test-api-key",
         baseUrl: `${baseUrl}/v1`,
       },
     };
@@ -329,6 +326,7 @@ describe("SDK run()", () => {
       attackerModel: {
         provider: "openai-compatible",
         model: "test-model",
+        apiKey: "fake-test-api-key",
         baseUrl: `${baseUrl}/v1`,
       },
       onProgress: (event) => {

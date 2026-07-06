@@ -93,3 +93,6 @@ jobs:
 
       - name: SDK tests
         run: npm test --workspace=@keyvaluesystems/agent-opfor-sdk
+
+      - name: SDK e2e tests
+        run: npm run test:e2e:sdk

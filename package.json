@@ -10,7 +10,8 @@
     "runners/cli",
     "runners/mcp",
     "runners/extension",
-    "runners/sdk"
+    "runners/sdk",
+    "tests/e2e/sdk"
   ],
   "files": [
     "evaluators/",
@@ -28,6 +29,7 @@
     "clean": "rm -rf core/dist runners/*/dist core/*.tsbuildinfo runners/*/*.tsbuildinfo",
     "install:cli": "npm run build && npm install -g ./runners/cli",
     "test": "npm test --workspace=core",
+    "test:e2e:sdk": "npm test --workspace=@keyvaluesystems/agent-opfor-e2e-sdk",
     "typecheck": "tsc -b core && npm run typecheck -w runners/cli && npm run typecheck -w runners/mcp && npm run typecheck -w runners/sdk",
     "extension:catalog": "npm run build:catalog --workspace=@keyvaluesystems/agent-opfor-extension",
     "lint": "eslint .",

@@ -10,19 +10,23 @@ npm install @keyvaluesystems/agent-opfor-sdk
 
 ## Quick Start
 
+### Runnable examples (monorepo)
+
+If you’re working in this repository, see the runnable cookbook at [`runners/sdk/examples/README.md`](../runners/sdk/examples/README.md).
+
 ### Class-based API
 
 ```typescript
 import { Opfor } from "@keyvaluesystems/agent-opfor-sdk";
 
 const opfor = new Opfor({
-  apiKey: process.env.ANTHROPIC_API_KEY,
+  apiKey: process.env.ANTHROPIC_API_KEY, // or your own secret manager / config
 });
 
 const results = await opfor.run({
   target: {
     url: "https://api.example.com/chat",
-    apiKeyEnv: "TARGET_API_KEY",
+    apiKey: process.env.TARGET_API_KEY,
   },
 
   suite: "owasp-llm-top10",
@@ -42,13 +46,21 @@ import { run, report } from "@keyvaluesystems/agent-opfor-sdk";
 const results = await run({
   target: {
     url: "https://api.example.com/chat",
-    apiKeyEnv: "TARGET_API_KEY",
+    apiKey: process.env.TARGET_API_KEY,
   },
 
   suite: "owasp-llm-top10",
 
-  // Pass API key directly in options
-  apiKey: process.env.ANTHROPIC_API_KEY,
+  attackerModel: {
+    provider: "anthropic",
+    model: "claude-sonnet-4",
+    apiKey: process.env.ANTHROPIC_API_KEY,
+  },
+  judgeModel: {
+    provider: "anthropic",
+    model: "claude-sonnet-4",
+    apiKey: process.env.ANTHROPIC_API_KEY,
+  },
 });
 
 console.log(results.score);
@@ -65,7 +77,7 @@ Run adversarial tests against a target.
 const results = await opfor.run({
   target: {
     url: "https://api.example.com/chat",
-    apiKeyEnv: "TARGET_API_KEY",
+    apiKey: process.env.TARGET_API_KEY,
     model: "gpt-4o",
   },
 
@@ -162,7 +174,7 @@ const results = await opfor.run({
     name: "My Chatbot",
     description: "Customer support chatbot with access to order database",
 
-    apiKeyEnv: "TARGET_API_KEY",
+    apiKey: process.env.TARGET_API_KEY,
     model: "gpt-4o",
 
     headers: {
@@ -318,25 +330,25 @@ const results = await opfor.run({
 
 ```typescript
 // OpenAI
-attackerModel: { provider: "openai", model: "gpt-4o", apiKeyEnv: "OPENAI_API_KEY" }
+attackerModel: { provider: "openai", model: "gpt-4o", apiKey: process.env.OPENAI_API_KEY }
 
 // Anthropic
-attackerModel: { provider: "anthropic", model: "claude-sonnet-4", apiKeyEnv: "ANTHROPIC_API_KEY" }
+attackerModel: { provider: "anthropic", model: "claude-sonnet-4", apiKey: process.env.ANTHROPIC_API_KEY }
 
 // Google
-attackerModel: { provider: "google", model: "gemini-2.0-flash", apiKeyEnv: "GOOGLE_GENERATIVE_AI_API_KEY" }
+attackerModel: { provider: "google", model: "gemini-2.0-flash", apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY }
 
 // Groq
-attackerModel: { provider: "groq", model: "llama-3.3-70b", apiKeyEnv: "GROQ_API_KEY" }
+attackerModel: { provider: "groq", model: "llama-3.3-70b", apiKey: process.env.GROQ_API_KEY }
 
 // DeepSeek
-attackerModel: { provider: "deepseek", model: "deepseek-chat", apiKeyEnv: "DEEPSEEK_API_KEY" }
+attackerModel: { provider: "deepseek", model: "deepseek-chat", apiKey: process.env.DEEPSEEK_API_KEY }
 
 // Azure OpenAI
 attackerModel: {
   provider: "azure",
   model: "gpt-4o",
-  apiKeyEnv: "AZURE_OPENAI_API_KEY",
+  apiKey: process.env.AZURE_OPENAI_API_KEY,
   baseUrl: "https://my-resource.openai.azure.com"
 }
 
@@ -344,7 +356,7 @@ attackerModel: {
 attackerModel: {
   provider: "openai-compatible",
   model: "llama-3.3-70b",
-  apiKeyEnv: "CUSTOM_API_KEY",
+  apiKey: process.env.CUSTOM_API_KEY,
   baseUrl: "http://localhost:4000"
 }
 ```
@@ -589,7 +601,7 @@ import { run } from "@keyvaluesystems/agent-opfor-sdk";
 const results = await run({
   target: {
     url: process.env.TARGET_URL!,
-    apiKeyEnv: "TARGET_API_KEY",
+    apiKey: process.env.TARGET_API_KEY,
   },
   suite: "owasp-llm-top10",
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -620,7 +632,7 @@ const opfor = new Opfor({
 const results = await opfor.run({
   target: {
     url: process.env.TARGET_URL!,
-    apiKeyEnv: "TARGET_API_KEY",
+    apiKey: process.env.TARGET_API_KEY,
   },
   suite: "owasp-llm-top10",
 });

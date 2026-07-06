@@ -24,10 +24,6 @@ export class Opfor {
 
   constructor(options: OpforOptions = {}) {
     this.options = options;
-
-    if (options.apiKey) {
-      process.env.ANTHROPIC_API_KEY = options.apiKey;
-    }
   }
 
   /**
@@ -62,7 +58,10 @@ export class Opfor {
   async hunt(options: HuntOptions): Promise<HuntResults> {
     // Lazy import to avoid loading @anthropic-ai/claude-agent-sdk unless needed
     const { hunt } = await import("./hunt.js");
-    return hunt(options);
+    return hunt({
+      ...options,
+      brain: options.brain ?? this.options.brain,
+    });
   }
 
   /**

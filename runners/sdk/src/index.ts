@@ -53,6 +53,7 @@ export type {
   HuntTargetConfig,
   HuntModelsConfig,
   HuntLimitsConfig,
+  HuntBrainConfig,
   HuntResults,
   HuntFinding,
   HuntTurn,
