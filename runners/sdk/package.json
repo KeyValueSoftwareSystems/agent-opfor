@@ -23,7 +23,7 @@
     "dev": "tsx src/index.ts",
     "build": "tsup",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "tsx --test tests/*.test.ts",
+    "test": "node --import tsx/esm --test tests/*.test.ts",
     "prepack": "rm -rf ./evaluators ./suites ./data ./atlas-data ./LICENSE && cp -r ../../evaluators ./evaluators && cp -r ../../suites ./suites && cp -r ../../data ./data && mkdir -p ./atlas-data && cp ../../third_party/atlas-data/dist/ATLAS.yaml ./atlas-data/ATLAS.yaml && cp ../../LICENSE ./LICENSE",
     "postpack": "rm -rf ./evaluators ./suites ./data ./atlas-data ./LICENSE"
   },

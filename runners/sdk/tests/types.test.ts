@@ -10,6 +10,7 @@ import assert from "node:assert/strict";
 import type {
   RunOptions,
   RunResults,
+  RunListener,
   HttpTargetConfig,
   LocalScriptTargetConfig,
   McpTargetConfig,
@@ -31,7 +32,7 @@ describe("SDK types", () => {
       url: "https://api.example.com/chat",
       name: "Test",
       description: "Test target",
-      apiKey: "key",
+      apiKey: "test-target-key",
       model: "gpt-4o",
       headers: { "X-Custom": "value" },
       requestFormat: "openai",
@@ -94,7 +95,7 @@ describe("SDK types", () => {
     const model: ModelSpec = {
       provider: "anthropic",
       model: "claude-sonnet-4",
-      apiKeyEnv: "ANTHROPIC_API_KEY",
+      apiKey: "test-api-key",
       baseUrl: "https://custom.api.com",
     };
 
@@ -215,6 +216,42 @@ describe("SDK types", () => {
 
     assert.equal(events[0].type, "evaluator_start");
     assert.equal(events[3].type, "evaluator_done");
+  });
+
+  test("RunListener type is correct", () => {
+    const listener: RunListener = {
+      onRunStart: (info) => {
+        assert.equal(typeof info.evaluatorCount, "number");
+      },
+      onRunFinish: (results) => {
+        assert.equal(typeof results.score, "number");
+      },
+      onAttackDone: (info) => {
+        assert.equal(info.verdict, "PASS");
+      },
+    };
+
+    listener.onRunStart?.({ evaluatorCount: 3 });
+    listener.onRunFinish?.({
+      id: "r1",
+      timestamp: "2026-01-01T00:00:00Z",
+      targetName: "T",
+      targetKind: "agent",
+      effort: "adaptive",
+      attackerModel: "m",
+      judgeModel: "m",
+      score: 90,
+      summary: {
+        total: 1,
+        passed: 1,
+        failed: 0,
+        errors: 0,
+        safetyScore: 90,
+        attackSuccessRate: 0,
+      },
+      findings: [],
+      evaluators: [],
+    });
   });
 
   test("SuiteInfo type is correct", () => {

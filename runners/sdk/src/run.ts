@@ -1,27 +1,19 @@
 import { runAll } from "@keyvaluesystems/agent-opfor-core";
 import type {
   RunConfig,
-  AgentTargetConfig,
-  McpTargetConfig,
-  EvaluatorSelection,
-} from "@keyvaluesystems/agent-opfor-core";
-import type { LlmConfig, ProviderName } from "@keyvaluesystems/agent-opfor-core/config/types.js";
-import {
-  PROVIDER_ENV_VARS,
-  PROVIDER_DEFAULTS,
-} from "@keyvaluesystems/agent-opfor-core/providers/factory.js";
+  UnifiedRunReport,
+} from "@keyvaluesystems/agent-opfor-core/execute/types.js";
+import type { RunListener as CoreRunListener } from "@keyvaluesystems/agent-opfor-core/execute/runListener.js";
 import type {
   RunOptions,
   RunResults,
-  TargetConfig,
-  ModelSpec,
+  RunListener,
   Finding,
   AttackResult,
   EvaluatorResult,
 } from "./types.js";
-
-const DEFAULT_PROVIDER: ProviderName = "anthropic";
-const DEFAULT_MODEL = PROVIDER_DEFAULTS[DEFAULT_PROVIDER];
+import { buildRunConfig as buildRunConfigInternal } from "./internal/buildRunConfig.js";
+import { withEnvLock } from "./internal/envLock.js";
 
 /**
  * Run adversarial tests against a target.
@@ -29,129 +21,59 @@ const DEFAULT_MODEL = PROVIDER_DEFAULTS[DEFAULT_PROVIDER];
  * This is the functional API - pass all configuration in options.
  */
 export async function run(options: RunOptions): Promise<RunResults> {
-  const runConfig = buildRunConfig(options);
+  const { runConfig, env } = buildRunConfigInternal(options);
 
-  const coreReport = await runAll(runConfig, {
-    onProgress: options.onProgress,
-    listeners: options.listeners,
+  return await withEnvLock(async () => {
+    const prev: Record<string, string | undefined> = {};
+    for (const [k, v] of Object.entries(env)) {
+      prev[k] = process.env[k];
+      process.env[k] = v;
+    }
+
+    try {
+      const coreReport = await runAll(runConfig, {
+        onProgress: options.onProgress,
+        listeners: options.listeners?.map(wrapListener),
+      });
+
+      return transformReport(coreReport);
+    } finally {
+      for (const [k, v] of Object.entries(prev)) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+    }
   });
-
-  return transformReport(coreReport);
 }
 
 /**
- * Build a RunConfig from SDK RunOptions
+ * Build a core RunConfig from SDK RunOptions.
+ *
+ * Note: this returns only the config object. The SDK `run()` function also
+ * injects provider API keys into process.env *temporarily* for the duration of
+ * the call.
  */
 export function buildRunConfig(options: RunOptions): RunConfig {
-  const target = buildTargetConfig(options.target);
-  const selection = buildSelection(options);
-  const attackerLlm = buildLlmConfig(options.attackerModel, options.apiKey);
-  const judgeLlm = options.judgeModel
-    ? buildLlmConfig(options.judgeModel, options.apiKey)
-    : undefined;
+  return buildRunConfigInternal(options).runConfig;
+}
 
-  const effort = options.strategy?.effort ?? "adaptive";
-  const turns = options.strategy?.turns ?? 3;
-  const turnMode = options.strategy?.turnMode ?? (turns > 1 ? "multi" : "single");
-
+/** Adapt SDK RunListener hooks to core's observer (UnifiedRunReport → RunResults). */
+function wrapListener(listener: RunListener): CoreRunListener {
   return {
-    target,
-    selection,
-    attackerLlm,
-    judgeLlm,
-    effort,
-    turns,
-    turnMode,
-    telemetry: options.telemetry,
+    onRunStart: listener.onRunStart,
+    onEvaluatorStart: listener.onEvaluatorStart,
+    onAttackStart: listener.onAttackStart,
+    onAttackDone: listener.onAttackDone,
+    onEvaluatorDone: listener.onEvaluatorDone,
+    onRunStopped: listener.onRunStopped,
+    onRunError: listener.onRunError,
+    onRunFinish: listener.onRunFinish
+      ? (report: UnifiedRunReport) => listener.onRunFinish!(transformReport(report))
+      : undefined,
   };
 }
 
-function buildTargetConfig(target: TargetConfig): AgentTargetConfig | McpTargetConfig {
-  if ("kind" in target && target.kind === "mcp") {
-    return target as McpTargetConfig;
-  }
-
-  if ("type" in target && target.type === "local-script") {
-    return {
-      kind: "agent",
-      name: target.name,
-      description: target.description ?? "",
-      type: "local-script",
-      scriptPath: target.scriptPath,
-    };
-  }
-
-  const httpTarget = target as import("./types.js").HttpTargetConfig;
-
-  return {
-    kind: "agent",
-    name: httpTarget.name ?? new URL(httpTarget.url).hostname,
-    description: httpTarget.description ?? "",
-    type: "http-endpoint",
-    endpoint: httpTarget.url,
-    apiKeyEnv: httpTarget.apiKeyEnv,
-    model: httpTarget.model,
-    headers: httpTarget.headers,
-    requestFormat: httpTarget.requestFormat ?? "auto",
-    promptPath: httpTarget.promptPath,
-    responsePath: httpTarget.responsePath,
-    stateful: httpTarget.stateful,
-    // resolveSessionPlan (core) already folds sessionIdField into session.send when
-    // session is absent — pass both through and let core own that precedence.
-    session: httpTarget.session,
-    sessionIdField: httpTarget.sessionField,
-  };
-}
-
-function buildSelection(options: RunOptions): EvaluatorSelection {
-  if (options.evaluators?.length) {
-    return { mode: "evaluators", evaluators: options.evaluators };
-  }
-
-  return { mode: "suite", suite: options.suite ?? "owasp-llm-top10" };
-}
-
-function buildLlmConfig(model: ModelSpec | undefined, defaultApiKey?: string): LlmConfig {
-  if (!model) {
-    return {
-      provider: DEFAULT_PROVIDER,
-      model: DEFAULT_MODEL,
-      apiKeyEnv: defaultApiKey ? "" : PROVIDER_ENV_VARS[DEFAULT_PROVIDER],
-    };
-  }
-
-  if (typeof model === "string") {
-    const provider = inferProvider(model);
-    return {
-      provider,
-      model,
-      apiKeyEnv: defaultApiKey ? "" : PROVIDER_ENV_VARS[provider],
-    };
-  }
-
-  return {
-    provider: model.provider,
-    model: model.model,
-    apiKeyEnv: model.apiKeyEnv ?? (defaultApiKey ? "" : PROVIDER_ENV_VARS[model.provider]),
-    baseURL: model.baseUrl,
-  };
-}
-
-function inferProvider(model: string): ProviderName {
-  const lower = model.toLowerCase();
-
-  if (lower.includes("claude") || lower.includes("anthropic")) return "anthropic";
-  if (lower.includes("gpt") || lower.includes("o1") || lower.includes("o3")) return "openai";
-  if (lower.includes("gemini")) return "google";
-  if (lower.includes("llama") || lower.includes("mixtral")) return "groq";
-  if (lower.includes("deepseek")) return "deepseek";
-
-  return "anthropic";
-}
-
-function transformReport(
-  coreReport: import("@keyvaluesystems/agent-opfor-core").UnifiedRunReport
-): RunResults {
+function transformReport(coreReport: UnifiedRunReport): RunResults {
   const findings = extractFindings(coreReport);
   const evaluators = coreReport.evaluators.map(transformEvaluatorResult);
 
@@ -170,9 +92,7 @@ function transformReport(
   };
 }
 
-function extractFindings(
-  report: import("@keyvaluesystems/agent-opfor-core").UnifiedRunReport
-): Finding[] {
+function extractFindings(report: UnifiedRunReport): Finding[] {
   const findings: Finding[] = [];
 
   for (const evaluator of report.evaluators) {

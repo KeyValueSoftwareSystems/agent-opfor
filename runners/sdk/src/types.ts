@@ -1,21 +1,28 @@
-import type { RunListener } from "@keyvaluesystems/agent-opfor-core/execute/runListener.js";
-import type { SessionConfig } from "@keyvaluesystems/agent-opfor-core/execute/types.js";
-
-// Re-export the run lifecycle observer so SDK users can implement onRunStart /
-// onRunFinish / onRunError, not just per-attack onProgress events.
-export type { RunListener };
-export type { SessionConfig };
-
 // ---------------------------------------------------------------------------
 // Target Configuration
 // ---------------------------------------------------------------------------
+
+export type SessionReceiveConfig =
+  | { in: "body" | "header"; name: string }
+  | { in: "set-cookie"; name?: string };
+
+export interface SessionConfig {
+  /** Where the session id is written into a request. */
+  send: { in: "body" | "header"; name: string };
+  /**
+   * Where a server-returned session id is read from a response. Its presence
+   * means server-owned mode: turn 1 sends no id, the returned id is captured
+   * here and echoed on later turns via `send`.
+   */
+  receive?: SessionReceiveConfig;
+}
 
 export interface HttpTargetConfig {
   url: string;
   name?: string;
   description?: string;
-  /** Env var name containing the API key (e.g., "TARGET_API_KEY") */
-  apiKeyEnv?: string;
+  /** Bearer API key sent as Authorization header. */
+  apiKey?: string;
   model?: string;
   headers?: Record<string, string>;
   requestFormat?: "auto" | "openai" | "json";
@@ -57,7 +64,8 @@ export type TargetConfig = HttpTargetConfig | LocalScriptTargetConfig | McpTarge
 export interface ModelConfig {
   provider: ProviderName;
   model: string;
-  apiKeyEnv?: string;
+  /** Provider API key value (recommended; avoids relying on process.env). */
+  apiKey?: string;
   baseUrl?: string;
 }
 
@@ -172,6 +180,33 @@ export interface RunResults {
   evaluators: EvaluatorResult[];
 }
 
+/** Payload of a ProgressEvent variant, minus its `type` discriminant. */
+type ProgressPayload<T extends ProgressEvent["type"]> = Omit<
+  Extract<ProgressEvent, { type: T }>,
+  "type"
+>;
+
+/**
+ * Observer for run lifecycle events.
+ *
+ * Implement optional hooks to receive callbacks at key points during a run.
+ * Per-attack events match {@link ProgressEvent}; `onRunFinish` receives {@link RunResults}.
+ */
+export interface RunListener {
+  /** Fired once at the start, before the target connects. */
+  onRunStart?(info: { evaluatorCount: number }): void;
+  onEvaluatorStart?(info: ProgressPayload<"evaluator_start">): void;
+  onAttackStart?(info: ProgressPayload<"attack_start">): void;
+  onAttackDone?(info: ProgressPayload<"attack_done">): void;
+  onEvaluatorDone?(info: ProgressPayload<"evaluator_done">): void;
+  /** Non-terminal notice that the run was stopped early; `onRunFinish` still follows. */
+  onRunStopped?(info: ProgressPayload<"run_stopped">): void;
+  /** Terminal: the run threw (may fire without a preceding `onRunStart`). */
+  onRunError?(info: { error: unknown }): void;
+  /** Terminal: fired once with the final results. */
+  onRunFinish?(results: RunResults): void;
+}
+
 // ---------------------------------------------------------------------------
 // Opfor Class Options
 // ---------------------------------------------------------------------------
@@ -181,6 +216,8 @@ export interface OpforOptions {
   baseUrl?: string;
   attackerModel?: ModelSpec;
   judgeModel?: ModelSpec;
+  /** Optional brain credentials/routing for hunt() (alternative to env vars). */
+  brain?: HuntBrainConfig;
 }
 
 // ---------------------------------------------------------------------------
@@ -209,6 +246,20 @@ export interface ListEvaluatorsOptions {
 // ---------------------------------------------------------------------------
 // Autonomous Mode Types
 // ---------------------------------------------------------------------------
+
+/**
+ * Brain (model runtime) configuration for autonomous mode.
+ *
+ * `hunt()` uses the Anthropic/Claude Agent runtime under the hood. Most users
+ * configure it via env vars. This lets you supply the same values in code.
+ *
+ * - `apiKey` maps to `ANTHROPIC_API_KEY`
+ * - `baseUrl` maps to `ANTHROPIC_BASE_URL` (gateway/proxy host; avoid trailing `/v1`)
+ */
+export interface HuntBrainConfig {
+  apiKey: string;
+  baseUrl?: string;
+}
 
 /** Target configuration for autonomous mode (HTTP endpoint only). */
 export interface HuntTargetConfig {
@@ -279,6 +330,8 @@ export interface HuntOptions {
   target: HuntTargetConfig;
   /** Free-text attack objective. */
   objective: string;
+  /** Optional brain credentials/routing (alternative to env vars). */
+  brain?: HuntBrainConfig;
   /** Model configuration. */
   models?: HuntModelsConfig;
   /** Limits and budget configuration. */

@@ -22,6 +22,26 @@ import type {
   HuntTurn,
   HuntProgressEvent,
 } from "./types.js";
+import { withEnvLock } from "./internal/envLock.js";
+
+function withTempEnv(
+  vars: Record<string, string | undefined>,
+  fn: () => Promise<HuntResults>
+): Promise<HuntResults> {
+  const prev: Record<string, string | undefined> = {};
+  for (const [k, v] of Object.entries(vars)) {
+    prev[k] = process.env[k];
+    if (v === undefined) delete process.env[k];
+    else process.env[k] = v;
+  }
+
+  return fn().finally(() => {
+    for (const [k, v] of Object.entries(prev)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  });
+}
 
 /**
  * Run autonomous red-team testing against a target.
@@ -55,27 +75,48 @@ import type {
  * ```
  */
 export async function hunt(options: HuntOptions): Promise<HuntResults> {
-  validateOptions(options);
+  return await withEnvLock(async () => {
+    validateOptions(options);
 
-  const coreOptions = buildCoreOptions(options);
+    const coreOptions = buildCoreOptions(options);
 
-  await mkdir(coreOptions.outputDir, { recursive: true });
+    await mkdir(coreOptions.outputDir, { recursive: true });
 
-  const progressReporter = options.onProgress
-    ? buildProgressReporter(options.onProgress)
-    : undefined;
+    const progressReporter = options.onProgress
+      ? buildProgressReporter(options.onProgress)
+      : undefined;
 
-  const report = await runAutonomous(coreOptions, {
-    progress: progressReporter,
+    const runOnce = async (): Promise<HuntResults> => {
+      const report = await runAutonomous(coreOptions, {
+        progress: progressReporter,
+      });
+
+      const { html, json } = await writeAutonomousReport(report, coreOptions.outputDir);
+
+      if (options.onProgress) {
+        options.onProgress({ type: "complete", outcome: report.objectiveOutcome });
+      }
+
+      return transformReport(report, html, json);
+    };
+
+    if (options.brain) {
+      const baseUrl = options.brain.baseUrl?.trim();
+      return withTempEnv(
+        {
+          ANTHROPIC_API_KEY: options.brain.apiKey,
+          ANTHROPIC_BASE_URL: baseUrl ? baseUrl : undefined,
+          // When a user supplies `brain`, force the run to use it (avoid falling back
+          // to any ambient Claude Code / subscription credentials).
+          ANTHROPIC_AUTH_TOKEN: undefined,
+          CLAUDE_CODE_OAUTH_TOKEN: undefined,
+        },
+        runOnce
+      );
+    }
+
+    return runOnce();
   });
-
-  const { html, json } = await writeAutonomousReport(report, coreOptions.outputDir);
-
-  if (options.onProgress) {
-    options.onProgress({ type: "complete", outcome: report.objectiveOutcome });
-  }
-
-  return transformReport(report, html, json);
 }
 
 function validateOptions(options: HuntOptions): void {

@@ -4,6 +4,7 @@ third_party/
 core/dist/
 runners/cli/dist/
 runners/mcp/dist/
+runners/sdk/.tsup/
 runners/extension/catalog.json
 .opfor/
 *.json
