@@ -1,17 +1,18 @@
 import { writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import type { RunResults } from "./types.js";
 
 export interface ReportBuilder {
   /**
    * Write results as JSON to the specified path.
    */
-  json(outputPath: string): Promise<string>;
+  json(outputPath: string | URL): Promise<string>;
 
   /**
    * Write results as HTML to the specified path.
    */
-  html(outputPath: string): Promise<string>;
+  html(outputPath: string | URL): Promise<string>;
 }
 
 /**
@@ -26,15 +27,15 @@ export interface ReportBuilder {
  */
 export function report(results: RunResults): ReportBuilder {
   return {
-    async json(outputPath: string): Promise<string> {
-      const resolvedPath = path.resolve(outputPath);
+    async json(outputPath: string | URL): Promise<string> {
+      const resolvedPath = path.resolve(toFsPath(outputPath));
       await mkdir(path.dirname(resolvedPath), { recursive: true });
       await writeFile(resolvedPath, JSON.stringify(results, null, 2), "utf8");
       return resolvedPath;
     },
 
-    async html(outputPath: string): Promise<string> {
-      const resolvedPath = path.resolve(outputPath);
+    async html(outputPath: string | URL): Promise<string> {
+      const resolvedPath = path.resolve(toFsPath(outputPath));
       await mkdir(path.dirname(resolvedPath), { recursive: true });
 
       const html = renderHtmlReport(results);
@@ -42,6 +43,10 @@ export function report(results: RunResults): ReportBuilder {
       return resolvedPath;
     },
   };
+}
+
+function toFsPath(p: string | URL): string {
+  return p instanceof URL ? fileURLToPath(p) : p;
 }
 
 function renderHtmlReport(results: RunResults): string {
