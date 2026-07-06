@@ -1,6 +1,6 @@
 {
   "name": "agent-opfor",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "Opfor — security testing for AI agents and MCP servers (workspace root)",
   "license": "Apache-2.0",
   "private": true,

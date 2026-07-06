@@ -1,6 +1,6 @@
 {
   "name": "@keyvaluesystems/agent-opfor-extension",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "Opfor browser extension (MV3) — chat UI injector for live testing",
   "license": "Apache-2.0",
   "private": true,

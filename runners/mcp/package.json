@@ -1,6 +1,6 @@
 {
   "name": "@keyvaluesystems/agent-opfor-mcp",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "Opfor MCP server — expose red team tools to any MCP-compatible AI agent",
   "license": "Apache-2.0",
   "type": "module",
@@ -51,7 +51,7 @@
     "@modelcontextprotocol/sdk": "^1.29.0"
   },
   "devDependencies": {
-    "@keyvaluesystems/agent-opfor-core": "^0.9.0",
+    "@keyvaluesystems/agent-opfor-core": "^0.10.0",
     "@types/node": "^24.0.0",
     "dotenv": "^17.4.2",
     "esbuild": "^0.25.0",
