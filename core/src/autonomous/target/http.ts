@@ -9,6 +9,7 @@ import {
   type HttpSendResult,
 } from "../../targets/httpClient.js";
 import type { TargetConfig } from "../lib/types.js";
+import { log } from "../../lib/logger.js";
 
 export type { HttpTargetMessage as TargetMessage };
 export type { HttpSendResult as TargetSendResult };
@@ -42,6 +43,7 @@ export function createTargetClient(config: TargetConfig): TargetClient {
   // Server-owned targets mint their own id, so threadId can't be the wire id.
   // Keep the returned id per threadId and echo it on that thread's later turns.
   const serverSessions = new Map<string, string>();
+  let warnedCaptureMiss = false;
 
   return {
     async send(prompt: string, options: TargetSendOptions): Promise<HttpSendResult> {
@@ -51,8 +53,18 @@ export function createTargetClient(config: TargetConfig): TargetClient {
         history: options.history,
         sessionId: wireSessionId,
       });
-      if (plan.mode === "server" && result.sessionId) {
-        serverSessions.set(options.threadId, result.sessionId);
+      if (plan.mode === "server") {
+        if (result.sessionId) {
+          serverSessions.set(options.threadId, result.sessionId);
+        } else if (!warnedCaptureMiss) {
+          warnedCaptureMiss = true;
+          log.warn(
+            `server-owned target never returned a session id (session.receive: ${plan.receive?.in}` +
+              `${plan.receive?.name ? ` "${plan.receive.name}"` : ""}). ` +
+              `Check that the target actually returns one at that location, and that its response format ` +
+              `matches responsePath. Threads will keep sending no session id until it does.`
+          );
+        }
       }
       return result;
     },

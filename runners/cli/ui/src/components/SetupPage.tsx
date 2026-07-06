@@ -202,31 +202,40 @@ export function SetupPage({ onStart }: Props) {
                   <option value="server">Server-owned — target returns its own id</option>
                 </select>
               </div>
-              {config.sessionMode !== "stateless" && (
-                <>
-                  <div className="form-field">
+              {config.sessionMode !== "stateless" &&
+                (config.sessionMode === "server" && config.sessionReceiveIn === "set-cookie" ? (
+                  <div className="form-field full">
                     <label>Send location</label>
-                    <select
-                      value={config.sessionSendIn}
-                      onChange={(e) => updateConfig("sessionSendIn", e.target.value)}
-                    >
-                      <option value="body">Request body field</option>
-                      <option value="header">Request header</option>
-                    </select>
+                    <span className="field-hint">
+                      Fixed to the <code>Cookie</code> request header — the captured cookie is
+                      echoed back automatically.
+                    </span>
                   </div>
-                  <div className="form-field">
-                    <label>Send name</label>
-                    <input
-                      type="text"
-                      value={config.sessionSendName}
-                      onChange={(e) => updateConfig("sessionSendName", e.target.value)}
-                      placeholder={
-                        config.sessionSendIn === "header" ? "X-Session-Id" : "session_id"
-                      }
-                    />
-                  </div>
-                </>
-              )}
+                ) : (
+                  <>
+                    <div className="form-field">
+                      <label>Send location</label>
+                      <select
+                        value={config.sessionSendIn}
+                        onChange={(e) => updateConfig("sessionSendIn", e.target.value)}
+                      >
+                        <option value="body">Request body field</option>
+                        <option value="header">Request header</option>
+                      </select>
+                    </div>
+                    <div className="form-field">
+                      <label>Send name</label>
+                      <input
+                        type="text"
+                        value={config.sessionSendName}
+                        onChange={(e) => updateConfig("sessionSendName", e.target.value)}
+                        placeholder={
+                          config.sessionSendIn === "header" ? "X-Session-Id" : "session_id"
+                        }
+                      />
+                    </div>
+                  </>
+                ))}
               {config.sessionMode === "server" && (
                 <>
                   <div className="form-field">

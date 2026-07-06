@@ -238,7 +238,7 @@ For HTTP agent targets, you choose how opfor delivers conversation context acros
 - **Agent (local-script):** `sessionId` is always included in the stdin JSON — your script holds the history. `stateful` does not apply.
 - **MCP:** fully adaptive. Opfor feeds the previous `tools/call` response + judge reasoning back to the attacker LLM, which crafts the next tool call. No session-ID wiring needed.
 
-For stateful targets there is a second choice — whether **opfor mints the session id** (client-owned, the default) or **the target returns its own id** that opfor captures and echoes (server-owned, e.g. MCP `Mcp-Session-Id`, cookie sessions). Configure this with `target.session` (body or header, both directions). See **[Target session handling](sessions.md)** for the full model; the legacy `target.sessionIdField` above is shorthand for a client-owned body field.
+For stateful targets there is a second choice — whether **opfor mints the session id** (client-owned, the default) or **the target returns its own id** that opfor captures and echoes (server-owned, e.g. MCP `Mcp-Session-Id`, cookie sessions). Configure this with `target.session` (request send: body or header; response receive: body, header, or set-cookie). See **[Target session handling](sessions.md)** for the full model; the legacy `target.sessionIdField` above is shorthand for a client-owned body field.
 
 `turnMode` expresses intent (`single` / `multi`); `turns` caps the count when multi. With `turnMode: "single"`, `turns` is ignored.
 

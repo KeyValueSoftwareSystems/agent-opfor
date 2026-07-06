@@ -35,9 +35,13 @@ There are two independent decisions.
 ```
 
 - **Presence of `receive` selects server-owned mode**; its absence is client-owned.
+- `send` is always required when `session` is set, and `name` on it is required — a `receive` with
+  no way to echo the id back is not a usable session.
 - `send.in: "body"` → `name` is a dot-path in the request body; `"header"` → an HTTP header name.
-- `receive.in`: `"body"` (dot-path), `"header"` (name), or `"set-cookie"` (captures the returned
-  cookie pair, echoed back via a `Cookie` header — set `send` to `{ "in": "header", "name": "Cookie" }`).
+- `receive.in`: `"body"` (dot-path) or `"header"` (name) both require a non-empty `name` — without
+  one, capture always fails silently. `"set-cookie"` is the only receive location where `name` is
+  optional (it captures the returned cookie pair, echoed back via a `Cookie` header — set `send` to
+  `{ "in": "header", "name": "Cookie" }`).
 - **Legacy alias:** `sessionIdField: "x"` is shorthand for `session: { send: { in: "body", name: "x" } }`
   (client-owned, body). Still honored; prefer `session` for new configs.
 

@@ -426,6 +426,9 @@ server.tool(
 // ---------------------------------------------------------------------------
 
 // Assemble the session config from the flat agent_session_* tool inputs.
+// A body/header receive needs a name to be capturable; a set-cookie receive doesn't.
+// If the caller only set receive_*, default send to echo it back (set-cookie -> Cookie
+// header), matching the CLI wizard's "echo symmetrically" behavior.
 function buildSessionConfig(args: Record<string, unknown>): SessionConfig | undefined {
   const sendIn = args.agent_session_send_in as "body" | "header" | undefined;
   const sendName = args.agent_session_send_name ? String(args.agent_session_send_name) : undefined;
@@ -434,9 +437,23 @@ function buildSessionConfig(args: Record<string, unknown>): SessionConfig | unde
     ? String(args.agent_session_receive_name)
     : undefined;
 
-  const send = sendIn && sendName ? { in: sendIn, name: sendName } : undefined;
-  const receive = receiveIn ? { in: receiveIn, name: receiveName } : undefined;
-  if (!send && !receive) return undefined;
+  const receive: SessionConfig["receive"] =
+    receiveIn === "set-cookie"
+      ? { in: "set-cookie", name: receiveName }
+      : receiveIn && receiveName
+        ? { in: receiveIn, name: receiveName }
+        : undefined;
+
+  const send: SessionConfig["send"] | undefined =
+    sendIn && sendName
+      ? { in: sendIn, name: sendName }
+      : receive
+        ? receive.in === "set-cookie"
+          ? { in: "header", name: "Cookie" }
+          : { in: receive.in, name: receive.name }
+        : undefined;
+
+  if (!send) return undefined;
   return { send, receive };
 }
 

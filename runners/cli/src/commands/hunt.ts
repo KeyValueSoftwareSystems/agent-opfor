@@ -344,6 +344,9 @@ export function registerHuntCommand(program: Command): void {
         promptPath: opts.promptPath ?? baseTarget.promptPath,
         responsePath: opts.responsePath ?? baseTarget.responsePath,
         sessionField: opts.sessionField ?? baseTarget.sessionField,
+        // --session-field overrides a structured `session` from --target-config too,
+        // since resolveSessionPlan prefers session.send over the legacy field.
+        session: opts.sessionField ? undefined : baseTarget.session,
         model: opts.targetModel ?? baseTarget.model,
       };
       if (!target.endpoint) {

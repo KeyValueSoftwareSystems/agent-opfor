@@ -24,7 +24,7 @@ export interface HttpTargetConfig {
   stateful?: boolean;
   /** Legacy sugar for `session.send = { in: "body", name }`. Prefer `session`. */
   sessionField?: string;
-  /** Client- vs server-owned session id handling (body or header, both directions). */
+  /** Client- vs server-owned session id handling (send: body/header; receive: body/header/cookie). */
   session?: SessionConfig;
 }
 
@@ -227,7 +227,7 @@ export interface HuntTargetConfig {
   stateful?: boolean;
   /** Legacy alias for `session.send = { in: "body", name: sessionField }`. */
   sessionField?: string;
-  /** Client- vs server-owned session id handling (body or header, both directions). */
+  /** Client- vs server-owned session id handling (send: body/header; receive: body/header/cookie). */
   session?: SessionConfig;
   /** Dot-path where the prompt is written in the request body. */
   promptPath?: string;

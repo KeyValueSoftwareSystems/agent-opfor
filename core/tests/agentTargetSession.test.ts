@@ -17,6 +17,7 @@ setEnvProvider(() => undefined);
 interface Received {
   body: Record<string, unknown>;
   sessionHeader: string | undefined;
+  cookieHeader: string | undefined;
 }
 
 let server: Server;
@@ -30,7 +31,11 @@ before(async () => {
       req.on("data", (c: Buffer) => (raw += c.toString()));
       req.on("end", () => {
         const body = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
-        received.push({ body, sessionHeader: req.headers["x-session-id"] as string | undefined });
+        received.push({
+          body,
+          sessionHeader: req.headers["x-session-id"] as string | undefined,
+          cookieHeader: req.headers["cookie"] as string | undefined,
+        });
         // Server mints its own id and returns it in body + a header + a cookie.
         res.writeHead(200, {
           "Content-Type": "application/json",
@@ -136,4 +141,8 @@ test("server-owned (set-cookie): cookie pair captured for Cookie echo", async ()
   let captured: string | undefined;
   await target.send("turn1", { sessionId: undefined, captureSession: (id) => (captured = id) });
   assert.equal(captured, "sid=cookie-1");
+  assert.equal(received[0].cookieHeader, undefined, "turn 1 must not send a Cookie header");
+
+  await target.send("turn2", { sessionId: captured });
+  assert.equal(received[1].cookieHeader, "sid=cookie-1", "turn 2 echoes the captured cookie");
 });

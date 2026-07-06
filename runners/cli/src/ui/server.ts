@@ -20,20 +20,25 @@ import { UiBridge, type SseClient } from "./bridge.js";
 import type { SnapshotMeta } from "./snapshot.js";
 
 // Build the session config from the setup form's flat fields (see SetupPage.tsx).
+// A set-cookie receive must echo via the Cookie header regardless of the form's Send
+// fields; a body/header receive needs a non-blank name to be capturable at all.
 function buildSessionFromSetup(config: Record<string, string>): SessionConfig | undefined {
   if (config.sessionMode !== "client" && config.sessionMode !== "server") return undefined;
-  const send = {
-    in: config.sessionSendIn === "header" ? ("header" as const) : ("body" as const),
+  const send: SessionConfig["send"] = {
+    in: config.sessionSendIn === "header" ? "header" : "body",
     name: config.sessionSendName?.trim() || "session_id",
   };
   if (config.sessionMode === "client") return { send };
+
   const receiveIn = config.sessionReceiveIn;
+  if (receiveIn === "set-cookie") {
+    return { send: { in: "header", name: "Cookie" }, receive: { in: "set-cookie" } };
+  }
+  const receiveName = config.sessionReceiveName?.trim();
+  if (!receiveName) return { send }; // no usable receive -> falls back to client-owned
   return {
     send,
-    receive: {
-      in: receiveIn === "header" ? "header" : receiveIn === "set-cookie" ? "set-cookie" : "body",
-      name: config.sessionReceiveName?.trim() || undefined,
-    },
+    receive: { in: receiveIn === "header" ? "header" : "body", name: receiveName },
   };
 }
 

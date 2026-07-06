@@ -96,13 +96,10 @@ function buildTargetConfig(target: TargetConfig): AgentTargetConfig | McpTargetC
     promptPath: httpTarget.promptPath,
     responsePath: httpTarget.responsePath,
     stateful: httpTarget.stateful,
-    // Prefer the structured `session`; fall back to legacy `sessionField` (body).
-    session:
-      httpTarget.session ??
-      (httpTarget.sessionField
-        ? { send: { in: "body", name: httpTarget.sessionField } }
-        : undefined),
-    sessionIdField: httpTarget.session ? undefined : httpTarget.sessionField,
+    // resolveSessionPlan (core) already folds sessionIdField into session.send when
+    // session is absent — pass both through and let core own that precedence.
+    session: httpTarget.session,
+    sessionIdField: httpTarget.sessionField,
   };
 }
 

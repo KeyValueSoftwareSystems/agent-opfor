@@ -234,7 +234,7 @@ export async function httpSend(
     }
   } else {
     body = {};
-    setByPath(body, config.promptPath ?? "prompt", prompt);
+    setByPath(body, config.promptPath?.trim() || "prompt", prompt);
     applySessionToRequest(body, headers, resolveSessionPlan(config), options.sessionId);
   }
 

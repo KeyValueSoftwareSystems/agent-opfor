@@ -103,9 +103,12 @@ const AgentTargetConfigSchema = z
     sessionIdField: z.string().optional(),
     session: z
       .object({
-        send: z.object({ in: z.enum(["body", "header"]), name: z.string().min(1) }).optional(),
+        send: z.object({ in: z.enum(["body", "header"]), name: z.string().min(1) }),
         receive: z
-          .object({ in: z.enum(["body", "header", "set-cookie"]), name: z.string().optional() })
+          .union([
+            z.object({ in: z.enum(["body", "header"]), name: z.string().min(1) }),
+            z.object({ in: z.literal("set-cookie"), name: z.string().optional() }),
+          ])
           .optional(),
       })
       .optional(),

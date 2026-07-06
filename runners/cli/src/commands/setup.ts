@@ -279,11 +279,12 @@ async function collectSessionConfig(): Promise<SessionConfig> {
           ? "Response header name holding the session ID"
           : "Cookie name (leave blank to use the first cookie)",
     default: receiveIn === "header" ? "Mcp-Session-Id" : receiveIn === "body" ? "session_id" : "",
+    validate: (v) => (receiveIn === "set-cookie" || v.trim() ? true : "Required"),
   });
-  const receive: SessionConfig["receive"] = {
-    in: receiveIn,
-    name: receiveName.trim() || undefined,
-  };
+  const receive: SessionConfig["receive"] =
+    receiveIn === "set-cookie"
+      ? { in: "set-cookie", name: receiveName.trim() || undefined }
+      : { in: receiveIn, name: receiveName.trim() };
 
   // Set-Cookie sessions echo via the `Cookie` header; others echo symmetrically.
   const send =

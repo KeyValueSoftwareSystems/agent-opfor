@@ -106,12 +106,10 @@ function buildCoreOptions(options: HuntOptions): CoreHuntOptions {
     mode,
     promptPath: options.target.promptPath,
     responsePath: options.target.responsePath,
-    session:
-      options.target.session ??
-      (options.target.sessionField
-        ? { send: { in: "body", name: options.target.sessionField } }
-        : undefined),
-    sessionField: options.target.session ? undefined : options.target.sessionField,
+    // resolveSessionPlan (core) already folds sessionField into session.send when
+    // session is absent — pass both through and let core own that precedence.
+    session: options.target.session,
+    sessionField: options.target.sessionField,
     model: options.target.model,
   };
 

@@ -25,6 +25,13 @@ export interface AgentAttackContext {
   telemetry?: TelemetryConfig;
   /** Prior conversation turns to seed the history (used for resume). */
   initialHistory?: { role: "user" | "assistant"; content: string }[];
+  /**
+   * A previously-captured server-owned session id to resume with (used for
+   * resume). Without it, a resumed server-owned attack has no way to recover
+   * the target's session and falls back to today's turn-1 behavior (send no
+   * id, capture whatever the target returns).
+   */
+  initialSessionId?: string;
 }
 
 /**
@@ -50,6 +57,7 @@ export class AgentAttackDriver implements AttackDriver<string, string> {
   private readonly attackSessionId = randomUUID();
   private readonly sessionPlan: SessionPlan;
   // Session id returned by a server-owned target, echoed on later turns.
+  // Seeded from context.initialSessionId on resume; see AgentAttackContext.
   private capturedSessionId: string | undefined;
   private sendCount = 0;
   private warnedCaptureMiss = false;
@@ -86,6 +94,7 @@ export class AgentAttackDriver implements AttackDriver<string, string> {
 
     const targetConfig = context?.targetConfig;
     this.sessionPlan = resolveSessionPlan(targetConfig?.kind === "agent" ? targetConfig : {});
+    this.capturedSessionId = context?.initialSessionId;
 
     this.propagation = context?.telemetry?.propagation;
     const hasPropagation =
@@ -160,9 +169,10 @@ export class AgentAttackDriver implements AttackDriver<string, string> {
     if (this.sessionPlan.mode === "server" && !this.capturedSessionId && !this.warnedCaptureMiss) {
       this.warnedCaptureMiss = true;
       log.dim(
-        `[session] server-owned target returned no session id (receive: ${this.sessionPlan.receive?.in}` +
-          `${this.sessionPlan.receive?.name ? ` "${this.sessionPlan.receive.name}"` : ""}); ` +
-          `falling back to a client-minted id for later turns`
+        `[session] server-owned target never returned a session id (session.receive: ${this.sessionPlan.receive?.in}` +
+          `${this.sessionPlan.receive?.name ? ` "${this.sessionPlan.receive.name}"` : ""}). ` +
+          `Check that the target actually returns one at that location, and that its response format ` +
+          `matches responsePath — falling back to a client-minted id for later turns.`
       );
     }
     return response;
