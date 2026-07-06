@@ -52,6 +52,15 @@ function isNonRetryableError(message: string): boolean {
   );
 }
 
+/** Expands `${VAR}` references in header values against the configured env provider. */
+function expandEnvInHeaders(headers: Record<string, string>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(headers)) {
+    out[k] = v.replace(/\$\{([^}]+)\}/g, (_, name) => getEnv(name.trim()) ?? "");
+  }
+  return out;
+}
+
 export interface AgentSendOptions {
   sessionId?: string;
   propagation?: TelemetryPropagationConfig;
@@ -122,7 +131,7 @@ async function callHttp(
 
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (resolvedApiKey) headers["Authorization"] = `Bearer ${resolvedApiKey}`;
-  if (config.headers) Object.assign(headers, config.headers);
+  if (config.headers) Object.assign(headers, expandEnvInHeaders(config.headers));
 
   const prop = options?.propagation;
   const hasPropagation =
