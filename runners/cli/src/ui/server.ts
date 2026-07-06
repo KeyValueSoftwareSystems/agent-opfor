@@ -82,6 +82,9 @@ export interface UiServerHandle {
 
 function resolveStaticDir(): string {
   const candidates = [
+    // Bundled prod layout: esbuild flattens src/ into a single dist/index.js,
+    // so __dirname is already "dist" — ui-static sits right next to it.
+    path.join(__dirname, "ui-static"),
     path.join(__dirname, "..", "ui-static"),
     path.join(__dirname, "..", "..", "ui-static"),
     path.join(process.cwd(), "dist", "ui-static"),

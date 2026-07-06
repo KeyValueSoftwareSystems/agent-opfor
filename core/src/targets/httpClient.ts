@@ -4,6 +4,7 @@
  */
 
 import type { SessionConfig } from "../execute/types.js";
+import { expandEnvInHeaders } from "../lib/env.js";
 
 export const REQUEST_TIMEOUT_MS = 30_000;
 export const RATE_LIMIT_BACKOFF_MS = 5_000;
@@ -216,7 +217,7 @@ export async function httpSend(
 ): Promise<HttpSendResult> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (config.apiKey) headers["Authorization"] = `Bearer ${config.apiKey}`;
-  if (config.headers) Object.assign(headers, config.headers);
+  if (config.headers) Object.assign(headers, expandEnvInHeaders(config.headers));
   if (options.extraHeaders) Object.assign(headers, options.extraHeaders);
 
   let body: Record<string, unknown>;

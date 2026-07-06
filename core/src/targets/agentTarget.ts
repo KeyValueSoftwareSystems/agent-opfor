@@ -4,7 +4,7 @@ import {
   captureSessionFromResponse,
   resolveSessionPlan,
 } from "./httpClient.js";
-import { getEnv } from "../lib/env.js";
+import { expandEnvInHeaders, getEnv } from "../lib/env.js";
 import { invokeLocalTargetScript } from "../lib/localScriptTarget.js";
 import {
   buildPropagatedHeaders,
@@ -50,15 +50,6 @@ function isNonRetryableError(message: string): boolean {
   return (
     lower.includes("econnrefused") || lower.includes("enotfound") || lower.includes("getaddrinfo")
   );
-}
-
-/** Expands `${VAR}` references in header values against the configured env provider. */
-function expandEnvInHeaders(headers: Record<string, string>): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const [k, v] of Object.entries(headers)) {
-    out[k] = v.replace(/\$\{([^}]+)\}/g, (_, name) => getEnv(name.trim()) ?? "");
-  }
-  return out;
 }
 
 export interface AgentSendOptions {

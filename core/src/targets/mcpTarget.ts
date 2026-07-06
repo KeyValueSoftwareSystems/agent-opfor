@@ -2,6 +2,7 @@ import type { McpTargetConfig } from "../execute/types.js";
 import { connectMcpClient, type McpConnectedClient } from "../mcp-client/createClient.js";
 import type { ToolInfo } from "../generate/generateAttacks.js";
 import type { ResourceInfo } from "../run/scanResources.js";
+import { expandEnvInHeaders } from "../lib/env.js";
 
 export interface McpToolCallResult {
   response: string;
@@ -25,14 +26,6 @@ export async function createMcpTarget(config: McpTargetConfig): Promise<McpTarge
   const serverConfig = buildServerConfig(config);
   const conn = await connectMcpClient(serverConfig, { suppressServerStderr: true });
   return new ConnectedMcpTarget(conn);
-}
-
-function expandEnvInHeaders(headers: Record<string, string>): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const [k, v] of Object.entries(headers)) {
-    out[k] = v.replace(/\$\{([^}]+)\}/g, (_, name) => process.env[name.trim()] ?? "");
-  }
-  return out;
 }
 
 function buildServerConfig(config: McpTargetConfig): Parameters<typeof connectMcpClient>[0] {
