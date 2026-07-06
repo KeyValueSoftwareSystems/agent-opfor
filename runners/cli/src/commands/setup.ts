@@ -22,6 +22,7 @@ import type {
   RunConfig,
   UnifiedTargetConfig,
   AgentTargetConfig,
+  SessionConfig,
   McpTargetConfig,
   EvaluatorSelection,
   Effort,
@@ -242,6 +243,77 @@ async function collectLlmConfig(label: string): Promise<LlmConfig> {
 // Agent target
 // ---------------------------------------------------------------------------
 
+// Ask how the target handles session ids, then where the id is carried per direction.
+async function collectSessionConfig(): Promise<SessionConfig> {
+  const mode = await select<"client" | "server" | "default">({
+    message: "How does the target handle session IDs?",
+    choices: [
+      { name: "Default — I generate the ID, sent as body field `session_id`", value: "default" },
+      { name: "I generate the ID (client-owned) — choose where to send it", value: "client" },
+      { name: "The target creates & returns the ID (server-owned)", value: "server" },
+    ],
+    default: "default",
+  });
+
+  if (mode === "default") {
+    return { send: { in: "body", name: "session_id" } };
+  }
+
+  if (mode === "client") {
+    return { send: await collectSessionSend() };
+  }
+
+  const receiveIn = await select<"body" | "header" | "set-cookie">({
+    message: "Where does the target RETURN the session ID?",
+    choices: [
+      { name: "response body (dot-path, e.g. session_id)", value: "body" },
+      { name: "response header (e.g. Mcp-Session-Id)", value: "header" },
+      { name: "Set-Cookie header (cookie session)", value: "set-cookie" },
+    ],
+  });
+  const receiveName = await input({
+    message:
+      receiveIn === "body"
+        ? "Response body dot-path holding the session ID"
+        : receiveIn === "header"
+          ? "Response header name holding the session ID"
+          : "Cookie name (leave blank to use the first cookie)",
+    default: receiveIn === "header" ? "Mcp-Session-Id" : receiveIn === "body" ? "session_id" : "",
+  });
+  const receive: SessionConfig["receive"] = {
+    in: receiveIn,
+    name: receiveName.trim() || undefined,
+  };
+
+  // Set-Cookie sessions echo via the `Cookie` header; others echo symmetrically.
+  const send =
+    receiveIn === "set-cookie"
+      ? { in: "header" as const, name: "Cookie" }
+      : await collectSessionSend(receiveIn === "header" ? "header" : "body", receiveName.trim());
+
+  return { send, receive };
+}
+
+async function collectSessionSend(
+  defaultIn: "body" | "header" = "body",
+  defaultName = ""
+): Promise<{ in: "body" | "header"; name: string }> {
+  const sendIn = await select<"body" | "header">({
+    message: "Where should OPFOR SEND the session ID?",
+    choices: [
+      { name: "request body field (dot-path)", value: "body" },
+      { name: "request header", value: "header" },
+    ],
+    default: defaultIn,
+  });
+  const name = await input({
+    message: sendIn === "body" ? "Request body field/dot-path" : "Request header name",
+    default: defaultName || (sendIn === "header" ? "X-Session-Id" : "session_id"),
+    validate: (v) => (v.trim() ? true : "Required"),
+  });
+  return { in: sendIn, name: name.trim() };
+}
+
 async function collectAgentTarget(): Promise<AgentTargetConfig> {
   log.info("\nAgent target");
 
@@ -336,9 +408,7 @@ async function collectAgentTarget(): Promise<AgentTargetConfig> {
     default: !isRawLlm, // Raw LLM APIs are typically stateless
   });
 
-  const sessionIdField = stateful
-    ? await input({ message: "Session ID field name in request body", default: "session_id" })
-    : undefined;
+  const session = stateful ? await collectSessionConfig() : undefined;
 
   return {
     kind: "agent",
@@ -349,7 +419,7 @@ async function collectAgentTarget(): Promise<AgentTargetConfig> {
     requestFormat,
     apiKeyEnv: targetApiKeyEnv?.trim(),
     model: targetModel?.trim(),
-    sessionIdField,
+    session,
     stateful,
   };
 }

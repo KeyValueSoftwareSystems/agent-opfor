@@ -106,7 +106,12 @@ function buildCoreOptions(options: HuntOptions): CoreHuntOptions {
     mode,
     promptPath: options.target.promptPath,
     responsePath: options.target.responsePath,
-    sessionField: options.target.sessionField,
+    session:
+      options.target.session ??
+      (options.target.sessionField
+        ? { send: { in: "body", name: options.target.sessionField } }
+        : undefined),
+    sessionField: options.target.session ? undefined : options.target.sessionField,
     model: options.target.model,
   };
 

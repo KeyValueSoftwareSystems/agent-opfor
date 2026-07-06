@@ -96,7 +96,13 @@ function buildTargetConfig(target: TargetConfig): AgentTargetConfig | McpTargetC
     promptPath: httpTarget.promptPath,
     responsePath: httpTarget.responsePath,
     stateful: httpTarget.stateful,
-    sessionIdField: httpTarget.sessionField,
+    // Prefer the structured `session`; fall back to legacy `sessionField` (body).
+    session:
+      httpTarget.session ??
+      (httpTarget.sessionField
+        ? { send: { in: "body", name: httpTarget.sessionField } }
+        : undefined),
+    sessionIdField: httpTarget.session ? undefined : httpTarget.sessionField,
   };
 }
 

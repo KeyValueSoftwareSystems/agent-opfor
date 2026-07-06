@@ -3,6 +3,7 @@
 
 import {
   httpSend,
+  resolveSessionPlan,
   type HttpTargetConfig,
   type HttpTargetMessage,
   type HttpSendResult,
@@ -30,19 +31,30 @@ function toHttpConfig(config: TargetConfig): HttpTargetConfig {
     promptPath: config.promptPath,
     responsePath: config.responsePath,
     sessionField: config.sessionField,
+    session: config.session,
     model: config.model,
   };
 }
 
 export function createTargetClient(config: TargetConfig): TargetClient {
   const httpConfig = toHttpConfig(config);
+  const plan = resolveSessionPlan(httpConfig);
+  // Server-owned targets mint their own id, so threadId can't be the wire id.
+  // Keep the returned id per threadId and echo it on that thread's later turns.
+  const serverSessions = new Map<string, string>();
 
   return {
     async send(prompt: string, options: TargetSendOptions): Promise<HttpSendResult> {
-      return httpSend(httpConfig, prompt, {
+      const wireSessionId =
+        plan.mode === "server" ? serverSessions.get(options.threadId) : options.threadId;
+      const result = await httpSend(httpConfig, prompt, {
         history: options.history,
-        sessionId: options.threadId,
+        sessionId: wireSessionId,
       });
+      if (plan.mode === "server" && result.sessionId) {
+        serverSessions.set(options.threadId, result.sessionId);
+      }
+      return result;
     },
   };
 }

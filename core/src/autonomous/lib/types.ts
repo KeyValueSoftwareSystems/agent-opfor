@@ -1,6 +1,8 @@
 // Shared option/config types for the autonomous red-team runner.
 // This package is fully standalone — it does NOT import from @keyvaluesystems/agent-opfor-core.
 
+import type { SessionConfig } from "../../execute/types.js";
+
 /** How the target HTTP agent maintains conversation state. */
 export type TargetMode = "stateless" | "stateful";
 
@@ -28,8 +30,10 @@ export interface TargetConfig {
   promptPath?: string;
   /** Dot-path where the reply is read from the response body. */
   responsePath?: string;
-  /** Field name carrying the session id (stateful mode). */
+  /** Legacy alias for `session.send = { in: "body", name: sessionField }`. */
   sessionField?: string;
+  /** Client- vs server-owned session id handling (body or header, both directions). */
+  session?: SessionConfig;
   /** `model` value sent in OpenAI-shape requests. */
   model?: string;
 }

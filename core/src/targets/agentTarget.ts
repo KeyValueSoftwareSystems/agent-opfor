@@ -1,4 +1,9 @@
 import type { AgentTargetConfig } from "../execute/types.js";
+import {
+  applySessionToRequest,
+  captureSessionFromResponse,
+  resolveSessionPlan,
+} from "./httpClient.js";
 import { getEnv } from "../lib/env.js";
 import { invokeLocalTargetScript } from "../lib/localScriptTarget.js";
 import {
@@ -61,6 +66,8 @@ export interface AgentSendOptions {
    * script / DOM targets.
    */
   history?: { role: "user" | "assistant"; content: string }[];
+  /** Invoked with a session id read from the response, for the caller to echo on later turns. */
+  captureSession?: (id: string) => void;
 }
 
 export interface AgentTarget {
@@ -179,16 +186,22 @@ async function callHttp(
   // Stateless targets receive the full conversation as a `messages` array on
   // every turn (raw OpenAI/Groq/Anthropic-compat endpoints). The body shape
   // is fixed by the chat-completions spec, so this mode overrides
-  // requestFormat and ignores sessionIdField.
+  // requestFormat and carries no session id.
   const isStateless = config.stateful === false;
   const conversationHistory = options?.history ?? [];
+  // `sessionId` is the id to send this turn (undefined on turn 1 in server mode).
+  const sessionPlan = resolveSessionPlan(config);
+
+  const finishResponse = (res: Response, rawText: string): string => {
+    const captured = captureSessionFromResponse(rawText, res.headers, sessionPlan);
+    if (captured && options?.captureSession) options.captureSession(captured);
+    return extract(rawText);
+  };
 
   const buildJsonBody = (promptValue: string): Record<string, unknown> => {
     const body: Record<string, unknown> = {};
     setByPath(body, config.promptPath?.trim() || "prompt", promptValue);
-    if (!isStateless && sessionId && config.sessionIdField) {
-      body[config.sessionIdField] = sessionId;
-    }
+    applySessionToRequest(body, headers, sessionPlan, sessionId);
     return body;
   };
 
@@ -205,9 +218,7 @@ async function callHttp(
         temperature: 0.7,
         max_tokens: 500,
       };
-      if (!isStateless && sessionId && config.sessionIdField) {
-        openaiBody[config.sessionIdField] = sessionId;
-      }
+      applySessionToRequest(openaiBody, headers, sessionPlan, sessionId);
       if (hasPropagation && prop?.traceIdBodyField && propagationTraceId) {
         mergeTraceIdIntoJsonBody(openaiBody, prop.traceIdBodyField, propagationTraceId);
       }
@@ -229,7 +240,8 @@ async function callHttp(
         // Retryable (5xx) - return error but continue
         return `ERROR: HTTP ${res.status}`;
       }
-      if (res.ok || targetFormat === "openai" || isStateless) return extract(await res.text());
+      if (res.ok || targetFormat === "openai" || isStateless)
+        return finishResponse(res, await res.text());
     }
 
     const jsonBody = buildJsonBody(prompt);
@@ -254,7 +266,7 @@ async function callHttp(
       // Retryable (5xx) - return error but continue
       return `ERROR: HTTP ${res2.status}`;
     }
-    return extract(await res2.text());
+    return finishResponse(res2, await res2.text());
   } catch (err: unknown) {
     // Re-throw TargetStopError
     if (err instanceof TargetStopError) throw err;

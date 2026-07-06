@@ -96,14 +96,21 @@ Configures a red team run and writes `opfor.config.json`. Returns the config fil
 
 #### Agent target parameters (when `target_kind = "agent"`)
 
-| Parameter              | Type                         | Required    | Description                                                        |
-| ---------------------- | ---------------------------- | ----------- | ------------------------------------------------------------------ |
-| `agent_endpoint`       | string                       | For HTTP    | URL to attack (e.g. `http://localhost:4000/chat`)                  |
-| `agent_request_format` | `auto` \| `openai` \| `json` | No          | Request body format. Defaults to `auto`                            |
-| `agent_api_key_env`    | string                       | No          | Env var name holding the target API key (e.g. `TARGET_API_KEY`)    |
-| `agent_model`          | string                       | No          | Model name sent to the target in the `model` field (e.g. `gpt-4o`) |
-| `agent_script_path`    | string                       | For scripts | Path to a local script (.js/.py)                                   |
-| `agent_description`    | string                       | No          | What the agent does (used in attack generation)                    |
+| Parameter                    | Type                               | Required    | Description                                                        |
+| ---------------------------- | ---------------------------------- | ----------- | ------------------------------------------------------------------ |
+| `agent_endpoint`             | string                             | For HTTP    | URL to attack (e.g. `http://localhost:4000/chat`)                  |
+| `agent_request_format`       | `auto` \| `openai` \| `json`       | No          | Request body format. Defaults to `auto`                            |
+| `agent_api_key_env`          | string                             | No          | Env var name holding the target API key (e.g. `TARGET_API_KEY`)    |
+| `agent_model`                | string                             | No          | Model name sent to the target in the `model` field (e.g. `gpt-4o`) |
+| `agent_script_path`          | string                             | For scripts | Path to a local script (.js/.py)                                   |
+| `agent_description`          | string                             | No          | What the agent does (used in attack generation)                    |
+| `agent_session_send_in`      | `body` \| `header`                 | No          | Where the session id is sent (stateful targets)                    |
+| `agent_session_send_name`    | string                             | No          | Body dot-path or header name for the sent id (e.g. `session_id`)   |
+| `agent_session_receive_in`   | `body` \| `header` \| `set-cookie` | No          | Where a **server-owned** target returns its id (enables capture)   |
+| `agent_session_receive_name` | string                             | No          | Response dot-path / header / cookie name holding the returned id   |
+
+> Client-owned targets set only `agent_session_send_*`; server-owned targets (the target returns its
+> own id) also set `agent_session_receive_*`. See [Target session handling](sessions.md).
 
 #### MCP target parameters (when `target_kind = "mcp"`)
 

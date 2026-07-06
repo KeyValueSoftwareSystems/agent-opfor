@@ -26,6 +26,7 @@ export type {
   HttpTargetConfig,
   LocalScriptTargetConfig,
   McpTargetConfig,
+  SessionConfig,
 
   // Model configuration
   ModelConfig,

@@ -200,11 +200,27 @@ const results = await opfor.run({
   target: {
     url: "https://api.example.com/chat",
     stateful: true,
-    sessionField: "session_id",
+    sessionField: "session_id", // shorthand for session.send = { in: "body", name }
+  },
+  suite: "owasp-llm-top10",
+});
+
+// Server-owned session — the target mints its own id and returns it; opfor
+// sends none on turn 1, then captures and echoes it. Body or header, both ways.
+const results = await opfor.run({
+  target: {
+    url: "https://api.example.com/chat",
+    stateful: true,
+    session: {
+      send: { in: "header", name: "Mcp-Session-Id" },
+      receive: { in: "header", name: "Mcp-Session-Id" },
+    },
   },
   suite: "owasp-llm-top10",
 });
 ```
+
+See **[Target session handling](sessions.md)** for the full client- vs server-owned model.
 
 ### Local Script
 
@@ -704,7 +720,12 @@ interface AutoOptions {
     apiKey?: string; // Bearer token
     headers?: Record<string, string>; // Extra headers
     stateful?: boolean; // true = send session id, server keeps history
-    sessionField?: string; // Field name for session id
+    sessionField?: string; // legacy: session.send = { in: "body", name }
+    session?: {
+      // client- vs server-owned session id; see sessions.md
+      send?: { in: "body" | "header"; name: string };
+      receive?: { in: "body" | "header" | "set-cookie"; name?: string };
+    };
     promptPath?: string; // JSON path to write prompt
     responsePath?: string; // JSON path to read response
     model?: string; // Model value in requests

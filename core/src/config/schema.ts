@@ -101,6 +101,14 @@ const AgentTargetConfigSchema = z
     model: z.string().optional(),
     headers: z.record(z.string(), z.string()).optional(),
     sessionIdField: z.string().optional(),
+    session: z
+      .object({
+        send: z.object({ in: z.enum(["body", "header"]), name: z.string().min(1) }).optional(),
+        receive: z
+          .object({ in: z.enum(["body", "header", "set-cookie"]), name: z.string().optional() })
+          .optional(),
+      })
+      .optional(),
     promptPath: z.string().optional(),
     responsePath: z.string().optional(),
     scriptPath: z.string().optional(),
@@ -171,6 +179,27 @@ export function parseRunConfig(raw: unknown): z.infer<typeof RunConfigSchema> {
       .map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
       .join("; ");
     throw new Error(`Invalid config: ${msg}`);
+  }
+  return parsed.data;
+}
+
+/**
+ * Validate a standalone agent `target` block (bare object or a `{ target: {...} }`
+ * wrapper, so an existing run config file is accepted). Used by `opfor hunt
+ * --target-config`.
+ */
+export function parseAgentTarget(raw: unknown): z.infer<typeof AgentTargetConfigSchema> {
+  if (raw === null || typeof raw !== "object") {
+    throw new Error("Target config must be a JSON object");
+  }
+  const candidate =
+    "target" in (raw as Record<string, unknown>) ? (raw as Record<string, unknown>).target : raw;
+  const parsed = AgentTargetConfigSchema.safeParse(candidate);
+  if (!parsed.success) {
+    const msg = parsed.error.issues
+      .map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
+      .join("; ");
+    throw new Error(`Invalid target config: ${msg}`);
   }
   return parsed.data;
 }

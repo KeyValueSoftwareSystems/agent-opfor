@@ -148,7 +148,8 @@ opfor/
 │   ├── sdk.md                     # SDK (@keyvaluesystems/agent-opfor-sdk) reference
 │   ├── evaluators.md              # Evaluator + suite reference
 │   ├── evaluator-schema.md        # Evaluator YAML schema
-│   └── telemetry.md               # Trace-aware testing (Langfuse / Netra)
+│   ├── telemetry.md               # Trace-aware testing (Langfuse / Netra)
+│   └── sessions.md                # Target session handling (stateless/stateful, client/server-owned session ids)
 └── findings/                      # Community-submitted vulnerability writeups (aspirational; may not exist yet)
 ```
 

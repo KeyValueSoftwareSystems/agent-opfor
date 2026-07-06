@@ -7,6 +7,17 @@ export type Effort = "adaptive" | "comprehensive";
 // Target configs
 // ---------------------------------------------------------------------------
 
+export interface SessionConfig {
+  /** Where the session id is written into a request. */
+  send?: { in: "body" | "header"; name: string };
+  /**
+   * Where a server-returned session id is read from a response. Its presence
+   * means server-owned mode: turn 1 sends no id, the returned id is captured
+   * here and echoed on later turns via `send`.
+   */
+  receive?: { in: "body" | "header" | "set-cookie"; name?: string };
+}
+
 export interface AgentTargetConfig {
   kind: "agent";
   name: string;
@@ -18,7 +29,9 @@ export interface AgentTargetConfig {
   apiKeyEnv?: string;
   model?: string;
   headers?: Record<string, string>;
+  /** Legacy alias for `session.send = { in: "body", name: sessionIdField }`. */
   sessionIdField?: string;
+  session?: SessionConfig;
   promptPath?: string;
   responsePath?: string;
   scriptPath?: string;

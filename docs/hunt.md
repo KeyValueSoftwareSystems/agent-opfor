@@ -26,16 +26,53 @@ Add `--ui` to watch the attack tree unfold in a live dashboard.
 
 ### Target
 
-| Option                       | Description                     |
-| ---------------------------- | ------------------------------- |
-| `--endpoint <url>`           | Target HTTP endpoint (required) |
-| `--objective <text>`         | Attack objective                |
-| `--objective-file <path>`    | Read objective from file        |
-| `--target-key-env <var>`     | Env var with target API key     |
-| `--target-key <key>`         | Target API key directly         |
-| `--name <name>`              | Display name for target         |
-| `--target-model <id>`        | Model value in requests         |
-| `--stateless` / `--stateful` | History handling mode           |
+| Option                       | Description                                                                       |
+| ---------------------------- | --------------------------------------------------------------------------------- |
+| `--endpoint <url>`           | Target HTTP endpoint (required)                                                   |
+| `--objective <text>`         | Attack objective                                                                  |
+| `--objective-file <path>`    | Read objective from file                                                          |
+| `--target-key-env <var>`     | Env var with target API key                                                       |
+| `--target-key <key>`         | Target API key directly                                                           |
+| `--name <name>`              | Display name for target                                                           |
+| `--target-model <id>`        | Model value in requests                                                           |
+| `--stateless` / `--stateful` | History handling mode                                                             |
+| `--session-field <name>`     | Body field for the session id (client-owned, stateful)                            |
+| `--target-config <path>`     | JSON file with a run-style `target` block; enables server-owned & header sessions |
+
+### Session handling
+
+For a client-owned stateful target, `--stateful --session-field <name>` sends opfor's id in that
+body field. For richer setups — **server-owned** targets (the target mints its own id) or session
+ids carried in a **header** — pass a `--target-config` file containing a run-style `target` block
+(bare or wrapped in `{ "target": … }`). CLI flags override its fields.
+
+```jsonc
+// target.json — server-owned session captured from a response header
+{
+  "target": {
+    "kind": "agent",
+    "type": "http-endpoint",
+    "endpoint": "https://your-target.com/chat",
+    "requestFormat": "json",
+    "promptPath": "prompt",
+    "responsePath": "response",
+    "apiKeyEnv": "TARGET_API_KEY",
+    "stateful": true,
+    "session": {
+      "send": { "in": "header", "name": "Mcp-Session-Id" },
+      "receive": { "in": "header", "name": "Mcp-Session-Id" },
+    },
+  },
+}
+```
+
+```bash
+opfor hunt --target-config target.json --objective "Probe for jailbreaks and safety bypasses."
+```
+
+The `--ui` setup form also has a Session section. See **[Target session handling](sessions.md)** for
+the full model. Note: because a server-owned session belongs to the target, forking an attack thread
+opens a **new** server session.
 
 ### Models
 

@@ -3,6 +3,8 @@
  * Used by both the core agent target and the autonomous runner.
  */
 
+import type { SessionConfig } from "../execute/types.js";
+
 export const REQUEST_TIMEOUT_MS = 30_000;
 export const RATE_LIMIT_BACKOFF_MS = 5_000;
 
@@ -19,6 +21,7 @@ export interface HttpTargetConfig {
   promptPath?: string;
   responsePath?: string;
   sessionField?: string;
+  session?: SessionConfig;
   model?: string;
 }
 
@@ -27,6 +30,8 @@ export interface HttpSendResult {
   isError: boolean;
   rateLimited: boolean;
   errorMessage?: string;
+  /** Session id read from the response (server-owned targets only). */
+  sessionId?: string;
 }
 
 /** Read a value from a nested object by dot-path (e.g. "choices.0.message.content"). */
@@ -78,6 +83,108 @@ export function extractReply(raw: string, responsePath?: string): string {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Session id handling. See core/src/execute/types.ts SessionConfig.
+// ---------------------------------------------------------------------------
+
+/**
+ * How a session id flows for a target.
+ * - `none`: no session id (stateless, or nothing configured).
+ * - `client`: id is minted locally and sent every turn.
+ * - `server`: turn 1 sends no id; the returned id is captured and echoed.
+ */
+export interface SessionPlan {
+  mode: "none" | "client" | "server";
+  send?: { in: "body" | "header"; name: string };
+  receive?: { in: "body" | "header" | "set-cookie"; name?: string };
+}
+
+/** Input to {@link resolveSessionPlan}; covers both the run and autonomous config shapes. */
+export interface SessionPlanSource {
+  session?: SessionConfig;
+  /** Legacy body-field alias (run path). */
+  sessionIdField?: string;
+  /** Legacy body-field alias (autonomous runner). */
+  sessionField?: string;
+  stateful?: boolean;
+  mode?: "stateless" | "stateful";
+}
+
+/** Fold a target config into a {@link SessionPlan}; stateless targets resolve to `none`. */
+export function resolveSessionPlan(source: SessionPlanSource): SessionPlan {
+  const isStateless = source.stateful === false || source.mode === "stateless";
+  if (isStateless) return { mode: "none" };
+
+  const legacyName = source.sessionIdField?.trim() || source.sessionField?.trim();
+  const send =
+    source.session?.send ?? (legacyName ? { in: "body" as const, name: legacyName } : undefined);
+  const receive = source.session?.receive;
+
+  const mode = receive ? "server" : send ? "client" : "none";
+  return { mode, send, receive };
+}
+
+/** Write the session id into a request per `plan.send`; the value overrides any static header. */
+export function applySessionToRequest(
+  body: Record<string, unknown>,
+  headers: Record<string, string>,
+  plan: SessionPlan,
+  sessionId: string | undefined
+): void {
+  if (!sessionId || !plan.send) return;
+  if (plan.send.in === "header") {
+    headers[plan.send.name] = sessionId;
+  } else {
+    setByPath(body, plan.send.name, sessionId);
+  }
+}
+
+/** Extract `name=value` (dropping attributes) for a given cookie, or the first cookie. */
+function parseCookie(setCookie: string, name?: string): string | undefined {
+  const pairs = setCookie
+    .split(/,(?=[^;]+=)/) // split multiple Set-Cookie values folded into one header
+    .map((c) => c.split(";", 1)[0].trim())
+    .filter(Boolean);
+  if (!pairs.length) return undefined;
+  if (name?.trim()) {
+    const match = pairs.find((p) => p.slice(0, p.indexOf("=")).trim() === name.trim());
+    return match || undefined;
+  }
+  return pairs[0];
+}
+
+/**
+ * Read a server-returned session id per `plan.receive`, or undefined if absent.
+ * For `set-cookie` the value is the full `name=value` pair, ready to echo as a `Cookie` header.
+ */
+export function captureSessionFromResponse(
+  rawBody: string,
+  resHeaders: Headers,
+  plan: SessionPlan
+): string | undefined {
+  const rx = plan.receive;
+  if (!rx) return undefined;
+
+  if (rx.in === "header") {
+    return rx.name ? (resHeaders.get(rx.name) ?? undefined) || undefined : undefined;
+  }
+  if (rx.in === "set-cookie") {
+    const raw =
+      (typeof resHeaders.getSetCookie === "function"
+        ? resHeaders.getSetCookie().join(", ")
+        : undefined) ?? resHeaders.get("set-cookie");
+    return raw ? parseCookie(raw, rx.name) : undefined;
+  }
+  // body dot-path
+  if (!rx.name?.trim()) return undefined;
+  try {
+    const found = getByPath(JSON.parse(rawBody), rx.name.trim());
+    return found !== undefined && found !== null ? String(found) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
 /** Build the request body for an OpenAI-shape stateless target. */
@@ -92,21 +199,6 @@ export function buildStatelessBody(
     temperature: 0.7,
     max_tokens: 800,
   };
-}
-
-/** Build the request body for a custom-JSON target. */
-export function buildCustomJsonBody(
-  prompt: string,
-  promptPath: string,
-  sessionId?: string,
-  sessionField?: string
-): Record<string, unknown> {
-  const body: Record<string, unknown> = {};
-  setByPath(body, promptPath || "prompt", prompt);
-  if (sessionId && sessionField?.trim()) {
-    body[sessionField.trim()] = sessionId;
-  }
-  return body;
 }
 
 /**
@@ -141,12 +233,9 @@ export async function httpSend(
       body = buildStatelessBody(prompt, options.history ?? [], config.model ?? "gpt-4o-mini");
     }
   } else {
-    body = buildCustomJsonBody(
-      prompt,
-      config.promptPath ?? "prompt",
-      options.sessionId,
-      config.sessionField
-    );
+    body = {};
+    setByPath(body, config.promptPath ?? "prompt", prompt);
+    applySessionToRequest(body, headers, resolveSessionPlan(config), options.sessionId);
   }
 
   try {
@@ -177,10 +266,12 @@ export async function httpSend(
       };
     }
 
+    const captured = captureSessionFromResponse(text, res.headers, resolveSessionPlan(config));
     return {
       response: extractReply(text, config.responsePath),
       isError: false,
       rateLimited: false,
+      sessionId: captured,
     };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);

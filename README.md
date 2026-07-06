@@ -85,7 +85,7 @@ Different people on your team need different entry points. Opfor ships five.
 
 All five share the same evaluators, attack templates, and judge logic.
 
-→ [CLI reference](docs/cli.md) · [Browser extension setup](docs/browser-extension.md) · [MCP setup](docs/mcp.md) · [Skills setup](docs/skills.md) · [SDK reference](docs/sdk.md)
+→ [CLI reference](docs/cli.md) · [Browser extension setup](docs/browser-extension.md) · [MCP setup](docs/mcp.md) · [Skills setup](docs/skills.md) · [SDK reference](docs/sdk.md) · [Session handling](docs/sessions.md)
 
 ## How it works
 

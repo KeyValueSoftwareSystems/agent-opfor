@@ -7,9 +7,9 @@ import { consola } from "consola";
 import type {
   HuntOptions,
   TargetConfig,
-  TargetMode,
 } from "@keyvaluesystems/agent-opfor-core/autonomous/lib/types.js";
 import type { RunEvent } from "@keyvaluesystems/agent-opfor-core/autonomous/state/observe.js";
+import { parseAgentTarget } from "@keyvaluesystems/agent-opfor-core/config/schema.js";
 import { runAutonomous } from "@keyvaluesystems/agent-opfor-core/autonomous/orchestrator/run.js";
 import { writeAutonomousReport } from "@keyvaluesystems/agent-opfor-core/autonomous/report/writeReport.js";
 import { startUiServer } from "../ui/server.js";
@@ -31,6 +31,7 @@ interface HuntCliOptions {
   sessionField?: string;
   promptPath?: string;
   responsePath?: string;
+  targetConfig?: string;
   targetModel?: string;
   header?: string[];
   name?: string;
@@ -67,6 +68,27 @@ function parseHeaders(raw?: string[]): Record<string, string> | undefined {
     headers[item.slice(0, idx).trim()] = item.slice(idx + 1).trim();
   }
   return Object.keys(headers).length ? headers : undefined;
+}
+
+// Map a run-style `target` block onto hunt's TargetConfig. Hunt is HTTP-only,
+// and resolves the API key from `apiKeyEnv` (the file holds the var name).
+function mapAgentTargetToAutonomous(t: ReturnType<typeof parseAgentTarget>): TargetConfig {
+  if (t.type === "local-script") {
+    throw new Error("local-script targets are not supported by `opfor hunt` (HTTP only).");
+  }
+  if (!t.endpoint) throw new Error("target is missing `endpoint`.");
+  return {
+    name: t.name || new URL(t.endpoint).host,
+    endpoint: t.endpoint,
+    apiKey: t.apiKeyEnv ? process.env[t.apiKeyEnv] : undefined,
+    headers: t.headers,
+    mode: t.stateful === false ? "stateless" : "stateful",
+    promptPath: t.promptPath,
+    responsePath: t.responsePath,
+    sessionField: t.sessionIdField,
+    session: t.session,
+    model: t.model,
+  };
 }
 
 const NO_BRAIN_AUTH_MESSAGE =
@@ -126,6 +148,10 @@ export function registerHuntCommand(program: Command): void {
     .option("--session-field <name>", "Body field carrying the session id (stateful mode)")
     .option("--prompt-path <dotpath>", "Body dot-path to write the prompt into")
     .option("--response-path <dotpath>", "Body dot-path to read the reply from")
+    .option(
+      "--target-config <path>",
+      "JSON file with a run-style `target` block (bare or { target }); enables server-owned sessions and header session ids. CLI flags override its fields."
+    )
     .option("--target-model <id>", "model value sent in OpenAI-shape requests")
     .option(
       "--header <k:v>",
@@ -267,9 +293,12 @@ export function registerHuntCommand(program: Command): void {
       }
       consola.info(`Authenticating via: ${brainAuth}`);
 
-      // Check endpoint is provided when not using setup UI
-      if (!opts.endpoint) {
-        consola.error("Provide --endpoint or use --ui to launch the setup wizard.");
+      // Check endpoint is provided when not using setup UI (the endpoint may
+      // instead come from --target-config).
+      if (!opts.endpoint && !opts.targetConfig) {
+        consola.error(
+          "Provide --endpoint, --target-config, or use --ui to launch the setup wizard."
+        );
         process.exitCode = 1;
         return;
       }
@@ -285,27 +314,50 @@ export function registerHuntCommand(program: Command): void {
         return;
       }
 
-      const mode: TargetMode = opts.stateful ? "stateful" : "stateless";
-      if (mode === "stateful" && !opts.sessionField) {
-        consola.warn(
-          "Stateful mode without --session-field: the target won't receive a session id."
-        );
+      // Base target: from --target-config (a run-style `target` block) if given,
+      // else an empty stateless shell that the flags fill in below.
+      let baseTarget: TargetConfig;
+      if (opts.targetConfig) {
+        try {
+          const raw = JSON.parse(await readFile(path.resolve(opts.targetConfig), "utf8"));
+          baseTarget = mapAgentTargetToAutonomous(parseAgentTarget(raw));
+        } catch (err) {
+          consola.error(`--target-config: ${err instanceof Error ? err.message : String(err)}`);
+          process.exitCode = 1;
+          return;
+        }
+      } else {
+        baseTarget = { name: "", endpoint: "", mode: "stateless" };
       }
 
+      // Explicit flags override the file's fields.
+      const apiKeyFromFlags =
+        opts.targetKey ?? (opts.targetKeyEnv ? process.env[opts.targetKeyEnv] : undefined);
+      const flagHeaders = parseHeaders(opts.header);
       const target: TargetConfig = {
-        name: opts.name ?? new URL(opts.endpoint!).host,
-        endpoint: opts.endpoint!,
-        apiKey:
-          opts.targetKey ??
-          (opts.targetKeyEnv ? process.env[opts.targetKeyEnv] : undefined) ??
-          process.env.TARGET_API_KEY,
-        headers: parseHeaders(opts.header),
-        mode,
-        promptPath: opts.promptPath,
-        responsePath: opts.responsePath,
-        sessionField: opts.sessionField,
-        model: opts.targetModel,
+        ...baseTarget,
+        name: opts.name ?? baseTarget.name,
+        endpoint: opts.endpoint ?? baseTarget.endpoint,
+        apiKey: apiKeyFromFlags ?? baseTarget.apiKey ?? process.env.TARGET_API_KEY,
+        headers: flagHeaders ?? baseTarget.headers,
+        mode: opts.stateful ? "stateful" : opts.stateless ? "stateless" : baseTarget.mode,
+        promptPath: opts.promptPath ?? baseTarget.promptPath,
+        responsePath: opts.responsePath ?? baseTarget.responsePath,
+        sessionField: opts.sessionField ?? baseTarget.sessionField,
+        model: opts.targetModel ?? baseTarget.model,
       };
+      if (!target.endpoint) {
+        consola.error("No endpoint: set --endpoint or an `endpoint` in --target-config.");
+        process.exitCode = 1;
+        return;
+      }
+      if (!target.name) target.name = new URL(target.endpoint).host;
+
+      if (target.mode === "stateful" && !target.sessionField && !target.session) {
+        consola.warn(
+          "Stateful mode without a session id config: the target won't receive a session id."
+        );
+      }
 
       const huntOptions: HuntOptions = {
         target,
@@ -375,7 +427,7 @@ export function registerHuntCommand(program: Command): void {
       const header = [
         "════════════════════════════════════════════════════════════════",
         ` AUTONOMOUS RED-TEAM`,
-        ` target    : ${target.name} (${mode})  ${target.endpoint}`,
+        ` target    : ${target.name} (${target.mode})  ${target.endpoint}`,
         ` objective : ${objective}`,
         ` models    : commander=${huntOptions.commanderModel}  operator=${huntOptions.operatorModel}  scout=${huntOptions.scoutModel}`,
         ` limits    : operators≤${huntOptions.maxOperators}  turns≤${huntOptions.maxTurns}  thread-turns≤${huntOptions.maxThreadTurns}${huntOptions.budgetUsd ? `  budget=$${huntOptions.budgetUsd}` : ""}`,

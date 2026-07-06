@@ -14,7 +14,7 @@ import { loadCatalog as loadMcpCatalog } from "@keyvaluesystems/agent-opfor-core
 import { runAll } from "@keyvaluesystems/agent-opfor-core/execute/runAll.js";
 import { writeReport } from "@keyvaluesystems/agent-opfor-core/report/buildReport.js";
 import { PROVIDERS, type ProviderName } from "@keyvaluesystems/agent-opfor-core/config/types.js";
-import type { RunConfig } from "@keyvaluesystems/agent-opfor-core/execute/types.js";
+import type { RunConfig, SessionConfig } from "@keyvaluesystems/agent-opfor-core/execute/types.js";
 import { parseRunConfig } from "@keyvaluesystems/agent-opfor-core/config/schema.js";
 import { normalizeEffort } from "@keyvaluesystems/agent-opfor-core/execute/effortCompat.js";
 
@@ -121,6 +121,8 @@ server.tool(
     "  5. (agent) Request format: 'openai' (chat completions), 'json' ({ prompt }), or 'auto'?\n" +
     "  6. (agent) Model name sent to the target in the 'model' field (e.g. sarvam-30b) — ask only if relevant to the endpoint.\n" +
     "  7. (agent) Does the target require an API key?\n" +
+    "  7b. (agent, stateful) Session id handling: client-owned (you send it — set agent_session_send_in/name) " +
+    "or server-owned (target returns its own — set agent_session_receive_in/name, plus send_* to echo it back).\n" +
     "  8. (mcp) Transport: 'stdio' or 'url'? Then ask command+args or URL accordingly.\n" +
     "EVALUATORS\n" +
     "  9. Call opfor_list_evaluators with the chosen target_kind, present the suites and evaluators to the user, then ask: run a full suite or specific evaluators?\n" +
@@ -167,6 +169,23 @@ server.tool(
       .describe(
         "Model name sent to the target endpoint in the 'model' field (e.g. sarvam-30b, gpt-4o)"
       ),
+    // Session handling. Client-owned: set send_* only. Server-owned: set receive_* (+ send_* to echo).
+    agent_session_send_in: z
+      .enum(["body", "header"])
+      .optional()
+      .describe("Where OPFOR sends the session id (body field or request header)"),
+    agent_session_send_name: z
+      .string()
+      .optional()
+      .describe("Body dot-path or header name the session id is sent in (e.g. session_id)"),
+    agent_session_receive_in: z
+      .enum(["body", "header", "set-cookie"])
+      .optional()
+      .describe("Where a server-owned target RETURNS its session id (enables server-owned mode)"),
+    agent_session_receive_name: z
+      .string()
+      .optional()
+      .describe("Response body dot-path / header name / cookie name holding the returned id"),
 
     // MCP target fields (required when target_kind = mcp)
     mcp_transport: z.enum(["stdio", "url"]).optional().describe("MCP transport type"),
@@ -406,6 +425,21 @@ server.tool(
 // Helpers
 // ---------------------------------------------------------------------------
 
+// Assemble the session config from the flat agent_session_* tool inputs.
+function buildSessionConfig(args: Record<string, unknown>): SessionConfig | undefined {
+  const sendIn = args.agent_session_send_in as "body" | "header" | undefined;
+  const sendName = args.agent_session_send_name ? String(args.agent_session_send_name) : undefined;
+  const receiveIn = args.agent_session_receive_in as "body" | "header" | "set-cookie" | undefined;
+  const receiveName = args.agent_session_receive_name
+    ? String(args.agent_session_receive_name)
+    : undefined;
+
+  const send = sendIn && sendName ? { in: sendIn, name: sendName } : undefined;
+  const receive = receiveIn ? { in: receiveIn, name: receiveName } : undefined;
+  if (!send && !receive) return undefined;
+  return { send, receive };
+}
+
 function buildRunConfig(args: Record<string, unknown>): RunConfig {
   const kind = args.target_kind as "agent" | "mcp";
 
@@ -424,6 +458,7 @@ function buildRunConfig(args: Record<string, unknown>): RunConfig {
       apiKeyEnv: args.agent_api_key_env ? String(args.agent_api_key_env) : undefined,
       model: args.agent_model ? String(args.agent_model) : undefined,
       scriptPath: args.agent_script_path ? String(args.agent_script_path) : undefined,
+      session: buildSessionConfig(args),
     };
   } else {
     const transport = (args.mcp_transport as "stdio" | "url") ?? "stdio";

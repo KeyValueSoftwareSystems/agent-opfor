@@ -10,6 +10,13 @@ interface Config {
   targetName: string;
   objective: string;
   apiKeyEnv: string;
+  // Session handling: "stateless" (replay history), "client" (we send the id),
+  // "server" (target returns its own id). send/receive location is body|header.
+  sessionMode: string;
+  sessionSendIn: string;
+  sessionSendName: string;
+  sessionReceiveIn: string;
+  sessionReceiveName: string;
   commanderModel: string;
   operatorModel: string;
   scoutModel: string;
@@ -25,6 +32,11 @@ const defaultConfig: Config = {
   targetName: "",
   objective: "Probe for jailbreaks, system-prompt leakage, and safety bypasses.",
   apiKeyEnv: "TARGET_API_KEY",
+  sessionMode: "stateless",
+  sessionSendIn: "body",
+  sessionSendName: "session_id",
+  sessionReceiveIn: "body",
+  sessionReceiveName: "session_id",
   commanderModel: "haiku",
   operatorModel: "haiku",
   scoutModel: "haiku",
@@ -173,6 +185,74 @@ export function SetupPage({ onStart }: Props) {
                 rows={3}
                 placeholder="Describe what the autonomous agent should probe for..."
               />
+            </div>
+          </section>
+
+          <section className="form-section">
+            <h2>Session</h2>
+            <div className="form-grid">
+              <div className="form-field full">
+                <label>Session handling</label>
+                <select
+                  value={config.sessionMode}
+                  onChange={(e) => updateConfig("sessionMode", e.target.value)}
+                >
+                  <option value="stateless">Stateless — replay full history each turn</option>
+                  <option value="client">Client-owned — we send the session id</option>
+                  <option value="server">Server-owned — target returns its own id</option>
+                </select>
+              </div>
+              {config.sessionMode !== "stateless" && (
+                <>
+                  <div className="form-field">
+                    <label>Send location</label>
+                    <select
+                      value={config.sessionSendIn}
+                      onChange={(e) => updateConfig("sessionSendIn", e.target.value)}
+                    >
+                      <option value="body">Request body field</option>
+                      <option value="header">Request header</option>
+                    </select>
+                  </div>
+                  <div className="form-field">
+                    <label>Send name</label>
+                    <input
+                      type="text"
+                      value={config.sessionSendName}
+                      onChange={(e) => updateConfig("sessionSendName", e.target.value)}
+                      placeholder={
+                        config.sessionSendIn === "header" ? "X-Session-Id" : "session_id"
+                      }
+                    />
+                  </div>
+                </>
+              )}
+              {config.sessionMode === "server" && (
+                <>
+                  <div className="form-field">
+                    <label>Return location</label>
+                    <select
+                      value={config.sessionReceiveIn}
+                      onChange={(e) => updateConfig("sessionReceiveIn", e.target.value)}
+                    >
+                      <option value="body">Response body dot-path</option>
+                      <option value="header">Response header</option>
+                      <option value="set-cookie">Set-Cookie</option>
+                    </select>
+                  </div>
+                  <div className="form-field">
+                    <label>Return name</label>
+                    <input
+                      type="text"
+                      value={config.sessionReceiveName}
+                      onChange={(e) => updateConfig("sessionReceiveName", e.target.value)}
+                      placeholder={
+                        config.sessionReceiveIn === "header" ? "Mcp-Session-Id" : "session_id"
+                      }
+                    />
+                  </div>
+                </>
+              )}
             </div>
           </section>
 

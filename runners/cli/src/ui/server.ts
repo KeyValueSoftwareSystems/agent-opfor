@@ -14,9 +14,28 @@ import type {
   TargetConfig,
   TargetMode,
 } from "@keyvaluesystems/agent-opfor-core/autonomous/lib/types.js";
+import type { SessionConfig } from "@keyvaluesystems/agent-opfor-core/execute/types.js";
 import type { RunEvent } from "@keyvaluesystems/agent-opfor-core/autonomous/state/observe.js";
 import { UiBridge, type SseClient } from "./bridge.js";
 import type { SnapshotMeta } from "./snapshot.js";
+
+// Build the session config from the setup form's flat fields (see SetupPage.tsx).
+function buildSessionFromSetup(config: Record<string, string>): SessionConfig | undefined {
+  if (config.sessionMode !== "client" && config.sessionMode !== "server") return undefined;
+  const send = {
+    in: config.sessionSendIn === "header" ? ("header" as const) : ("body" as const),
+    name: config.sessionSendName?.trim() || "session_id",
+  };
+  if (config.sessionMode === "client") return { send };
+  const receiveIn = config.sessionReceiveIn;
+  return {
+    send,
+    receive: {
+      in: receiveIn === "header" ? "header" : receiveIn === "set-cookie" ? "set-cookie" : "body",
+      name: config.sessionReceiveName?.trim() || undefined,
+    },
+  };
+}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -164,7 +183,8 @@ export async function startUiServer(options: UiServerOptions): Promise<UiServerH
       // Resolve API key from env var
       const apiKey = config.apiKeyEnv ? process.env[config.apiKeyEnv] : process.env.TARGET_API_KEY;
 
-      const mode: TargetMode = "stateless";
+      const session = buildSessionFromSetup(config);
+      const mode: TargetMode = session ? "stateful" : "stateless";
       const targetName = config.targetName || new URL(config.endpoint).hostname;
 
       const target: TargetConfig = {
@@ -173,6 +193,7 @@ export async function startUiServer(options: UiServerOptions): Promise<UiServerH
         apiKey,
         headers: {},
         mode,
+        session,
         model: config.model || undefined,
       };
 

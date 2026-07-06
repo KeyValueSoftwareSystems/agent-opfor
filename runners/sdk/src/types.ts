@@ -1,8 +1,10 @@
 import type { RunListener } from "@keyvaluesystems/agent-opfor-core/execute/runListener.js";
+import type { SessionConfig } from "@keyvaluesystems/agent-opfor-core/execute/types.js";
 
 // Re-export the run lifecycle observer so SDK users can implement onRunStart /
 // onRunFinish / onRunError, not just per-attack onProgress events.
 export type { RunListener };
+export type { SessionConfig };
 
 // ---------------------------------------------------------------------------
 // Target Configuration
@@ -20,7 +22,10 @@ export interface HttpTargetConfig {
   promptPath?: string;
   responsePath?: string;
   stateful?: boolean;
+  /** Legacy sugar for `session.send = { in: "body", name }`. Prefer `session`. */
   sessionField?: string;
+  /** Client- vs server-owned session id handling (body or header, both directions). */
+  session?: SessionConfig;
 }
 
 export interface LocalScriptTargetConfig {
@@ -220,8 +225,10 @@ export interface HuntTargetConfig {
    * - "stateful": send only latest prompt + session id
    */
   stateful?: boolean;
-  /** Field name carrying the session id (stateful mode). */
+  /** Legacy alias for `session.send = { in: "body", name: sessionField }`. */
   sessionField?: string;
+  /** Client- vs server-owned session id handling (body or header, both directions). */
+  session?: SessionConfig;
   /** Dot-path where the prompt is written in the request body. */
   promptPath?: string;
   /** Dot-path where the reply is read from the response body. */
