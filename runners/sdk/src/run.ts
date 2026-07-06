@@ -14,6 +14,7 @@ import type {
 } from "./types.js";
 import { buildRunConfig as buildRunConfigInternal } from "./internal/buildRunConfig.js";
 import { withEnvLock } from "./internal/envLock.js";
+import { attachCoreReport } from "./internal/coreReportStore.js";
 
 /**
  * Run adversarial tests against a target.
@@ -36,7 +37,9 @@ export async function run(options: RunOptions): Promise<RunResults> {
         listeners: options.listeners?.map(wrapListener),
       });
 
-      return transformReport(coreReport);
+      const results = transformReport(coreReport);
+      attachCoreReport(results, coreReport);
+      return results;
     } finally {
       for (const [k, v] of Object.entries(prev)) {
         if (v === undefined) delete process.env[k];
