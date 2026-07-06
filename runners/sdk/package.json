@@ -56,7 +56,7 @@
     "@modelcontextprotocol/sdk": "^1.29.0"
   },
   "devDependencies": {
-    "@keyvaluesystems/agent-opfor-core": "^0.9.0",
+    "@keyvaluesystems/agent-opfor-core": "^0.10.0",
     "@types/node": "^24.0.0",
     "tsup": "^8.0.0",
     "tsx": "^4.20.0",
