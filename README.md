@@ -1,5 +1,9 @@
 <p align="center">
-  <img src="assets/agent-opfor-logo.png" alt="OPFOR" width="250" />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/Opfor_white%20text.svg" />
+    <source media="(prefers-color-scheme: light)" srcset="assets/Opfor_black%20text.svg" />
+    <img src="assets/Opfor_black%20text.svg" alt="OPFOR" width="250" />
+  </picture>
 </p>
 
 <p align="center">

@@ -297,6 +297,7 @@ See [telemetry.md](telemetry.md) for Langfuse and Netra setup, config fields, an
 | `opfor run --config <file> --turns <n>`       | Override turn count (1 forces single-turn)                             |
 | `opfor run --config <file> --output <d>`      | Override report parent directory (default `.opfor/reports/`)           |
 | `opfor run --config <file> --env <path>`      | Load env vars from a non-default `.env` path                           |
+| `opfor run --config <file> --events <path>`   | Stream NDJSON run lifecycle events to `<path>` (for CI/automation)     |
 | `opfor setup --env <path>`                    | Same `--env` flag works on setup                                       |
 | `opfor hunt --endpoint <url> --objective <t>` | Autonomous agentic red-team — see [hunt.md](hunt.md)                   |
 
@@ -314,7 +315,7 @@ See [telemetry.md](telemetry.md) for Langfuse and Netra setup, config fields, an
 | `selection.evaluators`  | For evaluators                | Array of evaluator IDs.                                                                            |
 | `attackerLlm.provider`  | Yes                           | See [Supported LLM providers](#supported-llm-providers).                                           |
 | `attackerLlm.model`     | Yes                           | Model name (e.g. `gpt-4o-mini`).                                                                   |
-| `attackerLlm.apiKeyEnv` | Yes                           | Env var **name** holding the API key.                                                              |
+| `attackerLlm.apiKeyEnv` | No                            | Env var **name** holding the API key. Falls back to the provider's default env var when absent.    |
 | `attackerLlm.baseURL`   | For openai-compatible / azure | Base URL for the LLM endpoint.                                                                     |
 | `judgeLlm.*`            | No                            | Same fields as `attackerLlm`. Separate model for judging. Falls back to `attackerLlm` when absent. |
 | `effort`                | Yes                           | `"adaptive"` or `"comprehensive"`.                                                                 |
