@@ -3,6 +3,9 @@ import type { LanguageModel } from "ai";
 import type { SessionContext } from "../execute/types.js";
 
 const MAX_UPSTREAM_CHARS = 12_000;
+const MAX_SUMMARY_CACHE_ENTRIES = 100;
+
+const summaryCacheByModel = new WeakMap<object, Map<string, string>>();
 
 /**
  * Render a single session's history as plain text lines.
@@ -46,6 +49,33 @@ const SUMMARIZE_SYSTEM = [
   "- Use a structured format: PLANTED CONTENT, TARGET REACTIONS, VERDICTS sections.",
 ].join("\n");
 
+function getSummaryCache(model: LanguageModel): Map<string, string> | undefined {
+  if (model === null || (typeof model !== "object" && typeof model !== "function")) {
+    return undefined;
+  }
+  let cache = summaryCacheByModel.get(model);
+  if (!cache) {
+    cache = new Map();
+    summaryCacheByModel.set(model, cache);
+  }
+  return cache;
+}
+
+function summaryCacheKey(
+  fullText: string,
+  opts: { maxChars: number; labelStyle: "attacker" | "user"; sectionHeader?: string }
+): string {
+  return JSON.stringify([opts.maxChars, opts.labelStyle, opts.sectionHeader ?? "", fullText]);
+}
+
+function setCachedSummary(cache: Map<string, string>, key: string, value: string): void {
+  if (cache.size >= MAX_SUMMARY_CACHE_ENTRIES) {
+    const oldest = cache.keys().next().value;
+    if (oldest) cache.delete(oldest);
+  }
+  cache.set(key, value);
+}
+
 /**
  * Format upstream session contexts for injection into a prompt.
  *
@@ -88,6 +118,15 @@ export async function formatUpstreamSessions(
   }
 
   try {
+    const cache = getSummaryCache(model);
+    const cacheKey = summaryCacheKey(fullText, {
+      maxChars,
+      labelStyle,
+      sectionHeader: opts?.sectionHeader,
+    });
+    const cached = cache?.get(cacheKey);
+    if (cached) return cached;
+
     const system = SUMMARIZE_SYSTEM.replace("{{charLimit}}", String(maxChars));
     const result = await generateText({
       model,
@@ -105,7 +144,9 @@ export async function formatUpstreamSessions(
     }
 
     const header = opts?.sectionHeader ? `${opts.sectionHeader}\n` : "";
-    return `${header}[Summarized — original ${fullText.length} chars exceeded ${maxChars} char budget]\n\n${summary}`;
+    const formatted = `${header}[Summarized — original ${fullText.length} chars exceeded ${maxChars} char budget]\n\n${summary}`;
+    if (cache) setCachedSummary(cache, cacheKey, formatted);
+    return formatted;
   } catch {
     return truncateFallback(fullText, maxChars, opts?.sectionHeader);
   }
