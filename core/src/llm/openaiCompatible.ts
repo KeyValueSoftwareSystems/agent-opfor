@@ -53,6 +53,15 @@ function extractJson(raw: string): string {
   throw new Error("LLM response contained no JSON object");
 }
 
+/** Fully consume a response body we don't intend to read, so its connection is released. */
+async function drainBody(res: Response): Promise<void> {
+  try {
+    await res.text();
+  } catch {
+    // Already consumed/errored — nothing to release.
+  }
+}
+
 export async function chatCompletionJsonContent(args: {
   model: LlmConfig;
   system: string;
@@ -99,12 +108,20 @@ export async function chatCompletionJsonContent(args: {
   let res = await doFetch();
 
   // 400 often means unsupported params — strip json_object and/or temperature and retry.
+  // Each discarded response's body must be drained before firing the next request:
+  // an unconsumed body holds its connection open, and issuing several rapid
+  // requests to the same host without draining them can exhaust the fetch
+  // connection pool and throw an opaque "TypeError: fetch failed" that masks
+  // the real LLM HTTP error below (e.g. an invalid model name, which returns
+  // the same 400 on every retry regardless of these params).
   if (!res.ok && res.status === 400) {
     if (useJsonMode) {
+      await drainBody(res);
       useJsonMode = false;
       res = await doFetch();
     }
     if (!res.ok && res.status === 400 && useTemperature) {
+      await drainBody(res);
       useTemperature = false;
       res = await doFetch();
     }
