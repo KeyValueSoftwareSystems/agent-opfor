@@ -139,7 +139,7 @@
     <circle class="hl-ring" cx="800" cy="116" r="9" fill="none" stroke="#34d399" stroke-width="1" opacity="0.25"></circle>
 
     <text x="600" y="152" text-anchor="middle" font-size="32" font-weight="700" fill="#ecf2f3" font-family="&#39;Inter&#39;,&#39;Geist&#39;,-apple-system,system-ui,sans-serif" letter-spacing="-0.5">OPFOR</text>
-    <text x="600" y="180" text-anchor="middle" font-size="12" font-weight="400" fill="#9fe7c8" letter-spacing="0.6">Adversary emulation for ai</text>
+    <text x="600" y="180" text-anchor="middle" font-size="12" font-weight="400" fill="#9fe7c8" letter-spacing="0.6">Adversary emulation for AI</text>
 
     <line x1="450" y1="200" x2="750" y2="200" stroke="#1b4d3e" stroke-width="1" opacity="0.5"></line>
 
