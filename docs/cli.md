@@ -285,21 +285,23 @@ See [telemetry.md](telemetry.md) for Langfuse and Netra setup, config fields, an
 
 ## Commands reference
 
-| Command                                       | Description                                                            |
-| --------------------------------------------- | ---------------------------------------------------------------------- |
-| `opfor setup`                                 | Interactive wizard — writes a timestamped config                       |
-| `opfor setup --agent` / `--mcp`               | Skip mode prompt                                                       |
-| `opfor setup --empty`                         | Write a blank config without wizard prompts                            |
-| `opfor setup --config <path>`                 | Override the output config path                                        |
-| `opfor run`                                   | Run the setup wizard inline, then run the resulting config             |
-| `opfor run --config <file>`                   | Read an existing config, fire attacks, judge, write HTML + JSON report |
-| `opfor run --config <file> --effort <e>`      | Override `effort` (`adaptive` or `comprehensive`)                      |
-| `opfor run --config <file> --turns <n>`       | Override turn count (1 forces single-turn)                             |
-| `opfor run --config <file> --output <d>`      | Override report parent directory (default `.opfor/reports/`)           |
-| `opfor run --config <file> --env <path>`      | Load env vars from a non-default `.env` path                           |
-| `opfor run --config <file> --events <path>`   | Stream NDJSON run lifecycle events to `<path>` (for CI/automation)     |
-| `opfor setup --env <path>`                    | Same `--env` flag works on setup                                       |
-| `opfor hunt --endpoint <url> --objective <t>` | Autonomous agentic red-team — see [hunt.md](hunt.md)                   |
+| Command                                          | Description                                                            |
+| ------------------------------------------------ | ---------------------------------------------------------------------- |
+| `opfor setup`                                    | Interactive wizard — writes a timestamped config                       |
+| `opfor setup --agent` / `--mcp`                  | Skip mode prompt                                                       |
+| `opfor setup --empty`                            | Write a blank config without wizard prompts                            |
+| `opfor setup --config <path>`                    | Override the output config path                                        |
+| `opfor run`                                      | Run the setup wizard inline, then run the resulting config             |
+| `opfor run --config <file>`                      | Read an existing config, fire attacks, judge, write HTML + JSON report |
+| `opfor run --config <file> --effort <e>`         | Override `effort` (`adaptive` or `comprehensive`)                      |
+| `opfor run --config <file> --turns <n>`          | Override turn count (1 forces single-turn)                             |
+| `opfor run --config <file> --output <d>`         | Override report parent directory (default `.opfor/reports/`)           |
+| `opfor run --config <file> --env <path>`         | Load env vars from a non-default `.env` path                           |
+| `opfor run --config <file> --events <path>`      | Stream NDJSON run lifecycle events to `<path>` (for CI/automation)     |
+| `opfor run --config <file> --objective <t>`      | Steer every evaluator's attacks toward a specific free-text mission    |
+| `opfor run --config <file> --objective-file <p>` | Same, read from a file                                                 |
+| `opfor setup --env <path>`                       | Same `--env` flag works on setup                                       |
+| `opfor hunt --endpoint <url> --objective <t>`    | Autonomous agentic red-team — see [hunt.md](hunt.md)                   |
 
 ---
 
@@ -307,20 +309,21 @@ See [telemetry.md](telemetry.md) for Langfuse and Netra setup, config fields, an
 
 ### Common fields (both modes)
 
-| Field                   | Required                      | Description                                                                                        |
-| ----------------------- | ----------------------------- | -------------------------------------------------------------------------------------------------- |
-| `target.kind`           | Yes                           | `"agent"` or `"mcp"`.                                                                              |
-| `selection.mode`        | Yes                           | `"suite"` or `"evaluators"`.                                                                       |
-| `selection.suite`       | For suite                     | Suite ID — see [evaluators reference](evaluators.md).                                              |
-| `selection.evaluators`  | For evaluators                | Array of evaluator IDs.                                                                            |
-| `attackerLlm.provider`  | Yes                           | See [Supported LLM providers](#supported-llm-providers).                                           |
-| `attackerLlm.model`     | Yes                           | Model name (e.g. `gpt-4o-mini`).                                                                   |
-| `attackerLlm.apiKeyEnv` | No                            | Env var **name** holding the API key. Falls back to the provider's default env var when absent.    |
-| `attackerLlm.baseURL`   | For openai-compatible / azure | Base URL for the LLM endpoint.                                                                     |
-| `judgeLlm.*`            | No                            | Same fields as `attackerLlm`. Separate model for judging. Falls back to `attackerLlm` when absent. |
-| `effort`                | Yes                           | `"adaptive"` or `"comprehensive"`.                                                                 |
-| `turnMode`              | No                            | `"single"` (default when omitted) or `"multi"`.                                                    |
-| `turns`                 | Yes                           | Turns per attack. Ignored when `turnMode` is `"single"`. Range 1–10 (wizard default 3).            |
+| Field                   | Required                      | Description                                                                                                                                                                                                                                                                    |
+| ----------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `target.kind`           | Yes                           | `"agent"` or `"mcp"`.                                                                                                                                                                                                                                                          |
+| `selection.mode`        | Yes                           | `"suite"` or `"evaluators"`.                                                                                                                                                                                                                                                   |
+| `selection.suite`       | For suite                     | Suite ID — see [evaluators reference](evaluators.md).                                                                                                                                                                                                                          |
+| `selection.evaluators`  | For evaluators                | Array of evaluator IDs.                                                                                                                                                                                                                                                        |
+| `attackerLlm.provider`  | Yes                           | See [Supported LLM providers](#supported-llm-providers).                                                                                                                                                                                                                       |
+| `attackerLlm.model`     | Yes                           | Model name (e.g. `gpt-4o-mini`).                                                                                                                                                                                                                                               |
+| `attackerLlm.apiKeyEnv` | No                            | Env var **name** holding the API key. Falls back to the provider's default env var when absent.                                                                                                                                                                                |
+| `attackerLlm.baseURL`   | For openai-compatible / azure | Base URL for the LLM endpoint.                                                                                                                                                                                                                                                 |
+| `judgeLlm.*`            | No                            | Same fields as `attackerLlm`. Separate model for judging. Falls back to `attackerLlm` when absent.                                                                                                                                                                             |
+| `effort`                | Yes                           | `"adaptive"` or `"comprehensive"`.                                                                                                                                                                                                                                             |
+| `turnMode`              | No                            | `"single"` (default when omitted) or `"multi"`.                                                                                                                                                                                                                                |
+| `turns`                 | Yes                           | Turns per attack. Ignored when `turnMode` is `"single"`. Range 1–10 (wizard default 3).                                                                                                                                                                                        |
+| `attackObjective`       | No                            | Free-text primary mission steering every evaluator's attacks (e.g. "get the target to leak env vars via a delegated employee"). Also settable via `--objective`/`--objective-file` on `opfor run`. Same mechanism the browser extension's popup-driven objective already uses. |
 
 ### Agent fields (`target.kind: "agent"`)
 

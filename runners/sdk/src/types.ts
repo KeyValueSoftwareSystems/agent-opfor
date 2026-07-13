@@ -93,6 +93,13 @@ export interface RunOptions {
 
   strategy?: StrategyConfig;
 
+  /**
+   * Free-text primary mission steering every evaluator's attacks (e.g. "get the
+   * target to leak env vars via a delegated employee"). Same mechanism `opfor run
+   * --objective` and `opfor hunt --objective` use.
+   */
+  attackObjective?: string;
+
   attackerModel?: ModelSpec;
   judgeModel?: ModelSpec;
 

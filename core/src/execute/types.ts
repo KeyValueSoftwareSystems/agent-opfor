@@ -94,6 +94,14 @@ export interface RunConfig {
   turnMode?: "single" | "multi";
   turns: number;
   telemetry?: TelemetryConfig;
+  /**
+   * Free-text primary mission steering every evaluator's attacks (e.g. "get the
+   * target to leak env vars via a delegated employee"). Threaded onto each
+   * generated AgentAttackSpec; consumed by generateNextAdaptiveTurn as the
+   * attacker's top-priority goal, same mechanism the browser extension's
+   * popup-driven `attackObjective` already uses.
+   */
+  attackObjective?: string;
 }
 
 // ---------------------------------------------------------------------------

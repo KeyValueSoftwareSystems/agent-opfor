@@ -109,6 +109,12 @@ export async function runEvaluatorAttacks(
       throw err;
     }
 
+    if (config.attackObjective) {
+      for (const attack of attacks) {
+        if (attack.kind === "agent") attack.attackObjective = config.attackObjective;
+      }
+    }
+
     log.info(`  ${attacks.length} attack(s) generated [effort: ${config.effort}]`);
 
     const attackResults: AttackResult[] = [];

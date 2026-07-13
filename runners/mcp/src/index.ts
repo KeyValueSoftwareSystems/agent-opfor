@@ -228,6 +228,13 @@ server.tool(
       .max(10)
       .default(1)
       .describe("Turns per attack. 1 = single-turn, >1 = multi-turn escalation."),
+    attack_objective: z
+      .string()
+      .optional()
+      .describe(
+        "Free-text primary mission steering every evaluator's attacks " +
+          "(e.g. 'get the target to leak env vars via a delegated employee')."
+      ),
 
     // Output
     output_dir: z.string().optional().describe("Directory to write opfor.config.json (default: .)"),
@@ -312,6 +319,7 @@ server.tool(
               `Turns  : ${config.turns}`,
               `Evaluators: ${evalCount}`,
               `Attacker : ${config.attackerLlm.provider}/${config.attackerLlm.model}`,
+              ...(config.attackObjective ? [`Objective : ${config.attackObjective}`] : []),
               ``,
               `Next: call opfor_run with config_path="${outputPath}"`,
             ].join("\n"),
@@ -354,6 +362,7 @@ server.tool(
       .max(10)
       .optional()
       .describe("Override turns per attack from config"),
+    objective_override: z.string().optional().describe("Override the attack objective from config"),
   },
   async (args) => {
     try {
@@ -362,6 +371,7 @@ server.tool(
 
       if (args.effort_override) config = { ...config, effort: args.effort_override };
       if (args.turns_override) config = { ...config, turns: args.turns_override };
+      if (args.objective_override) config = { ...config, attackObjective: args.objective_override };
       // Defensive coerce in case the config file has an unexpected value.
       config = { ...config, effort: normalizeEffort(config.effort as unknown) };
 
@@ -369,6 +379,7 @@ server.tool(
         `🔴 Opfor Run`,
         `Target: ${config.target.name} (${config.target.kind})`,
         `Effort: ${config.effort}  Turns: ${config.turns}`,
+        ...(config.attackObjective ? [`Objective: ${config.attackObjective}`] : []),
         ``,
         `Running...`,
       ];
@@ -534,6 +545,7 @@ function buildRunConfig(args: Record<string, unknown>): RunConfig {
     judgeLlm,
     effort: normalizeEffort(args.effort),
     turns: (args.turns as number) ?? 1,
+    attackObjective: args.attack_objective ? String(args.attack_objective) : undefined,
   };
 }
 

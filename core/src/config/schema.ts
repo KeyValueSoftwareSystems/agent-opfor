@@ -163,6 +163,7 @@ export const RunConfigSchema = z
     turnMode: z.enum(["single", "multi"]).optional(),
     turns: z.number().int().positive().optional(),
     telemetry: z.unknown().optional(),
+    attackObjective: z.string().optional(),
   })
   .passthrough();
 

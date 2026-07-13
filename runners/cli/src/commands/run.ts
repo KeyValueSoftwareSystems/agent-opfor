@@ -28,6 +28,11 @@ export function registerRunCommand(program: Command): void {
       "--events <path>",
       "Stream run lifecycle events as newline-delimited JSON (NDJSON) to <path>"
     )
+    .option(
+      "--objective <text>",
+      "Free-text attack objective steering every evaluator's attacks (e.g. a specific goal to pursue)"
+    )
+    .option("--objective-file <path>", "Read the attack objective from a file")
     .action(
       async (opts: {
         config?: string;
@@ -36,6 +41,8 @@ export function registerRunCommand(program: Command): void {
         output?: string;
         env?: string;
         events?: string;
+        objective?: string;
+        objectiveFile?: string;
       }) => {
         if (opts.env) {
           const { config: loadDotenv } = await import("dotenv");
@@ -90,6 +97,19 @@ export function registerRunCommand(program: Command): void {
           }
           runConfig = { ...runConfig, turns: n };
         }
+        let objective = opts.objective?.trim();
+        if (!objective && opts.objectiveFile) {
+          try {
+            objective = (await readFile(path.resolve(opts.objectiveFile), "utf8")).trim();
+          } catch {
+            log.error(`Cannot read --objective-file at ${path.resolve(opts.objectiveFile)}.`);
+            process.exitCode = 1;
+            return;
+          }
+        }
+        if (objective) {
+          runConfig = { ...runConfig, attackObjective: objective };
+        }
 
         log.info(`\nOpfor Run`);
         log.info(`  Target : ${runConfig.target.name} (${runConfig.target.kind})`);
@@ -98,6 +118,9 @@ export function registerRunCommand(program: Command): void {
         log.info(`  Attacker : ${runConfig.attackerLlm.provider}/${runConfig.attackerLlm.model}`);
         if (runConfig.judgeLlm) {
           log.info(`  Judge  : ${runConfig.judgeLlm.provider}/${runConfig.judgeLlm.model}`);
+        }
+        if (runConfig.attackObjective) {
+          log.info(`  Objective : ${runConfig.attackObjective}`);
         }
         log.info("");
 

@@ -49,6 +49,7 @@ export function buildRunConfig(options: RunOptions): {
       turns,
       turnMode,
       telemetry: options.telemetry,
+      attackObjective: options.attackObjective,
     },
     env,
   };

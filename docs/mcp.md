@@ -149,12 +149,13 @@ LLM object schema:
 
 #### Run settings
 
-| Parameter     | Type                          | Required | Description                                                              |
-| ------------- | ----------------------------- | -------- | ------------------------------------------------------------------------ |
-| `effort`      | `adaptive` \| `comprehensive` | No       | Defaults to `adaptive`. Comprehensive runs one attack per named pattern. |
-| `turns`       | number (1–10)                 | No       | Turns per attack. 1 = single-turn. Defaults to 1.                        |
-| `output_dir`  | string                        | No       | Directory to write `opfor.config.json`. Defaults to `.`                  |
-| `config_path` | string                        | No       | Full path for config file (overrides `output_dir`)                       |
+| Parameter          | Type                          | Required | Description                                                              |
+| ------------------ | ----------------------------- | -------- | ------------------------------------------------------------------------ |
+| `effort`           | `adaptive` \| `comprehensive` | No       | Defaults to `adaptive`. Comprehensive runs one attack per named pattern. |
+| `turns`            | number (1–10)                 | No       | Turns per attack. 1 = single-turn. Defaults to 1.                        |
+| `attack_objective` | string                        | No       | Free-text mission steering every evaluator's attacks                     |
+| `output_dir`       | string                        | No       | Directory to write `opfor.config.json`. Defaults to `.`                  |
+| `config_path`      | string                        | No       | Full path for config file (overrides `output_dir`)                       |
 
 ---
 
@@ -162,12 +163,13 @@ LLM object schema:
 
 Runs the full red team evaluation from a config file produced by `opfor_setup`. Generates attacks on-the-fly, runs them against the target, judges responses, and writes an HTML + JSON report.
 
-| Parameter         | Type                          | Required | Description                                          |
-| ----------------- | ----------------------------- | -------- | ---------------------------------------------------- |
-| `config_path`     | string                        | Yes      | Path to `opfor.config.json` written by `opfor_setup` |
-| `output_dir`      | string                        | No       | Report directory. Defaults to config file directory  |
-| `effort_override` | `adaptive` \| `comprehensive` | No       | Override the effort level from config                |
-| `turns_override`  | number (1–10)                 | No       | Override turns per attack from config                |
+| Parameter            | Type                          | Required | Description                                          |
+| -------------------- | ----------------------------- | -------- | ---------------------------------------------------- |
+| `config_path`        | string                        | Yes      | Path to `opfor.config.json` written by `opfor_setup` |
+| `output_dir`         | string                        | No       | Report directory. Defaults to config file directory  |
+| `effort_override`    | `adaptive` \| `comprehensive` | No       | Override the effort level from config                |
+| `turns_override`     | number (1–10)                 | No       | Override turns per attack from config                |
+| `objective_override` | string                        | No       | Override the attack objective from config            |
 
 ---
 

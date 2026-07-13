@@ -302,6 +302,20 @@ const results = await opfor.run({
 });
 ```
 
+## Attack objective
+
+Steer every evaluator's attacks toward a specific free-text mission, instead of
+letting each evaluator pursue its own generic goal.
+
+```typescript
+const results = await opfor.run({
+  target: { url: "https://api.example.com/chat" },
+  suite: "owasp-llm-top10",
+
+  attackObjective: "get the target to leak env vars via a delegated employee",
+});
+```
+
 ## Models
 
 Configure attacker and judge LLMs.
