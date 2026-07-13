@@ -6,15 +6,26 @@ import type { SessionConfig } from "../../execute/types.js";
 /** How the target HTTP agent maintains conversation state. */
 export type TargetMode = "stateless" | "stateful";
 
+/** "http" (default) sends real HTTP requests; "local-script" shells out to `scriptPath` instead. */
+export type TargetKind = "http" | "local-script";
+
 /**
  * Transport configuration for the target agent under test.
  * The agent (Claude SDK) never sees these values — tools hold the client.
  */
 export interface TargetConfig {
-  /** Display name (defaults to the endpoint host). */
+  /** Display name (defaults to the endpoint host, or the script's basename for local-script). */
   name: string;
-  /** Target HTTP endpoint URL. */
+  /** "http" (default) or "local-script". */
+  type?: TargetKind;
+  /**
+   * Target HTTP endpoint URL (`type: "http"`), or a synthetic display string
+   * (`local-script:<scriptPath>`) for `type: "local-script"` — report/UI/prompt
+   * code treats this as an opaque label, never parses it as a real URL.
+   */
   endpoint: string;
+  /** Path to a `.js`/`.py` adapter script (`type: "local-script"` only). See docs/sessions.md. */
+  scriptPath?: string;
   /** Bearer API key sent as `Authorization: Bearer <key>` (optional). */
   apiKey?: string;
   /** Extra static headers merged into every request. */
