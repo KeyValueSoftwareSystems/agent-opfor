@@ -20,7 +20,6 @@
 
 <p align="center">
   <a href="https://trendshift.io/repositories/75655?utm_source=trendshift-badge&amp;utm_medium=badge&amp;utm_campaign=badge-trendshift-75655" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/75655/daily?language=TypeScript" alt="KeyValueSoftwareSystems%2Fagent-opfor | Trendshift" width="250" height="55"/></a>
-  <a href="https://trendshift.io/repositories/75655?utm_source=trendshift-badge&amp;utm_medium=badge&amp;utm_campaign=badge-trendshift-75655" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/75655/daily" alt="KeyValueSoftwareSystems%2Fagent-opfor | Trendshift" width="250" height="55"/></a>
 </p>
 
 <p align="center">
