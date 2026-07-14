@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
-const TIMEOUT_MS = 30_000;
+const TIMEOUT_MS = 240_000;
 
 /** Reads the shebang line of a file, returns the interpreter path or null. */
 function readShebang(absPath: string): string | null {
@@ -99,7 +99,7 @@ export async function invokeLocalTargetScript(
       }
       try {
         const j = JSON.parse(trimmed) as { response?: unknown; error?: unknown };
-        if (j.error != null) finish(String(j.error));
+        if (j.error != null) finish(`ERROR: ${String(j.error)}`);
         else if (j.response != null) finish(String(j.response));
         else finish(trimmed);
       } catch {

@@ -26,18 +26,18 @@ Add `--ui` to watch the attack tree unfold in a live dashboard.
 
 ### Target
 
-| Option                       | Description                                                                       |
-| ---------------------------- | --------------------------------------------------------------------------------- |
-| `--endpoint <url>`           | Target HTTP endpoint (required)                                                   |
-| `--objective <text>`         | Attack objective                                                                  |
-| `--objective-file <path>`    | Read objective from file                                                          |
-| `--target-key-env <var>`     | Env var with target API key                                                       |
-| `--target-key <key>`         | Target API key directly                                                           |
-| `--name <name>`              | Display name for target                                                           |
-| `--target-model <id>`        | Model value in requests                                                           |
-| `--stateless` / `--stateful` | History handling mode                                                             |
-| `--session-field <name>`     | Body field for the session id (client-owned, stateful)                            |
-| `--target-config <path>`     | JSON file with a run-style `target` block; enables server-owned & header sessions |
+| Option                       | Description                                                                                                 |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `--endpoint <url>`           | Target HTTP endpoint (required unless a local-script target is given via `--target-config`)                 |
+| `--objective <text>`         | Attack objective                                                                                            |
+| `--objective-file <path>`    | Read objective from file                                                                                    |
+| `--target-key-env <var>`     | Env var with target API key                                                                                 |
+| `--target-key <key>`         | Target API key directly                                                                                     |
+| `--name <name>`              | Display name for target                                                                                     |
+| `--target-model <id>`        | Model value in requests                                                                                     |
+| `--stateless` / `--stateful` | History handling mode                                                                                       |
+| `--session-field <name>`     | Body field for the session id (client-owned, stateful)                                                      |
+| `--target-config <path>`     | JSON file with a run-style `target` block; enables server-owned & header sessions, and local-script targets |
 
 ### Session handling
 
@@ -73,6 +73,36 @@ opfor hunt --target-config target.json --objective "Probe for jailbreaks and saf
 The `--ui` setup form also has a Session section. See **[Target session handling](sessions.md)** for
 the full model. Note: because a server-owned session belongs to the target, forking an attack thread
 opens a **new** server session.
+
+### Local-script targets
+
+For targets that can't be modeled as a simple HTTP request/response — async/polling APIs, session ids
+embedded in a URL path segment, or auth flows needing custom logic — point `opfor hunt` at a local
+script adapter instead of an endpoint, using the same `type: "local-script"` shape and stdin/stdout
+contract as `opfor run` (see [Local target scripts](cli.md#local-target-scripts-js--py---agent-mode)).
+
+```jsonc
+// target.json
+{
+  "target": {
+    "kind": "agent",
+    "type": "local-script",
+    "scriptPath": "./opfor-local-target.js",
+  },
+}
+```
+
+```bash
+opfor hunt --target-config target.json --objective "Probe for jailbreaks and safety bypasses."
+```
+
+There is no `--endpoint`, `--script-path`, or similar CLI flag for this — local-script targets are only
+configured via `--target-config`. `--name` still works to override the display name (defaults to the
+script's basename otherwise).
+
+Hunt's per-thread `threadId` is passed to the script as `sessionId`, so each forked attack thread gets
+an isolated session automatically — no extra wiring needed. The script has 240 seconds per turn to
+respond before it's killed.
 
 ### Models
 

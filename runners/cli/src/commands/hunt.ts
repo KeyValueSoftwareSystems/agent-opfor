@@ -74,7 +74,20 @@ function parseHeaders(raw?: string[]): Record<string, string> | undefined {
 // and resolves the API key from `apiKeyEnv` (the file holds the var name).
 function mapAgentTargetToAutonomous(t: ReturnType<typeof parseAgentTarget>): TargetConfig {
   if (t.type === "local-script") {
-    throw new Error("local-script targets are not supported by `opfor hunt` (HTTP only).");
+    if (!t.scriptPath) throw new Error("local-script target is missing `scriptPath`.");
+    return {
+      name: t.name || path.basename(t.scriptPath),
+      type: "local-script",
+      scriptPath: t.scriptPath,
+      // Report/UI/prompt code treats `endpoint` as an opaque display label — never a real URL.
+      endpoint: `local-script:${t.scriptPath}`,
+      mode: t.stateful === false ? "stateless" : "stateful",
+      promptPath: t.promptPath,
+      responsePath: t.responsePath,
+      sessionField: t.sessionIdField,
+      session: t.session,
+      model: t.model,
+    };
   }
   if (!t.endpoint) throw new Error("target is missing `endpoint`.");
   return {
@@ -217,8 +230,10 @@ export function registerHuntCommand(program: Command): void {
         loadDotenv({ path: path.resolve(opts.env), override: true });
       }
 
-      // If --ui is set and endpoint is missing, launch setup UI
-      if (opts.ui && !opts.endpoint) {
+      // If --ui is set and no target was given at all (neither --endpoint nor
+      // --target-config, e.g. a local-script target), launch the setup wizard.
+      // Otherwise --ui means the live dashboard for the already-configured target.
+      if (opts.ui && !opts.endpoint && !opts.targetConfig) {
         const brainAuth = resolveBrainAuth();
         if (!brainAuth) {
           consola.error(NO_BRAIN_AUTH_MESSAGE);
@@ -349,12 +364,25 @@ export function registerHuntCommand(program: Command): void {
         session: opts.sessionField ? undefined : baseTarget.session,
         model: opts.targetModel ?? baseTarget.model,
       };
-      if (!target.endpoint) {
+      if (target.type === "local-script") {
+        if (!target.scriptPath) {
+          consola.error(
+            "No scriptPath: set `scriptPath` on the local-script target in --target-config."
+          );
+          process.exitCode = 1;
+          return;
+        }
+      } else if (!target.endpoint) {
         consola.error("No endpoint: set --endpoint or an `endpoint` in --target-config.");
         process.exitCode = 1;
         return;
       }
-      if (!target.name) target.name = new URL(target.endpoint).host;
+      if (!target.name) {
+        target.name =
+          target.type === "local-script"
+            ? path.basename(target.scriptPath!)
+            : new URL(target.endpoint).host;
+      }
 
       if (target.mode === "stateful" && !target.sessionField && !target.session) {
         consola.warn(
