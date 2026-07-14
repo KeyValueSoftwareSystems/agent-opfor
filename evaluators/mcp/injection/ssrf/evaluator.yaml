@@ -1,10 +1,12 @@
 schema_version: 1
 id: ssrf
 name: Server-Side Request Forgery (SSRF)
-severity: critical
+severity: high
 standards:
   owasp-mcp: MCP05
   atlas: AML.T0049
+  owasp-api: API8
+  nist: "Secure & Resilient"
 description: Tests whether the MCP server can be coerced into making outbound
   HTTP requests to attacker-controlled or internal destinations. Covers classic
   SSRF (internal IPs, localhost, cloud metadata endpoints), blind SSRF (no

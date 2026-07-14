@@ -24,7 +24,14 @@ import { loadAtlasTechniqueIdSet } from "../core/src/standards/atlas.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "..");
 
-// Schema for evaluator.yaml files
+// Schema for pattern YAML files
+const PatternYamlSchema = z.object({
+  name: z.string().min(1),
+  template: z.string().min(1),
+  judge_hint: z.string().optional(),
+});
+
+// Schema for evaluator.yaml files (and flat-file evaluators, which allow inline `patterns`)
 const EvaluatorYamlSchema = z.object({
   schema_version: z.number().optional(),
   id: z.string().min(1),
@@ -45,6 +52,7 @@ const EvaluatorYamlSchema = z.object({
   turn_mode: z.enum(["single", "multi"]).optional(),
   strategy: z.string().optional(),
   depends_on: z.union([z.string(), z.array(z.string())]).optional(),
+  patterns: z.array(PatternYamlSchema).optional(),
 });
 
 // Schema for suite YAML files
@@ -53,13 +61,6 @@ const SuiteYamlSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
   evaluators: z.array(z.string().min(1)).min(1),
-});
-
-// Schema for pattern YAML files
-const PatternYamlSchema = z.object({
-  name: z.string().min(1),
-  template: z.string().min(1),
-  judge_hint: z.string().optional(),
 });
 
 const EVALUATOR_TREES = [
@@ -81,9 +82,16 @@ interface FileResult {
   warnings: string[];
 }
 
-/** Recursively find all evaluator.yaml files in a directory. */
+/**
+ * Recursively find all evaluator files in a directory — both directory-form
+ * (evaluator.yaml) and flat-file form (<id>.yaml, patterns inline).
+ */
 async function findEvaluatorFiles(dir: string): Promise<string[]> {
   const results: string[] = [];
+  const skipDirs = new Set(["patterns", "_shared", "node_modules", ".git"]);
+
+  const isFlatEvaluatorFile = (entry: string): boolean =>
+    /\.ya?ml$/i.test(entry) && !/\.test\.ya?ml$/i.test(entry) && !/^evaluator\.ya?ml$/i.test(entry);
 
   async function walk(currentDir: string): Promise<void> {
     let entries: string[];
@@ -97,8 +105,11 @@ async function findEvaluatorFiles(dir: string): Promise<string[]> {
       const fullPath = path.join(currentDir, entry);
       const s = await stat(fullPath);
       if (s.isDirectory()) {
+        if (skipDirs.has(entry)) continue;
         await walk(fullPath);
       } else if (entry === "evaluator.yaml") {
+        results.push(fullPath);
+      } else if (isFlatEvaluatorFile(entry)) {
         results.push(fullPath);
       }
     }
@@ -182,30 +193,36 @@ async function validateEvaluator(
     }
   }
 
-  // Validate patterns exist
-  const evaluatorDir = path.dirname(filePath);
-  const patternFiles = await findPatternFiles(evaluatorDir);
-  if (patternFiles.length === 0) {
-    warnings.push("no patterns found in patterns/ directory");
-  }
-
-  // Validate each pattern file
-  for (const patternFile of patternFiles) {
-    const patternRelPath = path.relative(REPO_ROOT, patternFile);
-    try {
-      const patternRaw = await readFile(patternFile, "utf8");
-      const patternDoc = parseYaml(patternRaw);
-      const patternResult = PatternYamlSchema.safeParse(patternDoc);
-      if (!patternResult.success) {
-        for (const issue of patternResult.error.issues) {
-          const field = issue.path.join(".");
-          errors.push(`${patternRelPath}: ${field ? field + ": " : ""}${issue.message}`);
-        }
-      }
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      errors.push(`${patternRelPath}: ${msg}`);
+  // Validate patterns exist — directory-form evaluators keep them in patterns/*.yaml;
+  // flat-file evaluators declare them inline (already schema-validated above).
+  const isDirectoryForm = path.basename(filePath) === "evaluator.yaml";
+  if (isDirectoryForm) {
+    const evaluatorDir = path.dirname(filePath);
+    const patternFiles = await findPatternFiles(evaluatorDir);
+    if (patternFiles.length === 0) {
+      warnings.push("no patterns found in patterns/ directory");
     }
+
+    // Validate each pattern file
+    for (const patternFile of patternFiles) {
+      const patternRelPath = path.relative(REPO_ROOT, patternFile);
+      try {
+        const patternRaw = await readFile(patternFile, "utf8");
+        const patternDoc = parseYaml(patternRaw);
+        const patternResult = PatternYamlSchema.safeParse(patternDoc);
+        if (!patternResult.success) {
+          for (const issue of patternResult.error.issues) {
+            const field = issue.path.join(".");
+            errors.push(`${patternRelPath}: ${field ? field + ": " : ""}${issue.message}`);
+          }
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        errors.push(`${patternRelPath}: ${msg}`);
+      }
+    }
+  } else if (!data.patterns || data.patterns.length === 0) {
+    warnings.push("no inline patterns found");
   }
 
   return { file: relPath, errors, warnings };

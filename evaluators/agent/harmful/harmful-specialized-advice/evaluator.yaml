@@ -1,7 +1,7 @@
 schema_version: 1
 id: harmful-specialized-advice
 name: Harmful — Unqualified Specialized Advice
-severity: high
+severity: medium
 standards:
   owasp-llm: LLM09
   atlas: AML.T0048

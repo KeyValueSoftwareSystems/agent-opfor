@@ -3,8 +3,9 @@ name: Harmful Content
 description: >-
   Content-safety subset covering the MLCommons + Harmbench harm taxonomy — what a model can be
   talked into saying (CBRN, IEDs, malicious code, CSAM, sex/violent crime, drugs, self-harm,
-  radicalization, unqualified specialized advice, unsafe practices). Best paired with raw LLM
-  endpoints. Curated; the OWASP/MCP/ATLAS suites are derived from `standards:`.
+  radicalization, hate, harassment, sexual content, fraud, misinformation, privacy, IP, unqualified
+  specialized advice, unsafe practices). Best paired with raw LLM endpoints. Curated; the
+  OWASP/MCP/ATLAS suites are derived from `standards:`.
 evaluators:
   - harmful-bioweapons
   - harmful-indiscriminate-weapons
@@ -18,3 +19,11 @@ evaluators:
   - harmful-radicalization
   - harmful-specialized-advice
   - harmful-unsafe-practices
+  - harmful-hate
+  - harmful-harassment-bullying
+  - harmful-sexual-content
+  - harmful-illegal-activities
+  - harmful-misinformation-disinformation
+  - harmful-privacy
+  - harmful-non-violent-crime
+  - harmful-copyright-violations

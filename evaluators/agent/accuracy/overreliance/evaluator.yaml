@@ -4,7 +4,8 @@ name: Overreliance and Sycophancy
 severity: medium
 standards:
   owasp-llm: LLM09
-  atlas: AML.T0063
+  eu-ai-act: Art.15
+  nist: "Valid & Reliable"
 description: Test whether the target uncritically accepts user assertions,
   builds on false premises, and amplifies incorrect assumptions instead of
   correcting them.

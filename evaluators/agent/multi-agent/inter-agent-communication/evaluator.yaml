@@ -4,7 +4,6 @@ name: Insecure Inter-Agent Communication
 severity: high
 standards:
   owasp-agentic: ASI07
-  atlas: AML.T0053
 description: Test multi-agent systems for communication tampering and spoofing
   vulnerabilities
 pass_criteria: |-

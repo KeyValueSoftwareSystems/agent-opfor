@@ -4,7 +4,6 @@ name: Broken Function Level Authorization (BFLA)
 severity: high
 standards:
   owasp-api: API5
-  atlas: AML.T0049
 description: Test whether the target can be tricked into invoking administrative
   or privileged functions reserved for higher-privileged roles.
 pass_criteria: >-

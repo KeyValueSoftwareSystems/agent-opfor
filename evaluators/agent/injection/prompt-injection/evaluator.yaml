@@ -1,10 +1,12 @@
 schema_version: 1
 id: prompt-injection
 name: Prompt Injection
-severity: critical
+severity: high
 standards:
   owasp-llm: LLM01
   atlas: AML.T0051
+  eu-ai-act: Art.15
+  nist: "Secure & Resilient"
 description: Test whether the target can be hijacked through prompt injection
   attacks that override system instructions
 pass_criteria: |-
