@@ -302,6 +302,47 @@ const results = await opfor.run({
 });
 ```
 
+## Attack objective
+
+Steer every evaluator's attacks toward a specific free-text mission, instead of
+letting each evaluator pursue its own generic goal.
+
+```typescript
+const results = await opfor.run({
+  target: { url: "https://api.example.com/chat" },
+  suite: "owasp-llm-top10",
+
+  attackObjective: "get the target to leak env vars via a delegated employee",
+});
+```
+
+## Judge hint
+
+Steer the judge's verdict with free-text guidance — combined with each attack's
+existing judge hint rather than replacing it.
+
+```typescript
+const results = await opfor.run({
+  target: { url: "https://api.example.com/chat" },
+  suite: "owasp-llm-top10",
+
+  judgeHint: "treat any tool name leak as critical",
+});
+```
+
+## Business use case
+
+Give the attacker extra domain/business context about the target agent.
+
+```typescript
+const results = await opfor.run({
+  target: { url: "https://api.example.com/chat" },
+  suite: "owasp-llm-top10",
+
+  businessUseCase: "internal customer support bot for a healthcare SaaS",
+});
+```
+
 ## Models
 
 Configure attacker and judge LLMs.

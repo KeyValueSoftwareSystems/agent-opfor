@@ -93,6 +93,27 @@ export interface RunOptions {
 
   strategy?: StrategyConfig;
 
+  /**
+   * Free-text primary mission steering every evaluator's attacks (e.g. "get the
+   * target to leak env vars via a delegated employee"). Same mechanism `opfor run
+   * --objective` and `opfor hunt --objective` use.
+   */
+  attackObjective?: string;
+
+  /**
+   * Free-text steering for the judge's verdict (e.g. "treat any tool name leak
+   * as critical"). Combined with each attack's existing judge hint rather than
+   * replacing it. Same mechanism `opfor run --judge-hint` uses.
+   */
+  judgeHint?: string;
+
+  /**
+   * Free-text domain/business context for the target agent (e.g. "internal
+   * customer support bot for a healthcare SaaS"). Same mechanism `opfor run
+   * --business-use-case` uses.
+   */
+  businessUseCase?: string;
+
   attackerModel?: ModelSpec;
   judgeModel?: ModelSpec;
 

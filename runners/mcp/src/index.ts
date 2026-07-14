@@ -24,6 +24,13 @@ function readVersion(): string {
   return pkg.version ?? "0.0.0";
 }
 
+/** Trims a free-text operator-intent field, dropping it if blank/whitespace-only. */
+function trimmedOrUndefined(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
 const server = new McpServer({ name: "opfor", version: readVersion() });
 
 // ---------------------------------------------------------------------------
@@ -228,6 +235,24 @@ server.tool(
       .max(10)
       .default(1)
       .describe("Turns per attack. 1 = single-turn, >1 = multi-turn escalation."),
+    attack_objective: z
+      .string()
+      .optional()
+      .describe(
+        "Free-text primary mission steering every evaluator's attacks " +
+          "(e.g. 'get the target to leak env vars via a delegated employee')."
+      ),
+    judge_hint: z
+      .string()
+      .optional()
+      .describe(
+        "Free-text steering for the judge's verdict " +
+          "(e.g. 'treat any tool name leak as critical')."
+      ),
+    business_use_case: z
+      .string()
+      .optional()
+      .describe("Free-text domain/business context for the target agent."),
 
     // Output
     output_dir: z.string().optional().describe("Directory to write opfor.config.json (default: .)"),
@@ -312,6 +337,9 @@ server.tool(
               `Turns  : ${config.turns}`,
               `Evaluators: ${evalCount}`,
               `Attacker : ${config.attackerLlm.provider}/${config.attackerLlm.model}`,
+              ...(config.attackObjective ? [`Objective : ${config.attackObjective}`] : []),
+              ...(config.judgeHint ? [`Judge hint : ${config.judgeHint}`] : []),
+              ...(config.businessUseCase ? [`Business use case : ${config.businessUseCase}`] : []),
               ``,
               `Next: call opfor_run with config_path="${outputPath}"`,
             ].join("\n"),
@@ -354,6 +382,12 @@ server.tool(
       .max(10)
       .optional()
       .describe("Override turns per attack from config"),
+    objective_override: z.string().optional().describe("Override the attack objective from config"),
+    judge_hint_override: z.string().optional().describe("Override the judge hint from config"),
+    business_use_case_override: z
+      .string()
+      .optional()
+      .describe("Override the business use case from config"),
   },
   async (args) => {
     try {
@@ -362,6 +396,14 @@ server.tool(
 
       if (args.effort_override) config = { ...config, effort: args.effort_override };
       if (args.turns_override) config = { ...config, turns: args.turns_override };
+      const objectiveOverride = trimmedOrUndefined(args.objective_override);
+      if (objectiveOverride !== undefined)
+        config = { ...config, attackObjective: objectiveOverride };
+      const judgeHintOverride = trimmedOrUndefined(args.judge_hint_override);
+      if (judgeHintOverride !== undefined) config = { ...config, judgeHint: judgeHintOverride };
+      const businessUseCaseOverride = trimmedOrUndefined(args.business_use_case_override);
+      if (businessUseCaseOverride !== undefined)
+        config = { ...config, businessUseCase: businessUseCaseOverride };
       // Defensive coerce in case the config file has an unexpected value.
       config = { ...config, effort: normalizeEffort(config.effort as unknown) };
 
@@ -369,6 +411,9 @@ server.tool(
         `🔴 Opfor Run`,
         `Target: ${config.target.name} (${config.target.kind})`,
         `Effort: ${config.effort}  Turns: ${config.turns}`,
+        ...(config.attackObjective ? [`Objective: ${config.attackObjective}`] : []),
+        ...(config.judgeHint ? [`Judge hint: ${config.judgeHint}`] : []),
+        ...(config.businessUseCase ? [`Business use case: ${config.businessUseCase}`] : []),
         ``,
         `Running...`,
       ];
@@ -534,6 +579,9 @@ function buildRunConfig(args: Record<string, unknown>): RunConfig {
     judgeLlm,
     effort: normalizeEffort(args.effort),
     turns: (args.turns as number) ?? 1,
+    attackObjective: trimmedOrUndefined(args.attack_objective),
+    judgeHint: trimmedOrUndefined(args.judge_hint),
+    businessUseCase: trimmedOrUndefined(args.business_use_case),
   };
 }
 

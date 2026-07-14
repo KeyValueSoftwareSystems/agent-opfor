@@ -94,6 +94,31 @@ export interface RunConfig {
   turnMode?: "single" | "multi";
   turns: number;
   telemetry?: TelemetryConfig;
+  /**
+   * Free-text primary mission steering every evaluator's attacks (e.g. "get the
+   * target to leak env vars via a delegated employee"). Threaded onto each
+   * generated AgentAttackSpec; consumed by generateNextAdaptiveTurn as the
+   * attacker's top-priority goal, same mechanism the browser extension's
+   * popup-driven `attackObjective` already uses.
+   */
+  attackObjective?: string;
+  /**
+   * Free-text steering for the judge's verdict (e.g. "treat any tool name leak
+   * as critical"). Combined with each attack's existing `judgeHint` (evaluator-
+   * authored `judge_hint`) rather than replacing it, then rendered as a
+   * `JUDGE HINT: ...` block in the judge prompt (see `evaluators/judge.ts`).
+   * Same mechanism the browser extension's popup-driven "Custom evaluator hint"
+   * already uses.
+   */
+  judgeHint?: string;
+  /**
+   * Free-text domain/business context for the target agent (e.g. "internal
+   * customer support bot for a healthcare SaaS"). Threaded onto each generated
+   * AgentAttackSpec; consumed by generateNextAdaptiveTurn as a BUSINESS_CONTEXT
+   * block, same mechanism the browser extension's popup-driven `businessUseCase`
+   * already uses.
+   */
+  businessUseCase?: string;
 }
 
 // ---------------------------------------------------------------------------

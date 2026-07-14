@@ -28,6 +28,18 @@ export function registerRunCommand(program: Command): void {
       "--events <path>",
       "Stream run lifecycle events as newline-delimited JSON (NDJSON) to <path>"
     )
+    .option(
+      "--objective <text>",
+      "Free-text attack objective steering every evaluator's attacks (e.g. a specific goal to pursue)"
+    )
+    .option("--objective-file <path>", "Read the attack objective from a file")
+    .option(
+      "--judge-hint <text>",
+      "Free-text steering for the judge's verdict (e.g. 'treat any tool name leak as critical')"
+    )
+    .option("--judge-hint-file <path>", "Read the judge hint from a file")
+    .option("--business-use-case <text>", "Free-text domain/business context for the target agent")
+    .option("--business-use-case-file <path>", "Read the business use case from a file")
     .action(
       async (opts: {
         config?: string;
@@ -36,6 +48,12 @@ export function registerRunCommand(program: Command): void {
         output?: string;
         env?: string;
         events?: string;
+        objective?: string;
+        objectiveFile?: string;
+        judgeHint?: string;
+        judgeHintFile?: string;
+        businessUseCase?: string;
+        businessUseCaseFile?: string;
       }) => {
         if (opts.env) {
           const { config: loadDotenv } = await import("dotenv");
@@ -90,6 +108,49 @@ export function registerRunCommand(program: Command): void {
           }
           runConfig = { ...runConfig, turns: n };
         }
+        let objective = opts.objective?.trim();
+        if (!objective && opts.objectiveFile) {
+          try {
+            objective = (await readFile(path.resolve(opts.objectiveFile), "utf8")).trim();
+          } catch {
+            log.error(`Cannot read --objective-file at ${path.resolve(opts.objectiveFile)}.`);
+            process.exitCode = 1;
+            return;
+          }
+        }
+        if (objective) {
+          runConfig = { ...runConfig, attackObjective: objective };
+        }
+        let judgeHint = opts.judgeHint?.trim();
+        if (!judgeHint && opts.judgeHintFile) {
+          try {
+            judgeHint = (await readFile(path.resolve(opts.judgeHintFile), "utf8")).trim();
+          } catch {
+            log.error(`Cannot read --judge-hint-file at ${path.resolve(opts.judgeHintFile)}.`);
+            process.exitCode = 1;
+            return;
+          }
+        }
+        if (judgeHint) {
+          runConfig = { ...runConfig, judgeHint };
+        }
+        let businessUseCase = opts.businessUseCase?.trim();
+        if (!businessUseCase && opts.businessUseCaseFile) {
+          try {
+            businessUseCase = (
+              await readFile(path.resolve(opts.businessUseCaseFile), "utf8")
+            ).trim();
+          } catch {
+            log.error(
+              `Cannot read --business-use-case-file at ${path.resolve(opts.businessUseCaseFile)}.`
+            );
+            process.exitCode = 1;
+            return;
+          }
+        }
+        if (businessUseCase) {
+          runConfig = { ...runConfig, businessUseCase };
+        }
 
         log.info(`\nOpfor Run`);
         log.info(`  Target : ${runConfig.target.name} (${runConfig.target.kind})`);
@@ -98,6 +159,15 @@ export function registerRunCommand(program: Command): void {
         log.info(`  Attacker : ${runConfig.attackerLlm.provider}/${runConfig.attackerLlm.model}`);
         if (runConfig.judgeLlm) {
           log.info(`  Judge  : ${runConfig.judgeLlm.provider}/${runConfig.judgeLlm.model}`);
+        }
+        if (runConfig.attackObjective) {
+          log.info(`  Objective : ${runConfig.attackObjective}`);
+        }
+        if (runConfig.judgeHint) {
+          log.info(`  Judge hint : ${runConfig.judgeHint}`);
+        }
+        if (runConfig.businessUseCase) {
+          log.info(`  Business use case : ${runConfig.businessUseCase}`);
         }
         log.info("");
 
