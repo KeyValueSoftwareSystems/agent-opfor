@@ -24,6 +24,13 @@ function readVersion(): string {
   return pkg.version ?? "0.0.0";
 }
 
+/** Trims a free-text operator-intent field, dropping it if blank/whitespace-only. */
+function trimmedOrUndefined(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
 const server = new McpServer({ name: "opfor", version: readVersion() });
 
 // ---------------------------------------------------------------------------
@@ -389,10 +396,14 @@ server.tool(
 
       if (args.effort_override) config = { ...config, effort: args.effort_override };
       if (args.turns_override) config = { ...config, turns: args.turns_override };
-      if (args.objective_override) config = { ...config, attackObjective: args.objective_override };
-      if (args.judge_hint_override) config = { ...config, judgeHint: args.judge_hint_override };
-      if (args.business_use_case_override)
-        config = { ...config, businessUseCase: args.business_use_case_override };
+      const objectiveOverride = trimmedOrUndefined(args.objective_override);
+      if (objectiveOverride !== undefined)
+        config = { ...config, attackObjective: objectiveOverride };
+      const judgeHintOverride = trimmedOrUndefined(args.judge_hint_override);
+      if (judgeHintOverride !== undefined) config = { ...config, judgeHint: judgeHintOverride };
+      const businessUseCaseOverride = trimmedOrUndefined(args.business_use_case_override);
+      if (businessUseCaseOverride !== undefined)
+        config = { ...config, businessUseCase: businessUseCaseOverride };
       // Defensive coerce in case the config file has an unexpected value.
       config = { ...config, effort: normalizeEffort(config.effort as unknown) };
 
@@ -568,9 +579,9 @@ function buildRunConfig(args: Record<string, unknown>): RunConfig {
     judgeLlm,
     effort: normalizeEffort(args.effort),
     turns: (args.turns as number) ?? 1,
-    attackObjective: args.attack_objective ? String(args.attack_objective) : undefined,
-    judgeHint: args.judge_hint ? String(args.judge_hint) : undefined,
-    businessUseCase: args.business_use_case ? String(args.business_use_case) : undefined,
+    attackObjective: trimmedOrUndefined(args.attack_objective),
+    judgeHint: trimmedOrUndefined(args.judge_hint),
+    businessUseCase: trimmedOrUndefined(args.business_use_case),
   };
 }
 
