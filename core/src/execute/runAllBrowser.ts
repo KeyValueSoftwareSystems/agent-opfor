@@ -94,6 +94,10 @@ export async function runAllBrowser(
         model: attackModel,
         turns: effectiveTurns,
         turnMode,
+        options: {
+          attackObjective: config.attackObjective,
+          businessUseCase: config.businessUseCase,
+        },
       });
     } catch (err) {
       if (isStopError(err)) {

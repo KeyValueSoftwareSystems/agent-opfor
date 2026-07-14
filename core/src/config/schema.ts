@@ -164,6 +164,8 @@ export const RunConfigSchema = z
     turns: z.number().int().positive().optional(),
     telemetry: z.unknown().optional(),
     attackObjective: z.string().optional(),
+    judgeHint: z.string().optional(),
+    businessUseCase: z.string().optional(),
   })
   .passthrough();
 

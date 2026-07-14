@@ -50,6 +50,8 @@ export function buildRunConfig(options: RunOptions): {
       turnMode,
       telemetry: options.telemetry,
       attackObjective: options.attackObjective,
+      judgeHint: options.judgeHint,
+      businessUseCase: options.businessUseCase,
     },
     env,
   };

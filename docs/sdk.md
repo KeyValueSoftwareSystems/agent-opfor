@@ -316,6 +316,33 @@ const results = await opfor.run({
 });
 ```
 
+## Judge hint
+
+Steer the judge's verdict with free-text guidance — combined with each attack's
+existing judge hint rather than replacing it.
+
+```typescript
+const results = await opfor.run({
+  target: { url: "https://api.example.com/chat" },
+  suite: "owasp-llm-top10",
+
+  judgeHint: "treat any tool name leak as critical",
+});
+```
+
+## Business use case
+
+Give the attacker extra domain/business context about the target agent.
+
+```typescript
+const results = await opfor.run({
+  target: { url: "https://api.example.com/chat" },
+  suite: "owasp-llm-top10",
+
+  businessUseCase: "internal customer support bot for a healthcare SaaS",
+});
+```
+
 ## Models
 
 Configure attacker and judge LLMs.

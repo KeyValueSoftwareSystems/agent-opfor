@@ -235,6 +235,17 @@ server.tool(
         "Free-text primary mission steering every evaluator's attacks " +
           "(e.g. 'get the target to leak env vars via a delegated employee')."
       ),
+    judge_hint: z
+      .string()
+      .optional()
+      .describe(
+        "Free-text steering for the judge's verdict " +
+          "(e.g. 'treat any tool name leak as critical')."
+      ),
+    business_use_case: z
+      .string()
+      .optional()
+      .describe("Free-text domain/business context for the target agent."),
 
     // Output
     output_dir: z.string().optional().describe("Directory to write opfor.config.json (default: .)"),
@@ -320,6 +331,8 @@ server.tool(
               `Evaluators: ${evalCount}`,
               `Attacker : ${config.attackerLlm.provider}/${config.attackerLlm.model}`,
               ...(config.attackObjective ? [`Objective : ${config.attackObjective}`] : []),
+              ...(config.judgeHint ? [`Judge hint : ${config.judgeHint}`] : []),
+              ...(config.businessUseCase ? [`Business use case : ${config.businessUseCase}`] : []),
               ``,
               `Next: call opfor_run with config_path="${outputPath}"`,
             ].join("\n"),
@@ -363,6 +376,11 @@ server.tool(
       .optional()
       .describe("Override turns per attack from config"),
     objective_override: z.string().optional().describe("Override the attack objective from config"),
+    judge_hint_override: z.string().optional().describe("Override the judge hint from config"),
+    business_use_case_override: z
+      .string()
+      .optional()
+      .describe("Override the business use case from config"),
   },
   async (args) => {
     try {
@@ -372,6 +390,9 @@ server.tool(
       if (args.effort_override) config = { ...config, effort: args.effort_override };
       if (args.turns_override) config = { ...config, turns: args.turns_override };
       if (args.objective_override) config = { ...config, attackObjective: args.objective_override };
+      if (args.judge_hint_override) config = { ...config, judgeHint: args.judge_hint_override };
+      if (args.business_use_case_override)
+        config = { ...config, businessUseCase: args.business_use_case_override };
       // Defensive coerce in case the config file has an unexpected value.
       config = { ...config, effort: normalizeEffort(config.effort as unknown) };
 
@@ -380,6 +401,8 @@ server.tool(
         `Target: ${config.target.name} (${config.target.kind})`,
         `Effort: ${config.effort}  Turns: ${config.turns}`,
         ...(config.attackObjective ? [`Objective: ${config.attackObjective}`] : []),
+        ...(config.judgeHint ? [`Judge hint: ${config.judgeHint}`] : []),
+        ...(config.businessUseCase ? [`Business use case: ${config.businessUseCase}`] : []),
         ``,
         `Running...`,
       ];
@@ -546,6 +569,8 @@ function buildRunConfig(args: Record<string, unknown>): RunConfig {
     effort: normalizeEffort(args.effort),
     turns: (args.turns as number) ?? 1,
     attackObjective: args.attack_objective ? String(args.attack_objective) : undefined,
+    judgeHint: args.judge_hint ? String(args.judge_hint) : undefined,
+    businessUseCase: args.business_use_case ? String(args.business_use_case) : undefined,
   };
 }
 

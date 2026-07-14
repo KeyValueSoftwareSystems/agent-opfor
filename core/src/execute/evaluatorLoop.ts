@@ -97,7 +97,13 @@ export async function runEvaluatorAttacks(
         model: attackModel,
         turns: effectiveTurns,
         turnMode,
-        options: { tools, traceContext, upstreamSessions },
+        options: {
+          tools,
+          traceContext,
+          upstreamSessions,
+          attackObjective: config.attackObjective,
+          businessUseCase: config.businessUseCase,
+        },
       });
     } catch (err) {
       if (isStopError(err)) {
@@ -112,6 +118,18 @@ export async function runEvaluatorAttacks(
     if (config.attackObjective) {
       for (const attack of attacks) {
         if (attack.kind === "agent") attack.attackObjective = config.attackObjective;
+      }
+    }
+
+    if (config.businessUseCase) {
+      for (const attack of attacks) {
+        if (attack.kind === "agent") attack.businessUseCase = config.businessUseCase;
+      }
+    }
+
+    if (config.judgeHint) {
+      for (const attack of attacks) {
+        attack.judgeHint = [attack.judgeHint, config.judgeHint].filter(Boolean).join("\n");
       }
     }
 
