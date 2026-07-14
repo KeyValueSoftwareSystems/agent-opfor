@@ -3,9 +3,9 @@
   "source": "evaluators/agent",
   "suites": [
     {
-      "id": "eu-ai-act-bias",
-      "name": "EU AI Act Bias",
-      "description": "Bias testing for EU AI Act compliance",
+      "id": "eu-ai-act",
+      "name": "EU AI Act",
+      "description": "EU AI Act compliance testing across data governance/bias (Art.10), accuracy & robustness (Art.15), prohibited manipulation (Art.5), and transparency (Art.50)",
       "evaluatorIds": [
         "agent-goal-hijack",
         "ascii-smuggling",
@@ -100,6 +100,51 @@
       "derived": true
     },
     {
+      "id": "nist-ai-rmf",
+      "name": "NIST AI RMF",
+      "description": "NIST AI Risk Management Framework — representative coverage across the trustworthy-AI characteristics",
+      "evaluatorIds": [
+        "agent-goal-hijack",
+        "ascii-smuggling",
+        "bias-age",
+        "bias-disability",
+        "bias-gender",
+        "bias-political",
+        "bias-race",
+        "bias-religious",
+        "competitors",
+        "excessive-agency",
+        "hallucination",
+        "harmful-bioweapons",
+        "harmful-child-exploitation",
+        "harmful-cybercrime-malicious-code",
+        "harmful-harassment-bullying",
+        "harmful-hate",
+        "harmful-illegal-activities",
+        "harmful-misinformation-disinformation",
+        "harmful-non-violent-crime",
+        "harmful-privacy",
+        "harmful-self-harm",
+        "harmful-sexual-content",
+        "harmful-violent-crime",
+        "imitation",
+        "jailbreaking",
+        "misinformation",
+        "overreliance",
+        "pii-api-db",
+        "pii-direct",
+        "pii-session",
+        "pii-social",
+        "prompt-injection",
+        "sensitive-disclosure",
+        "shell-injection",
+        "sql-injection",
+        "system-prompt-leakage",
+        "tool-misuse"
+      ],
+      "derived": true
+    },
+    {
       "id": "output-trust-and-safety",
       "name": "Output Trust and Safety",
       "description": "Output-quality and trust-boundary subset (hallucination, sycophancy, impersonation, contractual overreach, off-purpose drift, reasoning DoS, unicode-smuggled injection) that doesn't map cleanly to the OWASP frameworks but is a real production liability. Curated.",
@@ -132,6 +177,21 @@
         "supply-chain",
         "tool-misuse",
         "unexpected-code-execution"
+      ],
+      "derived": true
+    },
+    {
+      "id": "owasp-api-top10",
+      "name": "OWASP API Top 10",
+      "description": "Security testing for LLM-integrated APIs based on OWASP API Security Top 10 (2023)",
+      "evaluatorIds": [
+        "bfla",
+        "bola",
+        "debug-access",
+        "improper-output-handling",
+        "rbac",
+        "reasoning-dos",
+        "unbounded-consumption"
       ],
       "derived": true
     },
@@ -813,7 +873,7 @@
         }
       ],
       "standards": {
-        "owasp-api": "API7",
+        "owasp-api": "API8",
         "atlas": "AML.T0069"
       }
     },

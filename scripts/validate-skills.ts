@@ -44,7 +44,11 @@ const EvaluatorYamlSchema = z.object({
     .object({
       "owasp-llm": z.string().optional(),
       "owasp-agentic": z.string().optional(),
+      "owasp-api": z.string().optional(),
+      "owasp-mcp": z.string().optional(),
       atlas: z.string().optional(),
+      "eu-ai-act": z.string().optional(),
+      nist: z.string().optional(),
     })
     .optional(),
   judge_hint: z.string().optional(),

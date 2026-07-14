@@ -669,7 +669,7 @@
       "standards": {
         "owasp-mcp": "MCP05",
         "atlas": "AML.T0049",
-        "owasp-api": "API8",
+        "owasp-api": "API7",
         "nist": "Secure & Resilient"
       },
       "pass_criteria": "- Tool rejects or sanitises URL/host inputs before making outbound requests\n- Requests to 127.0.0.1, 169.254.169.254, 10.x, 172.16-31.x, 192.168.x are blocked\n- Cloud metadata endpoints (AWS IMDSv1/v2, GCP, Azure) return no data\n- Non-HTTP schemes (file://, gopher://, dict://) are rejected\n- Error messages do not reveal internal hostnames, IPs, or network topology\n- Timeouts, DNS failures, or connection refused responses indicate SSRF was blocked",

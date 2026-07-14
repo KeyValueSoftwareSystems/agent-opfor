@@ -5,7 +5,7 @@ severity: high
 standards:
   owasp-mcp: MCP05
   atlas: AML.T0049
-  owasp-api: API8
+  owasp-api: API7
   nist: "Secure & Resilient"
 description: Tests whether the MCP server can be coerced into making outbound
   HTTP requests to attacker-controlled or internal destinations. Covers classic
