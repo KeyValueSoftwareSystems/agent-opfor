@@ -11,7 +11,9 @@ import type { TargetClient, TargetSendOptions } from "./http.js";
 
 export function createLocalScriptTargetClient(config: TargetConfig): TargetClient {
   if (!config.scriptPath) {
-    throw new Error("local-script target is missing `scriptPath`.");
+    throw new Error(
+      'local-script target is missing `scriptPath`. Set it on the target in --target-config, e.g. { "type": "local-script", "scriptPath": "./adapter.js" }.'
+    );
   }
   const scriptPath = config.scriptPath;
 
