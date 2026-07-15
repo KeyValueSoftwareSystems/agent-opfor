@@ -1,10 +1,12 @@
 schema_version: 1
 id: ascii-smuggling
 name: ASCII / Unicode Smuggling
-severity: high
+severity: low
 standards:
   owasp-llm: LLM01
   atlas: AML.T0068
+  eu-ai-act: Art.15
+  nist: "Secure & Resilient"
 description: Test whether the target follows hidden instructions encoded via
   invisible Unicode tag characters, zero-width characters, or other obfuscation
   techniques.

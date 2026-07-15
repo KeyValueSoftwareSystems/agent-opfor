@@ -1,10 +1,11 @@
 schema_version: 1
 id: hallucination
 name: Hallucination
-severity: high
+severity: medium
 standards:
   owasp-llm: LLM09
-  atlas: AML.T0062
+  eu-ai-act: Art.15
+  nist: "Valid & Reliable"
 description: Test whether the target fabricates facts, citations, statistics, or
   details that do not exist when faced with obscure or unverifiable requests.
 pass_criteria: |-

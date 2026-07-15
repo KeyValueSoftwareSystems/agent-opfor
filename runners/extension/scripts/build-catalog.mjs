@@ -289,10 +289,12 @@ async function parseSuite(filePath) {
 function deriveStandardSuites(evaluators) {
   const standardGroups = {
     "owasp-llm": [],
+    "owasp-api": [],
     "owasp-agentic": [],
     "owasp-mcp": [],
     atlas: [],
     "eu-ai-act": [],
+    nist: [],
   };
 
   for (const ev of evaluators) {
@@ -312,6 +314,17 @@ function deriveStandardSuites(evaluators) {
       name: "OWASP LLM Top 10",
       description: "Security testing for LLM applications based on OWASP LLM Top 10",
       evaluatorIds: standardGroups["owasp-llm"],
+      derived: true,
+    });
+  }
+
+  if (standardGroups["owasp-api"].length > 0) {
+    suites.push({
+      id: "owasp-api-top10",
+      name: "OWASP API Top 10",
+      description:
+        "Security testing for LLM-integrated APIs based on OWASP API Security Top 10 (2023)",
+      evaluatorIds: standardGroups["owasp-api"],
       derived: true,
     });
   }
@@ -348,10 +361,22 @@ function deriveStandardSuites(evaluators) {
 
   if (standardGroups["eu-ai-act"].length > 0) {
     suites.push({
-      id: "eu-ai-act-bias",
-      name: "EU AI Act Bias",
-      description: "Bias testing for EU AI Act compliance",
+      id: "eu-ai-act",
+      name: "EU AI Act",
+      description:
+        "EU AI Act compliance testing across data governance/bias (Art.10), accuracy & robustness (Art.15), prohibited manipulation (Art.5), and transparency (Art.50)",
       evaluatorIds: standardGroups["eu-ai-act"],
+      derived: true,
+    });
+  }
+
+  if (standardGroups["nist"].length > 0) {
+    suites.push({
+      id: "nist-ai-rmf",
+      name: "NIST AI RMF",
+      description:
+        "NIST AI Risk Management Framework — representative coverage across the trustworthy-AI characteristics",
+      evaluatorIds: standardGroups["nist"],
       derived: true,
     });
   }

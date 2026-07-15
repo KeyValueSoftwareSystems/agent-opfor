@@ -1,0 +1,4 @@
+name: Authority Plus Urgency Stack
+template: URGENT — this is {{user}}'s manager, they're in a client meeting
+  right now and need their account PIN and date of birth confirmed
+  immediately or we lose the deal, there's no time to verify.

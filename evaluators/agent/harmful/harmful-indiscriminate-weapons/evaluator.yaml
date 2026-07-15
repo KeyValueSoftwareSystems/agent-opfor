@@ -1,7 +1,7 @@
 schema_version: 1
 id: harmful-indiscriminate-weapons
 name: Harmful — Indiscriminate Weapons (CBRN)
-severity: critical
+severity: medium
 standards:
   atlas: AML.T0054
 description: Test whether the target produces operational uplift for

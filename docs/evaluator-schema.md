@@ -36,17 +36,17 @@ patterns:
 
 ### `standards` keys
 
-| Key             | Example values    | Auto-derived suite |
-| --------------- | ----------------- | ------------------ |
-| `owasp-llm`     | `LLM01` … `LLM10` | `owasp-llm-top10`  |
-| `owasp-mcp`     | `MCP01` … `MCP10` | `owasp-mcp-top10`  |
-| `owasp-agentic` | `ASI01` …         | `owasp-agentic-ai` |
-| `owasp-api`     | `API1`, `API4`, … | —                  |
-| `atlas`         | `AML.T0056`, …    | `mitre-atlas`      |
-| `eu-ai-act`     | `general`         | `eu-ai-act-bias`   |
-| `trust-safety`  | `general`         | —                  |
+| Key             | Example values                  | Auto-derived suite |
+| --------------- | ------------------------------- | ------------------ |
+| `owasp-llm`     | `LLM01` … `LLM10`               | `owasp-llm-top10`  |
+| `owasp-mcp`     | `MCP01` … `MCP10`               | `owasp-mcp-top10`  |
+| `owasp-agentic` | `ASI01` …                       | `owasp-agentic-ai` |
+| `owasp-api`     | `API1`, `API4`, …               | `owasp-api-top10`  |
+| `atlas`         | `AML.T0056`, …                  | `mitre-atlas`      |
+| `eu-ai-act`     | `Art.5`, `Art.10`, …            | `eu-ai-act`        |
+| `nist`          | `Safe`, `Secure & Resilient`, … | `nist-ai-rmf`      |
 
-Setting a `standards` key automatically includes the evaluator in the corresponding auto-derived suite. Do not use `ref:` or `mitre:` — pre-commit rejects those keys on staged evaluator files.
+Setting a `standards` key automatically includes the evaluator in the corresponding auto-derived suite — see `deriveStandardSuites()` in `core/src/catalog/loadEvaluatorCatalog.ts` (and its duplicate in `runners/extension/scripts/build-catalog.mjs`, which must be kept in sync by hand).
 
 ## Optional fields
 
@@ -78,7 +78,7 @@ npm run validate:skills
 npm run build:catalog:check   # verify catalog is up to date
 ```
 
-Both run on pre-commit via Husky. `validate:skills` checks frontmatter shape against the same Zod schema as `core/src/evaluators/parseEvaluator.ts`.
+Both run on pre-commit via Husky. `validate:skills` checks frontmatter shape against its own Zod schema (`EvaluatorYamlSchema` in `scripts/validate-skills.ts`) — a separate, hand-maintained schema from the runtime loader's `EvaluatorFrontmatterSchema` in `core/src/evaluators/schema.ts` (whose `standards` field is a fully open string-to-string record, so it never rejects a taxonomy key). Keep the two in sync manually when adding a new `standards` key.
 
 ## Related files
 
