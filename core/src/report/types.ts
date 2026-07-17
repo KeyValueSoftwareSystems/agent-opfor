@@ -44,6 +44,12 @@ export interface EvaluatorViewModel {
   errors: number;
   passRate: number;
   results: ResultViewModel[];
+  /**
+   * Deployment-aware risk on a 0..10 scale (higher = more dangerous). >0 only for
+   * findings; 0 when the evaluator held. Undefined when no agent profile was
+   * available. Rendered as the "Risk (this agent)" column.
+   */
+  risk?: number;
 }
 
 export interface ReportViewModel {
@@ -67,6 +73,12 @@ export interface ReportViewModel {
     attackSuccessRate: number;
   };
   evaluators: EvaluatorViewModel[];
+  /**
+   * Derived agentic power profile of the target. When present, its `rationale`
+   * explains (in plain English) why findings were amplified above their base
+   * severity. Drives the "Risk (this agent)" column.
+   */
+  agentProfile?: { power: number; rationale: string };
   /** Set when the run was stopped early due to a non-retryable LLM error. */
   stopReason?: string;
 }

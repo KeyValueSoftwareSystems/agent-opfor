@@ -71,6 +71,9 @@ function toReportViewModel(report: UnifiedRunReport): ReportViewModel {
     target: { name: report.targetName },
     summary: report.summary,
     evaluators: report.evaluators.map(toEvaluatorViewModel),
+    agentProfile: report.agentProfile
+      ? { power: report.agentProfile.power, rationale: report.agentProfile.rationale }
+      : undefined,
     stopReason: report.stopReason,
   };
 }
@@ -87,6 +90,7 @@ function toEvaluatorViewModel(ev: EvaluatorResult): EvaluatorViewModel {
     errors: ev.errors,
     passRate: ev.passRate,
     results: ev.attacks.map(toResultViewModel),
+    risk: ev.risk,
   };
 }
 

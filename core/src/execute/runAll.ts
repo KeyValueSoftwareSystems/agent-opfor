@@ -12,6 +12,7 @@ import { runBaselineScans } from "./baselineScanner.js";
 import { dispatchProgress, notifyListeners, type RunListener } from "./runListener.js";
 import { runEvaluatorAttacks } from "./evaluatorLoop.js";
 import { buildUnifiedReport, modelLabel } from "./aggregate.js";
+import { deriveAgentProfile } from "./agentProfile.js";
 import { createModel } from "../providers/factory.js";
 import type { LlmConfig } from "../config/types.js";
 import { getAdapter } from "../telemetry/adapter.js";
@@ -292,6 +293,13 @@ async function curateTracesIfConfigured(
 
 function buildReport(config: RunConfig, evaluators: EvaluatorResult[]): UnifiedRunReport {
   const { attackModel, judgeModel } = modelLabel(config.attackerLlm, config.judgeLlm);
+  // Derive the target's agentic power profile once (deterministic, no LLM) from
+  // the business context + target metadata already in the config. Drives the
+  // per-evaluator risk amplification in buildUnifiedReport.
+  const agentProfile = deriveAgentProfile({
+    businessUseCase: config.businessUseCase,
+    target: config.target,
+  });
   return buildUnifiedReport(
     {
       reportId: randomUUID(),
@@ -301,6 +309,7 @@ function buildReport(config: RunConfig, evaluators: EvaluatorResult[]): UnifiedR
       effort: config.effort,
       attackModel,
       judgeModel,
+      agentProfile,
     },
     evaluators
   );
