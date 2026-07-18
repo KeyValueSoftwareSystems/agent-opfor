@@ -441,9 +441,10 @@ function shortSev(s) {
 // ── Run button enable/disable ──────────────────────────────────
 function updateRunButton() {
   const missingKey = !state.apiKey.trim();
+  const missingModel = !state.model.trim();
   const missingEvals = state.selectedEvaluators.size === 0;
   const missingSuite = !state.suiteId || !state.catalog;
-  $("runBtn").disabled = missingKey || missingEvals || missingSuite;
+  $("runBtn").disabled = missingKey || missingModel || missingEvals || missingSuite;
 }
 
 // ── Suite description + dropdown wiring ────────────────────────
@@ -459,6 +460,7 @@ function resetCompatModels() {
   modelDD?.setValue("");
   state.model = "";
   setModelHint("");
+  updateRunButton();
 }
 
 /**
@@ -2720,40 +2722,32 @@ function scrollDropdownIntoView(root) {
   });
 }
 
+/** Placeholder for the API-key input. Kept short; the "optional" note is shown separately. */
+function apiKeyPlaceholder(provider) {
+  return provider === PROVIDERS.OPENAI_COMPATIBLE ? "Paste key (optional)" : "Paste key here";
+}
+
 function applyProvider({ resetModel = false } = {}) {
   const isCompatible = state.provider === PROVIDERS.OPENAI_COMPATIBLE;
   const needsBaseUrl = PROVIDERS_NEEDING_BASE_URL.has(state.provider);
   const isSimple = !!SIMPLE_PROVIDER_FETCH_CONFIG[state.provider];
 
-  // Reparent modelSection: inside endpointCardBody for custom, outside for others
-  const modelSec = $("modelSection");
-  const cardBody = $("endpointCardBody");
-  const standaloneKey = $("standaloneApiKey");
-  if (isCompatible) {
-    if (modelSec.parentElement !== cardBody) cardBody.appendChild(modelSec);
-  } else {
-    if (modelSec.previousElementSibling !== standaloneKey) {
-      standaloneKey.insertAdjacentElement("afterend", modelSec);
-    }
-  }
-
-  // Endpoint card — only Azure + OpenAI-compatible
-  $("endpointSection").style.display = needsBaseUrl ? "" : "none";
-  $("endpointKeyHint").style.display = isCompatible ? "inline-flex" : "none";
-  $("endpointKeyOptional").style.display = isCompatible ? "" : "none";
+  // Unified layout: every provider renders the same labeled rows
+  // (Provider → API Key → Base URL → Model). Only the Base URL row and the
+  // OpenAI-compatible affordances (optional-key note, model refresh) toggle.
+  $("baseUrlField").style.display = needsBaseUrl ? "" : "none";
+  $("apiKeyHint").style.display = isCompatible ? "inline-flex" : "none";
+  $("apiKeyOptional").style.display = isCompatible ? "" : "none";
   $("refreshModelsBtn").style.display = isCompatible ? "" : "none";
-
-  // Standalone API key — simple providers only
-  $("standaloneApiKey").style.display = isSimple ? "" : "none";
+  $("apiKey").placeholder = apiKeyPlaceholder(state.provider);
 
   setModelHint("");
 
   if (isCompatible) {
-    $("endpointCardBody").dataset.open = "true";
-    $("modelSection").style.display = "";
-    $("modelDropdown").style.display = "";
+    // Models come from the user's own endpoint — cleared here, then fetched once
+    // a Base URL (and optional key) is entered or the model dropdown is opened.
+    if (resetModel) resetCompatModels();
   } else if (isSimple) {
-    $("modelSection").style.display = "";
     if (resetModel) {
       modelDD?.setOptions([]);
       modelDD?.setValue("");
@@ -2765,9 +2759,7 @@ function applyProvider({ resetModel = false } = {}) {
       }
     }
   } else {
-    // Azure
-    $("endpointCardBody").dataset.open = "true";
-    $("modelSection").style.display = "";
+    // Azure — static model list.
     const models = modelsForProvider(state.provider);
     modelDD?.setOptions(models);
     if (resetModel) {
@@ -2776,11 +2768,6 @@ function applyProvider({ resetModel = false } = {}) {
       modelDD?.setValue(defaultModel);
     }
   }
-}
-
-function setEndpointChevron(open) {
-  const chev = $("endpointCardHead")?.querySelector(".endpoint-chev");
-  if (chev) chev.style.transform = open ? "rotate(0deg)" : "rotate(-90deg)";
 }
 
 async function fetchModelsFromBaseUrl(reopen = false) {
@@ -2809,6 +2796,7 @@ async function fetchModelsFromBaseUrl(reopen = false) {
     state.model = keep;
     modelDD?.setValue(keep);
     saveModelAndKey();
+    updateRunButton();
     _compatModelsLoaded = true;
     setModelHint(`${ids.length} model${ids.length > 1 ? "s" : ""} loaded.`, "ok");
     if (reopen) modelDD?.open();
@@ -2862,6 +2850,7 @@ async function fetchModelsForSimpleProvider() {
     state.model = keep;
     modelDD?.setValue(keep);
     saveModelAndKey();
+    updateRunButton();
     _compatModelsLoaded = true;
     setModelHint("");
   } catch (e) {
@@ -2895,6 +2884,7 @@ function wire() {
     (v) => {
       state.model = v;
       saveModelAndKey();
+      updateRunButton();
     },
     {
       inlineSearch: true,
@@ -2977,14 +2967,15 @@ function wire() {
     }
   });
 
-  // Standalone API key (simple providers)
+  // API key (single field, shared by every provider)
   $("apiKey").addEventListener("input", (e) => {
     state.apiKey = e.target.value;
-    $("apiKeyCard").value = e.target.value;
     saveModelAndKey();
     updateRunButton();
     setModelHint("");
     _compatModelsLoaded = false;
+    // Reset loaded models when the key changes so the next open re-fetches.
+    if (state.provider === PROVIDERS.OPENAI_COMPATIBLE) resetCompatModels();
   });
 
   function wireEyeBtn(btnId, iconId, inputId) {
@@ -3005,20 +2996,6 @@ function wire() {
     });
   }
   wireEyeBtn("apiKeyEye", "eyeIcon", "apiKey");
-
-  // Card API key (Azure + OpenAI-compatible)
-  $("apiKeyCard").addEventListener("input", (e) => {
-    state.apiKey = e.target.value;
-    $("apiKey").value = e.target.value;
-    saveModelAndKey();
-    updateRunButton();
-    setModelHint("");
-    // Reset loaded models when key changes so the next dropdown open re-fetches
-    if (state.provider === PROVIDERS.OPENAI_COMPATIBLE) {
-      resetCompatModels();
-    }
-  });
-  wireEyeBtn("apiKeyCardEye", "eyeIconCard", "apiKeyCard");
 
   // Buttons
   $("runBtn").addEventListener("click", () => startRun({ resume: false }));
@@ -3335,7 +3312,6 @@ async function init() {
   modelDD.setValue(state.model);
   $("baseUrl").value = state.baseUrl;
   $("apiKey").value = state.apiKey;
-  $("apiKeyCard").value = state.apiKey;
   applyProvider();
   updateRunButton();
   // Auto-fetch models on mount if we already have what we need

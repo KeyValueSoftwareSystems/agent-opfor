@@ -427,6 +427,17 @@
         margin-bottom: 6px;
       }
 
+      /* LLM config — one labeled field per row, consistent for every provider */
+      .llm-field {
+        margin-bottom: 8px;
+      }
+      .llm-field:last-child {
+        margin-bottom: 0;
+      }
+      .llm-field > .endpoint-step-label {
+        margin-bottom: 6px;
+      }
+
       .toggle {
         width: 32px;
         height: 18px;
@@ -494,6 +505,12 @@
         letter-spacing: 0.15em;
       }
       .api-key-wrap input[type="text"] {
+        letter-spacing: 0;
+      }
+      /* Keep the placeholder in the regular UI font — the mono/letter-spacing above
+         is for the typed key value, not the hint text. */
+      .api-key-wrap input::placeholder {
+        font-family: "Google Sans", system-ui, sans-serif;
         letter-spacing: 0;
       }
       .eye-btn {
@@ -2140,138 +2157,69 @@
             </div>
           </div>
 
-          <!-- Model -->
+          <!-- LLM config -->
           <div>
-            <div class="section-label agent-desc-label">Model</div>
-            <div id="providerDropdown" class="dd" data-open="false" style="margin-bottom: 8px">
-              <button class="dd-button" type="button">
-                <span class="label">OpenAI</span>
-                <span class="chev">
-                  <svg width="12" height="12" viewBox="0 0 24 24">
-                    <path
-                      d="M6 9l6 6 6-6"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    />
-                  </svg>
-                </span>
-              </button>
-              <div class="dd-menu" role="listbox"></div>
-            </div>
+            <div class="section-label agent-desc-label">Model selection</div>
 
-            <!-- Endpoint config card (openai-compatible: accordion; azure: plain) -->
-            <div id="endpointSection" style="display: none; margin-bottom: 8px">
-              <button
-                id="endpointCardHead"
-                type="button"
-                class="endpoint-card-head"
-                style="display: none"
-              >
-                <span>Configure endpoint</span>
-                <span class="endpoint-chev">
-                  <svg width="12" height="12" viewBox="0 0 24 24">
-                    <path
-                      d="M6 9l6 6 6-6"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    />
-                  </svg>
-                </span>
-              </button>
-              <div id="endpointCardBody" class="endpoint-card-body" data-open="true">
-                <!-- Step 1: Base URL -->
-                <div class="endpoint-step">
-                  <div class="endpoint-step-label">
-                    Base URL
-                    <span
-                      class="info-tip"
-                      data-tooltip="Root URL of your OpenAI-compatible server, e.g. http://localhost:11434/v1"
-                    >
-                      <svg
-                        width="12"
-                        height="12"
-                        viewBox="0 0 24 24"
+            <!-- Provider -->
+            <div class="llm-field">
+              <div class="endpoint-step-label">Provider</div>
+              <div id="providerDropdown" class="dd" data-open="false">
+                <button class="dd-button" type="button">
+                  <span class="label">OpenAI</span>
+                  <span class="chev">
+                    <svg width="12" height="12" viewBox="0 0 24 24">
+                      <path
+                        d="M6 9l6 6 6-6"
                         fill="none"
                         stroke="currentColor"
                         stroke-width="2"
                         stroke-linecap="round"
                         stroke-linejoin="round"
-                      >
-                        <circle cx="12" cy="12" r="10" />
-                        <line x1="12" y1="8" x2="12" y2="12" />
-                        <line x1="12" y1="16" x2="12.01" y2="16" />
-                      </svg>
-                    </span>
-                  </div>
-                  <input
-                    id="baseUrl"
-                    type="text"
-                    placeholder="https://api.openai.com/v1"
-                    autocomplete="off"
-                    spellcheck="false"
-                  />
-                </div>
-                <!-- <div id="endpointDivider1" class="endpoint-divider" style="display: none"></div> -->
-                <!-- Step 2: API Key -->
-                <div class="endpoint-step">
-                  <div class="endpoint-step-label">
-                    API Key
-                    <span id="endpointKeyOptional" class="endpoint-optional" style="display: none"
-                      >optional for local servers</span
-                    >
-                    <span
-                      id="endpointKeyHint"
-                      class="info-tip"
-                      style="display: none"
-                      data-tooltip="Leave empty if your server doesn't require authentication."
-                    >
-                      <svg
-                        width="12"
-                        height="12"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      >
-                        <circle cx="12" cy="12" r="10" />
-                        <line x1="12" y1="8" x2="12" y2="12" />
-                        <line x1="12" y1="16" x2="12.01" y2="16" />
-                      </svg>
-                    </span>
-                  </div>
-                  <div class="api-key-wrap" style="margin-top: 0">
-                    <input id="apiKeyCard" type="password" placeholder="sk-…" autocomplete="off" />
-                    <button id="apiKeyCardEye" class="eye-btn" type="button" title="Show">
-                      <svg id="eyeIconCard" width="14" height="14" viewBox="0 0 24 24">
-                        <g
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="1.7"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                        >
-                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z" />
-                          <circle cx="12" cy="12" r="3" />
-                        </g>
-                      </svg>
-                    </button>
-                  </div>
-                </div>
+                      />
+                    </svg>
+                  </span>
+                </button>
+                <div class="dd-menu" role="listbox"></div>
               </div>
             </div>
 
-            <!-- Standalone API key (simple providers: OpenAI, Anthropic, Google, Groq, DeepSeek) -->
-            <div id="standaloneApiKey" style="display: none; margin-bottom: 8px">
+            <!-- API Key -->
+            <div class="llm-field">
+              <div class="endpoint-step-label">
+                API Key
+                <span id="apiKeyOptional" class="endpoint-optional" style="display: none"
+                  >optional for local servers</span
+                >
+                <span
+                  id="apiKeyHint"
+                  class="info-tip"
+                  style="display: none"
+                  data-tooltip="Leave empty if your server doesn't require authentication."
+                >
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="12" y1="8" x2="12" y2="12" />
+                    <line x1="12" y1="16" x2="12.01" y2="16" />
+                  </svg>
+                </span>
+              </div>
               <div class="api-key-wrap" style="margin-top: 0">
-                <input id="apiKey" type="password" placeholder="sk-…" autocomplete="off" />
+                <input
+                  id="apiKey"
+                  type="password"
+                  placeholder="Paste key here"
+                  autocomplete="off"
+                />
                 <button id="apiKeyEye" class="eye-btn" type="button" title="Show">
                   <svg id="eyeIcon" width="14" height="14" viewBox="0 0 24 24">
                     <g
@@ -2288,9 +2236,42 @@
                 </button>
               </div>
             </div>
-            <!-- Model dropdown (outside endpoint card for non-compatible providers) -->
-            <div id="modelSection">
-              <div class="endpoint-step-label" style="margin-bottom: 6px">
+
+            <!-- Base URL (Azure + OpenAI-compatible only) -->
+            <div class="llm-field" id="baseUrlField" style="display: none">
+              <div class="endpoint-step-label">
+                Base URL
+                <span
+                  class="info-tip"
+                  data-tooltip="Root URL of your OpenAI-compatible server, e.g. http://localhost:11434/v1"
+                >
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="12" y1="8" x2="12" y2="12" />
+                    <line x1="12" y1="16" x2="12.01" y2="16" />
+                  </svg>
+                </span>
+              </div>
+              <input
+                id="baseUrl"
+                type="text"
+                placeholder="https://api.openai.com/v1"
+                autocomplete="off"
+                spellcheck="false"
+              />
+            </div>
+            <!-- Model -->
+            <div id="modelSection" class="llm-field">
+              <div class="endpoint-step-label">
                 Model
                 <button
                   id="refreshModelsBtn"
