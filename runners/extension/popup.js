@@ -2733,7 +2733,7 @@ function applyProvider({ resetModel = false } = {}) {
   const isSimple = !!SIMPLE_PROVIDER_FETCH_CONFIG[state.provider];
 
   // Unified layout: every provider renders the same labeled rows
-  // (Provider → API Key → Base URL → Model). Only the Base URL row and the
+  // (Provider → Base URL → API Key → Model). Only the Base URL row and the
   // OpenAI-compatible affordances (optional-key note, model refresh) toggle.
   $("baseUrlField").style.display = needsBaseUrl ? "" : "none";
   $("apiKeyHint").style.display = isCompatible ? "inline-flex" : "none";
