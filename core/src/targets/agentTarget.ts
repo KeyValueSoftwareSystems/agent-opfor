@@ -233,12 +233,17 @@ async function callHttp(
         return RATE_LIMITED_SENTINEL;
       }
       if (!res.ok) {
+        const errorBody = await res.text().catch(() => "");
+
+        const message = errorBody
+          ? `Target returned HTTP ${res.status}: ${errorBody}`
+          : `Target returned HTTP ${res.status}`;
         // Non-retryable status (4xx except 429) - stop the run
         if (!isRetryableStatus(res.status)) {
-          throw new TargetStopError(`Target returned HTTP ${res.status}`);
+          throw new TargetStopError(message);
         }
         // Retryable (5xx) - return error but continue
-        return `ERROR: HTTP ${res.status}`;
+        return `ERROR: ${message}`;
       }
       if (res.ok || targetFormat === "openai" || isStateless)
         return finishResponse(res, await res.text());
@@ -259,12 +264,18 @@ async function callHttp(
       return RATE_LIMITED_SENTINEL;
     }
     if (!res2.ok) {
+      const errorBody = await res2.text().catch(() => "");
+
+      const message = errorBody
+        ? `Target returned HTTP ${res2.status}: ${errorBody}`
+        : `Target returned HTTP ${res2.status}`;
+
       // Non-retryable status (4xx except 429) - stop the run
       if (!isRetryableStatus(res2.status)) {
-        throw new TargetStopError(`Target returned HTTP ${res2.status}`);
+        throw new TargetStopError(message);
       }
       // Retryable (5xx) - return error but continue
-      return `ERROR: HTTP ${res2.status}`;
+      return `ERROR: ${message}`;
     }
     return finishResponse(res2, await res2.text());
   } catch (err: unknown) {
