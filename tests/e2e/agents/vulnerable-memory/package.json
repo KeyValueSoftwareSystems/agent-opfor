@@ -1,6 +1,6 @@
 {
   "name": "@keyvaluesystems/agent-opfor-test-agent-vulnerable-memory",
-  "version": "0.10.0",
+  "version": "0.10.1",
   "description": "Intentionally vulnerable agent — accepts and persists user-injected 'policies' into a global knowledge base across sessions",
   "private": true,
   "type": "module",
