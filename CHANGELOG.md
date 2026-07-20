@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.10.1](https://github.com/KeyValueSoftwareSystems/agent-opfor/compare/v0.10.0...v0.10.1) (2026-07-20)
+
+
+### Features
+
+* add 11 new evaluators, expand standard suites, fix evaluator validator gap ([#198](https://github.com/KeyValueSoftwareSystems/agent-opfor/issues/198)) ([db6fb49](https://github.com/KeyValueSoftwareSystems/agent-opfor/commit/db6fb49727dee023fd4de24e4e8a39a677edb1db))
+* add trendshift badge ([#194](https://github.com/KeyValueSoftwareSystems/agent-opfor/issues/194)) ([6d0f15f](https://github.com/KeyValueSoftwareSystems/agent-opfor/commit/6d0f15f1a4d259753553c9e7691225e9e4951f4c))
+* add trendshift badge ([#195](https://github.com/KeyValueSoftwareSystems/agent-opfor/issues/195)) ([8f057ec](https://github.com/KeyValueSoftwareSystems/agent-opfor/commit/8f057eccf5e496b02d678894a9b8fccd366de3d8))
+* severity-weighted safety score and attack success rate ([#197](https://github.com/KeyValueSoftwareSystems/agent-opfor/issues/197)) ([b207c86](https://github.com/KeyValueSoftwareSystems/agent-opfor/commit/b207c862d4f569d768db4f2f8b7fc8adaf3b5762)), closes [#196](https://github.com/KeyValueSoftwareSystems/agent-opfor/issues/196)
+* support local-script targets in opfor hunt ([#192](https://github.com/KeyValueSoftwareSystems/agent-opfor/issues/192)) ([fd2a10f](https://github.com/KeyValueSoftwareSystems/agent-opfor/commit/fd2a10fe7bfc6cc94ec6e364eac5cbaf7de40e14))
+* thread attack objective, judge hint, and business use case through sdk, cli, and mcp ([#193](https://github.com/KeyValueSoftwareSystems/agent-opfor/issues/193)) ([7db26af](https://github.com/KeyValueSoftwareSystems/agent-opfor/commit/7db26afa2487a5c7ca764ad2609216bd1f9958da))
+
+
+### Bug Fixes
+
+* change text in svg to upper case ([#187](https://github.com/KeyValueSoftwareSystems/agent-opfor/issues/187)) ([2ff5624](https://github.com/KeyValueSoftwareSystems/agent-opfor/commit/2ff562420718b9eaa129be262f76ea048262ffe9))
+* **extension:** show base url before api key for custom provider ([#206](https://github.com/KeyValueSoftwareSystems/agent-opfor/issues/206)) ([3d4ebf7](https://github.com/KeyValueSoftwareSystems/agent-opfor/commit/3d4ebf77293a8880117ea220fd340f97b0807449))
+* mcp baseline scan llm error crash ([#190](https://github.com/KeyValueSoftwareSystems/agent-opfor/issues/190)) ([147ce32](https://github.com/KeyValueSoftwareSystems/agent-opfor/commit/147ce32528254a2991926aa23b26051f0ce20a52))
+* unify llm config ui and require model before run ([#205](https://github.com/KeyValueSoftwareSystems/agent-opfor/issues/205)) ([fbc8592](https://github.com/KeyValueSoftwareSystems/agent-opfor/commit/fbc8592b9d3cd3adc0703a9707e685ab84e32d0b))
+
+
+### Performance
+
+* **core:** cache upstream session summaries ([#186](https://github.com/KeyValueSoftwareSystems/agent-opfor/issues/186)) ([5820087](https://github.com/KeyValueSoftwareSystems/agent-opfor/commit/58200878aed921a400a44228b4b37922fb7a550c))
+
 ## [0.10.0](https://github.com/KeyValueSoftwareSystems/agent-opfor/compare/v0.9.0...v0.10.0) (2026-07-06)
 
 

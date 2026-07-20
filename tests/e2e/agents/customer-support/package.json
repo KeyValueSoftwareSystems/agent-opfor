@@ -1,6 +1,6 @@
 {
   "name": "@keyvaluesystems/agent-opfor-test-agent-customer-support",
-  "version": "0.10.0",
+  "version": "0.10.1",
   "description": "Customer support test agent with PostgreSQL — tests BOLA, BFLA, RBAC, PII, and SQL injection evaluators",
   "private": true,
   "type": "module",
