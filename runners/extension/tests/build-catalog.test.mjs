@@ -2,11 +2,11 @@
  * Unit tests for the extension-only parts of the catalog generator: which
  * evaluators the browser can run, and the minimal shape it serializes.
  *
- * Run: node --test runners/extension/scripts/*.test.mjs
+ * Run: node --test runners/extension/tests/*.test.mjs
  */
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { isRunnableInBrowser, toExtensionEvaluator } from "./build-catalog.mjs";
+import { isRunnableInBrowser, toExtensionEvaluator } from "../scripts/build-catalog.mjs";
 
 describe("isRunnableInBrowser", () => {
   test("an evaluator with patterns is runnable", () => {

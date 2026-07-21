@@ -3,7 +3,7 @@
  * skills generator (scripts/build-catalog.ts) and the extension generator
  * (runners/extension/scripts/build-catalog.mjs).
  *
- * Run: node --test scripts/lib/*.test.mjs
+ * Run: node --test scripts/tests/*.test.mjs
  */
 import { test, describe, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -16,7 +16,7 @@ import {
   parseEvaluator,
   parseSuite,
   deriveStandardSuites,
-} from "./catalog-core.mjs";
+} from "../lib/catalog-core.mjs";
 
 describe("deriveStandardSuites", () => {
   test("returns no suites when no evaluator carries a recognized standards tag", () => {

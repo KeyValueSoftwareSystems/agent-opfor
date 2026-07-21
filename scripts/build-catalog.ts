@@ -22,7 +22,7 @@
 import { createHash } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   parseAllEvaluators,
   parseAllSuites,
@@ -37,7 +37,7 @@ const CHECK_ONLY = process.argv.includes("--check");
 type Surface = "agent" | "mcp";
 
 /** Serialize a normalized evaluator to the skills catalog shape (stable key order). */
-function toSkillEvaluator(e: Record<string, unknown>): Record<string, unknown> {
+export function toSkillEvaluator(e: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {
     id: e.id,
     name: e.name,
@@ -48,6 +48,7 @@ function toSkillEvaluator(e: Record<string, unknown>): Record<string, unknown> {
   out.passCriteria = e.passCriteria;
   out.failCriteria = e.failCriteria;
   out.patterns = e.patterns;
+  if (e.judgeHint) out.judgeHint = e.judgeHint;
   // Whitebox / static-source-scan metadata.
   if (e.scanMode) out.scanMode = e.scanMode;
   if (e.correlatesWith) out.correlatesWith = e.correlatesWith;
@@ -126,7 +127,10 @@ async function main(): Promise<void> {
   console.log("\n✓ Done. Catalogs written.\n");
 }
 
-main().catch((e) => {
-  console.error("build-catalog failed:", e);
-  process.exit(1);
-});
+// Only run when executed directly, not when imported by build-catalog.test.ts.
+if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
+  main().catch((e) => {
+    console.error("build-catalog failed:", e);
+    process.exit(1);
+  });
+}
