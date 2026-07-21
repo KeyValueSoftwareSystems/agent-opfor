@@ -233,7 +233,7 @@ async function callHttp(
         return RATE_LIMITED_SENTINEL;
       }
       if (!res.ok) {
-        const errorBody = await res.text().catch(() => "");
+        const errorBody = (await res.text().catch(() => "")).slice(0, 500);
 
         const message = errorBody
           ? `Target returned HTTP ${res.status}: ${errorBody}`
@@ -264,7 +264,7 @@ async function callHttp(
       return RATE_LIMITED_SENTINEL;
     }
     if (!res2.ok) {
-      const errorBody = await res2.text().catch(() => "");
+      const errorBody = (await res2.text().catch(() => "")).slice(0, 500);
 
       const message = errorBody
         ? `Target returned HTTP ${res2.status}: ${errorBody}`
