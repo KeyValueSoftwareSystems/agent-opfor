@@ -117,7 +117,8 @@ Read `./catalog.json`. This single file contains all evaluators and suites for t
 
 ```json
 {
-  "surface": "mcp",
+  "version": 1,
+  "source": "evaluators/mcp",
   "evaluators": [
     {
       "id": "ssrf",
@@ -125,20 +126,24 @@ Read `./catalog.json`. This single file contains all evaluators and suites for t
       "severity": "critical",
       "standards": { "owasp-mcp": "MCP05" },
       "description": "...",
-      "pass_criteria": "...",
-      "fail_criteria": "...",
-      "patterns": [{ "name": "AWS IMDSv1 Metadata SSRF", "template": "..." }],
-      "scan_mode": null,
-      "correlates_with": null,
-      "source_scan": null
+      "passCriteria": "...",
+      "failCriteria": "...",
+      "patterns": [{ "name": "AWS IMDSv1 Metadata SSRF", "template": "..." }]
     }
   ],
   "suites": [
     {
-      "id": "quick-smoke",
-      "name": "Quick Smoke",
+      "id": "mcp-smoke",
+      "name": "MCP Smoke",
       "description": "...",
-      "evaluators": ["prompt-injection", "..."]
+      "evaluatorIds": ["command-injection", "..."]
+    },
+    {
+      "id": "owasp-mcp-top10",
+      "name": "OWASP MCP Top 10",
+      "description": "...",
+      "evaluatorIds": ["ssrf", "..."],
+      "derived": true
     }
   ]
 }
@@ -146,27 +151,25 @@ Read `./catalog.json`. This single file contains all evaluators and suites for t
 
 From the catalog extract:
 
-- **Suites:** each has `id`, `name`, `description`, and `evaluators` (list of evaluator IDs)
-- **Evaluators:** each has `id`, `name`, `severity`, `standards`, `description`, `patterns` (array of `{ name, template }`), `pass_criteria`, `fail_criteria`, and optional `scan_mode`, `correlates_with`, `source_scan`
+- **Suites:** each has `id`, `name`, `description`, and `evaluatorIds` (list of evaluator IDs). Standards-based suites (OWASP MCP, ATLAS) also carry `"derived": true` — synthesized from evaluator `standards:` tags, not curated by hand.
+- **Evaluators:** each has `id`, `name`, `severity`, `standards`, `description`, `patterns` (array of `{ name, template }`), `passCriteria`, `failCriteria`. Whitebox source-scan evaluators additionally carry `scanMode: "source_code"`, `correlatesWith`, and a `sourceScan` block; baseline-scanner evaluators may carry `judgeNeedsLlm`, `appliesToAllTools`, and `mcpTop10`.
 
 ### Step 3: Ask User to Choose
 
-Present options:
+Present two paths:
 
 ```
 How would you like to define what to test?
 
 A) Use a predefined suite (faster, standard coverage)
-   1. owasp-mcp-top10 — OWASP MCP Top 10
-
 B) Custom selection (pick specific evaluators)
 ```
 
 **IMPORTANT:**
 
-- Only present suites that exist in the catalog
-- If user chooses A, show which evaluators will run
-- If user chooses B, present evaluators grouped by severity
+- List **only** the suites present in the catalog's `suites` array — never invent a suite name. Enumerate them from `catalog.suites` (both curated and `"derived": true` standards suites, e.g. `owasp-mcp-top10`, `mitre-atlas`), showing each suite's `id`, `name`, and `description`.
+- If user chooses A, resolve the suite's `evaluatorIds` and show which evaluators will run.
+- If user chooses B, present evaluators grouped by severity.
 
 ### Recommending Evaluators Based on Discovery
 
@@ -212,7 +215,7 @@ For each selected evaluator:
    - Adapt templates to the specific tools and resources discovered in Step 4
    - Use actual tool names, argument schemas, and resource URIs
    - For evaluators without patterns (scanner-only): generate attacks based on the evaluator's description and the discovered attack surface
-4. Copy `pass_criteria` and `fail_criteria` from the catalog entry
+4. Copy `passCriteria` and `failCriteria` from the catalog entry
 
 Show progress:
 
@@ -323,11 +326,11 @@ turn_mode: single
 
 ## PASS (server defended)
 
-<from evaluator frontmatter pass_criteria>
+<from evaluator frontmatter passCriteria>
 
 ## FAIL (vulnerability found)
 
-<from evaluator frontmatter fail_criteria>
+<from evaluator frontmatter failCriteria>
 ```
 
 ---

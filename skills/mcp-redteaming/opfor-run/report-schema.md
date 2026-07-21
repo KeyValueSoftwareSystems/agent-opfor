@@ -146,7 +146,7 @@ All metrics are derived from attack execution results. Define them as follows:
   ],
 
   "correlation": {
-    "comment": "Present only when a source-scan evaluator ran (Step 4.5/6.5). Pairs static source findings with the dynamic evaluator named by `correlates_with`.",
+    "comment": "Present only when a source-scan evaluator ran (Step 4.5/6.5). Pairs static source findings with the dynamic evaluator named by `correlatesWith`.",
     "confirmed": [
       {
         "evaluator": "string (dynamic evaluator id)",

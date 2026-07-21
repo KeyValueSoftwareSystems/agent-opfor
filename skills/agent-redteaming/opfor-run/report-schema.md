@@ -119,7 +119,7 @@ All metrics are derived from test execution results. Define them as follows:
   ],
 
   "correlation": {
-    "comment": "Present only when a source-scan evaluator ran (Step 3.5/5.5). Pairs static source findings with the dynamic evaluator named by `correlates_with`. Omit the key entirely when no source-scan evaluator ran.",
+    "comment": "Present only when a source-scan evaluator ran (Step 3.5/5.5). Pairs static source findings with the dynamic evaluator named by `correlatesWith`. Omit the key entirely when no source-scan evaluator ran.",
     "confirmed": [
       {
         "evaluator": "string (dynamic id)",

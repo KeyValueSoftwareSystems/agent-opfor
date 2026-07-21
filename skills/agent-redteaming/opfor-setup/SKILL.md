@@ -238,7 +238,8 @@ Read `./catalog.json`. This single file contains all evaluators and suites for t
 
 ```json
 {
-  "surface": "agent",
+  "version": 1,
+  "source": "evaluators/agent",
   "evaluators": [
     {
       "id": "prompt-injection",
@@ -246,12 +247,9 @@ Read `./catalog.json`. This single file contains all evaluators and suites for t
       "severity": "critical",
       "standards": { "owasp-llm": "LLM01" },
       "description": "...",
-      "pass_criteria": "...",
-      "fail_criteria": "...",
-      "patterns": [{ "name": "Direct Override", "template": "..." }],
-      "scan_mode": null,
-      "correlates_with": null,
-      "source_scan": null
+      "passCriteria": "...",
+      "failCriteria": "...",
+      "patterns": [{ "name": "Direct Override", "template": "..." }]
     }
   ],
   "suites": [
@@ -259,7 +257,14 @@ Read `./catalog.json`. This single file contains all evaluators and suites for t
       "id": "quick-smoke",
       "name": "Quick Smoke",
       "description": "...",
-      "evaluators": ["prompt-injection", "..."]
+      "evaluatorIds": ["prompt-injection", "..."]
+    },
+    {
+      "id": "owasp-llm-top10",
+      "name": "OWASP LLM Top 10",
+      "description": "...",
+      "evaluatorIds": ["prompt-injection", "..."],
+      "derived": true
     }
   ]
 }
@@ -267,8 +272,8 @@ Read `./catalog.json`. This single file contains all evaluators and suites for t
 
 From the catalog extract:
 
-- **Suites:** each has `id`, `name`, `description`, and `evaluators` (list of evaluator IDs)
-- **Evaluators:** each has `id`, `name`, `severity`, `standards`, `description`, `patterns` (array of `{ name, template }`), `pass_criteria`, `fail_criteria`, and optional `scan_mode`, `correlates_with`, `source_scan`
+- **Suites:** each has `id`, `name`, `description`, and `evaluatorIds` (list of evaluator IDs). Standards-based suites (OWASP, ATLAS, EU AI Act) also carry `"derived": true` — they are synthesized from evaluator `standards:` tags, not curated by hand.
+- **Evaluators:** each has `id`, `name`, `severity`, `standards`, `description`, `patterns` (array of `{ name, template }`), `passCriteria`, `failCriteria`. Whitebox source-scan evaluators additionally carry `scanMode: "source_code"`, `correlatesWith`, and a `sourceScan` block; MCP-usage evaluators may carry `judgeNeedsLlm`, `appliesToAllTools`, and `mcpTop10`.
 
 **Do not** invent alternate templates — use `patterns` from the catalog when generating inputs.
 
@@ -276,45 +281,53 @@ Group evaluators by severity for display.
 
 ### Step 3: Ask User to Choose
 
-Present EXACTLY TWO options (no "Other", no custom suite names):
+Present two paths:
 
 ```
 How would you like to define what to test?
 
 A) Use a predefined suite (faster, standard coverage)
-   1. owasp-llm-top10 — OWASP Top 10 for LLM Applications
-   2. owasp-agentic-ai — OWASP Agentic AI Top 10
-
 B) Custom selection (pick specific evaluators)
 ```
 
 **IMPORTANT:**
 
-- Only present suites that exist in the catalog
-- Do NOT allow free-form suite names
-- If user chooses A, ask them to select from the catalog's suites
-- If user chooses B, present catalog evaluators grouped by severity
+- List **only** the suites present in the catalog's `suites` array — never invent a suite name. The exact set is data-driven and will grow as evaluators are added.
+- Do NOT allow free-form suite names.
+- If the user chooses A, present the catalog's suites (see below).
+- If the user chooses B, present catalog evaluators grouped by severity.
 
 ### If User Chooses Option A: Suite
 
-Ask:
+Enumerate every entry in the catalog's `suites` array. Split them into **curated** suites (no `derived` flag) and **standards** suites (`"derived": true`) so the user sees both kinds:
 
 ```
 Which suite would you like to run?
-1. owasp-llm-top10
-2. owasp-agentic-ai
+
+Standards coverage (derived from evaluator standards tags):
+  1. owasp-llm-top10   — OWASP Top 10 for LLM Applications
+  2. owasp-agentic-ai  — OWASP Agentic AI Top 10
+  3. mitre-atlas       — MITRE ATLAS
+  ... (any other derived suites in the catalog)
+
+Curated suites:
+  4. quick-smoke        — fast, high-signal subset
+  5. pre-deploy-critical — critical-severity gate
+  ... (any other curated suites in the catalog)
 ```
 
-After they choose, show which evaluators will run:
+(The list above is illustrative — render the actual suites from `catalog.suites`, using each suite's `id`, `name`, and `description`. Do not hardcode this list.)
+
+After they choose, resolve the suite's `evaluatorIds` and show which evaluators will run:
 
 ```
 ✓ You selected: owasp-llm-top10
 
-This will run these 10 evaluators:
+This will run these N evaluators:
 - Prompt Injection (critical)
 - Sensitive Information Disclosure (critical)
 - System Prompt Leakage (critical)
-- ... (7 more)
+- ... (remaining evaluators from the suite's evaluatorIds)
 ```
 
 ### If User Chooses Option B: Custom Evaluators
@@ -387,7 +400,7 @@ After collecting test configuration, generate pre-attack input files automatical
      - Notes
    - For **single-turn**: each test case is one standalone prompt
    - For **multi-turn**: each test case is a conversation sequence (Turn 1 → initial attack, Turn 2 → escalation, Turn 3+ → further exploitation)
-4. Copy `pass_criteria` and `fail_criteria` from the catalog entry
+4. Copy `passCriteria` and `failCriteria` from the catalog entry
 5. Write to input file (see "Write Config Folder" step for format)
 
 Show progress bar:

@@ -14,7 +14,7 @@ Execute an MCP adversarial assessment using pre-generated attack inputs. The /op
 - `../opfor-setup/targets/<transport>.md` — transport adapters (how to connect and communicate)
 - Pre-generated attack inputs from `.opfor/configs/<uuid>/inputs/` — crafted by setup
 
-**Source-scan evaluators (whitebox) — on by default:** Some evaluators are whitebox (`scan_mode: source_code` in the catalog). They read the server's source instead of sending a runtime payload. The **Static Source Pre-Scan (Step 4.5)** runs by **default** — assume the assessment is on a codebase. Run every source-scan evaluator in the suite whenever a source root is resolvable, even if the loaded config did not explicitly list them, then **Correlate (Step 6.5)** after judging. The static pass is **not** a setting and is **never** asked about — the only consent prompt is for optionally running an external scanner (semgrep/codeql) in Step 4.5c. Skip Steps 4.5/6.5 **only** when no source root can be resolved (e.g. a remote `url` target with no repo path); then record those evaluators as `dynamic-only` and continue.
+**Source-scan evaluators (whitebox) — on by default:** Some evaluators are whitebox (`scanMode: source_code` in the catalog). They read the server's source instead of sending a runtime payload. The **Static Source Pre-Scan (Step 4.5)** runs by **default** — assume the assessment is on a codebase. Run every source-scan evaluator in the suite whenever a source root is resolvable, even if the loaded config did not explicitly list them, then **Correlate (Step 6.5)** after judging. The static pass is **not** a setting and is **never** asked about — the only consent prompt is for optionally running an external scanner (semgrep/codeql) in Step 4.5c. Skip Steps 4.5/6.5 **only** when no source root can be resolved (e.g. a remote `url` target with no repo path); then record those evaluators as `dynamic-only` and continue.
 
 ---
 
@@ -135,7 +135,7 @@ Using the transport adapter instructions from Step 2:
 
 ## 4.5 Static Source Pre-Scan (on by default)
 
-Run this step by **default** — do not ask the user whether to do static analysis. Resolve the source root first (4.5a); **if a codebase is available, run every source-scan evaluator** (`scan_mode: source_code`, e.g. `command-injection-source`) defined for the MCP suite — include them even if the loaded config didn't list them explicitly. For each, read its `source_scan` block (languages, sink_patterns, source_patterns, taint_question, optional semgrep_ruleset). Skip this step only when no source root can be resolved (see 4.5a).
+Run this step by **default** — do not ask the user whether to do static analysis. Resolve the source root first (4.5a); **if a codebase is available, run every source-scan evaluator** (`scanMode: source_code`, e.g. `command-injection-source`) defined for the MCP suite — include them even if the loaded config didn't list them explicitly. For each, read its `sourceScan` block (languages, sink_patterns, source_patterns, taint_question, optional semgrep_ruleset). Skip this step only when no source root can be resolved (see 4.5a).
 
 ### 4.5a — Resolve the source root
 
@@ -166,22 +166,22 @@ Tools whose handler can't be located are recorded as `unmapped` (reported, not d
    - Options: run with local rules / run with auto config / decline and use built-in grep+LLM.
    - **Never run an external scanner without an explicit yes**, and never send source to a third party without consent.
 3. **Pre-filter:**
-   - If a scanner is consented → run it (use `source_scan.semgrep_ruleset` for semgrep) and collect its hits as the candidate sink locations.
-   - Else → grep `source_scan.sink_patterns[<language>]` within each mapped handler.
+   - If a scanner is consented → run it (use `sourceScan.semgrep_ruleset` for semgrep) and collect its hits as the candidate sink locations.
+   - Else → grep `sourceScan.sink_patterns[<language>]` within each mapped handler.
    - A mapped handler with **zero** candidate sinks → mark its source-scan evaluator **PASS** (clean) with no LLM call (token control).
-   - If the handler's language is **not** in `source_scan.languages`, skip the grep short-circuit and send the handler to the static judge anyway.
+   - If the handler's language is **not** in `sourceScan.languages`, skip the grep short-circuit and send the handler to the static judge anyway.
 4. **Static judge (LLM)** — for each handler that has candidate sinks, read the handler plus the helpers it calls (cap ~12,000 chars, line-numbered) and judge with this prompt:
 
 ```
 You are a source-code security analyst reviewing an MCP server.
 
 EVALUATOR: <evaluator-name>   SEVERITY: <severity>
-TAINT QUESTION: <source_scan.taint_question>
+TAINT QUESTION: <sourceScan.taint_question>
 
 PASS (server defended):
-<copy exact pass_criteria from the evaluator>
+<copy exact passCriteria from the evaluator>
 FAIL (vulnerability found):
-<copy exact fail_criteria from the evaluator>
+<copy exact failCriteria from the evaluator>
 
 TOOL: <tool name>  (handler at <file:line>)
 CANDIDATE SINKS (pre-filter): <file:line list>
@@ -199,7 +199,7 @@ Confirmation hint: <tool + param a dynamic attack should target, or N/A>
 Reasoning: <1-2 sentences>
 ```
 
-5. **Emit confirmation hints:** for each FAIL, record `{tool, param}` from the Confirmation hint and carry it into Step 5 so the matching dynamic evaluator (`correlates_with`, e.g. `command-injection`) targets that exact parameter instead of guessing.
+5. **Emit confirmation hints:** for each FAIL, record `{tool, param}` from the Confirmation hint and carry it into Step 5 so the matching dynamic evaluator (`correlatesWith`, e.g. `command-injection`) targets that exact parameter instead of guessing.
 
 Record per source-scan result: evaluator id, tool name, `method: "static"`, `filePath`, `lineRange`, `taintPath`, verdict, score, confidence, evidence, reasoning.
 
@@ -219,7 +219,7 @@ Static source pre-scan...
 
 For each evaluator's input file, for each attack:
 
-**If a confirmation hint exists** for this evaluator's `correlates_with` target (from Step 4.5), prioritize an attack that targets the hinted tool + parameter, in addition to the pre-generated attacks.
+**If a confirmation hint exists** for this evaluator's `correlatesWith` target (from Step 4.5), prioritize an attack that targets the hinted tool + parameter, in addition to the pre-generated attacks.
 
 ### Single-Turn Execution:
 
@@ -338,7 +338,7 @@ For multi-turn: call the judge **once after all turns complete**, passing the fu
 
 ## 6.5 Correlate Static and Dynamic (source-scan evaluators only)
 
-Run this step **only if** the Static Source Pre-Scan (Step 4.5) ran. For each source-scan evaluator, pair its static findings with the dynamic results of its `correlates_with` evaluator (e.g. `command-injection-source` ↔ `command-injection`), matched by tool name (and parameter where available):
+Run this step **only if** the Static Source Pre-Scan (Step 4.5) ran. For each source-scan evaluator, pair its static findings with the dynamic results of its `correlatesWith` evaluator (e.g. `command-injection-source` ↔ `command-injection`), matched by tool name (and parameter where available):
 
 - **confirmed-dynamic** — a static FAIL on a tool/param **and** a dynamic FAIL on the same tool. Strongest signal: a located sink with a proven exploit. Tag both results `correlation: "confirmed-dynamic"`.
 - **static-only** — a static FAIL with no corresponding dynamic FAIL. The sink exists in code but the dynamic attack didn't trigger it (guarded or unreached input) — a likely false negative of black-box testing. Tag `correlation: "static-only"`.
