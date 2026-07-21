@@ -28,6 +28,13 @@ export interface RunAllOptions {
   outputDir?: string;
   /** Pre-built agent target. When omitted, createAgentTarget is called using config.target. */
   agentTarget?: AgentTarget;
+  /**
+   * Cancellation signal. When aborted the run finishes in-flight work, skips
+   * remaining evaluators/attacks, and returns a partial report with
+   * `stopReason: "user-interrupted"`. Callers (CLI, SDK) wire this to
+   * SIGINT / programmatic cancellation.
+   */
+  signal?: AbortSignal;
 }
 
 // Re-exported for callers importing it from this module; defined in ./types.js
@@ -122,6 +129,7 @@ export async function runAll(
       traceContext,
       agentTarget: options?.agentTarget,
       notify,
+      signal: options?.signal,
     });
     evaluatorResults.push(...loop.evaluatorResults);
     const stopReason = loop.stopReason;

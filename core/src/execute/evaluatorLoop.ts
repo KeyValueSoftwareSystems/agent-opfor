@@ -41,6 +41,8 @@ export interface EvaluatorLoopContext {
   /** Pre-built agent target; when omitted a fresh one is created per attack. */
   agentTarget?: AgentTarget;
   notify: (event: ProgressEvent) => void;
+  /** Cancellation signal — when aborted, the loop finishes the in-flight attack then stops. */
+  signal?: AbortSignal;
 }
 
 /**
@@ -60,11 +62,19 @@ export async function runEvaluatorAttacks(
     tools,
     traceContext,
     notify,
+    signal,
   } = ctx;
   const sessionMap = new Map<string, SessionContext>();
   const evaluatorResults: EvaluatorResult[] = [];
 
   for (const evaluator of ordered) {
+    if (signal?.aborted) {
+      const stopReason = "user-interrupted";
+      log.info(`\n⏹ Run interrupted — skipping remaining evaluators`);
+      notify({ type: "run_stopped", reason: stopReason });
+      return { evaluatorResults, stopReason };
+    }
+
     notify({ type: "evaluator_start", evaluatorId: evaluator.id, evaluatorName: evaluator.name });
 
     const deps = evaluator.dependsOn ?? [];
@@ -144,6 +154,11 @@ export async function runEvaluatorAttacks(
     };
 
     for (const attack of attacks) {
+      if (signal?.aborted) {
+        log.info(`  ⏹ Interrupted — skipping remaining attacks for ${evaluator.name}`);
+        break;
+      }
+
       if (upstreamSessions?.length) {
         attack.upstreamSessions = upstreamSessions;
       }

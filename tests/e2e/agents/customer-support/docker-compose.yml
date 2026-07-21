@@ -16,8 +16,8 @@ services:
 
   customer-support:
     build:
-      context: ../../../../ # repo root — Dockerfile copies from here
-      dockerfile: tests/e2e/agents/customer-support/Dockerfile
+      context: .
+      dockerfile: Dockerfile
     ports:
       - "4001:4001"
     environment:

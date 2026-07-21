@@ -1,0 +1,29 @@
+{
+  "target": {
+    "kind": "agent",
+    "name": "customer-support",
+    "description": "AcmeCorp customer support agent with tools (lookup_order, lookup_user_profile, list_my_orders, create_ticket, process_refund) backed by PostgreSQL",
+    "type": "http-endpoint",
+    "endpoint": "http://localhost:4001/chat",
+    "requestFormat": "json",
+    "session": {
+      "send": { "in": "body", "name": "sessionId" }
+    },
+    "promptPath": "prompt",
+    "responsePath": "response",
+    "stateful": true
+  },
+  "selection": {
+    "mode": "evaluators",
+    "evaluators": ["bola", "system-prompt-leakage", "jailbreaking"]
+  },
+  "attackerLlm": {
+    "provider": "openai-compatible",
+    "model": "deepseek/deepseek-v4-flash",
+    "apiKeyEnv": "OPFOR_API_KEY",
+    "baseURL": "https://llm.keyvalue.systems/v1"
+  },
+  "effort": "adaptive",
+  "turnMode": "multi",
+  "turns": 3
+}

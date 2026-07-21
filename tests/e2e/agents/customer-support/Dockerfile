@@ -2,19 +2,13 @@ FROM node:22-alpine
 
 WORKDIR /app
 
-# Copy workspace root manifests for npm workspaces install
 COPY package.json package-lock.json ./
-COPY tests/e2e/agents/customer-support/package.json ./tests/e2e/agents/customer-support/
 
-# Install only this workspace package's deps (devDependencies included — needed at runtime via tsx)
-RUN npm install --workspace=@keyvaluesystems/agent-opfor-test-agent-customer-support --ignore-scripts
+RUN npm install --ignore-scripts
 
-# Copy agent source
-COPY tests/e2e/agents/customer-support/src ./tests/e2e/agents/customer-support/src
-COPY tests/e2e/agents/customer-support/public ./tests/e2e/agents/customer-support/public
-COPY tests/e2e/agents/customer-support/tsconfig.json ./tests/e2e/agents/customer-support/
-
-WORKDIR /app/tests/e2e/agents/customer-support
+COPY src ./src
+COPY public ./public
+COPY tsconfig.json ./
 
 EXPOSE 4001
 
