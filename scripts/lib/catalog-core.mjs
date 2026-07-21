@@ -219,6 +219,12 @@ export async function parseEvaluator(discovered) {
   const judgeInstructions = str(doc, "judge_instructions").trim();
   if (judgeInstructions) evaluator.judgeInstructions = judgeInstructions;
 
+  // Informational only (docs/evaluator-schema.md) — carried through for parity with core.
+  if (Array.isArray(doc.surfaces) && doc.surfaces.length > 0) {
+    const surfaces = doc.surfaces.filter((s) => s === "agent" || s === "browser" || s === "mcp");
+    if (surfaces.length > 0) evaluator.surfaces = surfaces;
+  }
+
   // Extension-only optional fields (absent in the current tree, kept for parity).
   const strategy = str(doc, "strategy").trim();
   if (strategy) evaluator.strategy = strategy;
@@ -337,6 +343,8 @@ export function deriveStandardSuites(evaluators) {
  * Parse every evaluator under a surface dir, skipping (with a warning) any that
  * fail to parse. Returns the full normalized objects, sorted by id. Callers
  * apply their own include/exclude policy and serialization afterward.
+ *
+ * Does not check for duplicate ids — `scripts/validate-skills.ts` already hard-errors on those.
  */
 export async function parseAllEvaluators(evaluatorsDir) {
   const discovered = await discoverEvaluatorFiles(evaluatorsDir);

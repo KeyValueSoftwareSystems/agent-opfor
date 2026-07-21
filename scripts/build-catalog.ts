@@ -57,6 +57,8 @@ function toSkillEvaluator(e: Record<string, unknown>): Record<string, unknown> {
   if (e.appliesToAllTools !== undefined) out.appliesToAllTools = e.appliesToAllTools;
   if (e.mcpTop10) out.mcpTop10 = e.mcpTop10;
   if (e.judgeInstructions) out.judgeInstructions = e.judgeInstructions;
+  // Informational surface tags (agent/browser/mcp) — see catalog-core.mjs's parseEvaluator.
+  if (e.surfaces) out.surfaces = e.surfaces;
   return out;
 }
 

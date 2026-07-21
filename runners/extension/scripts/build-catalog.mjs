@@ -15,7 +15,7 @@
  */
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   parseAllEvaluators,
   parseAllSuites,
@@ -30,12 +30,12 @@ const SUITES_DIR = path.join(REPO_ROOT, "suites/agent");
 const OUT = path.join(REPO_ROOT, "runners/extension/catalog.json");
 
 /** The extension can only run evaluators that send a prompt to the chat UI. */
-function isRunnableInBrowser(e) {
+export function isRunnableInBrowser(e) {
   return e.patterns.length > 0 || e.strategy === "mcp-scanner";
 }
 
 /** Minimal evaluator shape the extension consumes (stable key order). */
-function toExtensionEvaluator(e) {
+export function toExtensionEvaluator(e) {
   const out = {
     id: e.id,
     name: e.name,
@@ -51,6 +51,7 @@ function toExtensionEvaluator(e) {
   };
   if (e.standards) out.standards = e.standards;
   if (e.judgeHint) out.judgeHint = e.judgeHint;
+  if (e.surfaces) out.surfaces = e.surfaces;
   if (e.strategy) out.strategy = e.strategy;
   if (e.turnMode) out.turnMode = e.turnMode;
   return out;
@@ -92,7 +93,10 @@ async function main() {
   console.log(`[build-catalog] ${totalPatterns} total patterns`);
 }
 
-main().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+// Only run when executed directly, not when imported by build-catalog.test.mjs.
+if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
+  main().catch((e) => {
+    console.error(e);
+    process.exit(1);
+  });
+}
