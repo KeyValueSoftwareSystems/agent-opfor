@@ -219,8 +219,9 @@ export function registerRunCommand(program: Command): void {
           process.off("SIGINT", onSigint);
         }
 
-        const isPartial = !!(report as { stopReason?: string }).stopReason;
-        if (isPartial) {
+        const isUserInterrupted =
+          (report as { stopReason?: string }).stopReason === "user-interrupted";
+        if (isUserInterrupted) {
           log.warn("\n\nWriting partial report…");
         } else {
           log.info("\n\nWriting report...");
@@ -233,7 +234,7 @@ export function registerRunCommand(program: Command): void {
           `\nResults: ${summary.passed} passed, ${summary.failed} failed, ${summary.errors} errors`
         );
 
-        if (isPartial) {
+        if (isUserInterrupted) {
           log.warn(
             `\n⚠️  Run interrupted — results are partial. Re-run for a complete assessment.`
           );
