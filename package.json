@@ -39,6 +39,7 @@
     "validate:skills": "tsx scripts/validate-skills.ts",
     "build:catalog": "tsx scripts/build-catalog.ts",
     "build:catalog:check": "tsx scripts/build-catalog.ts --check",
+    "test:catalog-generators": "node --import tsx/esm --test scripts/tests/*.test.mjs scripts/tests/*.test.ts runners/extension/tests/*.test.mjs",
     "smoke:pack": "tsx scripts/smoke-pack.ts",
     "new:evaluator": "tsx scripts/new-evaluator.ts",
     "coverage:atlas": "tsx scripts/generate-atlas-coverage.ts",
