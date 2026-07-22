@@ -196,6 +196,23 @@ Where `<slug>` is the target name slugified (e.g. `erkala-travel-support-agent`)
 
 ---
 
+## Graceful shutdown (Ctrl+C)
+
+Pressing Ctrl+C during `opfor run` triggers a graceful shutdown instead of killing the process:
+
+| Press  | Behavior                                                                                                  |
+| ------ | --------------------------------------------------------------------------------------------------------- |
+| First  | Finishes the in-flight attack, skips remaining evaluators/attacks, writes a partial report, exits cleanly |
+| Second | Force-kills immediately (`exit 130`)                                                                      |
+
+Partial reports include all completed evaluator results and are marked with `stopReason: "user-interrupted"` in the JSON output. The CLI prints a warning:
+
+```
+⚠️  Run interrupted — results are partial. Re-run for a complete assessment.
+```
+
+---
+
 ## Effort: adaptive vs comprehensive
 
 | Effort          | What it does                                                                                                                |

@@ -188,12 +188,44 @@ export function registerRunCommand(program: Command): void {
             return;
           }
         }
-        const report = await runAll(runConfig, {
-          outputDir: path.resolve(OPFOR_DIR),
-          listeners,
-        });
 
-        log.info("\n\nWriting report...");
+        // Graceful shutdown: first Ctrl+C aborts the signal so the engine
+        // finishes its in-flight attack and writes a partial report; second
+        // Ctrl+C force-kills immediately.
+        const ac = new AbortController();
+        let sigintCount = 0;
+        const onSigint = () => {
+          sigintCount++;
+          if (sigintCount === 1) {
+            log.warn(
+              "\n\nCaught interrupt — finishing in-flight attack, skipping remaining evaluators…"
+            );
+            log.warn("Press Ctrl+C again to force quit.\n");
+            ac.abort();
+          } else {
+            process.exit(130);
+          }
+        };
+        process.on("SIGINT", onSigint);
+
+        let report;
+        try {
+          report = await runAll(runConfig, {
+            outputDir: path.resolve(OPFOR_DIR),
+            listeners,
+            signal: ac.signal,
+          });
+        } finally {
+          process.off("SIGINT", onSigint);
+        }
+
+        const isUserInterrupted =
+          (report as { stopReason?: string }).stopReason === "user-interrupted";
+        if (isUserInterrupted) {
+          log.warn("\n\nWriting partial report…");
+        } else {
+          log.info("\n\nWriting report...");
+        }
         const outputDir = path.resolve(opts.output ?? OPFOR_REPORTS_DIR);
         const { html, json } = await writeReport(report, outputDir);
 
@@ -202,8 +234,11 @@ export function registerRunCommand(program: Command): void {
           `\nResults: ${summary.passed} passed, ${summary.failed} failed, ${summary.errors} errors`
         );
 
-        // Warn loudly if there were errors (infra/config issues)
-        if (summary.errors > 0 && summary.passed === 0 && summary.failed === 0) {
+        if (isUserInterrupted) {
+          log.warn(
+            `\n⚠️  Run interrupted — results are partial. Re-run for a complete assessment.`
+          );
+        } else if (summary.errors > 0 && summary.passed === 0 && summary.failed === 0) {
           log.warn(
             `\n⚠️  Assessment incomplete: all ${summary.errors} attack(s) failed due to errors.`
           );

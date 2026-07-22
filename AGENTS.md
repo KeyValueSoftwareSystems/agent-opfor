@@ -273,6 +273,8 @@ There is no longer a separate `generate` step. `opfor run --config <file>` does 
 
 **MCP targets** additionally run baseline pre-flight scans (`runBaselineScans`) before the evaluator loop — these enumerate `tools/list` + `resources/list` and judge them for poisoning / leakage independent of any evaluator. Throughout the run, `runAll` fans lifecycle events to registered `RunListener`s (progress reporting, NDJSON streaming) rather than only a callback.
 
+**Cancellation.** `RunAllOptions` accepts an optional `signal?: AbortSignal`. When aborted, the evaluator loop finishes the in-flight attack, skips remaining evaluators/attacks, and returns a partial report with `stopReason: "user-interrupted"`. The CLI wires this to SIGINT (first Ctrl+C = graceful stop, second = force kill). The SDK can reuse the same mechanism for programmatic cancellation.
+
 `runAllBrowser` is the same loop in browser-safe form: takes preloaded `EvaluatorSpec[]` + a pre-built `AgentTarget` (e.g. `DomTarget`), skips disk reads.
 
 ---
