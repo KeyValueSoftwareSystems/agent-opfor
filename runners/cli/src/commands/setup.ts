@@ -48,6 +48,7 @@ export async function runSetupAndWrite(opts?: {
   await writeFile(outPath, JSON.stringify(config, null, 2), "utf8");
 
   log.success(`\nConfig written → ${outPath}`);
+  log.info(`Made a mistake? Edit any field in that JSON file directly before running it.`);
   return { config, path: outPath };
 }
 

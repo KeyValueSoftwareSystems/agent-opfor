@@ -2,9 +2,7 @@
 
 import http from "node:http";
 import path from "node:path";
-import { existsSync } from "node:fs";
-import { mkdir } from "node:fs/promises";
-import { createWriteStream, type WriteStream } from "node:fs";
+import { existsSync, createWriteStream, mkdirSync, type WriteStream } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { exec } from "node:child_process";
 import express from "express";
@@ -77,6 +75,11 @@ export interface UiServerHandle {
   url: string;
   attachRunLog: (runLog: RunLog) => void;
   markComplete: (payload: { reportDir?: string; outcome?: string }) => void;
+  /**
+   * Abort an in-progress setup-mode assessment so it finalizes a partial report.
+   * Returns true if a run was actually in progress, false if idle (nothing to abort).
+   */
+  abortAssessment: () => boolean;
   close: () => Promise<void>;
 }
 
@@ -109,6 +112,10 @@ function openInBrowser(url: string): void {
 export async function startUiServer(options: UiServerOptions): Promise<UiServerHandle> {
   const app = express();
   const bridge = new UiBridge();
+
+  // Cancellation for a setup-mode assessment. Created fresh per run in the /api/start handler;
+  // aborting it lets the in-flight run finalize a partial report instead of dying mid-attack.
+  let assessmentAbort: AbortController | undefined;
   bridge.setMeta(options.meta);
   const staticDir = resolveStaticDir();
 
@@ -260,8 +267,10 @@ export async function startUiServer(options: UiServerOptions): Promise<UiServerH
 
       res.json({ ok: true, message: "Assessment started" });
 
+      assessmentAbort = new AbortController();
+
       // Run the assessment in-process (async, don't await in handler)
-      runAssessmentInProcess(autoOptions, bridge, options.onLog)
+      runAssessmentInProcess(autoOptions, bridge, options.onLog, assessmentAbort.signal)
         .then((reportDir) => {
           options.onComplete?.({ success: true, reportDir });
         })
@@ -274,6 +283,7 @@ export async function startUiServer(options: UiServerOptions): Promise<UiServerH
         })
         .finally(() => {
           runningAssessment = false;
+          assessmentAbort = undefined;
         });
     });
   }
@@ -310,6 +320,11 @@ export async function startUiServer(options: UiServerOptions): Promise<UiServerH
     markComplete(payload) {
       bridge.markComplete(payload);
     },
+    abortAssessment() {
+      if (!assessmentAbort) return false;
+      assessmentAbort.abort();
+      return true;
+    },
     close() {
       return new Promise((resolve, reject) => {
         server.close((err) => (err ? reject(err) : resolve()));
@@ -322,35 +337,33 @@ export async function startUiServer(options: UiServerOptions): Promise<UiServerH
 async function runAssessmentInProcess(
   autoOptions: HuntOptions,
   bridge: UiBridge,
-  onLog?: (line: string) => void
+  onLog?: (line: string) => void,
+  signal?: AbortSignal
 ): Promise<string | undefined> {
   const { runAutonomous } =
     await import("@keyvaluesystems/agent-opfor-core/autonomous/orchestrator/run.js");
-  const { writeAutonomousReport } =
+  const { writeAutonomousReport, reportDirFor } =
     await import("@keyvaluesystems/agent-opfor-core/autonomous/report/writeReport.js");
-
-  // Set up output directory and log files
-  await mkdir(autoOptions.outputDir, { recursive: true });
-  const startedAt = new Date()
-    .toISOString()
-    .replace(/[-:T.Z]/g, "")
-    .slice(0, 14);
-  const liveLogPath = path.join(autoOptions.outputDir, `hunt-live-${startedAt}.log`);
-  const liveLog: WriteStream = createWriteStream(liveLogPath, { flags: "a" });
-  const eventLogPath = path.join(autoOptions.outputDir, `run-${startedAt}.jsonl`);
-  const eventLog: WriteStream = createWriteStream(eventLogPath, { flags: "a" });
 
   const clock = () => new Date().toISOString().slice(11, 19);
 
+  // Report folder + live-log files are created from `onRunLog` below, as soon as the
+  // orchestrator hands back the RunLog (runId/startedAt/targetName are all it takes to name
+  // the folder — see `reportDirFor`). That fires before any progress event, so by the time
+  // `emit`/`emitEvent` are ever called the streams already exist.
+  let liveLog: WriteStream | undefined;
+  let eventLog: WriteStream | undefined;
+
   const emit = (line: string): void => {
     const stamped = `[${clock()}] ${line}`;
-    liveLog.write(stamped + "\n");
+    liveLog?.write(stamped + "\n");
     bridge.onLine(line);
     // Also stream to terminal
     onLog?.(stamped);
   };
 
   const emitEvent = (event: RunEvent): void => {
+    if (!eventLog) return;
     try {
       eventLog.write(JSON.stringify({ ...event, wall: clock() }) + "\n");
     } catch {
@@ -359,15 +372,25 @@ async function runAssessmentInProcess(
     bridge.onEvent(event);
   };
 
-  emit(`Starting autonomous assessment against ${autoOptions.target.name}`);
-  emit(`Objective: ${autoOptions.objective}`);
-
   let reportDir: string | undefined;
 
   try {
     const report = await runAutonomous(autoOptions, {
       progress: { onLine: emit, onEvent: emitEvent },
+      signal,
       onRunLog: (runLog) => {
+        reportDir = reportDirFor(autoOptions.outputDir, {
+          targetName: runLog.targetName,
+          runId: runLog.runId,
+          startedAt: runLog.startedAt,
+        });
+        mkdirSync(reportDir, { recursive: true });
+        liveLog = createWriteStream(path.join(reportDir, "hunt-live.log"), { flags: "a" });
+        eventLog = createWriteStream(path.join(reportDir, "run-events.jsonl"), { flags: "a" });
+
+        emit(`Starting autonomous assessment against ${autoOptions.target.name}`);
+        emit(`Objective: ${autoOptions.objective}`);
+
         bridge.attachRunLog(runLog, {
           objective: autoOptions.objective,
           targetName: autoOptions.target.name,
@@ -380,15 +403,18 @@ async function runAssessmentInProcess(
       },
     });
 
-    emit("Run completed, writing report…");
+    const interrupted = signal?.aborted ?? false;
+    emit(
+      interrupted ? "Run interrupted, writing partial report…" : "Run completed, writing report…"
+    );
     const reportFiles = await writeAutonomousReport(report, autoOptions.outputDir);
     reportDir = reportFiles.dir;
     emit(`Report written to ${reportDir}`);
 
-    bridge.markComplete({ reportDir, outcome: "completed" });
+    bridge.markComplete({ reportDir, outcome: interrupted ? "interrupted" : "completed" });
   } finally {
-    liveLog.end();
-    eventLog.end();
+    liveLog?.end();
+    eventLog?.end();
   }
 
   return reportDir;

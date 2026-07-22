@@ -18,7 +18,7 @@ export type { BudgetGuardOptions } from "./lib/budget.js";
 export type { AutonomousReport } from "./report/types.js";
 export { mapRunLogToReport } from "./report/mapRunLog.js";
 export { renderReportHtml } from "./report/html.js";
-export { writeAutonomousReport } from "./report/writeReport.js";
+export { writeAutonomousReport, reportDirFor } from "./report/writeReport.js";
 
 export { loadKnowledge } from "./knowledge/load.js";
 export type {

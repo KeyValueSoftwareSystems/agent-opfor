@@ -132,6 +132,14 @@ respond before it's killed.
 | `--ui`             | Launch live dashboard |
 | `--ui-port <port>` | `3847`                |
 
+Each run writes everything into one folder — `hunt-report-<timestamp>-<target>-<id>/` — containing the live log (`hunt-live.log`), the structured event trail (`run-events.jsonl`), and the final `*-report.html` / `*-report.json`.
+
+## Stopping a run
+
+Press **Ctrl+C** once to stop early: the agent is interrupted, and a report is still written from the findings gathered so far (with the live log and event trail already on disk). The report is marked as truncated so it's clear the assessment was cut short. Press **Ctrl+C** a second time to force-quit without writing a report.
+
+The same applies if a run errors out mid-flight (provider block, network failure) — findings captured up to that point are preserved in a partial report rather than lost.
+
 ## Authentication
 
 Credentials are resolved in order:

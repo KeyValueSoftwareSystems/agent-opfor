@@ -1,7 +1,7 @@
 import type { Command } from "commander";
 import path from "node:path";
-import { readFile, mkdir } from "node:fs/promises";
-import { createWriteStream, existsSync, type WriteStream } from "node:fs";
+import { readFile } from "node:fs/promises";
+import { createWriteStream, existsSync, mkdirSync, type WriteStream } from "node:fs";
 import { homedir } from "node:os";
 import { consola } from "consola";
 import type {
@@ -11,7 +11,10 @@ import type {
 import type { RunEvent } from "@keyvaluesystems/agent-opfor-core/autonomous/state/observe.js";
 import { parseAgentTarget } from "@keyvaluesystems/agent-opfor-core/config/schema.js";
 import { runAutonomous } from "@keyvaluesystems/agent-opfor-core/autonomous/orchestrator/run.js";
-import { writeAutonomousReport } from "@keyvaluesystems/agent-opfor-core/autonomous/report/writeReport.js";
+import {
+  writeAutonomousReport,
+  reportDirFor,
+} from "@keyvaluesystems/agent-opfor-core/autonomous/report/writeReport.js";
 import { startUiServer } from "../ui/server.js";
 import { mergeReporters } from "../ui/bridge.js";
 
@@ -295,6 +298,27 @@ export function registerHuntCommand(program: Command): void {
           },
         });
 
+        // Graceful shutdown for the browser-launched assessment. First Ctrl+C aborts a
+        // running assessment so it finalizes a partial report (onComplete → cleanup); if
+        // nothing is running yet (still on the setup form) we just exit. Second Ctrl+C
+        // force-quits.
+        let setupSigintCount = 0;
+        const onSetupSigint = (): void => {
+          setupSigintCount++;
+          if (setupSigintCount >= 2) {
+            void cleanup(130);
+            return;
+          }
+          if (serverHandle?.abortAssessment()) {
+            consola.warn(
+              "\nCaught interrupt — finalizing a partial report… (Ctrl+C again to force quit)"
+            );
+          } else {
+            void cleanup(0);
+          }
+        };
+        process.on("SIGINT", onSetupSigint);
+
         // Keep process alive until onComplete is called
         await new Promise(() => {});
         return;
@@ -420,25 +444,38 @@ export function registerHuntCommand(program: Command): void {
         outputDir: path.resolve(opts.output),
       };
 
-      // Live log file the user can `tail -f` while the run is in progress.
-      await mkdir(huntOptions.outputDir, { recursive: true });
-      const startedAt = new Date()
-        .toISOString()
-        .replace(/[-:T.Z]/g, "")
-        .slice(0, 14);
-      const liveLogPath = path.join(huntOptions.outputDir, `hunt-live-${startedAt}.log`);
-      const liveLog: WriteStream = createWriteStream(liveLogPath, { flags: "a" });
+      const header = [
+        "════════════════════════════════════════════════════════════════",
+        ` AUTONOMOUS RED-TEAM`,
+        ` target    : ${target.name} (${target.mode})  ${target.endpoint}`,
+        ` objective : ${objective}`,
+        ` models    : commander=${huntOptions.commanderModel}  operator=${huntOptions.operatorModel}  scout=${huntOptions.scoutModel}`,
+        ` limits    : operators≤${huntOptions.maxOperators}  turns≤${huntOptions.maxTurns}  thread-turns≤${huntOptions.maxThreadTurns}${huntOptions.budgetUsd ? `  budget=$${huntOptions.budgetUsd}` : ""}`,
+        ` verifier  : ${huntOptions.verify ? "on" : "off"}`,
+        "════════════════════════════════════════════════════════════════",
+      ].join("\n");
+      process.stdout.write(header + "\n");
+
+      // Report folder + live-log files are created from `onRunLog` below, as soon as the
+      // orchestrator hands back the RunLog (runId/startedAt/targetName are all it takes to name
+      // the folder — see `reportDirFor`). That fires before any progress event, so by the time
+      // `emit`/`emitEvent` are ever called the streams already exist.
+      let reportDir = "";
+      let liveLogPath = "";
+      let eventLogPath = "";
+      let liveLog: WriteStream | undefined;
+      let eventLog: WriteStream | undefined;
+
       const emit = (line: string): void => {
         const stamped = `[${clock()}] ${line}`;
         process.stdout.write(stamped + "\n");
-        liveLog.write(stamped + "\n");
+        liveLog?.write(stamped + "\n");
       };
 
       // Structured event trail (one JSON object per line) — machine-readable for debugging and
       // the foundation a future "opfor view" web UI consumes. Stamped with a wall-clock time.
-      const eventLogPath = path.join(huntOptions.outputDir, `run-${startedAt}.jsonl`);
-      const eventLog: WriteStream = createWriteStream(eventLogPath, { flags: "a" });
       const emitEvent = (event: RunEvent): void => {
+        if (!eventLog) return;
         // An observability sink must never crash the run. Guard JSON.stringify (data is
         // Record<string, unknown> — a future event could carry a circular ref / BigInt).
         try {
@@ -454,20 +491,6 @@ export function registerHuntCommand(program: Command): void {
           );
         }
       };
-
-      const header = [
-        "════════════════════════════════════════════════════════════════",
-        ` AUTONOMOUS RED-TEAM`,
-        ` target    : ${target.name} (${target.mode})  ${target.endpoint}`,
-        ` objective : ${objective}`,
-        ` models    : commander=${huntOptions.commanderModel}  operator=${huntOptions.operatorModel}  scout=${huntOptions.scoutModel}`,
-        ` limits    : operators≤${huntOptions.maxOperators}  turns≤${huntOptions.maxTurns}  thread-turns≤${huntOptions.maxThreadTurns}${huntOptions.budgetUsd ? `  budget=$${huntOptions.budgetUsd}` : ""}`,
-        ` verifier  : ${huntOptions.verify ? "on" : "off"}`,
-        "════════════════════════════════════════════════════════════════",
-      ].join("\n");
-      process.stdout.write(header + "\n");
-      liveLog.write(header + "\n");
-      consola.box(`Live log (tail it):\n  tail -f ${liveLogPath}`);
 
       let uiHandle: Awaited<ReturnType<typeof startUiServer>> | undefined;
       if (opts.ui) {
@@ -490,8 +513,6 @@ export function registerHuntCommand(program: Command): void {
         } catch (err) {
           consola.error(`Failed to start UI server: ${String(err)}`);
           process.exitCode = 1;
-          liveLog.end();
-          eventLog.end();
           return;
         }
       }
@@ -499,32 +520,74 @@ export function registerHuntCommand(program: Command): void {
       const fileReporter = { onLine: emit, onEvent: emitEvent };
       const progress = uiHandle ? mergeReporters(fileReporter, uiHandle.bridge) : fileReporter;
 
+      // Graceful shutdown: first Ctrl+C aborts so the commander stops dispatching, the
+      // in-flight agent turn is interrupted, and we still write a report from whatever was
+      // found up to that point (plus the live logs already on disk). Second Ctrl+C force-quits.
+      const ac = new AbortController();
+      let sigintCount = 0;
+      const onSigint = (): void => {
+        sigintCount++;
+        if (sigintCount === 1) {
+          consola.warn("\nCaught interrupt — stopping agents and finalizing a partial report…");
+          consola.warn("Press Ctrl+C again to force quit (no report will be written).\n");
+          ac.abort();
+        } else {
+          process.exit(130);
+        }
+      };
+      process.on("SIGINT", onSigint);
+
       let report;
       try {
         report = await runAutonomous(huntOptions, {
           progress,
-          onRunLog: uiHandle ? (log) => uiHandle!.attachRunLog(log) : undefined,
+          signal: ac.signal,
+          onRunLog: (log) => {
+            reportDir = reportDirFor(huntOptions.outputDir, {
+              targetName: log.targetName,
+              runId: log.runId,
+              startedAt: log.startedAt,
+            });
+            mkdirSync(reportDir, { recursive: true });
+            liveLogPath = path.join(reportDir, "hunt-live.log");
+            eventLogPath = path.join(reportDir, "run-events.jsonl");
+            liveLog = createWriteStream(liveLogPath, { flags: "a" });
+            eventLog = createWriteStream(eventLogPath, { flags: "a" });
+            liveLog.write(header + "\n");
+            consola.box(`Live log (tail it):\n  tail -f ${liveLogPath}`);
+            uiHandle?.attachRunLog(log);
+          },
         });
       } finally {
-        liveLog.end();
-        eventLog.end();
+        // Stop intercepting SIGINT before the post-run UI wait installs its own handler.
+        process.off("SIGINT", onSigint);
+        liveLog?.end();
+        eventLog?.end();
       }
+
+      const interrupted = ac.signal.aborted;
 
       const { html, json, dir } = await writeAutonomousReport(report, huntOptions.outputDir);
 
       uiHandle?.markComplete({ reportDir: dir, outcome: report.objectiveOutcome });
 
       consola.info("");
-      consola.success(`Assessment complete — outcome: ${report.objectiveOutcome}`);
+      if (interrupted) {
+        consola.warn(`Assessment interrupted — partial report written from work completed so far.`);
+      } else {
+        consola.success(`Assessment complete — outcome: ${report.objectiveOutcome}`);
+      }
       consola.info(
         `Vulnerabilities: ${report.summary.confirmed} · Defended: ${report.summary.defended} · Errors: ${report.summary.errors}`
       );
       if (report.totalCostUsd !== undefined)
         consola.info(`Cost: $${report.totalCostUsd.toFixed(4)}`);
-      if (report.truncated) consola.warn(`Run truncated: ${report.truncationReason}`);
+      if (report.truncated && !interrupted)
+        consola.warn(`Run truncated: ${report.truncationReason}`);
       consola.success(`Report: ${html}`);
       consola.info(`   JSON: ${json}`);
       consola.info(`   Dir : ${dir}`);
+      consola.info(`   Live log: ${liveLogPath}`);
       consola.info(`   Events: ${eventLogPath}`);
       if (uiHandle) {
         consola.info(`   UI    : ${uiHandle.url} (press Ctrl+C to exit)`);

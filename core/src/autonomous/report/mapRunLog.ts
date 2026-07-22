@@ -191,6 +191,7 @@ export function mapRunLogToReport(log: RunLog): AutonomousReport {
 
   return {
     reportId: log.runId,
+    startedAt: log.startedAt,
     generatedAt: new Date().toISOString(),
     target: { name: log.targetName, endpoint: log.targetEndpoint },
     objective: log.objective,
