@@ -45,6 +45,9 @@
     "report:pdf": "tsx scripts/generate-pdf-report.ts",
     "prepare": "husky"
   },
+  "overrides": {
+    "@hono/node-server": "^2.0.5"
+  },
   "devDependencies": {
     "@commitlint/cli": "^21.1.0",
     "@commitlint/config-conventional": "^21.1.0",
