@@ -21,12 +21,7 @@ function slugify(name: string): string {
   );
 }
 
-/**
- * The report subfolder name is derived entirely from values known at run start (target name,
- * run id, start time) — not from anything only available once the run finishes. That lets
- * callers create this folder up front and write live logs directly into it, instead of writing
- * elsewhere and relocating them once the report exists.
- */
+/** Report folder name — derivable at run start, so callers can create it upfront instead of relocating files later. */
 export function reportDirFor(
   outputDir: string,
   params: { targetName: string; runId: string; startedAt: string }

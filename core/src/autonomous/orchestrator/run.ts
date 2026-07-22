@@ -64,11 +64,7 @@ export interface RunHooks {
   progress?: ProgressReporter;
   /** Called once the in-memory RunLog is created — used by the live UI for snapshots. */
   onRunLog?: (runLog: import("../state/runLog.js").RunLog) => void;
-  /**
-   * Cancellation signal. When aborted the run interrupts the agent, keeps every
-   * finding gathered so far, and finalizes a partial (truncated) report instead of
-   * throwing. Callers (CLI) wire this to SIGINT / Ctrl+C.
-   */
+  /** Abort to stop the run early and finalize a partial (truncated) report instead of throwing. */
   signal?: AbortSignal;
 }
 
@@ -88,10 +84,8 @@ export async function runAutonomous(
     );
   }
 
-  // Handed off via `onRunLog` so callers can react — e.g. create the report folder and open
-  // live-log files inside it — before any progress event has a chance to fire. Deliberately
-  // created only after the checks above: a bad config (missing seed dir) should fail with zero
-  // artifacts on disk, not leave behind an empty report folder.
+  // Created only after the checks above — a bad config should fail with zero artifacts, not an
+  // empty report folder. Handed off via `onRunLog` before any progress event can fire.
   const runLog = createRunLog({
     runId: randomUUID(),
     objective: options.objective,
@@ -190,11 +184,8 @@ export async function runAutonomous(
 
   reporter?.onLine("Autonomous assessment started — commander initializing…");
 
-  // Cancellation: interrupt the SDK query the moment the caller aborts, rather than waiting
-  // for the next stream message. An in-flight operator attack (a long multi-turn exchange
-  // with the target) could otherwise keep the run alive for many seconds after Ctrl+C — the
-  // loop only regains control between messages. The truncation flags are set from the loop /
-  // catch below; here we just stop the agent promptly. `interrupt` is idempotent and guarded.
+  // Interrupt immediately so an in-flight multi-turn attack doesn't keep the run alive after
+  // Ctrl+C — truncation flags are set below, this just stops the agent promptly.
   const onAbort = (): void => {
     reporter?.onLine("⏹  interrupt received — stopping agents, finalizing a partial report…");
     void q.interrupt().catch(() => {});
@@ -289,11 +280,8 @@ export async function runAutonomous(
       }
     }
   } catch (err) {
-    // A mid-run failure (e.g. provider usage-policy block, network error) — or the SDK
-    // child being torn down by the same Ctrl+C the caller aborted on — must NOT lose the
-    // findings already captured in the RunLog. Mark the run truncated and fall through to
-    // build a partial report. When the user aborted, prefer the friendly interrupt reason
-    // over the raw SDK error.
+    // A mid-run failure or the abort itself must not lose captured findings — mark truncated
+    // and fall through to a partial report.
     const message = err instanceof Error ? err.message : String(err);
     runLog.truncated = true;
     if (signal?.aborted) {

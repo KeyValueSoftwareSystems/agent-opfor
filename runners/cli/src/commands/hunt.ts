@@ -298,10 +298,8 @@ export function registerHuntCommand(program: Command): void {
           },
         });
 
-        // Graceful shutdown for the browser-launched assessment. First Ctrl+C aborts a
-        // running assessment so it finalizes a partial report (onComplete → cleanup); if
-        // nothing is running yet (still on the setup form) we just exit. Second Ctrl+C
-        // force-quits.
+        // First Ctrl+C aborts a running assessment (partial report via onComplete), or exits if
+        // idle on the setup form; second Ctrl+C force-quits.
         let setupSigintCount = 0;
         const onSetupSigint = (): void => {
           setupSigintCount++;
@@ -456,10 +454,7 @@ export function registerHuntCommand(program: Command): void {
       ].join("\n");
       process.stdout.write(header + "\n");
 
-      // Report folder + live-log files are created from `onRunLog` below, as soon as the
-      // orchestrator hands back the RunLog (runId/startedAt/targetName are all it takes to name
-      // the folder — see `reportDirFor`). That fires before any progress event, so by the time
-      // `emit`/`emitEvent` are ever called the streams already exist.
+      // Folder + streams are created from `onRunLog` below, before any progress event can fire.
       let reportDir = "";
       let liveLogPath = "";
       let eventLogPath = "";
@@ -520,9 +515,7 @@ export function registerHuntCommand(program: Command): void {
       const fileReporter = { onLine: emit, onEvent: emitEvent };
       const progress = uiHandle ? mergeReporters(fileReporter, uiHandle.bridge) : fileReporter;
 
-      // Graceful shutdown: first Ctrl+C aborts so the commander stops dispatching, the
-      // in-flight agent turn is interrupted, and we still write a report from whatever was
-      // found up to that point (plus the live logs already on disk). Second Ctrl+C force-quits.
+      // First Ctrl+C aborts and finalizes a partial report; second Ctrl+C force-quits.
       const ac = new AbortController();
       let sigintCount = 0;
       const onSigint = (): void => {

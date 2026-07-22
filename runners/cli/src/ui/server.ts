@@ -113,8 +113,7 @@ export async function startUiServer(options: UiServerOptions): Promise<UiServerH
   const app = express();
   const bridge = new UiBridge();
 
-  // Cancellation for a setup-mode assessment. Created fresh per run in the /api/start handler;
-  // aborting it lets the in-flight run finalize a partial report instead of dying mid-attack.
+  // Created fresh per run in the /api/start handler; aborting finalizes a partial report.
   let assessmentAbort: AbortController | undefined;
   bridge.setMeta(options.meta);
   const staticDir = resolveStaticDir();
@@ -347,10 +346,7 @@ async function runAssessmentInProcess(
 
   const clock = () => new Date().toISOString().slice(11, 19);
 
-  // Report folder + live-log files are created from `onRunLog` below, as soon as the
-  // orchestrator hands back the RunLog (runId/startedAt/targetName are all it takes to name
-  // the folder — see `reportDirFor`). That fires before any progress event, so by the time
-  // `emit`/`emitEvent` are ever called the streams already exist.
+  // Folder + streams are created from `onRunLog` below, before any progress event can fire.
   let liveLog: WriteStream | undefined;
   let eventLog: WriteStream | undefined;
 
