@@ -7,7 +7,14 @@
 // every copy or the Node and browser paths would silently drift. Both paths now
 // funnel through these helpers, so that math lives in exactly one place.
 
-import type { AttackResult, EvaluatorResult, UnifiedRunReport, Effort } from "./types.js";
+import type {
+  AttackResult,
+  EvaluatorResult,
+  UnifiedRunReport,
+  Effort,
+  AgentProfile,
+} from "./types.js";
+import { amplifiedRisk } from "./amplify.js";
 
 /** Minimal shape needed to tally — any object carrying a judge verdict. */
 type Judged = { judge: { verdict: "PASS" | "FAIL" | "ERROR" } };
@@ -71,6 +78,23 @@ function computeWeightedScores(evaluators: EvaluatorResult[]): {
   };
 }
 
+/**
+ * Extract the lowest (worst) judge score across a set of FAIL attacks.
+ * Returns `undefined` when there are no FAIL attacks with a numeric score,
+ * which tells `amplifiedRisk` to use the static severity floor only.
+ */
+function worstJudgeScore(attacks: AttackResult[]): number | undefined {
+  let worst: number | undefined;
+  for (const a of attacks) {
+    if (a.judge.verdict !== "FAIL") continue;
+    const s = a.judge.score;
+    if (typeof s === "number" && Number.isFinite(s)) {
+      worst = worst === undefined ? s : Math.min(worst, s);
+    }
+  }
+  return worst;
+}
+
 /** Assemble an EvaluatorResult from its metadata and attack results. */
 export function toEvaluatorResult(
   meta: {
@@ -105,6 +129,13 @@ export interface ReportMeta {
   effort: Effort;
   attackModel: string;
   judgeModel: string;
+  /**
+   * Target's derived agentic power profile. When present, each evaluator gets a
+   * deployment-aware `risk` score amplified by `agentProfile.power`, and the
+   * profile is attached to the report. Omitted → evaluators carry no `risk`
+   * (e.g. direct helper calls in tests). Never affects the summary shape.
+   */
+  agentProfile?: AgentProfile;
 }
 
 /**
@@ -121,8 +152,25 @@ export function buildUnifiedReport(
   meta: ReportMeta,
   evaluators: EvaluatorResult[]
 ): UnifiedRunReport {
-  const { total, passed, failed, errors } = summarizeVerdicts(evaluators.flatMap((e) => e.attacks));
-  const { safetyScore, attackSuccessRate } = computeWeightedScores(evaluators);
+  // When an agent profile is available, amplify each evaluator's severity floor
+  // into a deployment-aware 0..10 risk score. Worst-case at the evaluator level:
+  // risk is >0 only for findings (failed > 0), 0.0 for evaluators that held.
+  // The worst (lowest) judge score across FAIL attacks modulates the severity
+  // floor so a particularly bad breach raises the base above the static level.
+  const scored = meta.agentProfile
+    ? evaluators.map((ev) => ({
+        ...ev,
+        risk: amplifiedRisk(
+          ev.severity,
+          ev.failed > 0,
+          meta.agentProfile!.power,
+          worstJudgeScore(ev.attacks)
+        ),
+      }))
+    : evaluators;
+
+  const { total, passed, failed, errors } = summarizeVerdicts(scored.flatMap((e) => e.attacks));
+  const { safetyScore, attackSuccessRate } = computeWeightedScores(scored);
 
   return {
     reportId: meta.reportId,
@@ -133,7 +181,8 @@ export function buildUnifiedReport(
     attackModel: meta.attackModel,
     judgeModel: meta.judgeModel,
     summary: { total, passed, failed, errors, safetyScore, attackSuccessRate },
-    evaluators,
+    evaluators: scored,
+    ...(meta.agentProfile ? { agentProfile: meta.agentProfile } : {}),
   };
 }
 

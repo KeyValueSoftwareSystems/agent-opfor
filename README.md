@@ -111,6 +111,14 @@ When you run a scan, opfor:
 
 Each run lands in its own subfolder under `.opfor/reports/run-report-<compactTs>-<slug>-<shortId>/` containing `<slug>-report.html` and `<slug>-report.json`. Autonomous `opfor hunt` runs use the same layout under `hunt-report-<compactTs>-<slug>-<shortId>/`.
 
+## Risk scoring
+
+Every finding gets a **deployment-aware risk score (0–10)**, not just a static `low`/`high`/`critical` label. The same flaw is far more dangerous on an agent that can move money, act across tenants, or retain memory than on a read-only chatbot — so opfor takes each finding's base severity and amplifies it by the target's _agentic power_, inferred automatically from `target.description` and the optional `businessUseCase` you already provide (no extra setup questions).
+
+The risk formula also factors in the **worst judge score** across an evaluator's failed attacks — a breach where the judge scored 1/10 (full data returned) pushes the risk floor higher than one scored 7/10 (minor detail exposed), even at the same severity level. See [`docs/scoring.md`](docs/scoring.md) for the full scoring reference.
+
+In the report's results table, findings show a worst-case red risk number (a `high` BOLA on a money-moving, multi-tenant agent surfaces as `9.6`), while every defended evaluator shows a green `0.0`. A caption explains, in plain English, why the findings were amplified. This follows the OWASP [AIVSS](https://aivss.owasp.org/) amplification model, reduced to something fully automatic.
+
 ## Evaluator coverage
 
 Opfor ships with curated suites that map to industry standards. Pick a suite or run individual evaluators.

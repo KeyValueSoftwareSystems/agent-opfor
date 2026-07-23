@@ -176,11 +176,11 @@ export function renderReport(model: ReportViewModel): string {
       const sevColor = SEV_HEX[e.severity] || "#64748B";
       const passDenom = e.passed + e.failed;
       const passRate = passDenom > 0 ? Math.round((e.passed / passDenom) * 100) : 0;
-      const scoreable = e.results.filter((r) => r.judge.verdict !== "ERROR");
-      const avgScore =
-        scoreable.length > 0
-          ? (scoreable.reduce((s, r) => s + r.judge.score, 0) / scoreable.length).toFixed(1)
-          : "—";
+      // Deployment-aware risk (0..10, higher = more dangerous): red for a
+      // finding, green 0.0 when the evaluator held. "—" when no agent profile
+      // was available so no risk could be computed.
+      const risk = typeof e.risk === "number" ? e.risk : null;
+      const riskColor = risk === null ? "#94A3B8" : risk > 0 ? "#DC2626" : "#059669";
       const evalVerdict =
         e.errors > 0 && e.passed === 0 && e.failed === 0
           ? "ERROR"
@@ -204,7 +204,7 @@ export function renderReport(model: ReportViewModel): string {
           <td style="color:#DC2626;font-weight:600">${e.failed}</td>
           ${anyErrors ? `<td style="color:#D97706;font-weight:600">${e.errors > 0 ? e.errors : "—"}</td>` : ""}
           <td>${passRate}%</td>
-          <td class="td-score">${avgScore !== "—" ? `${avgScore}<span style="color:#94A3B8">/10</span>` : "—"}</td>
+          <td class="td-score">${risk === null ? "—" : `<span style="color:${riskColor};font-weight:700">${risk.toFixed(1)}</span><span style="color:#94A3B8">/10</span>`}</td>
         </tr>`;
     })
     .join("");
@@ -626,11 +626,12 @@ export function renderReport(model: ReportViewModel): string {
     <div class="results-table-wrap" style="margin-bottom:16px">
       <table class="results">
         <thead><tr>
-          <th>#</th><th>Evaluator</th><th>Severity</th><th>Verdict</th><th>Tests</th><th>Passed</th><th>Failed</th>${anyErrors ? "<th>Errors</th>" : ""}<th>Pass Rate</th><th>Avg Score</th>
+          <th>#</th><th>Evaluator</th><th>Base Sev</th><th>Verdict</th><th>Tests</th><th>Passed</th><th>Failed</th>${anyErrors ? "<th>Errors</th>" : ""}<th>Pass Rate</th><th>Risk (this agent)</th>
         </tr></thead>
         <tbody>${tableRows}</tbody>
       </table>
     </div>
+    ${model.agentProfile ? `<div style="font-size:12px;color:var(--muted);line-height:1.5"><strong>Risk (this agent)</strong> takes each finding's base severity and amplifies it by how much damage this specific agent can do (worst-case per evaluator; a defended test scores 0.0). ${esc(model.agentProfile.rationale)}</div>` : ""}
   </div>
 
   <!-- 5. Detailed Results -->
