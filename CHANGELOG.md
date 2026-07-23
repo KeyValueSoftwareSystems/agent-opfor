@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.10.2](https://github.com/KeyValueSoftwareSystems/agent-opfor/compare/v0.10.1...v0.10.2) (2026-07-23)
+
+
+### Features
+
+* graceful shutdown on ctrl+c during opfor run ([#211](https://github.com/KeyValueSoftwareSystems/agent-opfor/issues/211)) ([338f98b](https://github.com/KeyValueSoftwareSystems/agent-opfor/commit/338f98b11eb2207ad3b189a1d7e03be17c90f856))
+* unify hunt cli report artifacts into one folder, add graceful Ctrl+C cancellation ([#218](https://github.com/KeyValueSoftwareSystems/agent-opfor/issues/218)) ([e45a62c](https://github.com/KeyValueSoftwareSystems/agent-opfor/commit/e45a62c01781eccd1a5ccd506919dbe7acde1859))
+
+
+### Bug Fixes
+
+* **cli:** include http response body in target errors ([#207](https://github.com/KeyValueSoftwareSystems/agent-opfor/issues/207)) ([c8c9f72](https://github.com/KeyValueSoftwareSystems/agent-opfor/commit/c8c9f72c4d7246716208804457226a687dc31a89))
+* **deps:** bump js-yaml and fast-uri to patch high-severity cves ([#216](https://github.com/KeyValueSoftwareSystems/agent-opfor/issues/216)) ([a55c98e](https://github.com/KeyValueSoftwareSystems/agent-opfor/commit/a55c98efad1ca0b63d3ad744914a8d2090059155))
+* **deps:** upgrade ai-sdk provider family and force-patch @hono/node-server ([#217](https://github.com/KeyValueSoftwareSystems/agent-opfor/issues/217)) ([1ef315c](https://github.com/KeyValueSoftwareSystems/agent-opfor/commit/1ef315c8156c7dcd93d58379d2e8c111c022bddf))
+* unify skill and extension catalog generation to include derived suites ([#210](https://github.com/KeyValueSoftwareSystems/agent-opfor/issues/210)) ([4908c16](https://github.com/KeyValueSoftwareSystems/agent-opfor/commit/4908c16fc73efc20d9f4f177860e11be21642426))
+
 ## [0.10.1](https://github.com/KeyValueSoftwareSystems/agent-opfor/compare/v0.10.0...v0.10.1) (2026-07-20)
 
 
