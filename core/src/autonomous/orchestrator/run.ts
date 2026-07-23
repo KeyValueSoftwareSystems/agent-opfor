@@ -64,7 +64,12 @@ export interface RunHooks {
   progress?: ProgressReporter;
   /** Called once the in-memory RunLog is created — used by the live UI for snapshots. */
   onRunLog?: (runLog: import("../state/runLog.js").RunLog) => void;
+  /** Abort to stop the run early and finalize a partial (truncated) report instead of throwing. */
+  signal?: AbortSignal;
 }
+
+/** Truncation reason recorded when a run is stopped by the user rather than a ceiling/error. */
+const USER_INTERRUPT_REASON = "interrupted by user (Ctrl+C)";
 
 export async function runAutonomous(
   options: HuntOptions,
@@ -79,6 +84,8 @@ export async function runAutonomous(
     );
   }
 
+  // Created only after the checks above — a bad config should fail with zero artifacts, not an
+  // empty report folder. Handed off via `onRunLog` before any progress event can fire.
   const runLog = createRunLog({
     runId: randomUUID(),
     objective: options.objective,
@@ -173,14 +180,35 @@ export async function runAutonomous(
 
   const q = query({ prompt: kickoff, options: queryOptions });
   const reporter = runHooks?.progress;
+  const signal = runHooks?.signal;
 
   reporter?.onLine("Autonomous assessment started — commander initializing…");
+
+  // Interrupt immediately so an in-flight multi-turn attack doesn't keep the run alive after
+  // Ctrl+C — truncation flags are set below, this just stops the agent promptly.
+  const onAbort = (): void => {
+    reporter?.onLine("⏹  interrupt received — stopping agents, finalizing a partial report…");
+    void q.interrupt().catch(() => {});
+  };
+  if (signal) {
+    if (signal.aborted) onAbort();
+    else signal.addEventListener("abort", onAbort, { once: true });
+  }
 
   // Tracks last reported cost threshold so we only emit a cost line every $0.10.
   let lastReportedCostUsd = 0;
 
   try {
     for await (const message of q) {
+      // Stop promptly on cancellation while messages are still flowing (the abort listener
+      // above covers the idle-between-messages case).
+      if (signal?.aborted && !runLog.completed) {
+        runLog.truncated = true;
+        if (!runLog.truncationReason) runLog.truncationReason = USER_INTERRUPT_REASON;
+        await q.interrupt().catch(() => {});
+        break;
+      }
+
       if (message.type === "assistant") {
         const text = message.message.content
           .map((b) => (b.type === "text" ? b.text : ""))
@@ -252,18 +280,32 @@ export async function runAutonomous(
       }
     }
   } catch (err) {
-    // A mid-run failure (e.g. provider usage-policy block, network error) must
-    // NOT lose the findings already captured in the RunLog. Mark the run
-    // truncated and fall through to build a partial report.
+    // A mid-run failure or the abort itself must not lose captured findings — mark truncated
+    // and fall through to a partial report.
     const message = err instanceof Error ? err.message : String(err);
     runLog.truncated = true;
-    runLog.truncationReason = `run interrupted: ${message.slice(0, 300)}`;
-    reporter?.onLine(
-      `⚠️  run interrupted — finalizing partial report from ${runLog.findings.length} finding(s)`
-    );
-    reporter?.onLine(`    reason: ${message.slice(0, 200)}`);
+    if (signal?.aborted) {
+      runLog.truncationReason = USER_INTERRUPT_REASON;
+      reporter?.onLine(
+        `⏹  run interrupted — finalizing partial report from ${runLog.findings.length} finding(s)`
+      );
+    } else {
+      runLog.truncationReason = `run interrupted: ${message.slice(0, 300)}`;
+      reporter?.onLine(
+        `⚠️  run interrupted — finalizing partial report from ${runLog.findings.length} finding(s)`
+      );
+      reporter?.onLine(`    reason: ${message.slice(0, 200)}`);
+    }
   } finally {
+    if (signal) signal.removeEventListener("abort", onAbort);
     q.close();
+  }
+
+  // Safety net: if the caller aborted but neither the loop nor the catch labelled it (e.g. the
+  // stream ended cleanly right as the interrupt landed), still mark it a user interrupt.
+  if (signal?.aborted && !runLog.completed && !runLog.truncated) {
+    runLog.truncated = true;
+    runLog.truncationReason = USER_INTERRUPT_REASON;
   }
 
   if (!runLog.completed && !runLog.truncated) {

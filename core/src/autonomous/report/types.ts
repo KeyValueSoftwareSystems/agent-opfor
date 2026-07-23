@@ -85,6 +85,7 @@ export interface PersonaTimelineEntry {
 
 export interface AutonomousReport {
   reportId: string;
+  startedAt: string;
   generatedAt: string;
   target: { name: string; endpoint: string };
   objective: string;
