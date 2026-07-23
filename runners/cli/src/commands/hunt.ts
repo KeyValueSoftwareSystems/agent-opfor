@@ -562,7 +562,13 @@ export function registerHuntCommand(program: Command): void {
 
       const { html, json, dir } = await writeAutonomousReport(report, huntOptions.outputDir);
 
-      uiHandle?.markComplete({ reportDir: dir, outcome: report.objectiveOutcome });
+      // `outcome` is the dashboard's final status label (rendered verbatim). On interrupt show
+      // "interrupted" so a cancelled run isn't mistaken for a normal finish; otherwise show the
+      // assessment verdict, which is more useful than a generic "completed".
+      uiHandle?.markComplete({
+        reportDir: dir,
+        outcome: interrupted ? "interrupted" : report.objectiveOutcome,
+      });
 
       consola.info("");
       if (interrupted) {
