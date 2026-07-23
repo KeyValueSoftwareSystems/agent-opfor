@@ -16,7 +16,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ["runners/extension/scripts/**/*.mjs"],
+    files: ["runners/extension/scripts/**/*.mjs", "scripts/**/*.mjs"],
     languageOptions: {
       globals: {
         console: "readonly",
