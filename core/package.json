@@ -91,12 +91,12 @@
     "test": "node --import tsx/esm --test tests/*.test.ts"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^2.0.77",
+    "@ai-sdk/anthropic": "^3.0.99",
     "@ai-sdk/azure": "^3.0.65",
     "@ai-sdk/deepseek": "^2.0.35",
-    "@ai-sdk/google": "^2.0.70",
-    "@ai-sdk/openai": "^2.0.103",
-    "@ai-sdk/openai-compatible": "^1.0.0",
+    "@ai-sdk/google": "^3.0.98",
+    "@ai-sdk/openai": "^3.0.86",
+    "@ai-sdk/openai-compatible": "^2.0.62",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "ai": "^6.0.0",
     "yaml": "^2.8.3",
