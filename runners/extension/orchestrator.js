@@ -85,11 +85,18 @@ function cancelledJudgment(transcript) {
  *   cancel → a terminal CANCELLED result, and NO resumable snapshot (which
  *            would otherwise resurrect a "Run paused / Resume" screen).
  *
+ * Pass `canPause: false` when the run cannot be made resumable (no usable
+ * widget plan). A pause is then degraded to a cancel through the SAME branch,
+ * so it still clears any snapshot left by an earlier pause — that snapshot
+ * otherwise survives a resume (it is only dropped on success) and would
+ * resurrect a stale "Resume" screen for a run just recorded as cancelled.
+ *
  * Returns the response payload for the popup, with an explicit intent so the
  * popup never has to infer pause-vs-cancel from the ambiguous `paused` flag.
  */
-async function finalizeUserInterruption({ pauseSnapshot, cancelResult }) {
-  const isPause = state.OPFOR_STOP_INTENT === "pause";
+async function finalizeUserInterruption({ pauseSnapshot, cancelResult, canPause = true }) {
+  const wantedPause = state.OPFOR_STOP_INTENT === "pause";
+  const isPause = wantedPause && canPause;
   if (isPause) {
     if (pauseSnapshot) await persistPausedAdaptiveRun(pauseSnapshot).catch(() => {});
   } else {
@@ -98,7 +105,11 @@ async function finalizeUserInterruption({ pauseSnapshot, cancelResult }) {
   }
   return {
     ok: false,
-    error: isPause ? "Run paused." : "Run stopped.",
+    error: isPause
+      ? "Run paused."
+      : wantedPause
+        ? "Run stopped (could not be saved for resume)."
+        : "Run stopped.",
     paused: isPause,
     cancelled: !isPause,
     intent: isPause ? "pause" : "cancel",
@@ -680,6 +691,10 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
       maxRounds,
       phase: "running",
       transcript: transcript.slice(-40),
+      // setRunStatus replaces the whole record, so seed `lastRound` here too —
+      // it is the field the popup reads, and broadcastProgress only starts
+      // maintaining it once the next turn completes.
+      lastRound: priorRounds,
       resumedFromRound: priorRounds,
       startedAt: Date.now(),
     });
@@ -854,8 +869,11 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
     // both delay the stop and produce a misleading PASS/FAIL-shaped verdict
     // for a turn the target never got to finish.
     if (runError?.code === "OPFOR_STOP" || state.OPFOR_STOP) {
-      const resumable = plan?.inputSelector && tab?.id && best?.frameId != null;
+      // A pause with no usable widget plan can't be resumed — degrade it to a
+      // cancel so the popup still gets a report instead of a dead snapshot.
+      const resumable = Boolean(plan?.inputSelector && tab?.id && best?.frameId != null);
       const response = await finalizeUserInterruption({
+        canPause: resumable,
         pauseSnapshot: resumable
           ? {
               tabId: tab.id,
@@ -889,36 +907,12 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
           evaluatorName: evaluatorSnapshot?.name,
           severity: evaluatorSnapshot?.severity,
           maxRounds,
-          frame: { frameId: best.frameId, frameUrl: best.frameUrl },
+          frame: { frameId: best?.frameId, frameUrl: best?.frameUrl },
           transcript: fullTranscript,
           turns: fullTurnLog,
           judgment: cancelledJudgment(fullTranscript),
         },
       });
-      // A Pause that couldn't be made resumable (no usable widget plan) would
-      // otherwise strand the run with no snapshot AND no result — degrade it
-      // to a cancel so the popup still produces a report.
-      if (response.paused && !resumable) {
-        await persistPartialResult({
-          ok: true,
-          partial: true,
-          stopped: true,
-          stopReason: "user_stop",
-          siteUrl: tab.url || "",
-          suiteId,
-          evaluatorId: evaluatorSnapshot?.id,
-          evaluatorName: evaluatorSnapshot?.name,
-          severity: evaluatorSnapshot?.severity,
-          maxRounds,
-          transcript: fullTranscript,
-          turns: fullTurnLog,
-          judgment: cancelledJudgment(fullTranscript),
-        }).catch(() => {});
-        response.paused = false;
-        response.cancelled = true;
-        response.intent = "cancel";
-        response.error = "Run stopped (could not be saved for resume).";
-      }
       sendResponse(response);
       await clearRunStatus();
       return;
