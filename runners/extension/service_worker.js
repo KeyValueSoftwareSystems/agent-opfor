@@ -71,6 +71,7 @@ function adaptJudgeResult(coreResult) {
 function handleMainMessages(message, sendResponse) {
   if (message?.type === "OPFOR_UI_STOP") {
     state.OPFOR_STOP = true;
+    state.OPFOR_STOP_INTENT = message.intent === "pause" ? "pause" : "cancel";
     try {
       state.uiRunAbortController?.abort();
     } catch {

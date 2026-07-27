@@ -1027,6 +1027,10 @@
         justify-content: center;
         gap: 8px;
       }
+      .btn-ghost:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
       .btn-danger {
         padding: 11px 12px;
         background: rgba(255, 90, 110, 0.08);
@@ -1041,6 +1045,17 @@
         align-items: center;
         justify-content: center;
         gap: 8px;
+      }
+      .btn-danger:disabled {
+        opacity: 0.7;
+        cursor: not-allowed;
+      }
+      /* Fixed-width, centered labels so swapping "Stop"/"Pause" for
+         "Stopping…"/"Pausing…" never changes the icon's centered position. */
+      .stop-btn-label,
+      .pause-btn-label {
+        min-width: 62px;
+        text-align: center;
       }
 
       .grid-2 {
@@ -1449,6 +1464,10 @@
         border-color: rgba(52, 211, 153, 0.3);
         background: linear-gradient(180deg, rgba(52, 211, 153, 0.08) 0%, var(--bg-2) 100%);
       }
+      .verdict-card[data-verdict="CANCELLED"] {
+        border-color: rgba(251, 191, 36, 0.3);
+        background: linear-gradient(180deg, rgba(251, 191, 36, 0.08) 0%, var(--bg-2) 100%);
+      }
       .verdict-card .glow {
         position: absolute;
         top: -30px;
@@ -1461,6 +1480,9 @@
       }
       .verdict-card[data-verdict="PASS"] .glow {
         background: rgba(52, 211, 153, 0.13);
+      }
+      .verdict-card[data-verdict="CANCELLED"] .glow {
+        background: rgba(251, 191, 36, 0.13);
       }
       .verdict-head {
         display: flex;
@@ -1484,6 +1506,11 @@
         border-color: rgba(52, 211, 153, 0.33);
         color: var(--pass);
       }
+      .verdict-card[data-verdict="CANCELLED"] .verdict-icon {
+        background: rgba(251, 191, 36, 0.13);
+        border-color: rgba(251, 191, 36, 0.33);
+        color: var(--warn);
+      }
       .verdict-kicker {
         font-family: "Geist Mono", ui-monospace, monospace;
         font-size: 13.5px;
@@ -1500,6 +1527,9 @@
       }
       .verdict-card[data-verdict="PASS"] .verdict-text {
         color: var(--pass);
+      }
+      .verdict-card[data-verdict="CANCELLED"] .verdict-text {
+        color: var(--warn);
       }
       .verdict-summary {
         margin-top: 10px;
@@ -1570,6 +1600,10 @@
         background: var(--fail);
         box-shadow: 0 0 6px var(--fail);
       }
+      .result-row[data-verdict="CANCELLED"] .dot {
+        background: var(--warn);
+        box-shadow: 0 0 6px var(--warn);
+      }
       .result-row .name {
         font-size: 13.5px;
         color: var(--text-2);
@@ -1595,6 +1629,10 @@
       .result-pill[data-verdict="FAIL"] {
         color: var(--fail-soft);
         background: rgba(255, 90, 110, 0.09);
+      }
+      .result-pill[data-verdict="CANCELLED"] {
+        color: var(--warn);
+        background: rgba(251, 191, 36, 0.09);
       }
 
       /* ── History panel (slide-in like Advanced) ─────────────── */
@@ -1737,6 +1775,9 @@
       }
       .history-item[data-status="fail"] .accent-stripe {
         background: var(--fail);
+      }
+      .history-item[data-status="cancelled"] .accent-stripe {
+        background: var(--warn);
       }
       .history-item-body {
         padding-left: 6px;
@@ -2369,16 +2410,18 @@
 
           <div class="grid-2">
             <button id="pauseBtn" class="btn-ghost">
-              <svg width="14" height="14" viewBox="0 0 24 24">
+              <svg class="pause-btn-icon" width="14" height="14" viewBox="0 0 24 24">
                 <path d="M6 5h4v14H6zM14 5h4v14h-4z" fill="currentColor" />
               </svg>
-              Pause
+              <div class="pause-btn-spinner judge-spinner" hidden></div>
+              <span class="pause-btn-label">Pause</span>
             </button>
             <button id="stopBtn" class="btn-danger">
-              <svg width="14" height="14" viewBox="0 0 24 24">
+              <svg class="stop-btn-icon" width="14" height="14" viewBox="0 0 24 24">
                 <rect x="6" y="6" width="12" height="12" rx="1.5" fill="currentColor" />
               </svg>
-              Stop
+              <div class="stop-btn-spinner judge-spinner" hidden></div>
+              <span class="stop-btn-label">Stop</span>
             </button>
           </div>
           <div class="hint-line">Pause keeps run resumable · Stop discards progress</div>
