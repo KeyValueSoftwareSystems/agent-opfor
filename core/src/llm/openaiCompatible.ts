@@ -66,6 +66,7 @@ export async function chatCompletionJsonContent(args: {
   model: LlmConfig;
   system: string;
   user: string;
+  isAcceptableJson?: (json: string) => boolean;
 }): Promise<string> {
   const apiKey = resolveApiKey(args.model);
   if (!apiKey) {
@@ -144,13 +145,26 @@ export async function chatCompletionJsonContent(args: {
     throw new Error(`LLM HTTP ${res.status}: ${text.slice(0, 500)}`);
   }
 
-  const data = (await res.json()) as {
-    choices?: Array<{ message?: { content?: string } }>;
+  const readJsonContent = async (response: Response): Promise<string> => {
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      throw new Error(`LLM HTTP ${response.status}: ${text.slice(0, 500)}`);
+    }
+    const data = (await response.json()) as {
+      choices?: Array<{ message?: { content?: string } }>;
+    };
+    const content = data.choices?.[0]?.message?.content;
+    if (typeof content !== "string" || !content.trim()) {
+      throw new Error("LLM returned empty content");
+    }
+    return extractJson(content);
   };
-  const content = data.choices?.[0]?.message?.content;
-  if (typeof content !== "string" || !content.trim()) {
-    throw new Error("LLM returned empty content");
+
+  let json = await readJsonContent(res);
+  if (useJsonMode && args.isAcceptableJson && !args.isAcceptableJson(json)) {
+    useJsonMode = false;
+    json = await readJsonContent(await doFetch());
   }
 
-  return extractJson(content);
+  return json;
 }

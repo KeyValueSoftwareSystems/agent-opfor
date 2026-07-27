@@ -189,6 +189,7 @@ export async function judgeToolResponse(
     model: args.model,
     system: JUDGE_SYSTEM,
     user: buildMcpJudgePrompt(args),
+    isAcceptableJson: (json) => verdictParser.parseJson(json).verdict !== "ERROR",
   });
 
   return verdictParser.parseJson(raw);
