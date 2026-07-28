@@ -237,6 +237,20 @@ export interface McpAttackResult extends BaseAttackResult {
 
 export type AttackResult = AgentAttackResult | McpAttackResult;
 
+/**
+ * Deployment-aware "power profile" of a target agent, derived once per run (see
+ * `deriveAgentProfile`). Drives risk amplification: the same finding scores
+ * higher on a more autonomous / tool-rich / multi-tenant agent.
+ */
+export interface AgentProfile {
+  /** Normalized agentic power in [0,1] — the uplift fed to `amplifiedRisk`. */
+  power: number;
+  /** Per-factor scores (0 / 0.5 / 1.0) that were inferred, keyed by factor name. */
+  factors: Record<string, number>;
+  /** Plain-English explanation of which signals fired — surfaced in the report. */
+  rationale: string;
+}
+
 export interface EvaluatorResult {
   evaluatorId: string;
   evaluatorName: string;
@@ -248,6 +262,14 @@ export interface EvaluatorResult {
   errors: number;
   passRate: number;
   attacks: AttackResult[];
+  /**
+   * Deployment-aware risk on a 0..10 scale (higher = more dangerous), computed
+   * from the evaluator's severity floor amplified by the target's agentic power.
+   * Worst-case: >0 only when the evaluator failed (a finding); 0.0 when it held.
+   * Undefined when no agent profile was available (e.g. direct buildUnifiedReport
+   * calls without a profile). See `amplifiedRisk`.
+   */
+  risk?: number;
 }
 
 export interface UnifiedRunReport {
@@ -267,6 +289,12 @@ export interface UnifiedRunReport {
     attackSuccessRate: number;
   };
   evaluators: EvaluatorResult[];
+  /**
+   * Target's derived agentic power profile. Present when a profile was derived
+   * for the run; drives the per-evaluator `risk` amplification. Its `rationale`
+   * is surfaced in the report to explain why findings were bumped.
+   */
+  agentProfile?: AgentProfile;
   /** Set when the run was stopped early due to a non-retryable LLM error. */
   stopReason?: string;
 }

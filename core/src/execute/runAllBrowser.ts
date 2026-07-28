@@ -19,6 +19,7 @@ import {
   buildUnifiedReport,
   modelLabel,
 } from "./aggregate.js";
+import { deriveAgentProfile } from "./agentProfile.js";
 import type {
   AgentAttackSpec,
   AttackResult,
@@ -244,6 +245,9 @@ function buildBrowserReport(
   stopReason?: string
 ): UnifiedRunReport {
   const { attackModel, judgeModel } = modelLabel(config.attackerLlm, config.judgeLlm);
+  // The browser path has no structured target config, so the profile is derived
+  // from the operator's business-use-case text alone (see deriveAgentProfile).
+  const agentProfile = deriveAgentProfile({ businessUseCase: config.businessUseCase });
   return {
     ...buildUnifiedReport(
       {
@@ -254,6 +258,7 @@ function buildBrowserReport(
         effort: config.effort,
         attackModel,
         judgeModel,
+        agentProfile,
       },
       evaluators
     ),
