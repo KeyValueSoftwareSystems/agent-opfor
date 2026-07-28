@@ -16,6 +16,7 @@ import { errorJudge } from "../lib/judgeTypes.js";
 import { verdictIcon } from "../lib/verdictIcon.js";
 import { TurnPlan } from "./turnPlan.js";
 import { isStopError, getStopReason } from "../lib/llmRetry.js";
+import type { TokenTracker } from "./tokenTracker.js";
 import { log } from "../lib/logger.js";
 import type {
   RunConfig,
@@ -43,6 +44,8 @@ export interface EvaluatorLoopContext {
   notify: (event: ProgressEvent) => void;
   /** Cancellation signal — when aborted, the loop finishes the in-flight attack then stops. */
   signal?: AbortSignal;
+  /** Token usage accumulator. Per-evaluator children are auto-created in the loop. */
+  tokenTracker?: TokenTracker;
 }
 
 /**
@@ -63,6 +66,7 @@ export async function runEvaluatorAttacks(
     traceContext,
     notify,
     signal,
+    tokenTracker,
   } = ctx;
   const sessionMap = new Map<string, SessionContext>();
   const evaluatorResults: EvaluatorResult[] = [];
@@ -97,6 +101,7 @@ export async function runEvaluatorAttacks(
     }
 
     const { turnMode, effectiveTurns } = TurnPlan.from(config);
+    const evalTracker = tokenTracker?.child();
 
     let attacks: AttackSpec[];
     try {
@@ -113,6 +118,7 @@ export async function runEvaluatorAttacks(
           upstreamSessions,
           attackObjective: config.attackObjective,
           businessUseCase: config.businessUseCase,
+          tokenTracker: evalTracker,
         },
       });
     } catch (err) {
@@ -172,7 +178,7 @@ export async function runEvaluatorAttacks(
       try {
         result =
           attack.kind === "mcp"
-            ? await runMcpAttack(attack, mcpTarget!, attackModel, judgeLlmConfig)
+            ? await runMcpAttack(attack, mcpTarget!, attackModel, judgeLlmConfig, evalTracker)
             : await runAgentAttack(
                 attack,
                 attackModel,
@@ -180,7 +186,11 @@ export async function runEvaluatorAttacks(
                 attack.id,
                 evaluator.patterns,
                 ctx.agentTarget ?? createAgentTarget(config.target as AgentTargetConfig),
-                { targetConfig: config.target, telemetry: config.telemetry }
+                {
+                  targetConfig: config.target,
+                  telemetry: config.telemetry,
+                  tokenTracker: evalTracker,
+                }
               );
       } catch (err) {
         const makeFailedResult = (reason: string): AttackResult =>
@@ -230,7 +240,9 @@ export async function runEvaluatorAttacks(
     const { passed, failed, errors } = summarizeVerdicts(attackResults);
     notify({ type: "evaluator_done", evaluatorId: evaluator.id, passed, failed, errors });
 
-    evaluatorResults.push(toEvaluatorResult(evaluatorMeta, attackResults));
+    const evResult = toEvaluatorResult(evaluatorMeta, attackResults);
+    if (evalTracker) evResult.tokenUsage = evalTracker.totals;
+    evaluatorResults.push(evResult);
     sessionMap.set(evaluator.id, captureSessionContext(evaluator, attackResults));
   }
 

@@ -1,6 +1,7 @@
 import type { LlmConfig } from "../config/schema.js";
 import { PROVIDERS } from "../config/types.js";
 import { getEnv } from "../lib/env.js";
+import type { TokenTracker } from "../execute/tokenTracker.js";
 
 function resolveApiKey(model: LlmConfig): string | undefined {
   if (model.apiKeyEnv) {
@@ -66,6 +67,7 @@ export async function chatCompletionJsonContent(args: {
   model: LlmConfig;
   system: string;
   user: string;
+  tokenTracker?: TokenTracker;
 }): Promise<string> {
   const apiKey = resolveApiKey(args.model);
   if (!apiKey) {
@@ -146,7 +148,14 @@ export async function chatCompletionJsonContent(args: {
 
   const data = (await res.json()) as {
     choices?: Array<{ message?: { content?: string } }>;
+    usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
   };
+  if (args.tokenTracker && data.usage) {
+    args.tokenTracker.record({
+      inputTokens: data.usage.prompt_tokens ?? 0,
+      outputTokens: data.usage.completion_tokens ?? 0,
+    });
+  }
   const content = data.choices?.[0]?.message?.content;
   if (typeof content !== "string" || !content.trim()) {
     throw new Error("LLM returned empty content");

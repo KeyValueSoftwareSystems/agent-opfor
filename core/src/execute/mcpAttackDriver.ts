@@ -11,6 +11,7 @@ import type { LlmConfig } from "../config/types.js";
 import type { McpTarget, McpToolCallResult } from "../targets/mcpTarget.js";
 import type { McpAttackSpec, McpTurnRecord, AttackResult } from "./types.js";
 import { runAttack, type AttackDriver } from "./attackRunner.js";
+import type { TokenTracker } from "./tokenTracker.js";
 
 /**
  * Drives one MCP attack: call a tool (seed args on turn 1, else adaptively
@@ -35,7 +36,8 @@ export class McpAttackDriver implements AttackDriver<Record<string, unknown>, Mc
     private readonly target: McpTarget,
     private readonly toolName: string,
     private readonly attackModel: LanguageModel,
-    private readonly judgeLlm: LlmConfig
+    private readonly judgeLlm: LlmConfig,
+    private readonly tokenTracker?: TokenTracker
   ) {
     this.judgeHint = attack.judgeHint;
     this.totalTurns = attack.turns;
@@ -50,7 +52,8 @@ export class McpAttackDriver implements AttackDriver<Record<string, unknown>, Mc
       `${this.attack.patternName} — ${this.attack.evaluatorName}`,
       this.toolName,
       this.attack.toolArguments ?? {},
-      this.attackModel
+      this.attackModel,
+      this.tokenTracker
     );
     if (next.judgeHint) this.judgeHint = next.judgeHint;
     return next.args;
@@ -146,6 +149,7 @@ export class McpAttackDriver implements AttackDriver<Record<string, unknown>, Mc
       toolError,
       judgeHint: this.judgeHint,
       priorTurns: this.mcpHistory.length > 1 ? this.mcpHistory.slice(0, -1) : undefined,
+      tokenTracker: this.tokenTracker,
     });
     return sanitizeJudgeResult(result, {
       attackSummary: this.attack.patternName,
@@ -164,7 +168,8 @@ export async function runMcpAttack(
   attack: McpAttackSpec,
   target: McpTarget,
   attackModel: LanguageModel,
-  judgeLlm: LlmConfig
+  judgeLlm: LlmConfig,
+  tokenTracker?: TokenTracker
 ): Promise<AttackResult> {
   if (!attack.toolName) {
     return {
@@ -179,5 +184,7 @@ export async function runMcpAttack(
       judge: mcpErrorJudge("no toolName in attack spec"),
     };
   }
-  return runAttack(new McpAttackDriver(attack, target, attack.toolName, attackModel, judgeLlm));
+  return runAttack(
+    new McpAttackDriver(attack, target, attack.toolName, attackModel, judgeLlm, tokenTracker)
+  );
 }

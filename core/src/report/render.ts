@@ -5,6 +5,12 @@
 import type { ReportViewModel, ResultViewModel, TurnViewModel, DetailCard } from "./types.js";
 import { formatStandardsLabel } from "../evaluators/standards.js";
 
+function formatTokenCount(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return String(n);
+}
+
 function esc(s: string): string {
   return s
     .replace(/&/g, "&amp;")
@@ -238,6 +244,7 @@ export function renderReport(model: ReportViewModel): string {
               </div>
             </div>
             <div class="eval-summary-right">
+              ${e.tokenUsage ? `<span style="font-size:11px;color:var(--muted)">${formatTokenCount(e.tokenUsage.totalTokens)} tokens</span>` : ""}
               <span style="font-size:12px;color:var(--muted)">${e.passed}/${e.total - e.errors} passed</span>
               <span class="verdict-tag ${verdictClass2}">${evalVerdict2}</span>
               <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
@@ -576,6 +583,15 @@ export function renderReport(model: ReportViewModel): string {
         <div class="sc-value" style="color:${evalsFailed > 0 ? "#DC2626" : "#059669"}">${evalsFailed}</div>
         <div class="sc-sub">${criticalFindings.length} critical · ${highFindings.length} high</div>
       </div>
+      ${
+        summary.tokenUsage
+          ? `<div class="stat-card">
+        <div class="sc-label">Token Usage</div>
+        <div class="sc-value" style="color:#6B7280">${formatTokenCount(summary.tokenUsage.totalTokens)}</div>
+        <div class="sc-sub">${summary.tokenUsage.inputTokens.toLocaleString()} in · ${summary.tokenUsage.outputTokens.toLocaleString()} out</div>
+      </div>`
+          : ""
+      }
     </div>
     <div class="summary-narrative">
       ${narrative}

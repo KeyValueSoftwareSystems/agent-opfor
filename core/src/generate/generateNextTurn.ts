@@ -9,6 +9,7 @@ import { log } from "../lib/logger.js";
 import type { AttackSpec, UnifiedTargetConfig, SessionContext } from "../execute/types.js";
 import type { AttackPattern } from "../evaluators/parseEvaluator.js";
 import { formatUpstreamSessions } from "../lib/summarizeSessionContext.js";
+import type { TokenTracker } from "../execute/tokenTracker.js";
 
 const MCP_FOLLOWUP_SCHEMA = `{ "args": object, "judgeHint": string }`;
 
@@ -60,6 +61,7 @@ export async function generateNextAdaptiveTurn(params: {
   traceContext?: string;
   previousTechnique?: string;
   upstreamSessions?: SessionContext[];
+  tokenTracker?: TokenTracker;
 }): Promise<AdaptiveTurnResult> {
   const { history, attack, patterns, target, model, currentTurn, maxTurns } = params;
   const maxLength = params.maxLength ?? DEFAULT_MAX_LENGTH;
@@ -150,6 +152,7 @@ export async function generateNextAdaptiveTurn(params: {
     .join("\n");
 
   const result = await generateText({ model, system, prompt: userBlock });
+  params.tokenTracker?.record(result.usage);
   const parsed = parseAttackerOutput(result.text);
   if (!parsed.message) throw new Error("generateNextAdaptiveTurn: empty model response");
   const message =
@@ -268,7 +271,8 @@ export async function generateNextMcpTurn(
   attackGoal: string,
   toolName: string,
   seedArguments: Record<string, unknown>,
-  model: LanguageModel
+  model: LanguageModel,
+  tokenTracker?: TokenTracker
 ): Promise<McpNextTurnResult> {
   const historyText = history
     .map((t, i) => {
@@ -295,6 +299,7 @@ export async function generateNextMcpTurn(
   ].join("\n");
 
   const result = await generateText({ model, system, prompt: user });
+  tokenTracker?.record(result.usage);
 
   try {
     const cleaned = result.text

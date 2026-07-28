@@ -1547,7 +1547,7 @@
       .verdict-stats {
         margin-top: 12px;
         display: grid;
-        grid-template-columns: 1fr 1fr 1fr;
+        grid-template-columns: repeat(2, 1fr);
         gap: 6px;
         position: relative;
       }
@@ -1576,6 +1576,9 @@
       }
       .stat[data-kind="total"] .v {
         color: var(--text-2);
+      }
+      .stat[data-kind="tokens"] .v {
+        color: var(--muted);
       }
 
       .results-list {
@@ -2596,6 +2599,19 @@
               <div class="stat" data-kind="total">
                 <div class="k">Total</div>
                 <div id="statTotal" class="v">0</div>
+              </div>
+              <div id="statTokens" class="stat" data-kind="tokens" style="display: none">
+                <div class="k">Tokens</div>
+                <div id="statTokensValue" class="v">0</div>
+                <div
+                  id="statTokensSub"
+                  style="
+                    font-size: 10px;
+                    color: var(--muted-3);
+                    margin-top: 2px;
+                    font-family: &quot;Geist Mono&quot;, ui-monospace, monospace;
+                  "
+                ></div>
               </div>
             </div>
           </div>

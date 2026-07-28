@@ -44,6 +44,7 @@ export interface EvaluatorViewModel {
   errors: number;
   passRate: number;
   results: ResultViewModel[];
+  tokenUsage?: { inputTokens: number; outputTokens: number; totalTokens: number };
 }
 
 export interface ReportViewModel {
@@ -65,6 +66,7 @@ export interface ReportViewModel {
     errors: number;
     safetyScore: number;
     attackSuccessRate: number;
+    tokenUsage?: { inputTokens: number; outputTokens: number; totalTokens: number };
   };
   evaluators: EvaluatorViewModel[];
   /** Set when the run was stopped early due to a non-retryable LLM error. */

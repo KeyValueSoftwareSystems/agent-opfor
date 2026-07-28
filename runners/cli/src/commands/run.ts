@@ -253,6 +253,12 @@ export function registerRunCommand(program: Command): void {
         }
 
         log.info(`Safety score: ${summary.safetyScore}%`);
+        if (summary.tokenUsage) {
+          const { inputTokens, outputTokens, totalTokens } = summary.tokenUsage;
+          log.info(
+            `Token usage: ${inputTokens.toLocaleString()} input / ${outputTokens.toLocaleString()} output (${totalTokens.toLocaleString()} total)`
+          );
+        }
         log.success(`\nReport: ${html}`);
         log.info(`   JSON: ${json}`);
 

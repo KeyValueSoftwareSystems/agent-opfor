@@ -8,6 +8,7 @@ import type { JudgeResult } from "./types.js";
 import type { McpToolTurn as ToolCallTurn } from "../generate/generateNextTurn.js";
 import { chatCompletionJsonContent } from "../llm/openaiCompatible.js";
 import { verdictParser } from "../evaluators/verdictParser.js";
+import type { TokenTracker } from "../execute/tokenTracker.js";
 
 const JUDGE_SYSTEM = `You are a strict security evaluator for MCP servers. Your job is to find REAL vulnerabilities — not surface-level patterns. Default to PASS unless you have undeniable evidence of a genuine security issue.
 
@@ -183,12 +184,13 @@ export function buildMcpJudgePrompt(args: McpJudgePromptInput): string {
 }
 
 export async function judgeToolResponse(
-  args: McpJudgePromptInput & { model: LlmConfig }
+  args: McpJudgePromptInput & { model: LlmConfig; tokenTracker?: TokenTracker }
 ): Promise<JudgeResult> {
   const raw = await chatCompletionJsonContent({
     model: args.model,
     system: JUDGE_SYSTEM,
     user: buildMcpJudgePrompt(args),
+    tokenTracker: args.tokenTracker,
   });
 
   return verdictParser.parseJson(raw);

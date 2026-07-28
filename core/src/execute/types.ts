@@ -248,6 +248,7 @@ export interface EvaluatorResult {
   errors: number;
   passRate: number;
   attacks: AttackResult[];
+  tokenUsage?: { inputTokens: number; outputTokens: number; totalTokens: number };
 }
 
 export interface UnifiedRunReport {
@@ -265,6 +266,7 @@ export interface UnifiedRunReport {
     errors: number;
     safetyScore: number;
     attackSuccessRate: number;
+    tokenUsage?: { inputTokens: number; outputTokens: number; totalTokens: number };
   };
   evaluators: EvaluatorResult[];
   /** Set when the run was stopped early due to a non-retryable LLM error. */

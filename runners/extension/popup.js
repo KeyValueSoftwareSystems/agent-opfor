@@ -1045,6 +1045,17 @@ function renderDone() {
   $("statFailed").textContent = String(failed.length);
   $("statTotal").textContent = String(state.results.length);
 
+  const tokenEl = $("statTokens");
+  const tokenUsage = state.lastReport?.summary?.tokenUsage;
+  if (tokenUsage && tokenUsage.totalTokens > 0) {
+    $("statTokensValue").textContent = formatTokenCount(tokenUsage.totalTokens);
+    $("statTokensSub").textContent =
+      `${(tokenUsage.inputTokens ?? 0).toLocaleString()} in · ${(tokenUsage.outputTokens ?? 0).toLocaleString()} out`;
+    tokenEl.style.display = "";
+  } else {
+    tokenEl.style.display = "none";
+  }
+
   $("resultsCountLabel").textContent = `Evaluators · ${state.results.length}`;
   const list = $("resultsList");
   list.innerHTML = "";
@@ -1052,9 +1063,12 @@ function renderDone() {
     const row = document.createElement("div");
     row.className = "result-row";
     row.dataset.verdict = r.verdict;
+    const tu = r.raw?.tokenUsage;
+    const tokenLabel = tu?.totalTokens ? formatTokenCount(tu.totalTokens) : "";
     row.innerHTML = `
       <div class="dot"></div>
       <span class="name"></span>
+      ${tokenLabel ? `<span class="mono" style="font-size:11px;color:var(--muted-3);flex-shrink:0">${tokenLabel}</span>` : ""}
       <span class="result-pill mono" data-verdict="${r.verdict}">${r.verdict}</span>
     `;
     row.querySelector(".name").textContent = r.name;
@@ -1211,6 +1225,20 @@ function buildReport() {
   const highFindings = findings("high");
   const evalsWithFailures = new Set(failedRecords.map((r) => r.id)).size;
 
+  let aggInput = 0;
+  let aggOutput = 0;
+  for (const r of state.results) {
+    const tu = r.raw?.tokenUsage;
+    if (tu) {
+      aggInput += tu.inputTokens ?? 0;
+      aggOutput += tu.outputTokens ?? 0;
+    }
+  }
+  const tokenUsage =
+    aggInput + aggOutput > 0
+      ? { inputTokens: aggInput, outputTokens: aggOutput, totalTokens: aggInput + aggOutput }
+      : undefined;
+
   const now = new Date();
   const stamp = now.toISOString().replace(/[-:]/g, "").replace(/\..+/, "").replace("T", "-");
   const reportId = `opfor-${state.suiteId || "run"}-${stamp}`;
@@ -1255,6 +1283,7 @@ function buildReport() {
       evaluationsFailed: evalsWithFailures,
       criticalFindings: criticalFindings.length,
       highFindings: highFindings.length,
+      tokenUsage,
     },
     cancelled: state.runCancelled,
     evaluatorResults,
@@ -1281,6 +1310,12 @@ function safetyColor(score) {
   if (score >= 70) return "#059669";
   if (score >= 50) return "#D97706";
   return "#DC2626";
+}
+
+function formatTokenCount(n) {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return String(n);
 }
 
 function sevDot(sev) {
@@ -1391,6 +1426,7 @@ function generateHtmlReport(report) {
               </div>
             </div>
             <div class="eval-summary-right">
+              ${e.raw?.tokenUsage?.totalTokens ? `<span style="font-size:11px;color:var(--muted)">${formatTokenCount(e.raw.tokenUsage.totalTokens)} tokens</span>` : ""}
               <span class="score-badge">${tr.score ?? "—"}<span class="score-denom">/10</span></span>
               <span class="verdict-tag ${verdictClass}">${tr.verdict || "—"}</span>
               <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
@@ -1538,7 +1574,7 @@ function generateHtmlReport(report) {
   .exec-banner.pass .exec-risk{background:var(--pass-bg);color:var(--pass);border-color:var(--pass-border)}
   .exec-banner.fail .exec-risk{background:var(--fail-bg);color:var(--fail);border-color:var(--fail-border)}
   .exec-banner.cancelled .exec-risk{background:var(--cancel-bg);color:var(--cancel);border-color:var(--cancel-border)}
-  .summary-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+  .summary-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
   .stat-card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
   .stat-card .sc-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px}
   .stat-card .sc-value{font-size:22px;font-weight:700;line-height:1;color:var(--text)}
@@ -1751,6 +1787,15 @@ function generateHtmlReport(report) {
         <div class="sc-value" style="color:${summary.failed > 0 ? "#DC2626" : "#059669"}">${summary.failed}</div>
         <div class="sc-sub">${criticalFindings.length} critical · ${highFindings.length} high severity</div>
       </div>
+      ${
+        summary.tokenUsage
+          ? `<div class="stat-card">
+        <div class="sc-label">Token Usage</div>
+        <div class="sc-value" style="color:#6B7280">${formatTokenCount(summary.tokenUsage.totalTokens)}</div>
+        <div class="sc-sub">${summary.tokenUsage.inputTokens.toLocaleString()} in · ${summary.tokenUsage.outputTokens.toLocaleString()} out</div>
+      </div>`
+          : ""
+      }
     </div>
     <div class="summary-narrative">
       ${
@@ -1838,7 +1883,10 @@ function generateHtmlReport(report) {
       </table>
     </div>
     <div style="margin-top:18px"></div>
-    <div style="margin-bottom:8px: color:#64748B"># Details</div>
+    <div class="section-header" style="margin-top:0">
+      <div class="section-num">5</div>
+      <div class="section-title">Detailed Results</div>
+    </div>
     ${appendix}
   </div>
 
@@ -1894,6 +1942,7 @@ function pruneRawForHistory(raw) {
     maxRounds: raw.maxRounds,
     frame: raw.frame,
     judgment: raw.judgment,
+    tokenUsage: raw.tokenUsage,
   };
 
   const transcript = Array.isArray(raw.transcript) ? raw.transcript : [];
