@@ -155,32 +155,80 @@ const EvaluatorSelectionSchema = z.discriminatedUnion("mode", [
 /**
  * Trace-aware testing (telemetry) config. Shared by `opfor hunt --telemetry-config` today and
  * reusable by `opfor run` (which still parses it as `z.unknown()`). Provider-specific blocks
- * (`netra`/`langfuse`/`traceSelection`) are `.passthrough()`'d — adapters validate their own
- * fields at use time — but the top-level shape and `provider` enum are checked here so a
- * malformed file fails with an actionable message instead of a deep runtime error.
+ * (`netra`/`langfuse`/`traceSelection`) stay open — adapters validate their own fields at use
+ * time — but the top-level shape and `provider` enum are checked here so a malformed file fails
+ * with an actionable message instead of a deep runtime error.
+ *
+ * The shapes are declared standalone so ONE key list drives both the lenient parse and
+ * `telemetryConfigWarnings`; a field added to a schema can't silently escape the typo check.
  */
-export const TelemetryPropagationSchema = z
-  .object({
-    headers: z.record(z.string(), z.string()).optional(),
-    traceIdBodyField: z.string().optional(),
-    traceIdStrategy: z.enum(["per-attack", "per-run"]).optional(),
-    traceIdPrefix: z.string().optional(),
-  })
-  .passthrough();
+const telemetryPropagationShape = {
+  headers: z.record(z.string(), z.string()).optional(),
+  traceIdBodyField: z.string().optional(),
+  traceIdStrategy: z.enum(["per-attack", "per-run"]).optional(),
+  traceIdPrefix: z.string().optional(),
+};
 
-export const TelemetryConfigSchema = z
-  .object({
-    provider: z.enum(["none", "langfuse", "netra"]),
-    langfuse: z.record(z.string(), z.unknown()).optional(),
-    netra: z.record(z.string(), z.unknown()).optional(),
-    enrichJudgeFromTrace: z.boolean().optional(),
-    traceFetchInitialDelayMs: z.number().nonnegative().optional(),
-    traceFetchMaxAttempts: z.number().int().positive().optional(),
-    traceFetchRetryDelayMs: z.number().nonnegative().optional(),
-    enrichJudgeTraceJsonMaxChars: z.number().int().positive().optional(),
-    propagation: TelemetryPropagationSchema.optional(),
-  })
-  .passthrough();
+// Loose (not strict): an unrecognized key must never break a forward-dated or provider-specific
+// config. Typos are surfaced as warnings via `telemetryConfigWarnings` instead.
+export const TelemetryPropagationSchema = z.looseObject(telemetryPropagationShape);
+
+const telemetryConfigShape = {
+  provider: z.enum(["none", "langfuse", "netra"]),
+  langfuse: z.record(z.string(), z.unknown()).optional(),
+  netra: z.record(z.string(), z.unknown()).optional(),
+  enrichJudgeFromTrace: z.boolean().optional(),
+  traceFetchInitialDelayMs: z.number().nonnegative().optional(),
+  traceFetchMaxAttempts: z.number().int().positive().optional(),
+  traceFetchRetryDelayMs: z.number().nonnegative().optional(),
+  enrichJudgeTraceJsonMaxChars: z.number().int().positive().optional(),
+  propagation: TelemetryPropagationSchema.optional(),
+};
+
+export const TelemetryConfigSchema = z.looseObject(telemetryConfigShape);
+
+/**
+ * Unwrap a telemetry block: callers may pass a bare block or a whole run config carrying a
+ * `telemetry` sibling. Shared by `parseTelemetry` and `telemetryConfigWarnings` so the two
+ * can't disagree about which object they're looking at.
+ */
+function unwrapTelemetryBlock(raw: unknown): unknown {
+  if (raw === undefined || raw === null) return undefined;
+  const obj =
+    typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : undefined;
+  return obj && "telemetry" in obj ? obj.telemetry : raw;
+}
+
+/** Keys present on `value` that the given shape doesn't declare. */
+function unrecognizedKeys(shape: Record<string, unknown>, value: unknown): string[] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+  return Object.keys(value as Record<string, unknown>).filter((k) => !(k in shape));
+}
+
+/**
+ * Unrecognized telemetry fields — almost always a typo (`header` for `headers`,
+ * `enrichJudgeFromTraces` for `enrichJudgeFromTrace`). The parse is deliberately lenient, so
+ * such a field would otherwise validate cleanly while leaving the capability it was meant to
+ * enable silently OFF. Callers surface these; nothing here throws.
+ *
+ * The provider-specific `netra`/`langfuse` blocks are intentionally NOT checked — they are open
+ * extension points validated by their adapters.
+ */
+export function telemetryConfigWarnings(raw: unknown): string[] {
+  const candidate = unwrapTelemetryBlock(raw);
+  if (!candidate || typeof candidate !== "object") return [];
+  const warnings: string[] = [];
+
+  const top = unrecognizedKeys(telemetryConfigShape, candidate);
+  if (top.length) warnings.push(`unrecognized telemetry field(s): ${top.join(", ")}`);
+
+  const propagation = (candidate as Record<string, unknown>).propagation;
+  const nested = unrecognizedKeys(telemetryPropagationShape, propagation);
+  if (nested.length) {
+    warnings.push(`unrecognized telemetry.propagation field(s): ${nested.join(", ")}`);
+  }
+  return warnings;
+}
 
 /**
  * Validate a telemetry block for `opfor hunt`. Accepts a bare block or a `{ telemetry: {...} }`
@@ -189,12 +237,11 @@ export const TelemetryConfigSchema = z
  * `provider: "none"`. Any other supplied value — including a malformed non-object or an empty
  * object — is routed through `TelemetryConfigSchema.safeParse` so it throws with an actionable
  * message instead of being silently treated as "telemetry disabled".
+ *
+ * Unrecognized-but-well-typed fields do NOT throw — see `telemetryConfigWarnings`.
  */
 export function parseTelemetry(raw: unknown): z.infer<typeof TelemetryConfigSchema> | undefined {
-  if (raw === undefined || raw === null) return undefined;
-  const obj =
-    typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : undefined;
-  const candidate = obj && "telemetry" in obj ? obj.telemetry : raw;
+  const candidate = unwrapTelemetryBlock(raw);
   if (candidate === undefined || candidate === null) return undefined;
 
   const parsed = TelemetryConfigSchema.safeParse(candidate);

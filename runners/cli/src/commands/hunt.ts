@@ -13,6 +13,7 @@ import type { TelemetryConfig } from "@keyvaluesystems/agent-opfor-core/config/t
 import {
   parseAgentTarget,
   parseTelemetry,
+  telemetryConfigWarnings,
 } from "@keyvaluesystems/agent-opfor-core/config/schema.js";
 import { telemetryCapabilities } from "@keyvaluesystems/agent-opfor-core/autonomous/lib/telemetry.js";
 import { runAutonomous } from "@keyvaluesystems/agent-opfor-core/autonomous/orchestrator/run.js";
@@ -96,7 +97,9 @@ function formatTelemetryStatus(telemetry: TelemetryConfig | undefined): string {
 // Resolve trace-aware telemetry: an explicit --telemetry-config file takes precedence over a
 // `telemetry` sibling embedded in --target-config. `parseTelemetry` validates (Zod) a bare block
 // or a `{ telemetry }` wrapper, returns undefined for a missing/`none` config, and throws with an
-// actionable message on a malformed one.
+// actionable message on a malformed one. Unrecognized fields don't throw (a forward-dated config
+// must still run) but are warned about here — a silently-ignored typo would otherwise leave the
+// capability it was meant to enable switched off with no indication why.
 async function resolveTelemetry(
   telemetryConfigPath: string | undefined,
   fromTargetConfig: unknown
@@ -104,7 +107,11 @@ async function resolveTelemetry(
   const raw = telemetryConfigPath
     ? JSON.parse(await readFile(path.resolve(telemetryConfigPath), "utf8"))
     : fromTargetConfig;
-  return parseTelemetry(raw) as TelemetryConfig | undefined;
+  const telemetry = parseTelemetry(raw) as TelemetryConfig | undefined;
+  for (const warning of telemetryConfigWarnings(raw)) {
+    consola.warn(`${warning} — check for a typo; the field was ignored.`);
+  }
+  return telemetry;
 }
 
 // Map a run-style `target` block onto hunt's TargetConfig. Hunt is HTTP-only,

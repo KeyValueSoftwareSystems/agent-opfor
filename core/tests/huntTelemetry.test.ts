@@ -24,7 +24,7 @@ import {
   traceCacheKey,
   type TraceCache,
 } from "../src/autonomous/lib/telemetry.js";
-import { parseTelemetry } from "../src/config/schema.js";
+import { parseTelemetry, telemetryConfigWarnings } from "../src/config/schema.js";
 import { createTargetClient, type TargetClient } from "../src/autonomous/target/http.js";
 
 const HEX32 = /^[0-9a-f]{32}$/;
@@ -195,6 +195,40 @@ test("parseTelemetry: a supplied-but-malformed block throws instead of silently 
   assert.throws(() => parseTelemetry({ telemetry: {} }), /Invalid telemetry config/);
   // A wrong-shaped wrapped value (e.g. a typo'd bare provider name) must also throw, not vanish.
   assert.throws(() => parseTelemetry({ telemetry: "netra" }), /Invalid telemetry config/);
+});
+
+test("telemetryConfigWarnings: flags typo'd fields at both levels without failing the parse", () => {
+  // Both typos validate cleanly (the parse is deliberately lenient) but silently leave
+  // propagation + enrichment OFF, so they must be reported.
+  const typoed = {
+    provider: "netra",
+    netra: { baseUrl: "http://localhost:3000" },
+    propagation: { header: { "x-trace-id": "{{traceId}}" } }, // "header" → "headers"
+    enrichJudgeFromTraces: true, // "Traces" → "Trace"
+  };
+  assert.doesNotThrow(() => parseTelemetry(typoed), "a typo must not break the run");
+
+  const warnings = telemetryConfigWarnings(typoed).join(" | ");
+  assert.match(warnings, /enrichJudgeFromTraces/, "top-level typo reported");
+  assert.match(warnings, /propagation field\(s\): header\b/, "nested propagation typo reported");
+});
+
+test("telemetryConfigWarnings: silent on a clean config, and unwraps a { telemetry } wrapper", () => {
+  const clean = {
+    provider: "netra",
+    // Provider-specific blocks are open extension points — never warn about their contents.
+    netra: { baseUrl: "http://x", traceSelection: { lookbackHours: 24 }, futureField: 1 },
+    propagation: { headers: { "x-trace-id": "{{traceId}}" }, traceIdStrategy: "per-attack" },
+    enrichJudgeFromTrace: true,
+  };
+  assert.deepEqual(telemetryConfigWarnings(clean), []);
+  assert.deepEqual(telemetryConfigWarnings({ telemetry: clean }), []);
+  assert.deepEqual(telemetryConfigWarnings(undefined), []);
+  // The wrapper form must be unwrapped, not treated as one unknown key named "telemetry".
+  assert.match(
+    telemetryConfigWarnings({ telemetry: { provider: "netra", nope: 1 } }).join(" "),
+    /nope/
+  );
 });
 
 test("parseTelemetry: accepts a valid netra block and preserves passthrough fields", () => {
