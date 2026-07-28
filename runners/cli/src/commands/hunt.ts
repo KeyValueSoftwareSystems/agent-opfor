@@ -108,9 +108,7 @@ async function resolveTelemetry(
     ? JSON.parse(await readFile(path.resolve(telemetryConfigPath), "utf8"))
     : fromTargetConfig;
   const telemetry = parseTelemetry(raw) as TelemetryConfig | undefined;
-  for (const warning of telemetryConfigWarnings(raw)) {
-    consola.warn(`${warning} — check for a typo; the field was ignored.`);
-  }
+  for (const warning of telemetryConfigWarnings(raw)) consola.warn(warning);
   return telemetry;
 }
 

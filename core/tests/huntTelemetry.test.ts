@@ -213,6 +213,49 @@ test("telemetryConfigWarnings: flags typo'd fields at both levels without failin
   assert.match(warnings, /propagation field\(s\): header\b/, "nested propagation typo reported");
 });
 
+test("telemetryConfigWarnings: reports an explicitly-null telemetry without failing the run", () => {
+  // `null` is how JSON says "no value" (hand-nulled section, unset `${VAR}` template, a
+  // serializer emitting null for an absent optional), so it must disable rather than throw —
+  // but it must not do so silently.
+  for (const nulled of [null, { telemetry: null }]) {
+    assert.equal(parseTelemetry(nulled), undefined, "explicit null disables, does not throw");
+    assert.match(
+      telemetryConfigWarnings(nulled).join(" "),
+      /explicitly null/,
+      "explicit null is reported"
+    );
+  }
+  // Genuinely absent telemetry is the zero-config default — never warn about it.
+  assert.deepEqual(telemetryConfigWarnings(undefined), []);
+});
+
+test("telemetryConfigWarnings: inherited Object.prototype names are not treated as known keys", () => {
+  // `k in shape` would walk the prototype chain and silently accept these as recognized,
+  // punching a hole in the very check that exists to catch unexpected fields.
+  const warnings = telemetryConfigWarnings({
+    provider: "netra",
+    constructor: 1,
+    toString: 2,
+    valueOf: 3,
+    hasOwnProperty: 4,
+  }).join(" ");
+  for (const inherited of ["constructor", "toString", "valueOf", "hasOwnProperty"]) {
+    assert.match(warnings, new RegExp(inherited), `${inherited} must be reported as unrecognized`);
+  }
+});
+
+test("telemetryConfigWarnings: an INHERITED telemetry key never redirects the parse", () => {
+  // Own-property check only: a `telemetry` on the prototype must not be unwrapped as if the
+  // caller had supplied one.
+  const withInherited = Object.create({ telemetry: { provider: "langfuse" } }) as Record<
+    string,
+    unknown
+  >;
+  withInherited.provider = "netra";
+  assert.equal(parseTelemetry(withInherited)?.provider, "netra", "own block wins, not inherited");
+  assert.deepEqual(telemetryConfigWarnings(withInherited), []);
+});
+
 test("telemetryConfigWarnings: silent on a clean config, and unwraps a { telemetry } wrapper", () => {
   const clean = {
     provider: "netra",

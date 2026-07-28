@@ -191,41 +191,76 @@ export const TelemetryConfigSchema = z.looseObject(telemetryConfigShape);
  * Unwrap a telemetry block: callers may pass a bare block or a whole run config carrying a
  * `telemetry` sibling. Shared by `parseTelemetry` and `telemetryConfigWarnings` so the two
  * can't disagree about which object they're looking at.
+ *
+ * Nullish input is returned AS-IS rather than normalized, so callers can tell an absent
+ * telemetry (`undefined`) from one a config explicitly nulled out (`null`).
+ * Own-property check only: an inherited `telemetry` must never redirect what gets parsed.
  */
 function unwrapTelemetryBlock(raw: unknown): unknown {
-  if (raw === undefined || raw === null) return undefined;
+  if (raw === undefined || raw === null) return raw;
   const obj =
     typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : undefined;
-  return obj && "telemetry" in obj ? obj.telemetry : raw;
-}
-
-/** Keys present on `value` that the given shape doesn't declare. */
-function unrecognizedKeys(shape: Record<string, unknown>, value: unknown): string[] {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return [];
-  return Object.keys(value as Record<string, unknown>).filter((k) => !(k in shape));
+  return obj && Object.prototype.hasOwnProperty.call(obj, "telemetry") ? obj.telemetry : raw;
 }
 
 /**
- * Unrecognized telemetry fields — almost always a typo (`header` for `headers`,
- * `enrichJudgeFromTraces` for `enrichJudgeFromTrace`). The parse is deliberately lenient, so
- * such a field would otherwise validate cleanly while leaving the capability it was meant to
- * enable silently OFF. Callers surface these; nothing here throws.
+ * Keys present on `value` that the given shape doesn't declare. Own-property check on both
+ * sides: `k in shape` would walk the prototype chain and silently accept `constructor`,
+ * `toString`, `valueOf` … as recognized fields, punching a hole in the typo warning.
+ */
+function unrecognizedKeys(shape: Record<string, unknown>, value: unknown): string[] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+  return Object.keys(value as Record<string, unknown>).filter(
+    (k) => !Object.prototype.hasOwnProperty.call(shape, k)
+  );
+}
+
+/**
+ * Non-fatal problems with a supplied telemetry block. Two kinds, both of which would otherwise
+ * leave trace-aware testing quietly OFF with nothing to explain why:
+ *
+ *  - an explicit `null` telemetry, which is treated as "disabled" rather than rejected (see
+ *    `parseTelemetry`) — but is worth saying out loud;
+ *  - unrecognized fields, almost always a typo (`header` for `headers`, `enrichJudgeFromTraces`
+ *    for `enrichJudgeFromTrace`), which the deliberately-lenient parse accepts as-is.
+ *
+ * Messages are self-contained so callers can emit them verbatim. Nothing here throws.
  *
  * The provider-specific `netra`/`langfuse` blocks are intentionally NOT checked — they are open
  * extension points validated by their adapters.
  */
 export function telemetryConfigWarnings(raw: unknown): string[] {
+  // Absent telemetry is the zero-config default, not a problem worth a warning.
+  if (raw === undefined) return [];
   const candidate = unwrapTelemetryBlock(raw);
+
+  // `null` reaches here from a hand-nulled section, a serializer emitting null for an absent
+  // optional, or an unset `"telemetry": ${VAR}` template. Every one of those means "off", so
+  // failing the run would be wrong — but staying silent hides a config that mentions telemetry
+  // and doesn't get it.
+  if (candidate === null) {
+    return [
+      "telemetry is explicitly null — trace-aware testing is disabled. Set a provider " +
+        "(langfuse/netra), or remove the field to silence this.",
+    ];
+  }
   if (!candidate || typeof candidate !== "object") return [];
   const warnings: string[] = [];
 
   const top = unrecognizedKeys(telemetryConfigShape, candidate);
-  if (top.length) warnings.push(`unrecognized telemetry field(s): ${top.join(", ")}`);
+  if (top.length) {
+    warnings.push(
+      `unrecognized telemetry field(s): ${top.join(", ")} — check for a typo; ignored as written.`
+    );
+  }
 
   const propagation = (candidate as Record<string, unknown>).propagation;
   const nested = unrecognizedKeys(telemetryPropagationShape, propagation);
   if (nested.length) {
-    warnings.push(`unrecognized telemetry.propagation field(s): ${nested.join(", ")}`);
+    warnings.push(
+      `unrecognized telemetry.propagation field(s): ${nested.join(", ")} — check for a typo; ` +
+        `ignored as written.`
+    );
   }
   return warnings;
 }
@@ -233,12 +268,16 @@ export function telemetryConfigWarnings(raw: unknown): string[] {
 /**
  * Validate a telemetry block for `opfor hunt`. Accepts a bare block or a `{ telemetry: {...} }`
  * wrapper (so an existing run config file works). Returns `undefined` only when telemetry is
- * truly absent (`raw`/the unwrapped value is nullish) or a successfully parsed config has
- * `provider: "none"`. Any other supplied value — including a malformed non-object or an empty
- * object — is routed through `TelemetryConfigSchema.safeParse` so it throws with an actionable
- * message instead of being silently treated as "telemetry disabled".
+ * nullish or a successfully parsed config has `provider: "none"`. Any other supplied value —
+ * including a malformed non-object or an empty object — is routed through
+ * `TelemetryConfigSchema.safeParse` so it throws with an actionable message instead of being
+ * silently treated as "telemetry disabled".
  *
- * Unrecognized-but-well-typed fields do NOT throw — see `telemetryConfigWarnings`.
+ * Nullish is deliberately NOT an error: `null` is how JSON says "no value", so it arrives from
+ * hand-nulled sections, serializers emitting null for absent optionals, and unset
+ * `"telemetry": ${VAR}` templates — all of which mean "off". Throwing would turn a working
+ * telemetry-less run into a hard failure. It is reported by `telemetryConfigWarnings` instead,
+ * as are unrecognized-but-well-typed fields.
  */
 export function parseTelemetry(raw: unknown): z.infer<typeof TelemetryConfigSchema> | undefined {
   const candidate = unwrapTelemetryBlock(raw);
