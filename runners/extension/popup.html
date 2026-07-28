@@ -1064,6 +1064,12 @@
         gap: 8px;
       }
 
+      .grid-3 {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 8px;
+      }
+
       /* ── Running screen ─────────────────────────────────────── */
       .progress-row {
         display: flex;
@@ -2456,7 +2462,7 @@
               </div>
             </div>
           </div>
-          <div class="grid-2">
+          <div class="grid-3">
             <button id="discardPausedBtn" class="btn-ghost">
               <svg width="14" height="14" viewBox="0 0 24 24">
                 <path
@@ -2470,6 +2476,12 @@
               </svg>
               Discard
             </button>
+            <button id="pausedStopBtn" class="btn-danger">
+              <svg width="14" height="14" viewBox="0 0 24 24">
+                <rect x="6" y="6" width="12" height="12" rx="1.5" fill="currentColor" />
+              </svg>
+              Stop
+            </button>
             <button id="resumeBtn" class="btn-primary">
               <svg width="14" height="14" viewBox="0 0 24 24">
                 <path d="M8 5v14l11-7z" fill="currentColor" />
@@ -2477,6 +2489,7 @@
               Resume
             </button>
           </div>
+          <div class="hint-line">Stop reports what's completed and discards the paused run</div>
         </div>
 
         <!-- AWAIT_USER ─────────────────────────────────────── -->

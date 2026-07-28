@@ -112,6 +112,12 @@ const state = {
     /** @type {{id:string;name:string;sev:string;verdict:string;summary:string;raw:any}[]} */ ([]),
   lastReport: /** @type {any | null} */ (null),
   running: false,
+  // True only while THIS popup instance's startRun() loop is actively
+  // driving a run — as opposed to `running`, which also gets set to true
+  // when the popup reopens mid-run and merely restores the running screen
+  // from storage. Code that needs to know "is a loop here to notice a
+  // stop/pause request" must gate on this, not on `running`.
+  loopActive: false,
   cancelRequested: false,
   pauseRequested: false,
   // Set when the current/last completed run ended via user cancellation
@@ -150,14 +156,21 @@ function syncNav() {
 // Toggle a run-control button (Pause/Stop) into a disabled/loading state
 // while its request is in flight — both can take a few seconds to actually
 // resolve, since the popup waits on the in-flight evaluator to unwind.
-// Disables BOTH buttons regardless of which one is busy, so they can't race
-// each other; only the clicked button gets the spinner + label swap.
+// Stopping supersedes pausing, so Stop-busy also disables Pause. The reverse
+// does not hold: Pause-busy leaves Stop enabled, so the user can still
+// escalate a slow pause into a stop rather than being stuck with no escape
+// hatch — pause-to-cancel is a safe transition (the `intent` flag on the
+// last OPFOR_UI_STOP wins).
 function setRunControlBusy(prefix, busy, busyLabel) {
-  const stopBtn = $("stopBtn");
-  const pauseBtn = $("pauseBtn");
-  if (stopBtn) stopBtn.disabled = busy;
-  if (pauseBtn) pauseBtn.disabled = busy;
   const btn = $(prefix === "stop" ? "stopBtn" : "pauseBtn");
+  if (btn) btn.disabled = busy;
+  if (prefix === "stop") {
+    const pauseBtn = $("pauseBtn");
+    if (pauseBtn) pauseBtn.disabled = busy;
+    // Stop is also reachable from the Paused screen — keep it in sync.
+    const pausedStopBtn = $("pausedStopBtn");
+    if (pausedStopBtn) pausedStopBtn.disabled = busy;
+  }
   if (!btn) return;
   const icon = btn.querySelector(`.${prefix}-btn-icon`);
   const spinner = btn.querySelector(`.${prefix}-btn-spinner`);
@@ -996,11 +1009,12 @@ function renderDone() {
   const failed = state.results.filter((r) => r.verdict === "FAIL");
   const passed = state.results.filter((r) => r.verdict === "PASS");
   const cancelled = state.results.filter((r) => r.verdict === "CANCELLED");
-  const verdict = state.runCancelled
-    ? "CANCELLED"
-    : failed.length === 0 && state.results.length > 0
-      ? "PASS"
-      : "FAIL";
+  const verdict =
+    state.runCancelled || cancelled.length > 0
+      ? "CANCELLED"
+      : failed.length === 0 && state.results.length > 0
+        ? "PASS"
+        : "FAIL";
 
   const card = $("verdictCard");
   card.dataset.verdict = verdict;
@@ -1275,16 +1289,16 @@ function sevDot(sev) {
 
 function generateHtmlReport(report) {
   const { metadata, target, summary, evaluatorResults, criticalFindings, highFindings } = report;
-  const passPct = summary.totalTests ? Math.round((summary.passed / summary.totalTests) * 360) : 0;
-  const overallVerdict = report.cancelled
-    ? "CANCELLED"
-    : summary.failed === 0 && summary.totalTests > 0
-      ? "PASS"
-      : "FAIL";
   // Absent when nothing was judged — grading an unassessed run as "Critical
   // Risk" would be a fabricated conclusion, not a conservative default.
   const scored = summary.safetyScore != null;
   const judged = judgedCount(summary);
+  const overallVerdict =
+    report.cancelled || summary.cancelled > 0 || judged === 0
+      ? "CANCELLED"
+      : summary.failed === 0 && summary.totalTests > 0
+        ? "PASS"
+        : "FAIL";
   const riskLevel = !scored
     ? { label: "Not Assessed", color: "#64748B", bg: "#F1F5F9", border: "#CBD5E1" }
     : summary.safetyScore >= 80
@@ -1800,7 +1814,11 @@ function generateHtmlReport(report) {
             <div class="section-num">3</div>
             <div class="section-title">Key Findings</div>
           </div>
-          <div class="no-findings">No critical or high severity findings — system passed all evaluated attack patterns.</div>
+          <div class="no-findings">${
+            judged === 0
+              ? "No critical or high severity findings — no evaluator was assessed before the run was cancelled."
+              : "No critical or high severity findings — system passed all evaluated attack patterns."
+          }</div>
         </div>`
   }
 
@@ -2018,6 +2036,7 @@ async function downloadReport() {
               : "FAIL";
         const partialNote =
           opforLastResult.partial && verdict !== "CANCELLED" ? " (partial run)" : "";
+        if (verdict === "CANCELLED") state.runCancelled = true;
         state.results = [
           {
             id: opforLastResult.evaluatorId || "unknown",
@@ -2031,6 +2050,7 @@ async function downloadReport() {
       } else if (opforLastResult?.transcript?.length >= 2) {
         const turnCount = opforLastResult.transcript.length;
         const wasCancelled = opforLastResult.stopReason === "user_stop";
+        if (wasCancelled) state.runCancelled = true;
         state.results = [
           {
             id: opforLastResult.evaluatorId || "unknown",
@@ -2476,6 +2496,7 @@ async function pollStorageForResult(evaluatorId) {
         "opforLastResult",
         "opforLiveTranscript",
         "opforRunStatus",
+        "opforPausedRun",
       ]);
     } catch {
       continue;
@@ -2486,6 +2507,12 @@ async function pollStorageForResult(evaluatorId) {
     if (interruptedAt) {
       const rec = data.opforLastResult;
       if (rec && matchesEvaluator(rec, evaluatorId) && (rec.judgment || rec.stopReason)) return rec;
+      // A pause writes no `opforLastResult` by design — the snapshot is the
+      // only signal that it landed. Compare against `interruptedAt` so a
+      // stale snapshot from an earlier pause can't resolve this one early.
+      if (state.pauseRequested && Number(data.opforPausedRun?.savedAt) >= interruptedAt) {
+        return { paused: true };
+      }
       if (Date.now() - interruptedAt < INTERRUPT_GRACE_MS) continue;
       return { paused: state.pauseRequested, cancelled: state.cancelRequested };
     }
@@ -2615,6 +2642,7 @@ async function pollStorageForResult(evaluatorId) {
 async function startRun({ resume = false } = {}) {
   if (state.running) return;
   state.running = true;
+  state.loopActive = true;
   state.cancelRequested = false;
   state.pauseRequested = false;
   state.runCancelled = false;
@@ -2627,6 +2655,7 @@ async function startRun({ resume = false } = {}) {
     const suite = state.catalog?.suites.find((s) => s.id === state.suiteId);
     if (!suite) {
       state.running = false;
+      state.loopActive = false;
       return;
     }
     const byId = new Map(state.catalog.evaluators.map((e) => [e.id, e]));
@@ -2726,6 +2755,7 @@ async function startRun({ resume = false } = {}) {
     }
     if (state.pauseRequested || out.paused) {
       state.running = false;
+      state.loopActive = false;
       try {
         state.keepAlivePort?.disconnect();
       } catch {
@@ -2839,6 +2869,7 @@ async function startRun({ resume = false } = {}) {
   }
 
   state.running = false;
+  state.loopActive = false;
   state.targetTabId = null;
   try {
     state.keepAlivePort?.disconnect();
@@ -2900,7 +2931,13 @@ async function requestStop() {
   state.cancelRequested = true;
   state.pauseRequested = false;
   setStopBusy(true);
-  stopRunStatusPoller();
+  // Only stop the poller when OUR OWN startRun() loop is driving this run —
+  // it will handle the transition itself once its in-flight call resolves.
+  // If the loop isn't ours (popup was reopened mid-run), the poller is the
+  // only thing that will ever notice the background's stop; killing it here
+  // would leave the run permanently stuck (see the loopActive check below).
+  const ownedByLoop = state.loopActive;
+  if (ownedByLoop) stopRunStatusPoller();
   await clearPopupRunQueue();
   try {
     await chrome.runtime.sendMessage({ type: "OPFOR_UI_STOP", intent: "cancel" });
@@ -2913,6 +2950,16 @@ async function requestStop() {
   // runOneEvaluator() call resolves (guaranteed to happen: the background
   // persists the partial result before it replies). Racing ahead to read
   // storage here would only see it some of the time.
+  if (ownedByLoop) {
+    const phaseText = $("runPhaseText");
+    if (phaseText) phaseText.textContent = "Stopping — finishing current evaluator…";
+    return;
+  }
+
+  // The popup was reopened mid-run: `state.running` mirrors storage, but
+  // there is no local loop to notice the stop. The run-status poller (left
+  // running above) will detect the background's own terminal record and
+  // finalize the report itself once it lands.
   if (state.running) {
     const phaseText = $("runPhaseText");
     if (phaseText) phaseText.textContent = "Stopping — finishing current evaluator…";
@@ -3312,6 +3359,7 @@ function wire() {
   $("stopBtn").addEventListener("click", requestStop);
   $("resumeBtn").addEventListener("click", () => startRun({ resume: true }));
   $("discardPausedBtn").addEventListener("click", discardPaused);
+  $("pausedStopBtn").addEventListener("click", requestStop);
   $("awaitUserCancelBtn").addEventListener("click", cancelAwaitUser);
   $("awaitUserRetryBtn").addEventListener("click", retryLocate);
   $("newRunBtn").addEventListener("click", () => {
@@ -3553,35 +3601,59 @@ function startRunStatusPoller() {
       }
 
       // The service worker clears running=false after each evaluator finishes.
-      // If the popup's own startRun loop is still active (state.running === true),
-      // it means more evaluators are queued — don't jump to idle/done.
+      // If a real startRun() loop owns this run (state.loopActive), it's
+      // already handling the transition to the next evaluator or the final
+      // Done screen — don't preempt it. If there is no such loop (the popup
+      // was reopened mid-run, or the owning popup instance closed), this is
+      // the only thing left that will ever notice the run ended, so finalize
+      // it here.
       if (!opforRunStatus.running) {
-        if (state.running) return;
+        if (state.loopActive) return;
         stopRunStatusPoller();
         stopCosmeticTicker();
         const hasPaused = await checkPausedRun();
         if (!hasPaused) {
           const { opforLastResult } = await chrome.storage.local.get("opforLastResult");
-          if (opforLastResult && !opforLastResult.partial) {
+          const cur = state.queue[state.evIdx] || state.queue[0];
+          if (opforLastResult && matchesEvaluator(opforLastResult, cur?.id)) {
             const verdict =
-              String(opforLastResult.judgment?.verdict || "FAIL").toUpperCase() === "PASS"
-                ? "PASS"
-                : "FAIL";
-            state.results = [
-              {
-                id: opforLastResult.evaluatorId || state.queue[0]?.id || "",
-                name: opforLastResult.evaluatorName || state.queue[0]?.name || "",
-                sev: state.queue[0]?.sev || "low",
+              opforLastResult.stopReason === "user_stop"
+                ? "CANCELLED"
+                : opforLastResult.judgment
+                  ? String(opforLastResult.judgment.verdict || "FAIL").toUpperCase() === "PASS"
+                    ? "PASS"
+                    : "FAIL"
+                  : null;
+            // `null` means the evaluator neither completed nor was cancelled
+            // (e.g. a bare error record) — nothing to add to the report.
+            if (verdict) {
+              state.results.push({
+                id: opforLastResult.evaluatorId || cur?.id || "",
+                name: opforLastResult.evaluatorName || cur?.name || "",
+                sev: cur?.sev || "low",
                 verdict,
-                summary: opforLastResult.judgment?.summary || "",
+                summary:
+                  opforLastResult.judgment?.summary ||
+                  (verdict === "CANCELLED"
+                    ? "Cancelled by user before this evaluator could finish."
+                    : ""),
                 raw: opforLastResult,
-              },
-            ];
-            state.evIdx = 1;
+              });
+              state.evIdx++;
+            }
+          }
+          state.running = false;
+          await clearPopupRunQueue();
+          if (state.results.length) {
+            // No loop is left to run whatever's still queued — the suite
+            // ends here, same as a user-initiated stop.
+            if (state.evIdx < state.queue.length) state.runCancelled = true;
             await finalizeAndPersistCurrentReport();
             renderDone();
             setScreen("done");
           } else {
+            state.queue = [];
+            state.evIdx = 0;
             setScreen("idle");
           }
         }

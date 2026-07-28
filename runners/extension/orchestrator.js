@@ -278,6 +278,7 @@ export async function resetChatSession(tabId, readerCfg) {
 export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
   beginUiRunAbortController();
   state.OPFOR_STOP = false;
+  state.OPFOR_STOP_INTENT = "cancel";
 
   // `opforLastResult` is the *result of the current evaluator run* — there is
   // never one yet at the start, so clear it even on resume. Leaving a prior
@@ -455,6 +456,7 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
               },
             })
           );
+          await clearRunStatus();
           return;
         }
         const resumeLastUser = transcript[transcript.length - 1]?.content || "";
