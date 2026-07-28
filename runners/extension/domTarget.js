@@ -16,12 +16,15 @@ const MAX_CONSECUTIVE_FAILURES = 2;
  * readerCfg: LLM config for message shortening (reader model)
  * options:
  *   waitMs:      ms to wait between send and extract (default 5000)
+ *   roundOffset: rounds already completed before this adapter was created —
+ *                set on resume so reported round numbers continue from where
+ *                the paused run left off instead of restarting at 1
  *   onUserSent:  async ({ round, prompt }) => void — fires right after send, before extraction
  *   onTurnDone:  async ({ round, userMessage, sentOk, extractedOk, assistantPreview }) => void
  *   onRecovery:  async () => { plan, frameId }|null — called on consecutive DOM failures
  */
 export function createDomTarget(tabId, frameId, plan, readerCfg, options = {}) {
-  const { waitMs = 5000, onUserSent, onTurnDone, onRecovery } = options;
+  const { waitMs = 5000, roundOffset = 0, onUserSent, onTurnDone, onRecovery } = options;
 
   let currentPlan = plan;
   let currentFrameId = frameId;
@@ -72,7 +75,7 @@ export function createDomTarget(tabId, frameId, plan, readerCfg, options = {}) {
       }
       if (state.OPFOR_STOP) throw domTargetStopError();
 
-      const round = turns.length + 1;
+      const round = roundOffset + turns.length + 1;
 
       // Pre-send snapshot (used for diff extraction)
       const prevSnapshot = await snapshotCurrentResponse(tabId, currentFrameId);

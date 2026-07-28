@@ -7,7 +7,6 @@ import {
   clearRetryLocate,
 } from "./state.js";
 import {
-  judgeResponse,
   createModel,
   setEnvProvider,
   PROVIDER_ENV_VARS,
@@ -61,6 +60,59 @@ function adaptJudgeResult(coreResult) {
     findings: coreResult.evidence ? [{ text: coreResult.evidence }] : [],
     confidence: coreResult.confidence,
     score: coreResult.score,
+  };
+}
+
+/** The placeholder judgment for a cancelled evaluator (never LLM-judged). */
+function cancelledJudgment(transcript) {
+  if (!Array.isArray(transcript) || transcript.length < 2) return undefined;
+  return {
+    verdict: "CANCELLED",
+    summary: "Cancelled by user before this evaluator could finish.",
+    findings: [{ text: "Run stopped by user; partial transcript was collected." }],
+  };
+}
+
+/**
+ * Finalize a user-initiated interruption.
+ *
+ * Pause and Stop arrive as the SAME signal (state.OPFOR_STOP) — only the
+ * recorded intent distinguishes them, and they must leave behind opposite
+ * things:
+ *   pause  → a resumable snapshot, and NO terminal result. An unfinished
+ *            evaluator has no verdict; writing one makes a merely-paused run
+ *            surface as a CANCELLED row in the report.
+ *   cancel → a terminal CANCELLED result, and NO resumable snapshot (which
+ *            would otherwise resurrect a "Run paused / Resume" screen).
+ *
+ * Pass `canPause: false` when the run cannot be made resumable (no usable
+ * widget plan). A pause is then degraded to a cancel through the SAME branch,
+ * so it still clears any snapshot left by an earlier pause — that snapshot
+ * otherwise survives a resume (it is only dropped on success) and would
+ * resurrect a stale "Resume" screen for a run just recorded as cancelled.
+ *
+ * Returns the response payload for the popup, with an explicit intent so the
+ * popup never has to infer pause-vs-cancel from the ambiguous `paused` flag.
+ */
+async function finalizeUserInterruption({ pauseSnapshot, cancelResult, canPause = true }) {
+  const wantedPause = state.OPFOR_STOP_INTENT === "pause";
+  const isPause = wantedPause && canPause;
+  if (isPause) {
+    if (pauseSnapshot) await persistPausedAdaptiveRun(pauseSnapshot).catch(() => {});
+  } else {
+    await chrome.storage.local.remove("opforPausedRun").catch(() => {});
+    if (cancelResult) await persistPartialResult(cancelResult).catch(() => {});
+  }
+  return {
+    ok: false,
+    error: isPause
+      ? "Run paused."
+      : wantedPause
+        ? "Run stopped (could not be saved for resume)."
+        : "Run stopped.",
+    paused: isPause,
+    cancelled: !isPause,
+    intent: isPause ? "pause" : "cancel",
   };
 }
 
@@ -226,10 +278,20 @@ export async function resetChatSession(tabId, readerCfg) {
 export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
   beginUiRunAbortController();
   state.OPFOR_STOP = false;
+  state.OPFOR_STOP_INTENT = "cancel";
 
+  // `opforLastResult` is the *result of the current evaluator run* — there is
+  // never one yet at the start, so clear it even on resume. Leaving a prior
+  // evaluator's `completed: true` result behind makes the popup's storage
+  // poller return that stale result immediately for this run.
+  try {
+    await chrome.storage.local.remove("opforLastResult");
+  } catch {
+    /* swallowed */
+  }
   if (!resume) {
     try {
-      await chrome.storage.local.remove(["opforLastResult", "opforLiveTranscript"]);
+      await chrome.storage.local.remove("opforLiveTranscript");
     } catch {
       /* swallowed */
     }
@@ -356,26 +418,45 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
       if (transcript.length % 2 === 1) {
         await sleepInterruptible(Math.min(waitMs, 1000));
         if (state.OPFOR_STOP) {
-          await persistPausedAdaptiveRun({
-            tabId: tab.id,
-            siteUrl: tab.url || "",
-            maxRounds,
-            waitMs,
-            transcript,
-            turnLog,
-            plan,
-            frameId: best.frameId,
-            frameUrl: best.frameUrl,
-            siteSnapshot,
-            suiteId,
-            evaluatorSnapshot,
-            attackObjective,
-            businessUseCase,
-            scrapeFromSite,
-            agentDescription,
-            judgeHint,
-          });
-          sendResponse({ ok: false, error: "Run stopped.", paused: true });
+          sendResponse(
+            await finalizeUserInterruption({
+              pauseSnapshot: {
+                tabId: tab.id,
+                siteUrl: tab.url || "",
+                maxRounds,
+                waitMs,
+                transcript,
+                turnLog,
+                plan,
+                frameId: best.frameId,
+                frameUrl: best.frameUrl,
+                siteSnapshot,
+                suiteId,
+                evaluatorSnapshot,
+                attackObjective,
+                businessUseCase,
+                scrapeFromSite,
+                agentDescription,
+                judgeHint,
+              },
+              cancelResult: {
+                ok: true,
+                partial: true,
+                stopped: true,
+                stopReason: "user_stop",
+                siteUrl: tab.url || "",
+                suiteId,
+                evaluatorId: evaluatorSnapshot?.id,
+                evaluatorName: evaluatorSnapshot?.name,
+                severity: evaluatorSnapshot?.severity,
+                maxRounds,
+                transcript,
+                turns: turnLog,
+                judgment: cancelledJudgment(transcript),
+              },
+            })
+          );
+          await clearRunStatus();
           return;
         }
         const resumeLastUser = transcript[transcript.length - 1]?.content || "";
@@ -597,6 +678,10 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
       siteSnapshot = located.siteSnapshot || "";
     }
 
+    // Carry the restored transcript through on resume — writing [] here wipes
+    // the progress the popup replays from storage, so a resumed run renders as
+    // "0 turns" and the turn counter restarts from scratch.
+    const priorRounds = Math.floor(transcript.length / 2);
     await setRunStatus({
       running: true,
       tabId: tab.id,
@@ -604,9 +689,15 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
       suiteId,
       evaluatorId: evaluatorSnapshot?.id,
       evaluatorName: evaluatorSnapshot?.name,
+      severity: evaluatorSnapshot?.severity,
       maxRounds,
       phase: "running",
-      transcript: [],
+      transcript: transcript.slice(-40),
+      // setRunStatus replaces the whole record, so seed `lastRound` here too —
+      // it is the field the popup reads, and broadcastProgress only starts
+      // maintaining it once the next turn completes.
+      lastRound: priorRounds,
+      resumedFromRound: priorRounds,
       startedAt: Date.now(),
     });
 
@@ -624,6 +715,7 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
     // Build DomTarget adapter — handles send/extract/pause/stop/recovery
     const domTarget = createDomTarget(tab.id, best.frameId, plan, readerCfg, {
       waitMs,
+      roundOffset: priorRounds,
       onUserSent: async ({ round, prompt }) => {
         // Broadcast the user bubble immediately after send, before waiting for response.
         broadcastProgress({
@@ -774,76 +866,56 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
     const fullTurnLog = [...turnLog, ...newTurnLog];
 
     // ── STOPPED path ────────────────────────────────────────────────────────
+    // A user-initiated stop cancels the in-progress evaluator outright — it
+    // is reported as CANCELLED, not judged. Running the judge LLM here would
+    // both delay the stop and produce a misleading PASS/FAIL-shaped verdict
+    // for a turn the target never got to finish.
     if (runError?.code === "OPFOR_STOP" || state.OPFOR_STOP) {
-      let stoppedJudgment;
-      if (fullTranscript.length >= 2) {
-        try {
-          const lastUser =
-            [...fullTranscript].reverse().find((t) => t.role === "user")?.content || "";
-          const lastAssistant =
-            [...fullTranscript].reverse().find((t) => t.role === "assistant")?.content || "";
-          stoppedJudgment = adaptJudgeResult(
-            await judgeResponse(
+      // A pause with no usable widget plan can't be resumed — degrade it to a
+      // cancel so the popup still gets a report instead of a dead snapshot.
+      const resumable = Boolean(plan?.inputSelector && tab?.id && best?.frameId != null);
+      const response = await finalizeUserInterruption({
+        canPause: resumable,
+        pauseSnapshot: resumable
+          ? {
+              tabId: tab.id,
+              siteUrl: tab.url || "",
+              maxRounds,
+              waitMs,
+              transcript: fullTranscript,
+              turnLog: fullTurnLog,
+              plan,
+              frameId: best.frameId,
+              frameUrl: best.frameUrl,
+              siteSnapshot,
+              suiteId,
               evaluatorSnapshot,
-              lastUser,
-              lastAssistant,
-              judgeModel,
-              undefined,
-              fullTranscript,
-              {
-                patternName: evaluatorSnapshot?.name,
-                judgeHint: combinedHint || undefined,
-              }
-            )
-          );
-        } catch {
-          stoppedJudgment = {
-            verdict: "UNKNOWN",
-            summary: "Run stopped before judgment could complete.",
-            findings: [{ text: "Run stopped by user; partial transcript was collected." }],
-          };
-        }
-      }
-      const stoppedResult = {
-        ok: true,
-        partial: true,
-        stopped: true,
-        stopReason: "user_stop",
-        siteUrl: tab.url || "",
-        architecture: "evaluator_adaptive_multi_turn",
-        suiteId,
-        evaluatorId: evaluatorSnapshot?.id,
-        evaluatorName: evaluatorSnapshot?.name,
-        severity: evaluatorSnapshot?.severity,
-        maxRounds,
-        frame: { frameId: best.frameId, frameUrl: best.frameUrl },
-        transcript: fullTranscript,
-        turns: fullTurnLog,
-        judgment: stoppedJudgment || undefined,
-      };
-      await persistPartialResult(stoppedResult);
-      if (plan?.inputSelector && tab?.id && best?.frameId != null) {
-        await persistPausedAdaptiveRun({
-          tabId: tab.id,
+              attackObjective,
+              businessUseCase,
+              scrapeFromSite,
+              agentDescription,
+              judgeHint,
+            }
+          : null,
+        cancelResult: {
+          ok: true,
+          partial: true,
+          stopped: true,
+          stopReason: "user_stop",
           siteUrl: tab.url || "",
-          maxRounds,
-          waitMs,
-          transcript: fullTranscript,
-          turnLog: fullTurnLog,
-          plan,
-          frameId: best.frameId,
-          frameUrl: best.frameUrl,
-          siteSnapshot,
+          architecture: "evaluator_adaptive_multi_turn",
           suiteId,
-          evaluatorSnapshot,
-          attackObjective,
-          businessUseCase,
-          scrapeFromSite,
-          agentDescription,
-          judgeHint,
-        }).catch(() => {});
-      }
-      sendResponse({ ok: false, error: "Run stopped.", paused: true });
+          evaluatorId: evaluatorSnapshot?.id,
+          evaluatorName: evaluatorSnapshot?.name,
+          severity: evaluatorSnapshot?.severity,
+          maxRounds,
+          frame: { frameId: best?.frameId, frameUrl: best?.frameUrl },
+          transcript: fullTranscript,
+          turns: fullTurnLog,
+          judgment: cancelledJudgment(fullTranscript),
+        },
+      });
+      sendResponse(response);
       await clearRunStatus();
       return;
     }
