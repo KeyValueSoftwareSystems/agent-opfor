@@ -184,16 +184,19 @@ export const TelemetryConfigSchema = z
 
 /**
  * Validate a telemetry block for `opfor hunt`. Accepts a bare block or a `{ telemetry: {...} }`
- * wrapper (so an existing run config file works). Returns `undefined` for a missing/`none`
- * config (trace-aware testing simply stays off); throws with an actionable message otherwise.
+ * wrapper (so an existing run config file works). Returns `undefined` only when telemetry is
+ * truly absent (`raw`/the unwrapped value is nullish) or a successfully parsed config has
+ * `provider: "none"`. Any other supplied value — including a malformed non-object or an empty
+ * object — is routed through `TelemetryConfigSchema.safeParse` so it throws with an actionable
+ * message instead of being silently treated as "telemetry disabled".
  */
 export function parseTelemetry(raw: unknown): z.infer<typeof TelemetryConfigSchema> | undefined {
-  if (!raw || typeof raw !== "object") return undefined;
-  const obj = raw as Record<string, unknown>;
-  const candidate = "telemetry" in obj && obj.telemetry ? obj.telemetry : obj;
-  if (!candidate || typeof candidate !== "object") return undefined;
-  const provider = (candidate as Record<string, unknown>).provider;
-  if (!provider || provider === "none") return undefined;
+  if (raw === undefined || raw === null) return undefined;
+  const obj =
+    typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : undefined;
+  const candidate = obj && "telemetry" in obj ? obj.telemetry : raw;
+  if (candidate === undefined || candidate === null) return undefined;
+
   const parsed = TelemetryConfigSchema.safeParse(candidate);
   if (!parsed.success) {
     const msg = parsed.error.issues
@@ -201,7 +204,7 @@ export function parseTelemetry(raw: unknown): z.infer<typeof TelemetryConfigSche
       .join("; ");
     throw new Error(`Invalid telemetry config: ${msg}`);
   }
-  return parsed.data;
+  return parsed.data.provider === "none" ? undefined : parsed.data;
 }
 
 export const RunConfigSchema = z

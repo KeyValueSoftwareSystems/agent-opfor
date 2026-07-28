@@ -67,8 +67,11 @@ export function recordFindingTool(ctx: RunContext) {
       // the visible reply hid). Fetch when enrichment is on (attach the trace to every finding) OR
       // when the evidence isn't in any visible reply but propagation sent a trace id — so a silent-
       // leak citation made via get_trace can be validated even without the enrichment opt-in. A
-      // clean-reply finding under propagation-only fetches nothing.
-      const traceJson =
+      // clean-reply finding under propagation-only fetches nothing. The fetched value stays
+      // transient (used only for the hallucination guard below) — it's persisted onto the finding
+      // only under the `enrichment` opt-in, so a propagation-only validation fetch never retains
+      // target-internal trace data in the run log/report.
+      const fetchedTraceJson =
         ctx.telemetryCaps.enrichment || (!evidenceInReply && ctx.telemetryCaps.propagation)
           ? await fetchFindingTrace(
               ctx.options.telemetry,
@@ -81,7 +84,7 @@ export function recordFindingTool(ctx: RunContext) {
       // Hallucination guard: evidence must be a verbatim quote from a real target response —
       // OR from the recorded trace, so a silent tool-call/retrieval leak (invisible in the reply
       // but present in the trace) can still be cited.
-      if (!evidenceInReply && !evidenceFoundInText(traceJson, args.evidence)) {
+      if (!evidenceInReply && !evidenceFoundInText(fetchedTraceJson, args.evidence)) {
         ctx.reporter?.onLine(
           `[operator] ⚠️  finding rejected — evidence not found verbatim in "${args.threadId}": "${snip(args.evidence, 80)}"`
         );
@@ -107,7 +110,7 @@ export function recordFindingTool(ctx: RunContext) {
         reasoning: args.reasoning,
         failingTurns: args.failingTurns,
         selfCheck: ctx.runLog.selfChecks.get(args.threadId),
-        traceJson,
+        traceJson: ctx.telemetryCaps.enrichment ? fetchedTraceJson : undefined,
         at: new Date().toISOString(),
       };
       ctx.runLog.findings.push(finding);

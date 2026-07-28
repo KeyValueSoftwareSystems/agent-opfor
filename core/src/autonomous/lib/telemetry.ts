@@ -167,6 +167,8 @@ interface FetchTraceOpts {
   expectedResponse?: string;
   /** Per-run cache: a successful (completed) trace is stable, so memoize it by id. */
   cache?: TraceCache;
+  /** Distinguishes cache entries for the same trace id across turns — see `traceCacheKey`. */
+  cacheAnchor?: string;
   /** Override the retry ceiling — the interactive `get_trace` uses fewer so it can't stall the loop. */
   maxAttempts?: number;
 }
@@ -216,11 +218,12 @@ export async function probeTraceRoundTrip(
  * Cache key for a trace fetch. A per-attack/per-run trace GROWS as turns are added, so one trace
  * id maps to different (larger) traces at different turns — a bare-id memo would hand back the
  * first turn's trace for every later turn (stale get_trace, missing later-turn evidence). Key on
- * the turn's expected response so each turn stays distinct; a finding and its self_check share the
- * same anchor, so they still hit. Falls back to the bare id when no response anchor is given.
+ * the thread + turn anchor (not the response text) so distinct turns can never collide even when
+ * the target replies with identical text (e.g. a repeated refusal); a finding and its self_check
+ * share the same anchor, so they still hit. Falls back to the bare id when no anchor is given.
  */
-export function traceCacheKey(traceId: string, expectedResponse?: string): string {
-  return expectedResponse ? `${traceId} ${expectedResponse}` : traceId;
+export function traceCacheKey(traceId: string, anchor?: string): string {
+  return anchor ? `${traceId}::${anchor}` : traceId;
 }
 
 /** Fetch a single trace as a truncated JSON string via the configured adapter (cache-aware). */
@@ -229,7 +232,7 @@ async function fetchTraceJson(
   traceId: string,
   opts: FetchTraceOpts = {}
 ): Promise<string | undefined> {
-  const key = traceCacheKey(traceId, opts.expectedResponse);
+  const key = traceCacheKey(traceId, opts.cacheAnchor);
   const cached = opts.cache?.get(key);
   if (cached !== undefined) return cached;
   const adapter = getAdapter(telemetry.provider);
@@ -271,6 +274,7 @@ export async function fetchFindingTrace(
   try {
     return await fetchTraceJson(telemetry, traceId, {
       expectedResponse: primaryTurn?.response,
+      cacheAnchor: `${thread.threadId}#${primaryTurn?.turnIndex ?? "latest"}`,
       cache,
     });
   } catch (err) {
@@ -310,12 +314,30 @@ export async function fetchThreadTrace(
   cache?: TraceCache
 ): Promise<ThreadTraceResult> {
   if (!telemetry || telemetry.provider === "none" || !getAdapter(telemetry.provider)) {
-    return { available: false, reason: "Trace-aware testing is not configured for this run." };
+    return {
+      available: false,
+      reason:
+        "Trace-aware testing is not configured for this run. Set telemetry.provider (langfuse/netra) in the hunt telemetry config to enable it.",
+    };
   }
   if (!telemetry.propagation) {
     return {
       available: false,
-      reason: "No trace propagation configured, so no trace id was sent to the target.",
+      reason:
+        "No trace propagation configured, so no trace id was sent to the target. Set telemetry.propagation (headers or traceIdBodyField) in the telemetry config to enable it.",
+    };
+  }
+  if (
+    typeof turnIndex === "number" &&
+    (!Number.isInteger(turnIndex) || turnIndex < 1 || turnIndex > thread.turns.length)
+  ) {
+    const range =
+      thread.turns.length > 0
+        ? `Use a 1-based integer between 1 and ${thread.turns.length}, or omit turnIndex for the latest turn.`
+        : "This thread has no turns yet — send a turn first (send_to_target), then retry.";
+    return {
+      available: false,
+      reason: `Invalid turnIndex ${turnIndex}: this thread has ${thread.turns.length} turn(s). ${range}`,
     };
   }
   const turn =
@@ -324,25 +346,31 @@ export async function fetchThreadTrace(
       : thread.turns[thread.turns.length - 1];
   const traceId = turn?.traceId ?? thread.traceId;
   if (!traceId) {
-    return { available: false, reason: "No trace id recorded for that turn yet." };
+    return {
+      available: false,
+      reason:
+        "No trace id recorded for that turn yet. Send a turn on this thread first (send_to_target), then retry.",
+    };
   }
   try {
     const traceJson = await fetchTraceJson(telemetry, traceId, {
       expectedResponse: turn?.response,
+      cacheAnchor: `${thread.threadId}#${turn?.turnIndex ?? turnIndex ?? "latest"}`,
       cache,
       maxAttempts: GET_TRACE_MAX_ATTEMPTS,
     });
     if (!traceJson) {
       return {
         available: false,
-        reason: "Trace not available yet (ingestion lag) or the target did not report it.",
+        reason:
+          "Trace not available yet (ingestion lag) or the target did not report it. Retry shortly, and verify the target's tracing instrumentation is echoing the propagated trace id.",
       };
     }
     return { available: true, traceId, traceJson };
   } catch (err) {
     return {
       available: false,
-      reason: `Trace fetch failed: ${err instanceof Error ? err.message : String(err)}`,
+      reason: `Trace fetch failed: ${err instanceof Error ? err.message : String(err)}. Verify the telemetry backend is reachable and its credentials are valid, then retry.`,
     };
   }
 }

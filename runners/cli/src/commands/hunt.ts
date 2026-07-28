@@ -415,7 +415,8 @@ export function registerHuntCommand(program: Command): void {
       try {
         telemetry = await resolveTelemetry(opts.telemetryConfig, telemetryFromTargetConfig);
       } catch (err) {
-        consola.error(`--telemetry-config: ${err instanceof Error ? err.message : String(err)}`);
+        const source = opts.telemetryConfig ? "--telemetry-config" : "--target-config telemetry";
+        consola.error(`${source}: ${err instanceof Error ? err.message : String(err)}`);
         process.exitCode = 1;
         return;
       }

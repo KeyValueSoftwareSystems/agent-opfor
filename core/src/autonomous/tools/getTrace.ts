@@ -25,7 +25,10 @@ export function getTraceTool(ctx: RunContext) {
     async (args) => {
       const thread = ctx.runLog.threads.get(args.threadId);
       if (!thread) {
-        return textResult(`No thread "${args.threadId}".`, true);
+        return textResult(
+          `No thread "${args.threadId}". Run send_to_target (or get_thread) first to create it.`,
+          true
+        );
       }
       const result = await fetchThreadTrace(
         ctx.options.telemetry,
