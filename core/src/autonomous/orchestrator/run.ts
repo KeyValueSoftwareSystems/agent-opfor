@@ -15,6 +15,12 @@ import { buildRedteamServer, REDTEAM_SERVER_NAME, toolId, TOOL_NAMES } from "../
 import { buildHooks, type ProgressReporter } from "../state/hooks.js";
 import { threadTreeText, countsLine } from "../state/observe.js";
 import { buildCommanderPrompt } from "../prompts/commander.js";
+import {
+  curateHuntTracesIfConfigured,
+  telemetryCapabilities,
+  probeTraceRoundTrip,
+  type TraceRoundTrip,
+} from "../lib/telemetry.js";
 import { buildOperatorPrompt } from "../prompts/operator.js";
 import { buildScoutPrompt } from "../prompts/scout.js";
 import { mapRunLogToReport } from "../report/mapRunLog.js";
@@ -94,6 +100,31 @@ export async function runAutonomous(
   });
   runHooks?.onRunLog?.(runLog);
 
+  // Optional trace-aware grounding: curate historic production traces into a summary the
+  // commander uses to target its attacks. No-op (undefined) unless telemetry is configured.
+  const traceSummary = await curateHuntTracesIfConfigured(options, options.outputDir);
+  if (traceSummary) {
+    runHooks?.progress?.onLine("Grounded attack planning on curated production traces.");
+  }
+
+  // Trace-aware capabilities are gated independently — grounding works on any instrumented
+  // backend, but propagation + enrichment additionally need the target to echo our injected
+  // trace id back into its telemetry. Verify that assumption once, up front, with one benign probe.
+  const caps = telemetryCapabilities(options.telemetry);
+  let traceRoundTrip: TraceRoundTrip | undefined;
+  if (caps.propagation) {
+    traceRoundTrip = await probeTraceRoundTrip(options.telemetry, target, runLog.runId);
+    runHooks?.progress?.onLine(
+      traceRoundTrip === "ok"
+        ? "Trace round-trip confirmed — the target echoes propagated trace ids to the backend."
+        : "⚠️  Trace round-trip NOT detected — get_trace may return nothing. An empty trace is NOT " +
+            "proof the target is clean; grounded planning is unaffected."
+    );
+  }
+  if (caps.grounding) {
+    runLog.telemetry = { grounded: Boolean(traceSummary), traceRoundTrip };
+  }
+
   const verifyEnabled = options.verify && Boolean(process.env.ANTHROPIC_API_KEY);
   const budget = new BudgetGuard({
     maxThreadTurns: options.maxThreadTurns,
@@ -112,6 +143,9 @@ export async function runAutonomous(
     budget,
     sessionGate: new SessionGate(),
     verifyEnabled,
+    telemetryCaps: caps,
+    traceRoundTrip,
+    traceCache: new Map(),
     reporter: runHooks?.progress,
   };
   const server = buildRedteamServer(ctx);
@@ -128,6 +162,9 @@ export async function runAutonomous(
     toolId(t.registerInvention),
   ];
   if (verifyEnabled) operatorTools.push(toolId(t.selfCheck));
+  // get_trace only works when propagation is configured (a trace id was actually sent to the
+  // target) — not merely when a provider is set. A grounding-only config must NOT offer it.
+  if (caps.propagation) operatorTools.push(toolId(t.getTrace));
 
   const scoutTools = [toolId(t.reconProbe), toolId(t.listKnowledge)];
 
@@ -141,7 +178,7 @@ export async function runAutonomous(
     operator: {
       description:
         "Adversarial specialist — owns one vulnerability vector, runs an adaptive multi-turn attack, self-judges, and records findings.",
-      prompt: buildOperatorPrompt(options),
+      prompt: buildOperatorPrompt(options, { caps, traceRoundTrip }),
       tools: operatorTools,
       model: options.operatorModel,
     },
@@ -160,9 +197,10 @@ export async function runAutonomous(
     ...DISPATCH_TOOLS,
   ];
   if (verifyEnabled) commanderTools.push(toolId(t.selfCheck));
+  if (caps.propagation) commanderTools.push(toolId(t.getTrace));
 
   const queryOptions: Options = {
-    systemPrompt: buildCommanderPrompt({ options, knowledge }),
+    systemPrompt: buildCommanderPrompt({ options, knowledge, traceSummary, caps }),
     model: options.commanderModel,
     agents,
     mcpServers: { [REDTEAM_SERVER_NAME]: server },

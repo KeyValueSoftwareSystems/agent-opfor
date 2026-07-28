@@ -49,6 +49,8 @@ export interface ReportFinding {
   turns: ReportTurn[];
   /** Optional independent corroboration. */
   selfCheck?: SelfCheckResult;
+  /** Recorded target trace (JSON excerpt) for the cited turns, when telemetry enrichment is on. */
+  traceJson?: string;
   /** True when the same evidence was reproduced on ≥2 genuinely independent threads. */
   crossSessionCorroborated?: boolean;
   /** All threads that produced this (deduped) finding, when more than one. */
@@ -96,6 +98,11 @@ export interface AutonomousReport {
   truncated: boolean;
   truncationReason?: string;
   totalCostUsd?: number;
+  /** Trace-aware testing status: what actually worked this run (omitted when telemetry is off). */
+  telemetry?: {
+    grounded: boolean;
+    traceRoundTrip?: "ok" | "not-detected";
+  };
   summary: {
     threads: number;
     confirmed: number; // FAIL verdicts (vulnerabilities)

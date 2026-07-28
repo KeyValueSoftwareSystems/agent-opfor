@@ -103,6 +103,7 @@ export function mapRunLogToReport(log: RunLog): AutonomousReport {
       failingTurns: rep.failingTurns,
       turns: turnsForFinding(log.threads.get(rep.threadId), rep),
       selfCheck: rep.selfCheck,
+      traceJson: rep.traceJson,
       crossSessionCorroborated: corroborated || undefined,
       corroboratingThreads: threadIds.length > 1 ? threadIds : undefined,
       parentThreadId: log.threads.get(rep.threadId)?.parentThreadId,
@@ -202,6 +203,7 @@ export function mapRunLogToReport(log: RunLog): AutonomousReport {
     truncated: log.truncated,
     truncationReason: log.truncationReason,
     totalCostUsd: log.totalCostUsd,
+    telemetry: log.telemetry,
     summary: {
       threads: findings.length,
       confirmed,

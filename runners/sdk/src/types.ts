@@ -363,6 +363,11 @@ export interface HuntOptions {
   sequential?: boolean;
   /** Output directory for reports. Default: ".opfor/reports" */
   outputDir?: string;
+  /**
+   * Optional trace-aware testing config (Netra/Langfuse). Grounds attack generation on real
+   * production traces and can propagate a trace id + enrich findings. Same shape as run mode.
+   */
+  telemetry?: TelemetryConfig;
   /** Progress callback for streaming updates. */
   onProgress?: (event: HuntProgressEvent) => void;
 }

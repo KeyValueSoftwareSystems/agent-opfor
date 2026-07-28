@@ -9,7 +9,12 @@ import type {
   TargetConfig,
 } from "@keyvaluesystems/agent-opfor-core/autonomous/lib/types.js";
 import type { RunEvent } from "@keyvaluesystems/agent-opfor-core/autonomous/state/observe.js";
-import { parseAgentTarget } from "@keyvaluesystems/agent-opfor-core/config/schema.js";
+import type { TelemetryConfig } from "@keyvaluesystems/agent-opfor-core/config/types.js";
+import {
+  parseAgentTarget,
+  parseTelemetry,
+} from "@keyvaluesystems/agent-opfor-core/config/schema.js";
+import { telemetryCapabilities } from "@keyvaluesystems/agent-opfor-core/autonomous/lib/telemetry.js";
 import { runAutonomous } from "@keyvaluesystems/agent-opfor-core/autonomous/orchestrator/run.js";
 import {
   writeAutonomousReport,
@@ -35,6 +40,7 @@ interface HuntCliOptions {
   promptPath?: string;
   responsePath?: string;
   targetConfig?: string;
+  telemetryConfig?: string;
   targetModel?: string;
   header?: string[];
   name?: string;
@@ -71,6 +77,34 @@ function parseHeaders(raw?: string[]): Record<string, string> | undefined {
     headers[item.slice(0, idx).trim()] = item.slice(idx + 1).trim();
   }
   return Object.keys(headers).length ? headers : undefined;
+}
+
+// Capability-accurate banner line. Lists the trace-aware capabilities the config actually
+// unlocks (grounding is the primary, always-usable one; propagation/enrichment need the target
+// to echo our trace id). The runtime preflight round-trip result prints as a progress line.
+function formatTelemetryStatus(telemetry: TelemetryConfig | undefined): string {
+  if (!telemetry) return "off";
+  const caps = telemetryCapabilities(telemetry);
+  const on = [
+    caps.grounding && "grounding",
+    caps.propagation && "propagation",
+    caps.enrichment && "enrichment",
+  ].filter(Boolean);
+  return `${telemetry.provider} (${on.length ? on.join(" · ") : "no capabilities"})`;
+}
+
+// Resolve trace-aware telemetry: an explicit --telemetry-config file takes precedence over a
+// `telemetry` sibling embedded in --target-config. `parseTelemetry` validates (Zod) a bare block
+// or a `{ telemetry }` wrapper, returns undefined for a missing/`none` config, and throws with an
+// actionable message on a malformed one.
+async function resolveTelemetry(
+  telemetryConfigPath: string | undefined,
+  fromTargetConfig: unknown
+): Promise<TelemetryConfig | undefined> {
+  const raw = telemetryConfigPath
+    ? JSON.parse(await readFile(path.resolve(telemetryConfigPath), "utf8"))
+    : fromTargetConfig;
+  return parseTelemetry(raw) as TelemetryConfig | undefined;
 }
 
 // Map a run-style `target` block onto hunt's TargetConfig. Hunt is HTTP-only,
@@ -167,6 +201,10 @@ export function registerHuntCommand(program: Command): void {
     .option(
       "--target-config <path>",
       "JSON file with a run-style `target` block (bare or { target }); enables server-owned sessions and header session ids. CLI flags override its fields."
+    )
+    .option(
+      "--telemetry-config <path>",
+      "JSON file with a run-style `telemetry` block (bare or { telemetry }) for trace-aware hunting (Netra/Langfuse). If omitted, a `telemetry` block inside --target-config is used."
     )
     .option("--target-model <id>", "model value sent in OpenAI-shape requests")
     .option(
@@ -354,10 +392,14 @@ export function registerHuntCommand(program: Command): void {
       // Base target: from --target-config (a run-style `target` block) if given,
       // else an empty stateless shell that the flags fill in below.
       let baseTarget: TargetConfig;
+      // A `telemetry` sibling in --target-config is reused for trace-aware hunting unless
+      // an explicit --telemetry-config is provided.
+      let telemetryFromTargetConfig: unknown;
       if (opts.targetConfig) {
         try {
           const raw = JSON.parse(await readFile(path.resolve(opts.targetConfig), "utf8"));
           baseTarget = mapAgentTargetToAutonomous(parseAgentTarget(raw));
+          telemetryFromTargetConfig = raw?.telemetry;
         } catch (err) {
           consola.error(`--target-config: ${err instanceof Error ? err.message : String(err)}`);
           process.exitCode = 1;
@@ -365,6 +407,17 @@ export function registerHuntCommand(program: Command): void {
         }
       } else {
         baseTarget = { name: "", endpoint: "", mode: "stateless" };
+      }
+
+      // Resolve trace-aware telemetry: explicit --telemetry-config wins, else the sibling
+      // block from --target-config. A bare block or a `{ telemetry }` wrapper both work.
+      let telemetry: TelemetryConfig | undefined;
+      try {
+        telemetry = await resolveTelemetry(opts.telemetryConfig, telemetryFromTargetConfig);
+      } catch (err) {
+        consola.error(`--telemetry-config: ${err instanceof Error ? err.message : String(err)}`);
+        process.exitCode = 1;
+        return;
       }
 
       // Explicit flags override the file's fields.
@@ -440,6 +493,7 @@ export function registerHuntCommand(program: Command): void {
         persistInventions: Boolean(opts.persistInventions),
         seedDir: opts.seedDir,
         outputDir: path.resolve(opts.output),
+        telemetry,
       };
 
       const header = [
@@ -450,6 +504,7 @@ export function registerHuntCommand(program: Command): void {
         ` models    : commander=${huntOptions.commanderModel}  operator=${huntOptions.operatorModel}  scout=${huntOptions.scoutModel}`,
         ` limits    : operators≤${huntOptions.maxOperators}  turns≤${huntOptions.maxTurns}  thread-turns≤${huntOptions.maxThreadTurns}${huntOptions.budgetUsd ? `  budget=$${huntOptions.budgetUsd}` : ""}`,
         ` verifier  : ${huntOptions.verify ? "on" : "off"}`,
+        ` telemetry : ${formatTelemetryStatus(telemetry)}`,
         "════════════════════════════════════════════════════════════════",
       ].join("\n");
       process.stdout.write(header + "\n");

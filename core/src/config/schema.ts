@@ -152,6 +152,58 @@ const EvaluatorSelectionSchema = z.discriminatedUnion("mode", [
   }),
 ]);
 
+/**
+ * Trace-aware testing (telemetry) config. Shared by `opfor hunt --telemetry-config` today and
+ * reusable by `opfor run` (which still parses it as `z.unknown()`). Provider-specific blocks
+ * (`netra`/`langfuse`/`traceSelection`) are `.passthrough()`'d — adapters validate their own
+ * fields at use time — but the top-level shape and `provider` enum are checked here so a
+ * malformed file fails with an actionable message instead of a deep runtime error.
+ */
+export const TelemetryPropagationSchema = z
+  .object({
+    headers: z.record(z.string(), z.string()).optional(),
+    traceIdBodyField: z.string().optional(),
+    traceIdStrategy: z.enum(["per-attack", "per-run"]).optional(),
+    traceIdPrefix: z.string().optional(),
+  })
+  .passthrough();
+
+export const TelemetryConfigSchema = z
+  .object({
+    provider: z.enum(["none", "langfuse", "netra"]),
+    langfuse: z.record(z.string(), z.unknown()).optional(),
+    netra: z.record(z.string(), z.unknown()).optional(),
+    enrichJudgeFromTrace: z.boolean().optional(),
+    traceFetchInitialDelayMs: z.number().nonnegative().optional(),
+    traceFetchMaxAttempts: z.number().int().positive().optional(),
+    traceFetchRetryDelayMs: z.number().nonnegative().optional(),
+    enrichJudgeTraceJsonMaxChars: z.number().int().positive().optional(),
+    propagation: TelemetryPropagationSchema.optional(),
+  })
+  .passthrough();
+
+/**
+ * Validate a telemetry block for `opfor hunt`. Accepts a bare block or a `{ telemetry: {...} }`
+ * wrapper (so an existing run config file works). Returns `undefined` for a missing/`none`
+ * config (trace-aware testing simply stays off); throws with an actionable message otherwise.
+ */
+export function parseTelemetry(raw: unknown): z.infer<typeof TelemetryConfigSchema> | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const obj = raw as Record<string, unknown>;
+  const candidate = "telemetry" in obj && obj.telemetry ? obj.telemetry : obj;
+  if (!candidate || typeof candidate !== "object") return undefined;
+  const provider = (candidate as Record<string, unknown>).provider;
+  if (!provider || provider === "none") return undefined;
+  const parsed = TelemetryConfigSchema.safeParse(candidate);
+  if (!parsed.success) {
+    const msg = parsed.error.issues
+      .map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
+      .join("; ");
+    throw new Error(`Invalid telemetry config: ${msg}`);
+  }
+  return parsed.data;
+}
+
 export const RunConfigSchema = z
   .object({
     target: z.discriminatedUnion("kind", [AgentTargetConfigSchema, McpTargetConfigSchema]),

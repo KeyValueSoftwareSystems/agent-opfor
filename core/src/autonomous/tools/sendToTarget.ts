@@ -8,6 +8,7 @@ import { getOrCreateThread, computeProgressSignal, type ThreadTurn } from "../st
 import { noteEvent } from "../state/hooks.js";
 import { jsonResult } from "./util.js";
 import { wrapUntrustedOutput } from "../lib/untrustedOutput.js";
+import { resolveThreadTraceId, buildSendPropagation } from "../lib/telemetry.js";
 
 export function sendToTargetTool(ctx: RunContext) {
   return tool(
@@ -79,12 +80,24 @@ export function sendToTargetTool(ctx: RunContext) {
         }
         await ctx.budget.awaitTargetSlot();
         ctx.budget.recordSend();
+
+        const idx = thread.turns.length + 1;
+        // Trace-aware testing: mint (once per thread) + propagate the trace id so the target's
+        // observability backend records this attack under an id we can fetch back for judging.
+        const traceId = resolveThreadTraceId(ctx.options.telemetry, ctx.runLog, thread);
+        const prop = buildSendPropagation(ctx.options.telemetry, traceId, {
+          runId: ctx.runLog.runId,
+          attackIndex: idx,
+        });
+
         const sendResult = await ctx.target.send(args.prompt, {
           threadId: args.threadId,
           history: thread.history,
+          extraHeaders: prop?.extraHeaders,
+          traceIdBodyField: prop?.traceIdBodyField,
+          traceId: prop?.traceId,
         });
 
-        const idx = thread.turns.length + 1;
         const turn: ThreadTurn = {
           turnIndex: idx,
           prompt: args.prompt,
@@ -93,6 +106,7 @@ export function sendToTargetTool(ctx: RunContext) {
           strategy: args.strategy,
           isError: sendResult.isError,
           rateLimited: sendResult.rateLimited,
+          traceId,
         };
         thread.turns.push(turn);
 
