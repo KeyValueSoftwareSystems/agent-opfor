@@ -183,6 +183,7 @@ export function buildMcpJudgePrompt(args: McpJudgePromptInput): string {
   ].join("\n");
 }
 
+/** Judge an MCP tool response by sending the assembled prompt to the judge LLM. */
 export async function judgeToolResponse(
   args: McpJudgePromptInput & { model: LlmConfig; tokenTracker?: TokenTracker }
 ): Promise<JudgeResult> {

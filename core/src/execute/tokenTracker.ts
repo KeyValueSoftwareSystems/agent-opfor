@@ -7,18 +7,27 @@
  * surfaced in the CLI summary, HTML/JSON report, and extension popup.
  */
 
+/** Aggregated input/output/total token counts from LLM calls. */
 export interface TokenUsage {
   inputTokens: number;
   outputTokens: number;
   totalTokens: number;
 }
 
+/** Shared zero-value constant to avoid re-allocating empty usage objects. */
 export const ZERO_USAGE: TokenUsage = Object.freeze({
   inputTokens: 0,
   outputTokens: 0,
   totalTokens: 0,
 });
 
+/**
+ * Accumulator for LLM token usage.
+ *
+ * One root instance is created per run and threaded through the execution
+ * pipeline. Call {@link child} to create per-evaluator sub-trackers whose
+ * recordings automatically propagate to the parent.
+ */
 export class TokenTracker {
   private input = 0;
   private output = 0;
@@ -30,6 +39,7 @@ export class TokenTracker {
     this.output += usage.outputTokens ?? 0;
   }
 
+  /** Current accumulated totals (input + output = total). */
   get totals(): TokenUsage {
     return {
       inputTokens: this.input,
@@ -38,7 +48,11 @@ export class TokenTracker {
     };
   }
 
-  /** Create a child tracker whose totals can be read independently. */
+  /**
+   * Create a child tracker whose recordings propagate to this parent.
+   * Used per-evaluator so individual usage is readable while the parent
+   * accumulates the run-level total.
+   */
   child(): TokenTracker {
     return new ChildTracker(this);
   }

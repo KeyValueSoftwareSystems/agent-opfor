@@ -18,6 +18,7 @@ import { withRetry, isStopError } from "../lib/llmRetry.js";
 import type { TokenTracker } from "../execute/tokenTracker.js";
 import { log } from "../lib/logger.js";
 
+/** Format a parenthesized standards label, e.g. " (OWASP LLM01)". */
 function standardsSuffix(standards?: StandardsMap): string {
   const label = formatStandardsLabel(standards);
   return label ? ` (${label})` : "";
@@ -451,10 +452,12 @@ async function generatePatternMcpAttack(
   }
 }
 
+/** Build the MCP attacker system prompt with the output schema injected. */
 function buildMcpSystemPrompt(): string {
   return ATTACKER_MCP_SYSTEM.replace("{{outputSchema}}", MCP_FIRST_TURN_SCHEMA);
 }
 
+/** Parse the attacker LLM's JSON response into an MCP attack output, with fallbacks. */
 function parseMcpAttackJson(raw: string, fallbackTool: string): McpAttackOutput {
   try {
     const cleaned = raw

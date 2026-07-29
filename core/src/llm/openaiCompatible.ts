@@ -3,6 +3,7 @@ import { PROVIDERS } from "../config/types.js";
 import { getEnv } from "../lib/env.js";
 import type { TokenTracker } from "../execute/tokenTracker.js";
 
+/** Resolve the API key from the environment variable named in `model.apiKeyEnv`. */
 function resolveApiKey(model: LlmConfig): string | undefined {
   if (model.apiKeyEnv) {
     const v = getEnv(model.apiKeyEnv);
@@ -11,6 +12,7 @@ function resolveApiKey(model: LlmConfig): string | undefined {
   return undefined;
 }
 
+/** Build the `/chat/completions` URL for the given provider. */
 function chatCompletionsUrl(model: LlmConfig): string {
   if (model.provider === PROVIDERS.OPENAI_COMPATIBLE) {
     if (!model.baseURL)
@@ -63,6 +65,12 @@ async function drainBody(res: Response): Promise<void> {
   }
 }
 
+/**
+ * Send a chat completion request via raw fetch to an OpenAI-compatible endpoint
+ * and return the assistant message content. Automatically retries with relaxed
+ * parameters when the provider rejects JSON mode or temperature. Records token
+ * usage on the supplied {@link TokenTracker} when present.
+ */
 export async function chatCompletionJsonContent(args: {
   model: LlmConfig;
   system: string;

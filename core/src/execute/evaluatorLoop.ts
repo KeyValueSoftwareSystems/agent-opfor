@@ -225,7 +225,9 @@ export async function runEvaluatorAttacks(
         notify({ type: "run_stopped", reason: stopReason });
         attackResults.push(makeFailedResult(stopReason));
         notify({ type: "attack_done", attackId: attack.id, verdict: "ERROR" });
-        evaluatorResults.push(toEvaluatorResult(evaluatorMeta, attackResults));
+        const partialResult = toEvaluatorResult(evaluatorMeta, attackResults);
+        if (evalTracker) partialResult.tokenUsage = evalTracker.totals;
+        evaluatorResults.push(partialResult);
         return { evaluatorResults, stopReason };
       }
 
@@ -249,6 +251,7 @@ export async function runEvaluatorAttacks(
   return { evaluatorResults };
 }
 
+/** Build a {@link SessionContext} from an evaluator's attack results for `dependsOn` dependents. */
 function captureSessionContext(
   evaluator: EvaluatorSpec,
   attackResults: AttackResult[]

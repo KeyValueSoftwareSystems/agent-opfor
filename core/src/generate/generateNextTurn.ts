@@ -233,6 +233,7 @@ export function parseAttackerOutput(raw: string): {
   return { message: body, technique, lastReplyHook };
 }
 
+/** Truncate a string to `max` characters, appending an ellipsis if clipped. */
 function truncate(s: string, max: number): string {
   return s.length > max ? s.slice(0, max - 1) + "…" : s;
 }

@@ -276,10 +276,12 @@ function applyConfigDependsOn(
   });
 }
 
+/** Create a Vercel AI SDK LanguageModel from an opfor LlmConfig. */
 function resolveModel(cfg: LlmConfig): LanguageModel {
   return createModel(cfg);
 }
 
+/** Fetch and curate telemetry traces (if configured) to ground attacks in real usage. */
 async function curateTracesIfConfigured(
   config: RunConfig,
   model: LanguageModel,
@@ -305,6 +307,7 @@ async function curateTracesIfConfigured(
   }
 }
 
+/** Assemble a {@link UnifiedRunReport} from Node-side run config and evaluator results. */
 function buildReport(config: RunConfig, evaluators: EvaluatorResult[]): UnifiedRunReport {
   const { attackModel, judgeModel } = modelLabel(config.attackerLlm, config.judgeLlm);
   return buildUnifiedReport(

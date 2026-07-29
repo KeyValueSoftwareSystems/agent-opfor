@@ -174,45 +174,35 @@ export async function runAllBrowser(
           },
         });
 
+        const pushPartialResult = (reason: string) => {
+          const failedResult = makeFailedResult(reason);
+          attackResults.push(failedResult);
+          notify({ type: "attack_done", attackId: attack.id, result: failedResult });
+          const partialResult = toEvaluatorResult(
+            {
+              evaluatorId: evaluator.id,
+              evaluatorName: evaluator.name,
+              standards: evaluator.standards,
+              severity: evaluator.severity,
+            },
+            attackResults
+          );
+          partialResult.tokenUsage = evalTracker.totals;
+          evaluatorResults.push(partialResult);
+        };
+
         if (isStopError(err)) {
           stopReason = getStopReason(err);
           log.error(`\n🛑 Run stopped: ${stopReason}`);
           notify({ type: "run_stopped", reason: stopReason });
-          const failedResult = makeFailedResult(stopReason);
-          attackResults.push(failedResult);
-          notify({ type: "attack_done", attackId: attack.id, result: failedResult });
-          evaluatorResults.push(
-            toEvaluatorResult(
-              {
-                evaluatorId: evaluator.id,
-                evaluatorName: evaluator.name,
-                standards: evaluator.standards,
-                severity: evaluator.severity,
-              },
-              attackResults
-            )
-          );
+          pushPartialResult(stopReason);
           break evaluatorLoop;
         }
-        // Handle target stop errors
         if (err instanceof TargetStopError) {
           stopReason = err.message;
           log.error(`\n🛑 Run stopped: ${stopReason}`);
           notify({ type: "run_stopped", reason: stopReason });
-          const failedResult = makeFailedResult(stopReason);
-          attackResults.push(failedResult);
-          notify({ type: "attack_done", attackId: attack.id, result: failedResult });
-          evaluatorResults.push(
-            toEvaluatorResult(
-              {
-                evaluatorId: evaluator.id,
-                evaluatorName: evaluator.name,
-                standards: evaluator.standards,
-                severity: evaluator.severity,
-              },
-              attackResults
-            )
-          );
+          pushPartialResult(stopReason);
           break evaluatorLoop;
         }
         throw err;
@@ -250,6 +240,7 @@ export async function runAllBrowser(
   return report;
 }
 
+/** Assemble a {@link UnifiedRunReport} from browser-run results. */
 function buildBrowserReport(
   config: BrowserRunConfig,
   evaluators: EvaluatorResult[],

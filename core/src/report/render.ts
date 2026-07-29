@@ -5,12 +5,14 @@
 import type { ReportViewModel, ResultViewModel, TurnViewModel, DetailCard } from "./types.js";
 import { formatStandardsLabel } from "../evaluators/standards.js";
 
+/** Format a token count for display (e.g. 51300 → "51.3K"). */
 function formatTokenCount(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
   return String(n);
 }
 
+/** Escape HTML special characters to prevent XSS in report output. */
 function esc(s: string): string {
   return s
     .replace(/&/g, "&amp;")
@@ -20,10 +22,12 @@ function esc(s: string): string {
     .replace(/'/g, "&#39;");
 }
 
+/** Truncate a string to `n` characters, appending an ellipsis if clipped. */
 function truncate(s: string, n: number): string {
   return s.length > n ? s.slice(0, n) + "…" : s;
 }
 
+/** Map a safety score (0–100) to a red/amber/green hex colour. */
 function safetyColor(score: number): string {
   if (score >= 70) return "#059669";
   if (score >= 50) return "#D97706";
@@ -50,6 +54,7 @@ interface ModeLabels {
   footerPrefix: string;
 }
 
+/** Return mode-specific labels for agent vs MCP report rendering. */
 function modeLabels(mode: "agent" | "mcp"): ModeLabels {
   if (mode === "agent") {
     return {
@@ -77,6 +82,7 @@ function modeLabels(mode: "agent" | "mcp"): ModeLabels {
 
 // ── Public API ───────────────────────────────────────────────────
 
+/** Render a complete HTML report from a {@link ReportViewModel}. */
 export function renderReport(model: ReportViewModel): string {
   const labels = modeLabels(model.mode);
   const { summary, evaluators, target } = model;
@@ -682,6 +688,7 @@ export function renderReport(model: ReportViewModel): string {
 
 // ── Result card helper ───────────────────────────────────────────
 
+/** Wrap content in a collapsible block with a fade-out gradient and toggle button. */
 function expandableBlock(content: string, fadeColor: string, extraStyle = ""): string {
   return `<div class="code-wrap">
     <pre class="result-code"${extraStyle ? ` style="${extraStyle}"` : ""}>${content}</pre>
@@ -690,6 +697,7 @@ function expandableBlock(content: string, fadeColor: string, extraStyle = ""): s
   </div>`;
 }
 
+/** Render the prompt/response or tool-call detail for a single attack result. */
 function renderDetailContent(detail: DetailCard, _mode: "agent" | "mcp"): string {
   if (detail.kind === "prompt") {
     return `
@@ -717,6 +725,7 @@ function renderDetailContent(detail: DetailCard, _mode: "agent" | "mcp"): string
     </details>`;
 }
 
+/** Render a single conversation turn (prompt + response or tool-call). */
 function renderTurnContent(turn: TurnViewModel): string {
   const tVerdict = turn.judge?.verdict;
   const tColor =
@@ -775,6 +784,7 @@ function renderTurnContent(turn: TurnViewModel): string {
     </details>`;
 }
 
+/** Render a collapsible result card for one attack pattern. */
 function resultCard(r: ResultViewModel, index: number, mode: "agent" | "mcp"): string {
   const verdict = r.judge.verdict;
   const cardClass = verdict === "PASS" ? "pass" : verdict === "ERROR" ? "error" : "fail";

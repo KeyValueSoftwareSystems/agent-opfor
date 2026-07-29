@@ -39,6 +39,7 @@ const SEVERITY_WEIGHTS: Record<string, number> = {
   low: 1,
 };
 
+/** Return the numeric weight for a severity level (critical=4 … low=1). */
 function severityWeight(severity: string): number {
   return SEVERITY_WEIGHTS[severity.toLowerCase()] ?? 2;
 }
