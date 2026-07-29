@@ -2,6 +2,7 @@ import type { LlmConfig } from "../config/schema.js";
 import { PROVIDERS } from "../config/types.js";
 import { getEnv } from "../lib/env.js";
 import type { TokenTracker } from "../execute/tokenTracker.js";
+import { parseUsage } from "../execute/tokenTracker.js";
 
 /** Resolve the API key from the environment variable named in `model.apiKeyEnv`. */
 function resolveApiKey(model: LlmConfig): string | undefined {
@@ -159,10 +160,12 @@ export async function chatCompletionJsonContent(args: {
     usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
   };
   if (args.tokenTracker && data.usage) {
-    args.tokenTracker.record({
+    const validated = parseUsage({
       inputTokens: data.usage.prompt_tokens ?? 0,
       outputTokens: data.usage.completion_tokens ?? 0,
+      totalTokens: data.usage.total_tokens ?? 0,
     });
+    if (validated) args.tokenTracker.record(validated);
   }
   const content = data.choices?.[0]?.message?.content;
   if (typeof content !== "string" || !content.trim()) {

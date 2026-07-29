@@ -10,6 +10,7 @@ import type { AttackSpec, UnifiedTargetConfig, SessionContext } from "../execute
 import type { AttackPattern } from "../evaluators/parseEvaluator.js";
 import { formatUpstreamSessions } from "../lib/summarizeSessionContext.js";
 import type { TokenTracker } from "../execute/tokenTracker.js";
+import { parseUsage } from "../execute/tokenTracker.js";
 
 const MCP_FOLLOWUP_SCHEMA = `{ "args": object, "judgeHint": string }`;
 
@@ -152,7 +153,8 @@ export async function generateNextAdaptiveTurn(params: {
     .join("\n");
 
   const result = await generateText({ model, system, prompt: userBlock });
-  params.tokenTracker?.record(result.usage);
+  const usage1 = parseUsage(result.usage);
+  if (usage1) params.tokenTracker?.record(usage1);
   const parsed = parseAttackerOutput(result.text);
   if (!parsed.message) throw new Error("generateNextAdaptiveTurn: empty model response");
   const message =
@@ -300,7 +302,8 @@ export async function generateNextMcpTurn(
   ].join("\n");
 
   const result = await generateText({ model, system, prompt: user });
-  tokenTracker?.record(result.usage);
+  const usage2 = parseUsage(result.usage);
+  if (usage2) tokenTracker?.record(usage2);
 
   try {
     const cleaned = result.text

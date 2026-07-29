@@ -5,6 +5,7 @@
 
 import { log } from "./logger.js";
 import type { TokenTracker } from "../execute/tokenTracker.js";
+import { parseUsage } from "../execute/tokenTracker.js";
 
 export interface LlmError {
   isRetryable: boolean;
@@ -147,9 +148,8 @@ export async function withRetry<T>(fn: () => Promise<T>, options: RetryOptions =
     try {
       const result = await fn();
       if (tokenTracker && result && typeof result === "object" && "usage" in result) {
-        tokenTracker.record(
-          (result as { usage?: { inputTokens?: number; outputTokens?: number } }).usage
-        );
+        const validated = parseUsage((result as { usage?: unknown }).usage);
+        if (validated) tokenTracker.record(validated);
       }
       return result;
     } catch (err) {
