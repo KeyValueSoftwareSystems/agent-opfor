@@ -16,15 +16,30 @@ import type { SessionConfig } from "@keyvaluesystems/agent-opfor-core/execute/ty
 import type { RunEvent } from "@keyvaluesystems/agent-opfor-core/autonomous/state/observe.js";
 import { UiBridge, type SseClient } from "./bridge.js";
 import type { SnapshotMeta } from "./snapshot.js";
+import { resolveBrainAuth, noBrainAuthMessage, type BrainAuthInfo } from "../lib/brainAuth.js";
+
+/**
+ * An explicit choice to run on a credential the form collected instead of what the
+ * environment resolves to. Applied to `process.env` for this run only — never
+ * written to disk. See the /api/start handler for validation and application.
+ */
+interface BrainAuthOverride {
+  mode: "apiKey" | "gateway";
+  apiKey?: string;
+  baseUrl?: string;
+  authToken?: string;
+}
 
 /**
  * The setup form's POST body. Every field arrives as a string except `headers`
- * (a name→value map) and the two booleans, which the form sends natively.
+ * (a name→value map), the two booleans, and `brainAuthOverride`, which the form
+ * sends natively.
  */
 interface SetupPayload extends Record<string, unknown> {
   headers?: Record<string, string>;
   sequential?: boolean;
   verify?: boolean;
+  brainAuthOverride?: BrainAuthOverride;
 }
 
 // Build the session config from the setup form's flat fields (see SetupPage.tsx).
@@ -73,6 +88,8 @@ export interface UiServerOptions {
   openBrowser?: boolean;
   setupMode?: boolean;
   initialConfig?: InitialConfig;
+  /** Resolved by the CLI before the server starts; displayed on the setup form. */
+  brainAuth?: BrainAuthInfo;
   /** Called for each log line - use to stream to terminal */
   onLog?: (line: string) => void;
   /** Called when the run completes or fails - use to exit the process */
@@ -157,6 +174,13 @@ export async function startUiServer(options: UiServerOptions): Promise<UiServerH
     res.json(options.initialConfig ?? {});
   });
 
+  // Which credential the agents will run on. The CLI already resolved and printed
+  // this before opening the browser; echoing it here means a misconfigured gateway
+  // is visible on the form instead of only in a terminal line nobody is watching.
+  app.get("/api/brain-auth", (_req, res) => {
+    res.json(options.brainAuth ?? {});
+  });
+
   app.get("/api/lines", (_req, res) => {
     res.json({ lines: bridge.getRecentLines() });
   });
@@ -222,10 +246,40 @@ export async function startUiServer(options: UiServerOptions): Promise<UiServerH
         return;
       }
 
+      // An explicit choice from the form to run on a different credential than
+      // whatever the environment resolves to — applied to process.env for the
+      // life of this CLI invocation only; never written to .env or logged.
+      // resolveModel()'s ANTHROPIC_DEFAULT_*_MODEL lookups and buildChildEnv()
+      // (core) both read process.env live, so this takes effect for this run.
+      const override = body.brainAuthOverride;
+      if (override?.mode === "apiKey") {
+        if (!override.apiKey?.trim()) {
+          res.status(400).json({ error: "API key is required" });
+          return;
+        }
+        process.env.ANTHROPIC_API_KEY = override.apiKey.trim();
+      } else if (override?.mode === "gateway") {
+        if (!override.baseUrl?.trim() || !override.authToken?.trim()) {
+          res.status(400).json({ error: "Gateway base URL and auth token are both required" });
+          return;
+        }
+        // resolveBrainAuth() checks ANTHROPIC_API_KEY first — a stale one from the
+        // environment would otherwise silently outrank the gateway pair just chosen here.
+        delete process.env.ANTHROPIC_API_KEY;
+        process.env.ANTHROPIC_BASE_URL = override.baseUrl.trim();
+        process.env.ANTHROPIC_AUTH_TOKEN = override.authToken.trim();
+      }
+
+      const brainAuth = resolveBrainAuth();
+      if (!brainAuth) {
+        res.status(400).json({ error: noBrainAuthMessage() });
+        return;
+      }
+
       runningAssessment = true;
 
       // The TARGET's bearer token. Opfor's own commander/operator models authenticate
-      // separately via resolveBrainAuth() — these are unrelated credentials.
+      // separately via the brain-auth override above — these are unrelated credentials.
       const apiKey = config.apiKeyEnv ? process.env[config.apiKeyEnv] : process.env.TARGET_API_KEY;
 
       const session = buildSessionFromSetup(config);

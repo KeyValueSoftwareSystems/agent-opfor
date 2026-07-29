@@ -79,6 +79,20 @@ const defaultConfig: Config = {
 
 type EnvStatus = "idle" | "checking" | "set" | "missing";
 
+/** Which credential the commander/operator/scout agents run on. Never a secret value. */
+interface BrainAuth {
+  method?: string;
+  warning?: string;
+}
+
+/**
+ * "detected" runs on whatever resolveBrainAuth() found in the environment (or blocks
+ * start if that's nothing). The other two are a one-run override, applied to
+ * process.env server-side and never written to disk — for someone who launched
+ * --ui specifically to avoid touching a terminal or .env file at all.
+ */
+type BrainAuthMode = "detected" | "apiKey" | "gateway";
+
 export function SetupPage({ onStart }: Props) {
   const [config, setConfig] = useState<Config>(defaultConfig);
   const [headers, setHeaders] = useState<HeaderRow[]>([]);
@@ -86,6 +100,11 @@ export function SetupPage({ onStart }: Props) {
   // counter out of state here would hand every add in the same tick the same id.
   const headerIdRef = useRef(1);
   const [envStatus, setEnvStatus] = useState<EnvStatus>("idle");
+  const [brainAuth, setBrainAuth] = useState<BrainAuth>({});
+  const [brainAuthMode, setBrainAuthMode] = useState<BrainAuthMode>("detected");
+  const [brainAuthApiKey, setBrainAuthApiKey] = useState("");
+  const [brainAuthBaseUrl, setBrainAuthBaseUrl] = useState("");
+  const [brainAuthAuthToken, setBrainAuthAuthToken] = useState("");
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -104,6 +123,19 @@ export function SetupPage({ onStart }: Props) {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
+  }, []);
+
+  // Resolved by the CLI before this page was served. Defaults to "detected" only
+  // when something was actually found — otherwise the override fields are already
+  // open, since --ui exists so this doesn't need a terminal or .env edit at all.
+  useEffect(() => {
+    fetch("/api/brain-auth")
+      .then((res) => res.json())
+      .then((data: BrainAuth) => {
+        setBrainAuth(data ?? {});
+        setBrainAuthMode(data?.method ? "detected" : "apiKey");
+      })
+      .catch(() => setBrainAuthMode("apiKey"));
   }, []);
 
   // Tell the user whether the named env var actually resolves, rather than letting
@@ -163,6 +195,25 @@ export function SetupPage({ onStart }: Props) {
       return;
     }
 
+    let brainAuthOverride: Record<string, string> | undefined;
+    if (brainAuthMode === "apiKey") {
+      if (!brainAuthApiKey.trim()) {
+        setError("Provide an API key, or switch to Detected/Gateway");
+        return;
+      }
+      brainAuthOverride = { mode: "apiKey", apiKey: brainAuthApiKey.trim() };
+    } else if (brainAuthMode === "gateway") {
+      if (!brainAuthBaseUrl.trim() || !brainAuthAuthToken.trim()) {
+        setError("Gateway needs both a base URL and an auth token");
+        return;
+      }
+      brainAuthOverride = {
+        mode: "gateway",
+        baseUrl: brainAuthBaseUrl.trim(),
+        authToken: brainAuthAuthToken.trim(),
+      };
+    }
+
     const headerMap: Record<string, string> = {};
     for (const h of headers) {
       const name = h.name.trim();
@@ -175,7 +226,7 @@ export function SetupPage({ onStart }: Props) {
       const res = await fetch("/api/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...config, headers: headerMap }),
+        body: JSON.stringify({ ...config, headers: headerMap, brainAuthOverride }),
       });
 
       if (!res.ok) {
@@ -213,6 +264,100 @@ export function SetupPage({ onStart }: Props) {
 
         <div className="setup-form">
           <div className="brackets" aria-hidden="true" />
+
+          <div className="brain-auth-section">
+            <div className="brain-auth-header">
+              <span className="brain-auth-label">Attacker agents</span>
+              {brainAuthMode === "detected" && brainAuth.method && (
+                <span className="brain-auth-value">{brainAuth.method}</span>
+              )}
+            </div>
+
+            {brainAuthMode === "detected" && brainAuth.method && (
+              <p className="brain-auth-note">Read from your environment when this page loaded</p>
+            )}
+
+            {brainAuth.warning && brainAuthMode === "detected" && (
+              <div className="brain-auth-warning">
+                <span className="form-error-icon">!</span> {brainAuth.warning}
+              </div>
+            )}
+
+            {!brainAuth.method && brainAuthMode === "apiKey" && (
+              <p className="brain-auth-note">
+                No credential detected in the environment — provide one below for this run.
+              </p>
+            )}
+
+            <div className="mode-row" role="radiogroup" aria-label="Attacker agent credential">
+              {brainAuth.method && (
+                <label className="mode-pill">
+                  <input
+                    type="radio"
+                    name="brainAuthMode"
+                    checked={brainAuthMode === "detected"}
+                    onChange={() => setBrainAuthMode("detected")}
+                  />
+                  Detected
+                </label>
+              )}
+              <label className="mode-pill">
+                <input
+                  type="radio"
+                  name="brainAuthMode"
+                  checked={brainAuthMode === "apiKey"}
+                  onChange={() => setBrainAuthMode("apiKey")}
+                />
+                API key
+              </label>
+              <label className="mode-pill">
+                <input
+                  type="radio"
+                  name="brainAuthMode"
+                  checked={brainAuthMode === "gateway"}
+                  onChange={() => setBrainAuthMode("gateway")}
+                />
+                Gateway
+              </label>
+            </div>
+
+            {brainAuthMode === "apiKey" && (
+              <div className="form-field full">
+                <input
+                  type="password"
+                  autoComplete="off"
+                  value={brainAuthApiKey}
+                  onChange={(e) => setBrainAuthApiKey(e.target.value)}
+                  placeholder="sk-ant-…"
+                />
+                <span className="field-hint">This run only — never written to disk</span>
+              </div>
+            )}
+
+            {brainAuthMode === "gateway" && (
+              <div className="form-grid">
+                <div className="form-field full">
+                  <input
+                    type="text"
+                    value={brainAuthBaseUrl}
+                    onChange={(e) => setBrainAuthBaseUrl(e.target.value)}
+                    placeholder="https://your-gateway.example.com"
+                  />
+                </div>
+                <div className="form-field full">
+                  <input
+                    type="password"
+                    autoComplete="off"
+                    value={brainAuthAuthToken}
+                    onChange={(e) => setBrainAuthAuthToken(e.target.value)}
+                    placeholder="gateway auth token"
+                  />
+                  <span className="field-hint">This run only — never written to disk</span>
+                </div>
+              </div>
+            )}
+          </div>
+
           <section className="form-section">
             <h2>Target</h2>
             <div className="form-grid">

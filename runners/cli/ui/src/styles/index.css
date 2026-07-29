@@ -535,6 +535,112 @@ body,
   padding: 1px 5px;
 }
 
+/* Which credential the attacker agents run on. Detected by default; switching to
+   API key / Gateway opens an override applied for this run only — never written
+   to disk — so --ui never forces a trip to a terminal or .env file. */
+.brain-auth-section {
+  margin-bottom: 22px;
+  padding: 14px 16px;
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+}
+
+.brain-auth-section > *:last-child {
+  margin-bottom: 0;
+}
+
+.brain-auth-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.brain-auth-label {
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-dim);
+}
+
+.brain-auth-value {
+  font-family: var(--mono);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.brain-auth-note {
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+  margin-bottom: 12px;
+}
+
+/* Amber, matching form validation — a misconfigured credential is a setup mistake,
+   not a security finding, so it must not borrow the critical-severity treatment. */
+.brain-auth-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  background: rgba(245, 195, 59, 0.08);
+  border: 1px solid rgba(245, 195, 59, 0.3);
+  border-left: 2px solid var(--med);
+  border-radius: 2px;
+  color: #f8dd93;
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+}
+
+.mode-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.mode-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border: 1px solid var(--border-light);
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition:
+    color 0.15s,
+    border-color 0.15s,
+    background 0.15s;
+}
+
+.mode-pill:hover {
+  border-color: var(--brand-line);
+}
+
+.mode-pill:has(input:checked) {
+  background: var(--brand-wash);
+  border-color: var(--brand);
+  color: var(--brand-hot);
+}
+
+.mode-pill input {
+  accent-color: var(--brand);
+  width: 11px;
+  height: 11px;
+  cursor: pointer;
+}
+
 /* Advanced — native <details> so it collapses with no JS. Default-closed keeps the
    common path short; the power knobs are one click away rather than hidden. */
 .form-advanced {
