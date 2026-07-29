@@ -115,13 +115,23 @@ export function SetupPage({ onStart }: Props) {
       return;
     }
     setEnvStatus("checking");
+    // The debounce alone can't stop a request already in flight from resolving
+    // after a newer one and overwriting the badge with a stale result.
+    let stale = false;
     const timer = setTimeout(() => {
       fetch(`/api/env-check?name=${encodeURIComponent(name)}`)
         .then((res) => res.json())
-        .then((data: { set?: boolean }) => setEnvStatus(data.set ? "set" : "missing"))
-        .catch(() => setEnvStatus("idle"));
+        .then((data: { set?: boolean }) => {
+          if (!stale) setEnvStatus(data.set ? "set" : "missing");
+        })
+        .catch(() => {
+          if (!stale) setEnvStatus("idle");
+        });
     }, 350);
-    return () => clearTimeout(timer);
+    return () => {
+      stale = true;
+      clearTimeout(timer);
+    };
   }, [config.apiKeyEnv]);
 
   const updateConfig = <K extends keyof Config>(key: K, value: Config[K]) => {

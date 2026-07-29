@@ -62,7 +62,9 @@ export function ConversationView({ thread, findings }: Props) {
   if (!thread) {
     return (
       <div className="conversation empty-state">
-        <div className="empty-icon">&lt;/&gt;</div>
+        <div className="empty-icon" aria-hidden="true">
+          &lt;/&gt;
+        </div>
         <p>Select a thread to view the conversation</p>
       </div>
     );

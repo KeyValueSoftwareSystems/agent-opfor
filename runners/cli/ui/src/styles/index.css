@@ -52,7 +52,10 @@
   /* Type */
   --text: #f4f2f5;
   --text-muted: #a8a3b2;
-  --text-dim: #746e80;
+  /* Lightened from #746e80 — that value cleared as low as 3.86:1 against
+     --bg-card, below WCAG AA (4.5:1), on genuine small body text like
+     .field-hint and .conv-empty. This clears 5.3:1+ on every surface it's used against. */
+  --text-dim: #8b859a;
 
   /* Brand — #FF4D4F is the logo red, everything else is derived from it */
   --brand: #ff4d4f;

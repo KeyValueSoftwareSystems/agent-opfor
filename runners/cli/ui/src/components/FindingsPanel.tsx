@@ -22,7 +22,9 @@ export function FindingsPanel({ findings, selectedThreadId, onSelectThread }: Pr
       <div className="findings-list">
         {sorted.length === 0 ? (
           <div className="findings-empty">
-            <div className="empty-icon">∅</div>
+            <div className="empty-icon" aria-hidden="true">
+              ∅
+            </div>
             <p>No vulnerabilities found yet</p>
           </div>
         ) : (

@@ -9,36 +9,48 @@ import { startUiServer } from "../src/ui/server.js";
  * not fire while a browser was watching. Shutdown now tears the streams down first.
  */
 test("close() resolves while a dashboard SSE client is still connected", async () => {
-  const handle = await startUiServer({
-    port: 0, // let the OS pick, so parallel runs never collide
-    meta: { objective: "test", targetName: "test" },
-    openBrowser: false,
-  });
-
-  const ac = new AbortController();
-  const res = await fetch(`http://127.0.0.1:${handle.port}/api/events`, {
-    signal: ac.signal,
-    headers: { accept: "text/event-stream" },
-  });
-  assert.equal(res.status, 200);
-
-  // Read the first payload so the client is registered server-side before we close.
-  const reader = res.body!.getReader();
-  await reader.read();
-
+  let handle: Awaited<ReturnType<typeof startUiServer>> | undefined;
+  let closed = false;
   let timer: NodeJS.Timeout | undefined;
-  const hangGuard = new Promise<never>((_, reject) => {
-    timer = setTimeout(
-      () => reject(new Error("close() did not resolve with a live SSE client — shutdown hangs")),
-      5000
-    );
-  });
+  const ac = new AbortController();
 
   try {
-    await Promise.race([handle.close(), hangGuard]);
+    handle = await startUiServer({
+      port: 0, // let the OS pick, so parallel runs never collide
+      meta: { objective: "test", targetName: "test" },
+      openBrowser: false,
+    });
+
+    const res = await fetch(`http://127.0.0.1:${handle.port}/api/events`, {
+      signal: ac.signal,
+      headers: { accept: "text/event-stream" },
+    });
+    assert.equal(res.status, 200);
+
+    // Read the first payload so the client is registered server-side before we close.
+    const reader = res.body!.getReader();
+
+    try {
+      await reader.read();
+
+      const hangGuard = new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () =>
+            reject(new Error("close() did not resolve with a live SSE client — shutdown hangs")),
+          5000
+        );
+      });
+
+      await Promise.race([handle.close(), hangGuard]);
+      closed = true;
+    } finally {
+      await reader.cancel().catch(() => {});
+    }
   } finally {
     clearTimeout(timer);
-    await reader.cancel().catch(() => {});
     ac.abort();
+    // Only reached if an earlier step threw before the close() above ran, so
+    // the listening server doesn't leak past this test.
+    if (!closed) await handle?.close().catch(() => {});
   }
 });
