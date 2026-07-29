@@ -15,8 +15,10 @@ import type {
 } from "../execute/types.js";
 import { formatUpstreamSessions } from "../lib/summarizeSessionContext.js";
 import { withRetry, isStopError } from "../lib/llmRetry.js";
+import type { TokenTracker } from "../execute/tokenTracker.js";
 import { log } from "../lib/logger.js";
 
+/** Format a parenthesized standards label, e.g. " (OWASP LLM01)". */
 function standardsSuffix(standards?: StandardsMap): string {
   const label = formatStandardsLabel(standards);
   return label ? ` (${label})` : "";
@@ -37,6 +39,7 @@ export interface GenerateAttacksOptions {
   /** Threaded into the comprehensive-mode seed prompt (turn 1); adaptive mode picks these up at runtime instead. */
   attackObjective?: string;
   businessUseCase?: string;
+  tokenTracker?: TokenTracker;
 }
 
 /**
@@ -130,7 +133,8 @@ async function generateAgentAttacks(params: {
       traceContext,
       options?.upstreamSessions,
       attackObjective,
-      businessUseCase
+      businessUseCase,
+      options?.tokenTracker
     );
     attacks.push({
       ...base,
@@ -153,7 +157,8 @@ async function generatePatternAgentAttack(
   traceContext?: string,
   upstreamSessions?: SessionContext[],
   attackObjective?: string,
-  businessUseCase?: string
+  businessUseCase?: string,
+  tokenTracker?: TokenTracker
 ): Promise<string> {
   const system = await buildAgentSystemPrompt(
     evaluator,
@@ -177,14 +182,13 @@ async function generatePatternAgentAttack(
     const result = await withRetry(() => generateText({ model, system, prompt: user }), {
       context: "Attacker",
       maxRetries: 3,
+      tokenTracker,
     });
     return result.text.trim();
   } catch (err) {
     if (isStopError(err)) {
-      // Re-throw stop errors so the run can handle them properly
       throw err;
     }
-    // Fallback: use the raw template when LLM fails unexpectedly
     log.warn(
       `[Attacker] LLM failed, using raw template for "${patternName}": ${err instanceof Error ? err.message : String(err)}`
     );
@@ -301,7 +305,7 @@ async function generateMcpAttacks(params: {
   }
 
   if (effort === "adaptive") {
-    const attack = await generateSingleMcpAttack(evaluator, tools, model);
+    const attack = await generateSingleMcpAttack(evaluator, tools, model, options?.tokenTracker);
     return [
       {
         ...base,
@@ -319,7 +323,13 @@ async function generateMcpAttacks(params: {
   const attacks: AttackSpec[] = [];
   for (const pattern of evaluator.patterns) {
     for (const tool of tools) {
-      const attack = await generatePatternMcpAttack(evaluator, pattern, [tool], model);
+      const attack = await generatePatternMcpAttack(
+        evaluator,
+        pattern,
+        [tool],
+        model,
+        options?.tokenTracker
+      );
       attacks.push({
         ...base,
         kind: "mcp",
@@ -343,7 +353,8 @@ interface McpAttackOutput {
 async function generateSingleMcpAttack(
   evaluator: EvaluatorSpec,
   tools: ToolInfo[],
-  model: LanguageModel
+  model: LanguageModel,
+  tokenTracker?: TokenTracker
 ): Promise<McpAttackOutput> {
   const toolsBlock = tools
     .map((t) => `- ${t.name}: ${t.description ?? "(no description)"}`)
@@ -375,6 +386,7 @@ async function generateSingleMcpAttack(
     const result = await withRetry(() => generateText({ model, system, prompt: user }), {
       context: "Attacker (MCP)",
       maxRetries: 3,
+      tokenTracker,
     });
     return parseMcpAttackJson(result.text, tools[0].name);
   } catch (err) {
@@ -382,7 +394,6 @@ async function generateSingleMcpAttack(
     log.warn(
       `[Attacker] MCP generic attack LLM failed: ${err instanceof Error ? err.message : String(err)}`
     );
-    // Fallback: minimal attack with first tool
     return { toolName: tools[0].name, toolArguments: {}, judgeHint: "Check for any vulnerability" };
   }
 }
@@ -391,7 +402,8 @@ async function generatePatternMcpAttack(
   evaluator: EvaluatorSpec,
   pattern: { name: string; template: string },
   tools: ToolInfo[],
-  model: LanguageModel
+  model: LanguageModel,
+  tokenTracker?: TokenTracker
 ): Promise<McpAttackOutput> {
   const toolsBlock = tools
     .map((t) => `- ${t.name}: ${t.description ?? "(no description)"}`)
@@ -424,6 +436,7 @@ async function generatePatternMcpAttack(
     const result = await withRetry(() => generateText({ model, system, prompt: user }), {
       context: "Attacker (MCP)",
       maxRetries: 3,
+      tokenTracker,
     });
     return parseMcpAttackJson(result.text, tools[0].name);
   } catch (err) {
@@ -431,7 +444,6 @@ async function generatePatternMcpAttack(
     log.warn(
       `[Attacker] MCP pattern attack LLM failed for "${pattern.name}": ${err instanceof Error ? err.message : String(err)}`
     );
-    // Fallback: minimal attack with first tool
     return {
       toolName: tools[0].name,
       toolArguments: {},
@@ -440,10 +452,12 @@ async function generatePatternMcpAttack(
   }
 }
 
+/** Build the MCP attacker system prompt with the output schema injected. */
 function buildMcpSystemPrompt(): string {
   return ATTACKER_MCP_SYSTEM.replace("{{outputSchema}}", MCP_FIRST_TURN_SCHEMA);
 }
 
+/** Parse the attacker LLM's JSON response into an MCP attack output, with fallbacks. */
 function parseMcpAttackJson(raw: string, fallbackTool: string): McpAttackOutput {
   try {
     const cleaned = raw

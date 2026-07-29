@@ -16,6 +16,7 @@ import { createModel } from "../providers/factory.js";
 import type { LlmConfig } from "../config/types.js";
 import { getAdapter } from "../telemetry/adapter.js";
 import { runSetupTraceCuration } from "../telemetry/curation.js";
+import { TokenTracker } from "./tokenTracker.js";
 import { log } from "../lib/logger.js";
 
 export interface RunAllOptions {
@@ -62,6 +63,7 @@ export async function runAll(
   // if listTools() throws after connect). Everything else — model + evaluator
   // resolution included — runs inside the try so any failure reaches onRunError.
   let mcpTarget: Awaited<ReturnType<typeof createMcpTarget>> | null = null;
+  const tokenTracker = new TokenTracker();
 
   try {
     const attackModel = resolveModel(config.attackerLlm);
@@ -130,12 +132,17 @@ export async function runAll(
       agentTarget: options?.agentTarget,
       notify,
       signal: options?.signal,
+      tokenTracker,
     });
     evaluatorResults.push(...loop.evaluatorResults);
     const stopReason = loop.stopReason;
 
-    // Build report (partial or complete) with stop reason if applicable.
+    // Build report (partial or complete) with stop reason and token usage.
     const report = buildReport(config, evaluatorResults);
+    const usage = tokenTracker.totals;
+    if (usage.totalTokens > 0) {
+      report.summary.tokenUsage = usage;
+    }
     if (stopReason) {
       (report as UnifiedRunReport & { stopReason?: string }).stopReason = stopReason;
     }
@@ -269,10 +276,12 @@ function applyConfigDependsOn(
   });
 }
 
+/** Create a Vercel AI SDK LanguageModel from an opfor LlmConfig. */
 function resolveModel(cfg: LlmConfig): LanguageModel {
   return createModel(cfg);
 }
 
+/** Fetch and curate telemetry traces (if configured) to ground attacks in real usage. */
 async function curateTracesIfConfigured(
   config: RunConfig,
   model: LanguageModel,
@@ -298,6 +307,7 @@ async function curateTracesIfConfigured(
   }
 }
 
+/** Assemble a {@link UnifiedRunReport} from Node-side run config and evaluator results. */
 function buildReport(config: RunConfig, evaluators: EvaluatorResult[]): UnifiedRunReport {
   const { attackModel, judgeModel } = modelLabel(config.attackerLlm, config.judgeLlm);
   return buildUnifiedReport(

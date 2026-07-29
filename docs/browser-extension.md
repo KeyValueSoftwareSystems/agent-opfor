@@ -88,6 +88,8 @@ The extension uses a **single LLM configuration** for all operations (attack gen
 
 The extension runs up to **20 turns per evaluator** (default 10). It stops a given evaluator early when the judge returns a definitive verdict.
 
+**Token usage** is tracked per evaluator and shown on the Done screen and in the downloadable HTML report.
+
 ---
 
 ## What it tests

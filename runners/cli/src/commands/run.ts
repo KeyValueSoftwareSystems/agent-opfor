@@ -13,6 +13,7 @@ import { ConsoleProgressListener } from "../lib/consoleProgressListener.js";
 import { JsonlEventListener } from "../lib/jsonlEventListener.js";
 import type { RunListener } from "@keyvaluesystems/agent-opfor-core/execute/runListener.js";
 
+/** Register the `opfor run` CLI command with its options and SIGINT handler. */
 export function registerRunCommand(program: Command): void {
   program
     .command("run")
@@ -253,6 +254,12 @@ export function registerRunCommand(program: Command): void {
         }
 
         log.info(`Safety score: ${summary.safetyScore}%`);
+        if (summary.tokenUsage) {
+          const { inputTokens, outputTokens, totalTokens } = summary.tokenUsage;
+          log.info(
+            `Token usage: ${inputTokens.toLocaleString()} input / ${outputTokens.toLocaleString()} output (${totalTokens.toLocaleString()} total)`
+          );
+        }
         log.success(`\nReport: ${html}`);
         log.info(`   JSON: ${json}`);
 

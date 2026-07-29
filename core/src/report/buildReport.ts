@@ -61,6 +61,7 @@ export async function writeReport(report: UnifiedRunReport, outputDir = "."): Pr
 // Adapter: UnifiedRunReport → ReportViewModel
 // ---------------------------------------------------------------------------
 
+/** Map a {@link UnifiedRunReport} to the template-facing {@link ReportViewModel}. */
 function toReportViewModel(report: UnifiedRunReport): ReportViewModel {
   return {
     mode: report.targetKind === "mcp" ? "mcp" : "agent",
@@ -75,6 +76,7 @@ function toReportViewModel(report: UnifiedRunReport): ReportViewModel {
   };
 }
 
+/** Map an {@link EvaluatorResult} to its view model, including per-evaluator token usage. */
 function toEvaluatorViewModel(ev: EvaluatorResult): EvaluatorViewModel {
   return {
     evaluatorId: ev.evaluatorId,
@@ -87,9 +89,11 @@ function toEvaluatorViewModel(ev: EvaluatorResult): EvaluatorViewModel {
     errors: ev.errors,
     passRate: ev.passRate,
     results: ev.attacks.map(toResultViewModel),
+    tokenUsage: ev.tokenUsage,
   };
 }
 
+/** Map an {@link AttackResult} to its view model (judge + detail card + turns). */
 function toResultViewModel(a: AttackResult): ResultViewModel {
   const judge: ReportJudge = {
     verdict: a.judge.verdict,
@@ -121,6 +125,7 @@ function toResultViewModel(a: AttackResult): ResultViewModel {
   };
 }
 
+/** Map a {@link TurnRecord} to its view model for the multi-turn detail display. */
 function toTurnViewModel(t: TurnRecord): TurnViewModel {
   const detail: DetailCard =
     t.kind === "agent"

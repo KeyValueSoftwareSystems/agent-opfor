@@ -943,6 +943,7 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
           transcript: fullTranscript,
           turns: fullTurnLog,
           judgment: errorJudgment,
+          tokenUsage: report?.summary?.tokenUsage ?? report?.evaluators?.[0]?.tokenUsage,
         };
         await persistPartialResult(partialResult);
         try {
@@ -996,6 +997,7 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
       transcript: fullTranscript,
       turns: fullTurnLog,
       judgment,
+      tokenUsage: report.summary?.tokenUsage ?? report.evaluators?.[0]?.tokenUsage,
     };
     await persistPartialResult(finalResult);
     try {
