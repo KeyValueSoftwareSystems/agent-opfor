@@ -1,4 +1,5 @@
 import type { UiRunState } from "../types";
+import wordmark from "../assets/opfor-wordmark.svg";
 
 interface Props {
   state: UiRunState;
@@ -14,7 +15,7 @@ export function StatusBar({ state, connected, outcome }: Props) {
   return (
     <header className="header">
       <div className="header-left">
-        <span className="brand">OPFOR</span>
+        <img className="header-logo" src={wordmark} alt="Agent OPFOR" />
         <span className={`status ${running ? "running" : "done"}`}>
           <span className={`dot ${connected ? "live" : ""}`} />
           {running ? "Running" : (outcome ?? "Complete")}

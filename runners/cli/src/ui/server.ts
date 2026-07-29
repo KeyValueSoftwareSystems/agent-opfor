@@ -17,6 +17,16 @@ import type { RunEvent } from "@keyvaluesystems/agent-opfor-core/autonomous/stat
 import { UiBridge, type SseClient } from "./bridge.js";
 import type { SnapshotMeta } from "./snapshot.js";
 
+/**
+ * The setup form's POST body. Every field arrives as a string except `headers`
+ * (a name→value map) and the two booleans, which the form sends natively.
+ */
+interface SetupPayload extends Record<string, unknown> {
+  headers?: Record<string, string>;
+  sequential?: boolean;
+  verify?: boolean;
+}
+
 // Build the session config from the setup form's flat fields (see SetupPage.tsx).
 // A set-cookie receive must echo via the Cookie header regardless of the form's Send
 // fields; a body/header receive needs a non-blank name to be capturable at all.
@@ -115,6 +125,8 @@ export async function startUiServer(options: UiServerOptions): Promise<UiServerH
 
   // Created fresh per run in the /api/start handler; aborting finalizes a partial report.
   let assessmentAbort: AbortController | undefined;
+  // SSE keepalive timers, tracked so shutdown can clear ones whose client never disconnected.
+  const heartbeats = new Set<NodeJS.Timeout>();
   bridge.setMeta(options.meta);
   const staticDir = resolveStaticDir();
 
@@ -122,6 +134,18 @@ export async function startUiServer(options: UiServerOptions): Promise<UiServerH
 
   app.get("/api/health", (_req, res) => {
     res.json({ ok: true });
+  });
+
+  // Existence check only — never returns the value. Lets the setup form tell the user
+  // a token env var is missing up front instead of surfacing it as a 401 mid-run.
+  app.get("/api/env-check", (req, res) => {
+    const name = typeof req.query.name === "string" ? req.query.name.trim() : "";
+    if (!name) {
+      res.status(400).json({ error: "name is required" });
+      return;
+    }
+    const value = process.env[name];
+    res.json({ set: typeof value === "string" && value.length > 0 });
   });
 
   app.get("/api/state", (_req, res) => {
@@ -168,7 +192,11 @@ export async function startUiServer(options: UiServerOptions): Promise<UiServerH
     const heartbeat = setInterval(() => {
       res.write(": keepalive\n\n");
     }, 15000);
-    req.on("close", () => clearInterval(heartbeat));
+    heartbeats.add(heartbeat);
+    req.on("close", () => {
+      clearInterval(heartbeat);
+      heartbeats.delete(heartbeat);
+    });
   });
 
   // Setup mode: start a run from the UI
@@ -181,7 +209,9 @@ export async function startUiServer(options: UiServerOptions): Promise<UiServerH
         return;
       }
 
-      const config = req.body as Record<string, string>;
+      const body = req.body as SetupPayload;
+      // Everything except `headers` and the two booleans arrives as a string.
+      const config = body as unknown as Record<string, string>;
 
       if (!config.endpoint) {
         res.status(400).json({ error: "Endpoint URL is required" });
@@ -194,27 +224,42 @@ export async function startUiServer(options: UiServerOptions): Promise<UiServerH
 
       runningAssessment = true;
 
-      // Resolve API key from env var
+      // The TARGET's bearer token. Opfor's own commander/operator models authenticate
+      // separately via resolveBrainAuth() — these are unrelated credentials.
       const apiKey = config.apiKeyEnv ? process.env[config.apiKeyEnv] : process.env.TARGET_API_KEY;
 
       const session = buildSessionFromSetup(config);
       const mode: TargetMode = session ? "stateful" : "stateless";
       const targetName = config.targetName || new URL(config.endpoint).hostname;
 
+      const headers: Record<string, string> = {};
+      for (const [name, value] of Object.entries(body.headers ?? {})) {
+        if (name.trim() && typeof value === "string") headers[name.trim()] = value;
+      }
+
       const target: TargetConfig = {
         name: targetName,
         endpoint: config.endpoint,
         apiKey,
-        headers: {},
+        headers,
         mode,
         session,
         model: config.model || undefined,
+        promptPath: config.promptPath?.trim() || undefined,
+        responsePath: config.responsePath?.trim() || undefined,
       };
 
       const intOr = (val: string | undefined, fallback: number): number => {
         if (!val) return fallback;
         const n = parseInt(val, 10);
         return Number.isNaN(n) ? fallback : n;
+      };
+
+      /** Optional numeric ceilings: blank means "let the engine derive it". */
+      const intOrUndefined = (val: string | undefined): number | undefined => {
+        if (!val?.trim()) return undefined;
+        const n = parseInt(val, 10);
+        return Number.isNaN(n) ? undefined : n;
       };
 
       // Resolve model aliases to full model IDs from env vars if available
@@ -241,14 +286,16 @@ export async function startUiServer(options: UiServerOptions): Promise<UiServerH
         maxOperators: intOr(config.maxOperators, 3),
         maxTurns: intOr(config.maxTurns, 50),
         maxThreadTurns: intOr(config.maxThreadTurns, 8),
-        maxTotalThreads: 40,
-        maxForksPerThread: 4,
-        maxDepth: 3,
-        maxLeadsPerWave: 4,
-        maxReconProbes: 8,
+        maxTotalThreads: intOr(config.maxTotalThreads, 40),
+        maxForksPerThread: intOr(config.maxForksPerThread, 4),
+        maxDepth: intOr(config.maxDepth, 3),
+        maxLeadsPerWave: intOr(config.maxLeadsPerWave, 4),
+        maxReconProbes: intOr(config.maxReconProbes, 8),
+        maxTotalSends: intOrUndefined(config.maxTotalSends),
         budgetUsd: config.budgetUsd ? parseFloat(config.budgetUsd) : 2,
-        verify: false,
-        sequential: false,
+        verify: body.verify === true,
+        verifierModel: config.verifierModel?.trim() || undefined,
+        sequential: body.sequential === true,
         persistInventions: false,
         outputDir: path.resolve(".opfor/reports"),
       };
@@ -325,8 +372,16 @@ export async function startUiServer(options: UiServerOptions): Promise<UiServerH
       return true;
     },
     close() {
+      // server.close() waits for every open connection to end, and an SSE response
+      // never ends on its own — so these have to be torn down first or Ctrl+C hangs
+      // until the dashboard tab is closed or reloaded. closeAllConnections() then
+      // drops idle keep-alive sockets left over from static asset requests.
+      bridge.closeAllClients();
+      for (const heartbeat of heartbeats) clearInterval(heartbeat);
+      heartbeats.clear();
       return new Promise((resolve, reject) => {
         server.close((err) => (err ? reject(err) : resolve()));
+        server.closeAllConnections();
       });
     },
   };

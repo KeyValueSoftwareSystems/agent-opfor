@@ -64,6 +64,18 @@ export class UiBridge implements ProgressReporter {
     this.clients.delete(client);
   }
 
+  /** End every open SSE response so the HTTP server can finish closing. */
+  closeAllClients(): void {
+    for (const client of this.clients) {
+      try {
+        client.close();
+      } catch {
+        // Already torn down by the peer — nothing to do.
+      }
+    }
+    this.clients.clear();
+  }
+
   snapshot(): UiRunState {
     if (this.overrideState) return this.overrideState;
     if (!this.runLog) {
