@@ -25,7 +25,9 @@ export const ZERO_USAGE: TokenUsage = Object.freeze({
 
 /**
  * Zod schema for validating LLM usage objects before recording.
- * Coerces non-negative numbers, defaults missing fields to 0.
+ * Uses `.passthrough()` so provider-specific metadata (e.g. `cachedTokens`,
+ * `reasoningTokens`) does not cause the parse to fail. The `.transform()`
+ * step extracts only the three tracked fields.
  */
 export const LlmUsageSchema = z
   .object({
@@ -33,7 +35,7 @@ export const LlmUsageSchema = z
     outputTokens: z.number().int().min(0).optional().default(0),
     totalTokens: z.number().int().min(0).optional().default(0),
   })
-  .strict()
+  .passthrough()
   .transform((u) => ({
     inputTokens: u.inputTokens,
     outputTokens: u.outputTokens,

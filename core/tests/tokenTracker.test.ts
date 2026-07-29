@@ -116,9 +116,13 @@ test("parseUsage returns undefined for non-integer token counts", () => {
   assert.strictEqual(parseUsage({ inputTokens: 1.5, outputTokens: 20 }), undefined);
 });
 
-test("parseUsage returns undefined for objects with unknown keys", () => {
-  assert.strictEqual(
-    parseUsage({ inputTokens: 100, outputTokens: 20, bogusField: "bad" }),
-    undefined
-  );
+test("parseUsage strips unknown provider metadata and returns normalized usage", () => {
+  const result = parseUsage({
+    inputTokens: 100,
+    outputTokens: 20,
+    totalTokens: 150,
+    cachedTokens: 40,
+    reasoningTokens: 30,
+  });
+  assert.deepStrictEqual(result, { inputTokens: 100, outputTokens: 20, totalTokens: 150 });
 });
