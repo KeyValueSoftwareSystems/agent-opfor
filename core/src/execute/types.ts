@@ -256,6 +256,12 @@ export interface UnifiedRunReport {
   generatedAt: string;
   targetName: string;
   targetKind: "agent" | "mcp";
+  /**
+   * The evaluation suite that was run, or "Custom Suite" when the selection
+   * doesn't correspond to one whole named suite (an explicit evaluator list,
+   * preloaded specs, or a hand-picked subset of a suite's evaluators).
+   */
+  suiteId: string;
   effort: Effort;
   attackModel: string;
   judgeModel: string;
@@ -267,6 +273,8 @@ export interface UnifiedRunReport {
     safetyScore: number;
     attackSuccessRate: number;
     tokenUsage?: { inputTokens: number; outputTokens: number; totalTokens: number };
+    /** Wall-clock time for the whole run, from the first evaluator to the last. */
+    durationMs?: number;
   };
   evaluators: EvaluatorResult[];
   /** Set when the run was stopped early due to a non-retryable LLM error. */

@@ -70,3 +70,12 @@ export {
 export type { LlmConfig, ProviderName } from "./config/types.js";
 
 export { getAdapter } from "./telemetry/adapter.js";
+
+export { renderReport } from "./report/render.js";
+export type {
+  ReportViewModel,
+  EvaluatorViewModel,
+  ResultViewModel,
+  TurnViewModel,
+  DetailCard,
+} from "./report/types.js";

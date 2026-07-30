@@ -51,6 +51,8 @@ export async function runAll(
   config: RunConfig,
   options?: RunAllOptions
 ): Promise<UnifiedRunReport> {
+  const runStartedAt = Date.now();
+
   // Fan every progress event to the legacy onProgress callback (backward-compat)
   // and to any registered lifecycle listeners.
   const listeners = options?.listeners ?? [];
@@ -137,12 +139,13 @@ export async function runAll(
     evaluatorResults.push(...loop.evaluatorResults);
     const stopReason = loop.stopReason;
 
-    // Build report (partial or complete) with stop reason and token usage.
+    // Build report (partial or complete) with stop reason, token usage, and duration.
     const report = buildReport(config, evaluatorResults);
     const usage = tokenTracker.totals;
     if (usage.totalTokens > 0) {
       report.summary.tokenUsage = usage;
     }
+    report.summary.durationMs = Date.now() - runStartedAt;
     if (stopReason) {
       (report as UnifiedRunReport & { stopReason?: string }).stopReason = stopReason;
     }
@@ -307,6 +310,16 @@ async function curateTracesIfConfigured(
   }
 }
 
+/**
+ * Label for the "Evaluation Suite" report field. Only a `mode: "suite"` selection
+ * runs a whole named suite verbatim — explicit evaluator lists and preloaded specs
+ * are, by definition, a hand-picked subset, so they're labeled "Custom Suite"
+ * rather than borrowing a suite name that would overstate what actually ran.
+ */
+function suiteLabel(selection: RunConfig["selection"]): string {
+  return selection.mode === "suite" ? selection.suite : "Custom Suite";
+}
+
 /** Assemble a {@link UnifiedRunReport} from Node-side run config and evaluator results. */
 function buildReport(config: RunConfig, evaluators: EvaluatorResult[]): UnifiedRunReport {
   const { attackModel, judgeModel } = modelLabel(config.attackerLlm, config.judgeLlm);
@@ -316,6 +329,7 @@ function buildReport(config: RunConfig, evaluators: EvaluatorResult[]): UnifiedR
       generatedAt: new Date().toISOString(),
       targetName: config.target.name,
       targetKind: config.target.kind,
+      suiteId: suiteLabel(config.selection),
       effort: config.effort,
       attackModel,
       judgeModel,

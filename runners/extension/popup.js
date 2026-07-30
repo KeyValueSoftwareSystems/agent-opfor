@@ -6,7 +6,12 @@
 // OPFOR_UI_RUN / RESUME / STOP / DISCARD_PAUSED message contracts.
 // ─────────────────────────────────────────────────────────────────
 
-import { PROVIDERS, PROVIDER_CAPABILITIES, PROVIDER_DISPLAY_NAMES } from "./dist/core.bundle.js";
+import {
+  PROVIDERS,
+  PROVIDER_CAPABILITIES,
+  PROVIDER_DISPLAY_NAMES,
+  renderReport,
+} from "./dist/core.bundle.js";
 
 const PROVIDER_OPTIONS = Object.values(PROVIDERS).map((value) => ({
   value,
@@ -1142,6 +1147,22 @@ function judgedCount(summary) {
   return Number(summary?.judged ?? summary?.totalEvaluators ?? summary?.totalTests ?? 0) || 0;
 }
 
+/**
+ * Label for the report's "Evaluation Suite" field. A suite name is only
+ * accurate when every one of its evaluators was actually selected — picking
+ * a subset (or the catch-all "Custom Evaluators" bucket) is a hand-picked
+ * list, not that suite, so it's labeled "Custom Suite" instead of borrowing
+ * a name that would overstate what actually ran.
+ */
+function resolveSuiteLabel() {
+  const suite = state.catalog?.suites.find((s) => s.id === state.suiteId);
+  if (!suite) return "Custom Suite";
+  const fullSuite =
+    suite.evaluatorIds.length === state.selectedEvaluators.size &&
+    suite.evaluatorIds.every((id) => state.selectedEvaluators.has(id));
+  return fullSuite ? suite.id : "Custom Suite";
+}
+
 function buildReport() {
   const total = state.results.length;
   const passed = state.results.filter((r) => r.verdict === "PASS").length;
@@ -1249,7 +1270,7 @@ function buildReport() {
   return {
     metadata: {
       reportId,
-      configId: state.suiteId || "run",
+      configId: resolveSuiteLabel(),
       framework: "opfor v0.2",
       generated: now.toISOString(),
       duration: "—",
@@ -1292,613 +1313,125 @@ function buildReport() {
   };
 }
 
-function escapeHtml(s) {
-  return String(s ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-function truncate(s, n) {
-  const str = String(s ?? "");
-  return str.length > n ? str.slice(0, n) + "…" : str;
-}
-
-function safetyColor(score) {
-  if (score >= 70) return "#059669";
-  if (score >= 50) return "#D97706";
-  return "#DC2626";
-}
-
 function formatTokenCount(n) {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
   return String(n);
 }
 
-function sevDot(sev) {
-  return { critical: "🔴", high: "🟠", medium: "🟡", low: "🟢" }[sev] || "⚪";
+// ---------------------------------------------------------------------------
+// Adapter: extension's buildReport() shape → core's shared ReportViewModel
+//
+// Renders through the same `renderReport` the CLI/MCP/SDK runners use, so the
+// extension's downloaded HTML report looks identical to theirs instead of
+// maintaining its own template.
+// ---------------------------------------------------------------------------
+
+/** Extract {user, assistant} turn pairs from a raw evaluator record's transcript/turns. */
+function turnsForReport(raw) {
+  const tr = Array.isArray(raw?.transcript) ? raw.transcript : [];
+  if (tr.length) {
+    const pairs = [];
+    for (let i = 0; i < tr.length; i += 2) {
+      const u = tr[i]?.role === "user" ? String(tr[i].content || "") : "";
+      const next = tr[i + 1];
+      const a = next && next.role === "assistant" ? String(next.content || "") : "";
+      if (u || a) pairs.push({ user: u, assistant: a });
+    }
+    if (pairs.length) return pairs;
+  }
+  const tl = Array.isArray(raw?.turns) ? raw.turns : [];
+  return tl.map((t) => ({
+    user: String(
+      t.userMessage || t.user || t.attacker || (t.role === "user" ? t.content : "") || ""
+    ),
+    assistant: String(
+      t.assistantPreview ||
+        t.bot ||
+        t.agent ||
+        t.assistant ||
+        (t.role === "assistant" ? t.content : "") ||
+        ""
+    ),
+  }));
 }
 
-function generateHtmlReport(report) {
-  const { metadata, target, summary, evaluatorResults, criticalFindings, highFindings } = report;
-  // Absent when nothing was judged — grading an unassessed run as "Critical
-  // Risk" would be a fabricated conclusion, not a conservative default.
-  const scored = summary.safetyScore != null;
-  const judged = judgedCount(summary);
-  const overallVerdict =
-    report.cancelled || summary.cancelled > 0 || judged === 0
-      ? "CANCELLED"
-      : summary.failed === 0 && summary.totalTests > 0
-        ? "PASS"
-        : "FAIL";
-  const riskLevel = !scored
-    ? { label: "Not Assessed", color: "#64748B", bg: "#F1F5F9", border: "#CBD5E1" }
-    : summary.safetyScore >= 80
-      ? { label: "Low Risk", color: "#059669", bg: "#D1FAE5", border: "#6EE7B7" }
-      : summary.safetyScore >= 60
-        ? { label: "Medium Risk", color: "#D97706", bg: "#FEF3C7", border: "#FCD34D" }
-        : summary.safetyScore >= 40
-          ? { label: "High Risk", color: "#DC2626", bg: "#FEE2E2", border: "#FCA5A5" }
-          : { label: "Critical Risk", color: "#991B1B", bg: "#FEE2E2", border: "#EF4444" };
-  const genDate = new Date(metadata.generated);
-  const dateStr = genDate.toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-  const timeStr = genDate.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+function toTurnViewModels(raw) {
+  return turnsForReport(raw).map((t, i) => ({
+    turnIndex: i + 1,
+    detail: { kind: "prompt", prompt: t.user, response: t.assistant },
+  }));
+}
 
-  // ── Turns helper ───────────────────────────────────────────────
-  const turnsForReport = (raw) => {
-    const tr = Array.isArray(raw?.transcript) ? raw.transcript : [];
-    if (tr.length) {
-      const pairs = [];
-      for (let i = 0; i < tr.length; i += 2) {
-        const u = tr[i]?.role === "user" ? String(tr[i].content || "") : "";
-        const next = tr[i + 1];
-        const a = next && next.role === "assistant" ? String(next.content || "") : "";
-        if (u || a) pairs.push({ user: u, assistant: a });
-      }
-      if (pairs.length) return pairs;
-    }
-    const tl = Array.isArray(raw?.turns) ? raw.turns : [];
-    return tl.map((t) => ({
-      user: String(
-        t.userMessage || t.user || t.attacker || (t.role === "user" ? t.content : "") || ""
-      ),
-      assistant: String(
-        t.assistantPreview ||
-          t.bot ||
-          t.agent ||
-          t.assistant ||
-          (t.role === "assistant" ? t.content : "") ||
-          ""
-      ),
-    }));
+function toResultViewModel(tr, evaluator) {
+  const cancelled = tr.verdict === "CANCELLED";
+  return {
+    id: evaluator.id + (tr.testNumber > 1 ? `-${tr.testNumber}` : ""),
+    label: tr.pattern,
+    judge: {
+      verdict: cancelled ? "ERROR" : tr.verdict,
+      score: tr.score ?? 0,
+      confidence: tr.confidence ?? 0,
+      evidence: tr.evidence ?? "",
+      reasoning: cancelled
+        ? "Run cancelled by user before this evaluator completed."
+        : (tr.reasoning ?? ""),
+      errorMessage: cancelled ? "Cancelled by user" : undefined,
+    },
+    detail: { kind: "prompt", prompt: "", response: "" },
+    turns: toTurnViewModels(evaluator.raw),
   };
+}
 
-  // ── Evaluator details ──────────────────────────────────────────
-  const appendix = evaluatorResults
-    .map((e, idx) => {
-      const turns = turnsForReport(e.raw);
-      const tr = e.testResults[0] || {};
-      const sevColor = SEV_HEX[e.severity] || "#64748B";
-      const verdictPass = tr.verdict === "PASS";
-      const verdictCancelled = tr.verdict === "CANCELLED";
-      const verdictClass = verdictPass
-        ? "verdict-pass"
-        : verdictCancelled
-          ? "verdict-cancelled"
-          : "verdict-fail";
-      const standardsLabel = formatStandardsLabel(e.standards);
-      const transcript = turns.length
-        ? `<div class="transcript">
-              <div class="transcript-header">Conversation Transcript <span class="tc-count">${turns.length} turn${turns.length === 1 ? "" : "s"}</span></div>
-              ${turns
-                .map(
-                  (t, i) => `
-                <div class="turn">
-                  <div class="turn-row">
-                    <div class="turn-role attacker-role">Attacker · Turn ${i + 1}</div>
-                    <pre>${escapeHtml(truncate(t.user, 4000))}</pre>
-                  </div>
-                  <div class="turn-row">
-                    <div class="turn-role agent-role">Agent · Turn ${i + 1}</div>
-                    <pre>${escapeHtml(truncate(t.assistant, 4000))}</pre>
-                  </div>
-                </div>`
-                )
-                .join("")}
-            </div>`
-        : "";
-      return `
-        <details class="eval-detail" id="eval-${idx}">
-          <summary>
-            <div class="eval-summary-left">
-              <span class="eval-num">${String(idx + 1).padStart(2, "0")}</span>
-              <div class="eval-summary-info">
-                <span class="eval-summary-name">${escapeHtml(e.name)}</span>
-                <span class="sev-tag" style="background:${sevColor}18;color:${sevColor};border-color:${sevColor}44">${escapeHtml(e.severity)}</span>
-                ${standardsLabel ? `<span class="standards-tag">${escapeHtml(standardsLabel)}</span>` : ""}
-              </div>
-            </div>
-            <div class="eval-summary-right">
-              ${e.raw?.tokenUsage?.totalTokens ? `<span style="font-size:11px;color:var(--muted)">${formatTokenCount(e.raw.tokenUsage.totalTokens)} tokens</span>` : ""}
-              <span class="score-badge">${tr.score ?? "—"}<span class="score-denom">/10</span></span>
-              <span class="verdict-tag ${verdictClass}">${tr.verdict || "—"}</span>
-              <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-            </div>
-          </summary>
-          <div class="eval-body">
-            <div class="eval-meta-grid">
-              <div class="meta-item"><div class="meta-k">Verdict</div><div class="meta-v ${verdictPass ? "pass-text" : verdictCancelled ? "cancelled-text" : "fail-text"}">${tr.verdict || "—"}</div></div>
-              <div class="meta-item"><div class="meta-k">Safety Score</div><div class="meta-v">${tr.score ?? "—"} / 10</div></div>
-              <div class="meta-item"><div class="meta-k">Confidence</div><div class="meta-v">${tr.confidence != null ? tr.confidence + "%" : "—"}</div></div>
-              <div class="meta-item"><div class="meta-k">Severity</div><div class="meta-v"><span class="sev-tag" style="background:${sevColor}18;color:${sevColor};border-color:${sevColor}44">${escapeHtml(e.severity)}</span></div></div>
-              ${
-                standardsLabel
-                  ? `<div class="meta-item meta-item-wide"><div class="meta-k">Standards</div><div class="meta-v standards-meta">${escapeHtml(standardsLabel)}</div></div>`
-                  : ""
-              }
-            </div>
-            ${
-              tr.evidence && tr.evidence !== "N/A"
-                ? `<div class="detail-section"><div class="detail-section-label">Evidence</div><div class="detail-section-body">${escapeHtml(tr.evidence)}</div></div>`
-                : ""
-            }
-            ${
-              tr.reasoning
-                ? `<div class="detail-section"><div class="detail-section-label">Reasoning</div><div class="detail-section-body">${escapeHtml(tr.reasoning)}</div></div>`
-                : ""
-            }
-            ${transcript}
-          </div>
-        </details>`;
-    })
-    .join("");
+function toEvaluatorViewModel(e) {
+  return {
+    evaluatorId: e.id,
+    evaluatorName: e.name,
+    standards: e.standards,
+    severity: e.severity,
+    total: e.totalTests,
+    passed: e.passed,
+    failed: e.failed,
+    errors: e.testResults[0]?.verdict === "CANCELLED" ? 1 : 0,
+    passRate: e.passRate,
+    results: e.testResults.map((tr) => toResultViewModel(tr, e)),
+    tokenUsage: e.raw?.tokenUsage,
+  };
+}
 
-  // ── Findings list ──────────────────────────────────────────────
-  const findingBlock = (label, list, color) =>
-    list.length === 0
-      ? ""
-      : `<div class="finding-block" style="--fc:${color}">
-          <div class="finding-block-head">
-            <span class="finding-label" style="color:${color}">${escapeHtml(label)}</span>
-            <span class="finding-count" style="background:${color}18;color:${color};border-color:${color}44">${list.length}</span>
-          </div>
-          <ol class="finding-list">
-            ${list
-              .map(
-                (f) => `<li>
-                <strong>${escapeHtml(f.evaluator)}</strong>
-                <span class="finding-score">Score ${f.score}/10</span>
-                <div class="finding-desc">${escapeHtml(truncate(f.description, 240))}</div>
-              </li>`
-              )
-              .join("")}
-          </ol>
-        </div>`;
-
-  // ── Results table rows ─────────────────────────────────────────
-  const tableRows = evaluatorResults
-    .map((e, idx) => {
-      const sevColor = SEV_HEX[e.severity] || "#64748B";
-      const rowVerdict =
-        e.testResults[0]?.verdict || (e.passed > 0 && e.failed === 0 ? "PASS" : "FAIL");
-      const verdictClass =
-        rowVerdict === "PASS"
-          ? "verdict-pass"
-          : rowVerdict === "CANCELLED"
-            ? "verdict-cancelled"
-            : "verdict-fail";
-      const standardsLabel = formatStandardsLabel(e.standards);
-      return `
-        <tr>
-          <td class="td-num">${String(idx + 1).padStart(2, "0")}</td>
-          <td><a href="#eval-${idx}" class="eval-link">${escapeHtml(e.name)}</a>${standardsLabel ? `<br><span class="standards-tag">${escapeHtml(standardsLabel)}</span>` : ""}</td>
-          <td><span class="sev-tag" style="background:${sevColor}18;color:${sevColor};border-color:${sevColor}44">${escapeHtml(e.severity)}</span></td>
-          <td><span class="verdict-tag ${verdictClass}">${escapeHtml(rowVerdict)}</span></td>
-          <td class="td-score">${e.avgScore != null ? `${e.avgScore.toFixed(1)}<span style="color:#94A3B8">/10</span>` : "—"}</td>
-        </tr>`;
-    })
-    .join("");
-
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Opfor Security Report — ${escapeHtml(target.name)}</title>
-<style>
-  :root{
-    --bg:#F8FAFC;--surface:#FFFFFF;--surface-2:#F1F5F9;
-    --text:#0F172A;--text-2:#334155;--muted:#64748B;--muted-2:#94A3B8;
-    --line:#E2E8F0;--line-2:#CBD5E1;
-    --pass:#059669;--pass-bg:#D1FAE5;--pass-border:#6EE7B7;
-    --fail:#DC2626;--fail-bg:#FEE2E2;--fail-border:#FCA5A5;
-    --cancel:#D97706;--cancel-bg:#FEF3C7;--cancel-border:#FCD34D;
-    --accent:#FF4D4F;
-  }
-  *{box-sizing:border-box;margin:0;padding:0}
-  html{background:var(--bg)}
-  body{color:var(--text);font:14px/1.6 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);padding:0 0 60px}
-  a{color:var(--accent);text-decoration:none}
-  a:hover{text-decoration:underline}
-
-  /* ── Page shell ── */
-  .page{max-width:960px;margin:0 auto;padding:0 24px}
-
-  /* ── Cover band ── */
-  .cover{background:#0F172A;color:#fff;padding:0;margin-bottom:32px}
-  .cover-inner{max-width:960px;margin:0 auto;padding:36px 24px 32px}
-  .cover-top{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin-bottom:28px}
-  .cover-brand{display:flex;align-items:center;gap:10px}
-  .cover-brand-icon{width:36px;height:36px;background:linear-gradient(135deg,#FF4D4F,#c4302a);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-  .cover-brand-name{font-size:15px;font-weight:700;letter-spacing:0.04em;color:#fff}
-  .cover-brand-sub{font-size:11px;color:#94A3B8;letter-spacing:0.08em;text-transform:uppercase;margin-top:1px}
-  .cover-classification{padding:4px 12px;border:1px solid rgba(255,255,255,0.15);border-radius:4px;font-size:11px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:#CBD5E1}
-  .cover-title{font-size:26px;font-weight:700;color:#fff;letter-spacing:-0.01em;margin-bottom:6px}
-  .cover-subtitle{font-size:14px;color:#94A3B8;margin-bottom:24px}
-  .cover-meta{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border:1px solid rgba(255,255,255,0.08);border-radius:10px;overflow:hidden}
-  .cover-meta-item{padding:14px 18px;border-right:1px solid rgba(255,255,255,0.08)}
-  .cover-meta-item:last-child{border-right:none}
-  .cover-meta-k{font-size:11px;color:#64748B;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px}
-  .cover-meta-v{font-size:13px;color:#E2E8F0;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-
-  /* ── Section header ── */
-  .section{margin-bottom:32px}
-  .section-header{display:flex;align-items:center;gap:10px;margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid var(--line)}
-  .section-num{width:22px;height:22px;border-radius:6px;background:var(--accent);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-  .section-title{font-size:15px;font-weight:600;color:var(--text);letter-spacing:-0.01em}
-  .section-subtitle{font-size:12px;color:var(--muted);margin-left:auto}
-
-  /* ── Executive summary ── */
-  .exec-banner{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 20px;border-radius:12px;border:1px solid var(--line-2);background:var(--surface);margin-bottom:12px}
-  .exec-banner.pass{border-color:var(--pass-border);background:var(--pass-bg)}
-  .exec-banner.fail{border-color:var(--fail-border);background:var(--fail-bg)}
-  .exec-banner.cancelled{border-color:var(--cancel-border);background:var(--cancel-bg)}
-  .exec-banner-left{display:flex;align-items:center;gap:14px}
-  .exec-verdict-icon{width:44px;height:44px;border-radius:10px;border:1px solid;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-  .exec-banner.pass .exec-verdict-icon{border-color:var(--pass-border);color:var(--pass);background:var(--pass-bg)}
-  .exec-banner.fail .exec-verdict-icon{border-color:var(--fail-border);color:var(--fail);background:var(--fail-bg)}
-  .exec-banner.cancelled .exec-verdict-icon{border-color:var(--cancel-border);color:var(--cancel);background:var(--cancel-bg)}
-  .exec-verdict-label{font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin-bottom:3px}
-  .exec-verdict-text{font-size:26px;font-weight:800;letter-spacing:0.04em;line-height:1}
-  .exec-banner.pass .exec-verdict-text{color:var(--pass)}
-  .exec-banner.fail .exec-verdict-text{color:var(--fail)}
-  .exec-banner.cancelled .exec-verdict-text{color:var(--cancel)}
-  .exec-risk{font-size:12px;font-weight:600;padding:4px 12px;border-radius:999px;border:1px solid;white-space:nowrap}
-  .exec-banner.pass .exec-risk{background:var(--pass-bg);color:var(--pass);border-color:var(--pass-border)}
-  .exec-banner.fail .exec-risk{background:var(--fail-bg);color:var(--fail);border-color:var(--fail-border)}
-  .exec-banner.cancelled .exec-risk{background:var(--cancel-bg);color:var(--cancel);border-color:var(--cancel-border)}
-  .summary-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
-  .stat-card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
-  .stat-card .sc-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px}
-  .stat-card .sc-value{font-size:22px;font-weight:700;line-height:1;color:var(--text)}
-  .stat-card .sc-bar{height:4px;background:var(--line);border-radius:2px;margin-top:8px;overflow:hidden}
-  .stat-card .sc-bar-fill{height:100%;border-radius:2px}
-  .stat-card .sc-sub{font-size:11px;color:var(--muted);margin-top:4px}
-  .summary-narrative{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;margin-top:12px;font-size:13px;color:var(--text-2);line-height:1.7}
-  .summary-narrative strong{color:var(--text)}
-
-  /* ── Assessment scope ── */
-  .scope-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-  .scope-card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px}
-  .scope-card-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--muted);margin-bottom:12px}
-  .scope-row{display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:5px 0;border-bottom:1px solid var(--line)}
-  .scope-row:last-child{border-bottom:none}
-  .scope-k{font-size:12px;color:var(--muted);flex-shrink:0}
-  .scope-v{font-size:12px;color:var(--text);font-weight:500;text-align:right;word-break:break-word;max-width:60%}
-  .scope-v.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px}
-  .scope-full{grid-column:1/-1}
-
-  /* ── Findings ── */
-  .findings-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-  .finding-block{background:var(--surface);border:1px solid;border-left-width:3px;border-radius:10px;padding:16px;overflow:hidden}
-  .finding-block-head{display:flex;align-items:center;gap:8px;margin-bottom:12px}
-  .finding-label{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em}
-  .finding-count{font-size:11px;font-weight:700;padding:2px 8px;border:1px solid;border-radius:999px}
-  .finding-list{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:10px}
-  .finding-list li{font-size:13px;color:var(--text-2);line-height:1.5}
-  .finding-list strong{color:var(--text)}
-  .finding-score{margin-left:6px;font-size:11px;color:var(--muted);font-weight:600;background:var(--surface-2);padding:1px 6px;border-radius:4px;border:1px solid var(--line)}
-  .finding-desc{margin-top:3px;font-size:12px;color:var(--muted)}
-  .no-findings{background:var(--pass-bg);border:1px solid var(--pass-border);border-radius:10px;padding:16px;text-align:center;color:var(--pass);font-weight:600;font-size:13px}
-
-  /* ── Results table ── */
-  .results-table-wrap{background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden}
-  table.results{width:100%;border-collapse:collapse}
-  table.results th{background:var(--surface-2);padding:10px 14px;text-align:left;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;border-bottom:1px solid var(--line)}
-  table.results td{padding:11px 14px;font-size:13px;border-bottom:1px solid var(--line);vertical-align:middle}
-  table.results tr:last-child td{border-bottom:none}
-  table.results tr:hover td{background:var(--surface-2)}
-  .td-num{color:var(--muted-2);font-size:11px;font-family:ui-monospace,monospace;width:36px}
-  .td-score{font-size:13px;font-weight:600;color:var(--text)}
-  .eval-link{color:var(--text);font-weight:500}
-  .eval-link:hover{color:var(--accent)}
-
-
-  /* ── Badges ── */
-  .sev-tag{display:inline-block;padding:2px 8px;border:1px solid;border-radius:4px;font-size:11px;font-weight:600;letter-spacing:0.03em;white-space:nowrap}
-  .standards-tag{font-size:11px;color:var(--muted);font-weight:500}
-  .standards-meta{font-weight:500;font-size:12px;color:var(--text-2)}
-  .meta-item-wide{grid-column:1/-1}
-  .verdict-tag{display:inline-block;padding:2px 9px;border-radius:4px;font-size:11px;font-weight:700;letter-spacing:0.04em}
-  .verdict-pass{background:var(--pass-bg);color:var(--pass);border:1px solid var(--pass-border)}
-  .verdict-fail{background:var(--fail-bg);color:var(--fail);border:1px solid var(--fail-border)}
-  .verdict-cancelled{background:var(--cancel-bg);color:var(--cancel);border:1px solid var(--cancel-border)}
-  .pass-text{color:var(--pass);font-weight:600}
-  .fail-text{color:var(--fail);font-weight:600}
-  .cancelled-text{color:var(--cancel);font-weight:600}
-
-  /* ── Evaluator detail blocks ── */
-  .eval-detail{background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-bottom:8px}
-  .eval-detail > summary{display:flex;align-items:center;justify-content:space-between;padding:13px 16px;cursor:pointer;list-style:none;gap:12px}
-  .eval-detail > summary::-webkit-details-marker{display:none}
-  .eval-detail > summary:hover{background:var(--surface-2)}
-  .eval-detail[open] > summary{background:var(--surface-2);border-bottom:1px solid var(--line)}
-  .eval-summary-left{display:flex;align-items:center;gap:10px;flex:1;min-width:0}
-  .eval-num{font-size:11px;font-family:ui-monospace,monospace;color:var(--muted-2);flex-shrink:0;width:22px}
-  .eval-summary-info{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-  .eval-summary-name{font-size:13px;font-weight:600;color:var(--text)}
-  .eval-summary-right{display:flex;align-items:center;gap:10px;flex-shrink:0}
-  .score-badge{font-size:13px;font-weight:700;color:var(--text-2)}
-  .score-denom{font-size:11px;font-weight:400;color:var(--muted)}
-  .chevron{color:var(--muted-2);transition:transform 0.2s;flex-shrink:0}
-  .eval-detail[open] .chevron{transform:rotate(180deg)}
-  .eval-body{padding:16px}
-  .eval-meta-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
-  .meta-item{background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
-  .meta-k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px}
-  .meta-v{font-size:13px;font-weight:600;color:var(--text)}
-  .detail-section{margin-bottom:12px}
-  .detail-section-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:6px}
-  .detail-section-body{font-size:13px;color:var(--text-2);line-height:1.6;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
-  .transcript{margin-top:12px;border:1px solid var(--line);border-radius:8px;overflow:hidden}
-  .transcript-header{padding:8px 12px;background:var(--surface-2);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}
-  .tc-count{font-weight:400;color:var(--muted-2)}
-  .turn{border-bottom:1px solid var(--line)}
-  .turn:last-child{border-bottom:none}
-  .turn-row{padding:10px 12px;border-bottom:1px solid var(--line)}
-  .turn-row:last-child{border-bottom:none}
-  .turn-role{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:5px}
-  .attacker-role{color:#DC2626}
-  .agent-role{color:#2563EB}
-  .turn-row pre{margin:0;white-space:pre-wrap;word-break:break-word;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--text-2)}
-
-  /* ── Footer ── */
-  .report-footer{max-width:960px;margin:40px auto 0;padding:16px 24px;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
-  .footer-left{font-size:12px;color:var(--muted)}
-  .footer-right{font-size:12px;color:var(--muted-2);font-family:ui-monospace,monospace}
-
-  /* ── Print ── */
-  @media print{
-    body{background:#fff;padding:0}
-    .cover{-webkit-print-color-adjust:exact;print-color-adjust:exact}
-    .eval-detail{border:1px solid var(--line)}
-    .eval-detail[open]>summary{background:var(--surface-2);-webkit-print-color-adjust:exact;print-color-adjust:exact}
-    .stat-card,.scope-card,.finding-block,.results-table-wrap,.eval-detail{break-inside:avoid;box-shadow:none}
-  }
-  @media(max-width:640px){
-    .cover-meta{grid-template-columns:1fr 1fr}
-    .exec-banner{flex-direction:column;align-items:flex-start}
-    .summary-stats{grid-template-columns:1fr 1fr}
-    .scope-grid,.findings-grid{grid-template-columns:1fr}
-    .eval-meta-grid{grid-template-columns:repeat(2,1fr)}
-  }
-</style>
-</head>
-<body>
-
-<div class="cover">
-  <div class="cover-inner">
-    <div class="cover-top">
-      <div class="cover-brand">
-        <div class="cover-brand-icon">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 4v6c0 5-3.5 9-8 10-4.5-1-8-5-8-10V6l8-4z"/></svg>
-        </div>
-        <div>
-          <div class="cover-brand-name">Opfor</div>
-          <div class="cover-brand-sub">Red-team Platform</div>
-        </div>
-      </div>
-      <div class="cover-classification">Confidential</div>
-    </div>
-    <div class="cover-title">LLM Security Assessment Report</div>
-    <div class="cover-subtitle">Automated adversarial evaluation · ${escapeHtml(metadata.framework)} · ${dateStr}</div>
-    <div class="cover-meta">
-      <div class="cover-meta-item">
-        <div class="cover-meta-k">Target System</div>
-        <div class="cover-meta-v" title="${escapeHtml(target.name)}">${escapeHtml(target.name)}</div>
-      </div>
-      <div class="cover-meta-item">
-        <div class="cover-meta-k">Evaluation Suite</div>
-        <div class="cover-meta-v">${escapeHtml(metadata.configId)}</div>
-      </div>
-      <div class="cover-meta-item">
-        <div class="cover-meta-k">Assessment Date</div>
-        <div class="cover-meta-v">${dateStr}, ${timeStr}</div>
-      </div>
-      <div class="cover-meta-item">
-        <div class="cover-meta-k">Evaluators Run</div>
-        <div class="cover-meta-v">${summary.totalEvaluators}</div>
-      </div>
-      <div class="cover-meta-item">
-        <div class="cover-meta-k">Attacker Model</div>
-        <div class="cover-meta-v">${escapeHtml(target.model)}</div>
-      </div>
-      <div class="cover-meta-item">
-        <div class="cover-meta-k">Report ID</div>
-        <div class="cover-meta-v mono" style="font-family:ui-monospace,monospace;font-size:11px;color:#94A3B8">${escapeHtml(metadata.reportId)}</div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<div class="page">
-
-  <!-- 1. Executive Summary -->
-  <div class="section">
-    <div class="section-header">
-      <div class="section-num">1</div>
-      <div class="section-title">Executive Summary</div>
-    </div>
-    <div class="exec-banner ${overallVerdict === "PASS" ? "pass" : overallVerdict === "CANCELLED" ? "cancelled" : "fail"}">
-      <div class="exec-banner-left">
-        <div class="exec-verdict-icon">
-          ${
-            overallVerdict === "PASS"
-              ? `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>`
-              : overallVerdict === "CANCELLED"
-                ? `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><rect x="9" y="9" width="6" height="6" rx="1" fill="currentColor" stroke="none"/></svg>`
-                : `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 2l8 4v6c0 5-3.5 9-8 10-4.5-1-8-5-8-10V6l8-4z"/></svg>`
-          }
-        </div>
-        <div>
-          <div class="exec-verdict-label">Overall Verdict</div>
-          <div class="exec-verdict-text">${overallVerdict}</div>
-        </div>
-      </div>
-      <div class="exec-risk">${overallVerdict === "CANCELLED" ? "Run Cancelled" : riskLevel.label}</div>
-    </div>
-    <div class="summary-stats">
-      <div class="stat-card">
-        <div class="sc-label">Safety Score</div>
-        <div class="sc-value" style="color:${scored ? safetyColor(summary.safetyScore) : "#64748B"}">${scored ? `${summary.safetyScore}%` : "—"}</div>
-        <div class="sc-bar"><div class="sc-bar-fill" style="width:${scored ? summary.safetyScore : 0}%;background:${scored ? safetyColor(summary.safetyScore) : "#CBD5E1"}"></div></div>
-        <div class="sc-sub">${scored ? `Based on ${judged} evaluator${judged === 1 ? "" : "s"}` : "No evaluator completed"}${summary.cancelled ? ` · ${summary.cancelled} cancelled` : ""}</div>
-      </div>
-      <div class="stat-card">
-        <div class="sc-label">Attack Success Rate</div>
-        <div class="sc-value" style="color:${!scored ? "#64748B" : summary.attackSuccessRate > 0 ? "#DC2626" : "#059669"}">${scored ? `${summary.attackSuccessRate}%` : "—"}</div>
-        <div class="sc-bar"><div class="sc-bar-fill" style="width:${scored ? summary.attackSuccessRate : 0}%;background:${!scored ? "#CBD5E1" : summary.attackSuccessRate > 0 ? "#DC2626" : "#059669"}"></div></div>
-        <div class="sc-sub">${scored ? `${summary.failed} of ${judged} evaluators breached` : "Nothing was evaluated"}</div>
-      </div>
-      <div class="stat-card">
-        <div class="sc-label">Evaluators Passed</div>
-        <div class="sc-value" style="color:#059669">${summary.passed}</div>
-        <div class="sc-sub">No vulnerability surfaced</div>
-      </div>
-      <div class="stat-card">
-        <div class="sc-label">Evaluators Failed</div>
-        <div class="sc-value" style="color:${summary.failed > 0 ? "#DC2626" : "#059669"}">${summary.failed}</div>
-        <div class="sc-sub">${criticalFindings.length} critical · ${highFindings.length} high severity</div>
-      </div>
-      ${
-        summary.tokenUsage
-          ? `<div class="stat-card">
-        <div class="sc-label">Token Usage</div>
-        <div class="sc-value" style="color:#6B7280">${formatTokenCount(summary.tokenUsage.totalTokens)}</div>
-        <div class="sc-sub">${summary.tokenUsage.inputTokens.toLocaleString()} in · ${summary.tokenUsage.outputTokens.toLocaleString()} out</div>
-      </div>`
-          : ""
-      }
-    </div>
-    <div class="summary-narrative">
-      ${
-        overallVerdict === "CANCELLED"
-          ? `<strong style="color:#D97706">⚠ Run cancelled by user.</strong> The assessment of <strong>${escapeHtml(target.name)}</strong> in the <em>${escapeHtml(metadata.configId)}</em> suite was stopped before all evaluators could complete. Of ${summary.totalTests} evaluator${summary.totalTests === 1 ? "" : "s"} recorded, ${summary.passed} passed and ${summary.failed} failed${summary.cancelled ? `, and ${summary.cancelled} ${summary.cancelled === 1 ? "was" : "were"} interrupted mid-evaluation` : ""}. This report reflects only the evaluators completed up to the point of cancellation.`
-          : overallVerdict === "PASS"
-            ? `The target system <strong>${escapeHtml(target.name)}</strong> <strong>passed all ${summary.totalTests} evaluator${summary.totalTests === 1 ? "" : "s"}</strong> in the <em>${escapeHtml(metadata.configId)}</em> suite. No exploitable vulnerabilities were surfaced under sustained adversarial pressure with the configured turn budget. The system demonstrates adequate resistance to the evaluated attack patterns at the time of assessment.`
-            : `The target system <strong>${escapeHtml(target.name)}</strong> <strong>failed ${summary.failed} of ${summary.totalTests} evaluator${summary.totalTests === 1 ? "" : "s"}</strong> (${summary.attackSuccessRate}% attack success rate) in the <em>${escapeHtml(metadata.configId)}</em> suite. ${summary.failed === 1 ? "One vulnerability was" : "Multiple vulnerabilities were"} surfaced under adversarial pressure.${criticalFindings.length > 0 ? ` <strong style="color:#DC2626">${criticalFindings.length} critical finding${criticalFindings.length === 1 ? "" : "s"}</strong> require immediate remediation.` : ""} Refer to the Findings section for a prioritised remediation plan.`
-      }
-    </div>
-  </div>
-
-  <!-- 2. Assessment Scope -->
-  <div class="section">
-    <div class="section-header">
-      <div class="section-num">2</div>
-      <div class="section-title">Assessment Scope</div>
-    </div>
-    <div class="scope-grid">
-      <div class="scope-card">
-        <div class="scope-card-title">Target</div>
-        <div class="scope-row"><span class="scope-k">System</span><span class="scope-v">${escapeHtml(target.name)}</span></div>
-        <div class="scope-row"><span class="scope-k">Type</span><span class="scope-v">LLM Chatbot Interface</span></div>
-        <div class="scope-row"><span class="scope-k">Access method</span><span class="scope-v">Browser automation (live tab)</span></div>
-      </div>
-      <div class="scope-card">
-        <div class="scope-card-title">Evaluation Parameters</div>
-        <div class="scope-row"><span class="scope-k">Suite</span><span class="scope-v">${escapeHtml(metadata.configId)}</span></div>
-        <div class="scope-row"><span class="scope-k">Attacker model</span><span class="scope-v mono">${escapeHtml(target.model)}</span></div>
-        <div class="scope-row"><span class="scope-k">Max turns / evaluator</span><span class="scope-v">${state.maxTurns}</span></div>
-        <div class="scope-row"><span class="scope-k">Wait between turns</span><span class="scope-v">${state.waitSec}s</span></div>
-        <div class="scope-row"><span class="scope-k">Message length limit</span><span class="scope-v">${state.messageCharLimit} chars</span></div>
-      </div>
-      ${
-        state.businessUseCase
-          ? `<div class="scope-card scope-full">
-              <div class="scope-card-title">Business Context</div>
-              <div style="font-size:13px;color:#334155;line-height:1.6">${escapeHtml(state.businessUseCase)}</div>
-            </div>`
-          : ""
-      }
-    </div>
-  </div>
-
-  <!-- 3. Findings -->
-  ${
-    criticalFindings.length + highFindings.length > 0
-      ? `<div class="section">
-          <div class="section-header">
-            <div class="section-num">3</div>
-            <div class="section-title">Key Findings</div>
-            <div class="section-subtitle">${criticalFindings.length + highFindings.length} finding${criticalFindings.length + highFindings.length === 1 ? "" : "s"} requiring attention</div>
-          </div>
-          <div class="findings-grid">
-            ${findingBlock("Critical", criticalFindings, "#DC2626")}
-            ${findingBlock("High", highFindings, "#D97706")}
-          </div>
-        </div>`
-      : `<div class="section">
-          <div class="section-header">
-            <div class="section-num">3</div>
-            <div class="section-title">Key Findings</div>
-          </div>
-          <div class="no-findings">${
-            judged === 0
-              ? "No critical or high severity findings — no evaluator was assessed before the run was cancelled."
-              : "No critical or high severity findings — system passed all evaluated attack patterns."
-          }</div>
-        </div>`
-  }
-
-  <!-- 4. Detailed Results -->
-  <div class="section">
-    <div class="section-header">
-      <div class="section-num">4</div>
-      <div class="section-title">Evaluation Results</div>
-      <div class="section-subtitle">${summary.totalEvaluators} evaluator${summary.totalEvaluators === 1 ? "" : "s"}</div>
-    </div>
-    <div class="results-table-wrap" style="margin-bottom:16px">
-      <table class="results">
-        <thead><tr>
-          <th>#</th><th>Evaluator</th><th>Severity</th><th>Verdict</th><th>Safety Score</th>
-        </tr></thead>
-        <tbody>${tableRows || `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:24px">No evaluators executed.</td></tr>`}</tbody>
-      </table>
-    </div>
-    <div style="margin-top:18px"></div>
-    <div class="section-header" style="margin-top:0">
-      <div class="section-num">5</div>
-      <div class="section-title">Detailed Results</div>
-    </div>
-    ${appendix}
-  </div>
-
-</div>
-
-<div class="report-footer">
-  <div class="footer-left">Generated by ${escapeHtml(metadata.framework)} · ${dateStr}</div>
-  <div class="footer-right">${escapeHtml(metadata.reportId)}</div>
-</div>
-
-</body>
-</html>`;
+function toReportViewModel(report) {
+  const { metadata, target, summary } = report;
+  return {
+    mode: "agent",
+    reportId: metadata.reportId,
+    generatedAt: metadata.generated,
+    generatorModel: target.model,
+    judgeModel: metadata.llmJudge || target.model,
+    target: {
+      name: target.name,
+      suiteId: metadata.configId,
+      type: "LLM Chatbot Interface",
+      accessMethod: "Browser automation (live tab)",
+      maxTurns: state.maxTurns,
+      waitBetweenTurnsSec: state.waitSec,
+      messageLengthLimit: state.messageCharLimit,
+    },
+    summary: {
+      total: summary.totalEvaluators,
+      passed: summary.passed,
+      failed: summary.failed,
+      errors: summary.cancelled || 0,
+      safetyScore: summary.safetyScore ?? 0,
+      attackSuccessRate: summary.attackSuccessRate ?? 0,
+      tokenUsage: summary.tokenUsage,
+    },
+    evaluators: report.evaluatorResults.map(toEvaluatorViewModel),
+    stopReason: report.cancelled ? "user-interrupted" : undefined,
+    businessContext:
+      report.applicationContext?.purpose && report.applicationContext.purpose !== "—"
+        ? report.applicationContext.purpose
+        : undefined,
+  };
 }
 
 const REPORT_HISTORY_KEY = "opforReportHistory";
@@ -2038,7 +1571,7 @@ async function finalizeAndPersistCurrentReport() {
 }
 
 function downloadReportHtml(report) {
-  const html = generateHtmlReport(report);
+  const html = renderReport(toReportViewModel(report));
   const blob = new Blob([html], { type: "text/html" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
