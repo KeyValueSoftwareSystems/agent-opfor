@@ -447,7 +447,7 @@ export function renderReport(model: ReportViewModel): string {
     <div class="cover-badges-row">
       <span class="badge-confidential">${LOCK_ICON} Confidential</span>
       <span class="reportid-chip">Report ID: <span class="mono">${esc(model.reportId)}</span>
-        <button class="copy-btn" onclick="navigator.clipboard.writeText('${esc(model.reportId)}');this.querySelector('svg').style.color='#4ADE80'" title="Copy report ID">${COPY_ICON}</button>
+        <button class="copy-btn" data-copy="${esc(model.reportId)}" title="Copy report ID">${COPY_ICON}</button>
       </span>
       <span class="cover-date">${esc(dateStr)}, ${esc(timeStr)}</span>
     </div>
@@ -540,6 +540,13 @@ export function renderReport(model: ReportViewModel): string {
 
 <script>
 (function(){
+  document.querySelectorAll('.copy-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      navigator.clipboard.writeText(btn.dataset.copy || '');
+      var svg = btn.querySelector('svg');
+      if (svg) svg.style.color = '#4ADE80';
+    });
+  });
   document.querySelectorAll('.transcript-toggle').forEach(function(btn){
     btn.addEventListener('click', function(){
       var wrap = btn.closest('.detail-section, .eval-body').querySelector('.transcript-wrap[data-for="' + btn.dataset.target + '"]');

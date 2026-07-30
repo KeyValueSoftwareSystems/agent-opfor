@@ -117,6 +117,9 @@ const state = {
     /** @type {{id:string;name:string;sev:string;verdict:string;summary:string;raw:any}[]} */ ([]),
   lastReport: /** @type {any | null} */ (null),
   running: false,
+  // Wall-clock start of the current/last run, persisted alongside the queue so
+  // it survives a popup close/reopen mid-run — used to compute report duration.
+  runStartedAt: /** @type {number | null} */ (null),
   // True only while THIS popup instance's startRun() loop is actively
   // driving a run — as opposed to `running`, which also gets set to true
   // when the popup reopens mid-run and merely restores the running screen
@@ -737,6 +740,7 @@ async function checkPausedRun() {
       state.queue = opforPopupRun.queue;
       state.results = Array.isArray(opforPopupRun.results) ? opforPopupRun.results : [];
       state.maxTurns = opforPopupRun.maxTurns || state.maxTurns;
+      state.runStartedAt = opforPopupRun.runStartedAt || state.runStartedAt;
       // Point at the paused evaluator when it's still in the queue.
       const idx = state.queue.findIndex((q) => q.id === evId);
       state.evIdx = idx >= 0 ? idx : Math.min(opforPopupRun.evIdx || 0, state.queue.length - 1);
@@ -1155,7 +1159,7 @@ function judgedCount(summary) {
  * a name that would overstate what actually ran.
  */
 function resolveSuiteLabel() {
-  const suite = state.catalog?.suites.find((s) => s.id === state.suiteId);
+  const suite = state.catalog?.suites?.find((s) => s.id === state.suiteId);
   if (!suite) return "Custom Suite";
   const fullSuite =
     suite.evaluatorIds.length === state.selectedEvaluators.size &&
@@ -1264,6 +1268,8 @@ function buildReport() {
   const stamp = now.toISOString().replace(/[-:]/g, "").replace(/\..+/, "").replace("T", "-");
   const reportId = `opfor-${state.suiteId || "run"}-${stamp}`;
 
+  const durationMs = state.runStartedAt ? Math.max(0, Date.now() - state.runStartedAt) : undefined;
+
   const targetUrl =
     state.results[0]?.raw?.siteUrl || state.results[0]?.raw?.frameUrl || "active tab";
 
@@ -1273,7 +1279,7 @@ function buildReport() {
       configId: resolveSuiteLabel(),
       framework: "opfor v0.2",
       generated: now.toISOString(),
-      duration: "—",
+      duration: durationMs != null ? formatDurationMs(durationMs) : "—",
       llmJudge: state.model,
     },
     target: {
@@ -1305,6 +1311,7 @@ function buildReport() {
       criticalFindings: criticalFindings.length,
       highFindings: highFindings.length,
       tokenUsage,
+      durationMs,
     },
     cancelled: state.runCancelled,
     evaluatorResults,
@@ -1317,6 +1324,17 @@ function formatTokenCount(n) {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
   return String(n);
+}
+
+/** Format a run duration for display (e.g. 754000 → "12m 34s"). */
+function formatDurationMs(ms) {
+  const totalSeconds = Math.round(ms / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  if (minutes > 0) return `${minutes}m ${seconds}s`;
+  return `${seconds}s`;
 }
 
 // ---------------------------------------------------------------------------
@@ -1424,6 +1442,7 @@ function toReportViewModel(report) {
       safetyScore: summary.safetyScore ?? 0,
       attackSuccessRate: summary.attackSuccessRate ?? 0,
       tokenUsage: summary.tokenUsage,
+      durationMs: summary.durationMs,
     },
     evaluators: report.evaluatorResults.map(toEvaluatorViewModel),
     stopReason: report.cancelled ? "user-interrupted" : undefined,
@@ -2233,6 +2252,7 @@ async function startRun({ resume = false } = {}) {
 
   // Build queue from current selection (or use existing queue if resuming)
   if (!resume) {
+    state.runStartedAt = Date.now();
     await saveSettings();
     const suite = state.catalog?.suites.find((s) => s.id === state.suiteId);
     if (!suite) {
@@ -3013,6 +3033,7 @@ async function persistPopupRunQueue({ running = true, paused = false } = {}) {
         evIdx: state.evIdx,
         results: state.results,
         maxTurns: state.maxTurns,
+        runStartedAt: state.runStartedAt,
         updatedAt: Date.now(),
       },
     });
@@ -3087,6 +3108,7 @@ async function checkActiveRun() {
     state.maxTurns = opforPopupRun.maxTurns || state.maxTurns;
     state.queue = Array.isArray(opforPopupRun.queue) ? opforPopupRun.queue : [];
     state.evIdx = opforPopupRun.evIdx || 0;
+    state.runStartedAt = opforPopupRun.runStartedAt || state.runStartedAt;
     state.results = Array.isArray(opforPopupRun.results) ? opforPopupRun.results : [];
   }
 
