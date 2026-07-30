@@ -103,6 +103,8 @@ export interface ReportMeta {
   generatedAt: string;
   targetName: string;
   targetKind: "agent" | "mcp";
+  /** See {@link UnifiedRunReport.suiteId}. */
+  suiteId: string;
   effort: Effort;
   attackModel: string;
   judgeModel: string;
@@ -130,6 +132,7 @@ export function buildUnifiedReport(
     generatedAt: meta.generatedAt,
     targetName: meta.targetName,
     targetKind: meta.targetKind,
+    suiteId: meta.suiteId,
     effort: meta.effort,
     attackModel: meta.attackModel,
     judgeModel: meta.judgeModel,

@@ -69,6 +69,7 @@ export async function runAllBrowser(
   agentTarget: AgentTarget,
   options?: BrowserRunAllOptions
 ): Promise<UnifiedRunReport> {
+  const runStartedAt = Date.now();
   const notify = options?.onProgress ?? (() => {});
   const attackModel = createModel(config.attackerLlm);
   const judgeModel = createModel(config.judgeLlm ?? config.attackerLlm);
@@ -237,6 +238,7 @@ export async function runAllBrowser(
   if (usage.totalTokens > 0) {
     report.summary.tokenUsage = usage;
   }
+  report.summary.durationMs = Date.now() - runStartedAt;
   return report;
 }
 
@@ -254,6 +256,10 @@ function buildBrowserReport(
         generatedAt: new Date().toISOString(),
         targetName: config.targetName ?? "target",
         targetKind: "agent",
+        // The browser path takes preloaded evaluator specs with no suite concept —
+        // the extension builds its own report/suite label independently of this
+        // return value (see popup.js's buildFinalReport).
+        suiteId: "Custom Suite",
         effort: config.effort,
         attackModel,
         judgeModel,

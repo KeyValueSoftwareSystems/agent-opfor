@@ -69,7 +69,7 @@ function toReportViewModel(report: UnifiedRunReport): ReportViewModel {
     generatedAt: report.generatedAt,
     generatorModel: report.attackModel,
     judgeModel: report.judgeModel,
-    target: { name: report.targetName },
+    target: { name: report.targetName, suiteId: report.suiteId },
     summary: report.summary,
     evaluators: report.evaluators.map(toEvaluatorViewModel),
     stopReason: report.stopReason,

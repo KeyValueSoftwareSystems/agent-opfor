@@ -22,6 +22,7 @@ function createMockResults(overrides: Partial<RunResults> = {}): RunResults {
     id: "test-report-123",
     timestamp: new Date().toISOString(),
     targetName: "Test Target",
+    suiteId: "quick-smoke",
     targetKind: "agent",
     effort: "adaptive",
     attackerModel: "claude-sonnet-4",
