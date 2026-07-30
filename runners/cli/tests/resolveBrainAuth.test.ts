@@ -58,7 +58,7 @@ test("the gateway pair resolves cleanly with no warning", () => {
     () => {
       const result = resolveBrainAuth();
       assert.ok(result);
-      assert.equal(result!.method, "gateway (https://gateway.example.com)");
+      assert.equal(result!.method, "gateway (ANTHROPIC_BASE_URL)");
       assert.equal(result!.warning, undefined);
     }
   );

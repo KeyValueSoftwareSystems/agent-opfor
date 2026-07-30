@@ -51,7 +51,9 @@ export function resolveBrainAuth(): BrainAuthInfo | null {
   // strips a bare token (it's treated as an inherited session token), so counting
   // it here without a gateway URL would pass the gate then lose the credential.
   if (process.env.ANTHROPIC_AUTH_TOKEN?.trim() && process.env.ANTHROPIC_BASE_URL?.trim()) {
-    return { method: `gateway (${process.env.ANTHROPIC_BASE_URL})` };
+    // Never interpolate the actual URL: it may carry userinfo or a signed query
+    // string, and this label is rendered in the setup UI, not just the terminal.
+    return { method: "gateway (ANTHROPIC_BASE_URL)" };
   }
   if (process.env.CLAUDE_CODE_OAUTH_TOKEN?.trim()) {
     return { method: "CLAUDE_CODE_OAUTH_TOKEN", warning };
