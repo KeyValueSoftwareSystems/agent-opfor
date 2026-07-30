@@ -1161,9 +1161,14 @@ function judgedCount(summary) {
 function resolveSuiteLabel() {
   const suite = state.catalog?.suites?.find((s) => s.id === state.suiteId);
   if (!suite) return "Custom Suite";
+  // Based on what actually completed, not what was selected — a run stopped
+  // partway through a full-suite selection is not that suite either.
+  const completedIds = new Set(
+    state.results.filter((r) => r.verdict !== "CANCELLED").map((r) => r.id)
+  );
   const fullSuite =
-    suite.evaluatorIds.length === state.selectedEvaluators.size &&
-    suite.evaluatorIds.every((id) => state.selectedEvaluators.has(id));
+    suite.evaluatorIds.length === completedIds.size &&
+    suite.evaluatorIds.every((id) => completedIds.has(id));
   return fullSuite ? suite.id : "Custom Suite";
 }
 
@@ -3103,12 +3108,17 @@ async function checkActiveRun() {
     }
   }
 
+  // Restored independently of `popupQueueActive`: a run can still be genuinely
+  // active per `opforRunStatus` well past the 5-minute popup-queue freshness
+  // window (long evaluators, slow targets), and losing the original start time
+  // there would silently drop the report's duration.
+  state.runStartedAt = opforPopupRun?.runStartedAt || state.runStartedAt;
+
   if (popupQueueActive) {
     state.suiteId = opforPopupRun.suiteId || state.suiteId;
     state.maxTurns = opforPopupRun.maxTurns || state.maxTurns;
     state.queue = Array.isArray(opforPopupRun.queue) ? opforPopupRun.queue : [];
     state.evIdx = opforPopupRun.evIdx || 0;
-    state.runStartedAt = opforPopupRun.runStartedAt || state.runStartedAt;
     state.results = Array.isArray(opforPopupRun.results) ? opforPopupRun.results : [];
   }
 

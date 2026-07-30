@@ -197,7 +197,7 @@ export function renderReport(model: ReportViewModel): string {
           : null;
       const showTestHeading = e.results.length > 1;
       const cards = e.results
-        .map((r, i) => resultDetailCard(r, i, model.mode, showTestHeading))
+        .map((r, i) => resultDetailCard(r, i, model.mode, showTestHeading, idx))
         .join("");
       return `
         <div class="eval-detail" id="eval-${idx}">
@@ -564,8 +564,6 @@ export function renderReport(model: ReportViewModel): string {
 
 // ── Result detail card ────────────────────────────────────────────
 
-let transcriptIdCounter = 0;
-
 /** Role label row: icon + name, optionally " | Turn N". */
 function roleLabel(icon: string, name: string, turnLabel?: string): string {
   const suffix = turnLabel
@@ -660,7 +658,8 @@ function resultDetailCard(
   r: ResultViewModel,
   index: number,
   _mode: "agent" | "mcp",
-  showTestHeading: boolean
+  showTestHeading: boolean,
+  evalIndex: number
 ): string {
   const verdict = r.judge.verdict;
   const failingTurns = new Set(r.judge.failingTurns ?? []);
@@ -671,7 +670,10 @@ function resultDetailCard(
     ? r.turns!.map((t) => renderTurn(t, failingTurns)).join("")
     : singleTurnTranscript(r.detail);
 
-  const tId = `t${transcriptIdCounter++}`;
+  // Deterministic per document (not a module-level counter) — repeated renders
+  // of the same ReportViewModel (long-lived MCP server, snapshot tests) then
+  // produce identical data-for/data-target values.
+  const tId = `t${evalIndex}-${index}`;
 
   const evidenceHtml =
     r.judge.evidence && r.judge.evidence !== "N/A"
