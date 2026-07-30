@@ -11,6 +11,8 @@ import { log } from "../lib/logger.js";
 import type { AttackSpec, UnifiedTargetConfig, SessionContext } from "../execute/types.js";
 import type { AttackPattern } from "../evaluators/parseEvaluator.js";
 import { formatUpstreamSessions } from "../lib/summarizeSessionContext.js";
+import type { TokenTracker } from "../execute/tokenTracker.js";
+import { parseUsage } from "../execute/tokenTracker.js";
 
 const MCP_FOLLOWUP_SCHEMA = `{ "args": object, "judgeHint": string }`;
 
@@ -81,6 +83,7 @@ export async function generateNextAdaptiveTurn(params: {
   traceContext?: string;
   previousTechnique?: string;
   upstreamSessions?: SessionContext[];
+  tokenTracker?: TokenTracker;
 }): Promise<AdaptiveTurnResult> {
   const { history, attack, patterns, target, model, currentTurn, maxTurns } = params;
   const maxLength = params.maxLength ?? DEFAULT_MAX_LENGTH;
@@ -190,6 +193,8 @@ export async function generateNextAdaptiveTurn(params: {
     .join("\n");
 
   const result = await generateText({ model, system, prompt: userBlock });
+  const usage1 = parseUsage(result.usage);
+  if (usage1) params.tokenTracker?.record(usage1);
   const parsed = parseAttackerOutput(result.text);
   if (!parsed.message) throw new Error("generateNextAdaptiveTurn: empty model response");
   const message =
@@ -270,6 +275,7 @@ export function parseAttackerOutput(raw: string): {
   return { message: body, technique, lastReplyHook };
 }
 
+/** Truncate a string to `max` characters, appending an ellipsis if clipped. */
 function truncate(s: string, max: number): string {
   return s.length > max ? s.slice(0, max - 1) + "…" : s;
 }
@@ -308,7 +314,8 @@ export async function generateNextMcpTurn(
   attackGoal: string,
   toolName: string,
   seedArguments: Record<string, unknown>,
-  model: LanguageModel
+  model: LanguageModel,
+  tokenTracker?: TokenTracker
 ): Promise<McpNextTurnResult> {
   const historyText = history
     .map((t, i) => {
@@ -335,6 +342,8 @@ export async function generateNextMcpTurn(
   ].join("\n");
 
   const result = await generateText({ model, system, prompt: user });
+  const usage2 = parseUsage(result.usage);
+  if (usage2) tokenTracker?.record(usage2);
 
   try {
     const cleaned = result.text

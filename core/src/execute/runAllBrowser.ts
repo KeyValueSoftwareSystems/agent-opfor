@@ -19,6 +19,7 @@ import {
   buildUnifiedReport,
   modelLabel,
 } from "./aggregate.js";
+import { TokenTracker } from "./tokenTracker.js";
 import type {
   AgentAttackSpec,
   AttackResult,
@@ -68,10 +69,12 @@ export async function runAllBrowser(
   agentTarget: AgentTarget,
   options?: BrowserRunAllOptions
 ): Promise<UnifiedRunReport> {
+  const runStartedAt = Date.now();
   const notify = options?.onProgress ?? (() => {});
   const attackModel = createModel(config.attackerLlm);
   const judgeModel = createModel(config.judgeLlm ?? config.attackerLlm);
   const evaluatorResults: EvaluatorResult[] = [];
+  const tokenTracker = new TokenTracker();
   let stopReason: string | undefined;
 
   evaluatorLoop: for (const evaluator of evaluators) {
@@ -79,6 +82,7 @@ export async function runAllBrowser(
     log.info(`\n▶ ${evaluator.name} (${evaluator.id})`);
 
     const { turnMode, effectiveTurns } = TurnPlan.from(config);
+    const evalTracker = tokenTracker.child();
 
     let generated;
     try {
@@ -97,6 +101,7 @@ export async function runAllBrowser(
         options: {
           attackObjective: config.attackObjective,
           businessUseCase: config.businessUseCase,
+          tokenTracker: evalTracker,
         },
       });
     } catch (err) {
@@ -145,7 +150,10 @@ export async function runAllBrowser(
           attack.id,
           evaluator.patterns,
           agentTarget,
-          options?.initialHistory ? { initialHistory: options.initialHistory } : undefined
+          {
+            ...(options?.initialHistory ? { initialHistory: options.initialHistory } : {}),
+            tokenTracker: evalTracker,
+          }
         );
       } catch (err) {
         // Handle LLM stop errors (attacker/judge)
@@ -167,45 +175,35 @@ export async function runAllBrowser(
           },
         });
 
+        const pushPartialResult = (reason: string) => {
+          const failedResult = makeFailedResult(reason);
+          attackResults.push(failedResult);
+          notify({ type: "attack_done", attackId: attack.id, result: failedResult });
+          const partialResult = toEvaluatorResult(
+            {
+              evaluatorId: evaluator.id,
+              evaluatorName: evaluator.name,
+              standards: evaluator.standards,
+              severity: evaluator.severity,
+            },
+            attackResults
+          );
+          partialResult.tokenUsage = evalTracker.totals;
+          evaluatorResults.push(partialResult);
+        };
+
         if (isStopError(err)) {
           stopReason = getStopReason(err);
           log.error(`\n🛑 Run stopped: ${stopReason}`);
           notify({ type: "run_stopped", reason: stopReason });
-          const failedResult = makeFailedResult(stopReason);
-          attackResults.push(failedResult);
-          notify({ type: "attack_done", attackId: attack.id, result: failedResult });
-          evaluatorResults.push(
-            toEvaluatorResult(
-              {
-                evaluatorId: evaluator.id,
-                evaluatorName: evaluator.name,
-                standards: evaluator.standards,
-                severity: evaluator.severity,
-              },
-              attackResults
-            )
-          );
+          pushPartialResult(stopReason);
           break evaluatorLoop;
         }
-        // Handle target stop errors
         if (err instanceof TargetStopError) {
           stopReason = err.message;
           log.error(`\n🛑 Run stopped: ${stopReason}`);
           notify({ type: "run_stopped", reason: stopReason });
-          const failedResult = makeFailedResult(stopReason);
-          attackResults.push(failedResult);
-          notify({ type: "attack_done", attackId: attack.id, result: failedResult });
-          evaluatorResults.push(
-            toEvaluatorResult(
-              {
-                evaluatorId: evaluator.id,
-                evaluatorName: evaluator.name,
-                standards: evaluator.standards,
-                severity: evaluator.severity,
-              },
-              attackResults
-            )
-          );
+          pushPartialResult(stopReason);
           break evaluatorLoop;
         }
         throw err;
@@ -222,22 +220,29 @@ export async function runAllBrowser(
     const { passed, failed, errors } = summarizeVerdicts(attackResults);
     notify({ type: "evaluator_done", evaluatorId: evaluator.id, passed, failed, errors });
 
-    evaluatorResults.push(
-      toEvaluatorResult(
-        {
-          evaluatorId: evaluator.id,
-          evaluatorName: evaluator.name,
-          standards: evaluator.standards,
-          severity: evaluator.severity,
-        },
-        attackResults
-      )
+    const evResult = toEvaluatorResult(
+      {
+        evaluatorId: evaluator.id,
+        evaluatorName: evaluator.name,
+        standards: evaluator.standards,
+        severity: evaluator.severity,
+      },
+      attackResults
     );
+    evResult.tokenUsage = evalTracker.totals;
+    evaluatorResults.push(evResult);
   }
 
-  return buildBrowserReport(config, evaluatorResults, stopReason);
+  const report = buildBrowserReport(config, evaluatorResults, stopReason);
+  const usage = tokenTracker.totals;
+  if (usage.totalTokens > 0) {
+    report.summary.tokenUsage = usage;
+  }
+  report.summary.durationMs = Date.now() - runStartedAt;
+  return report;
 }
 
+/** Assemble a {@link UnifiedRunReport} from browser-run results. */
 function buildBrowserReport(
   config: BrowserRunConfig,
   evaluators: EvaluatorResult[],
@@ -251,6 +256,10 @@ function buildBrowserReport(
         generatedAt: new Date().toISOString(),
         targetName: config.targetName ?? "target",
         targetKind: "agent",
+        // The browser path takes preloaded evaluator specs with no suite concept —
+        // the extension builds its own report/suite label independently of this
+        // return value (see popup.js's buildFinalReport).
+        suiteId: "Custom Suite",
         effort: config.effort,
         attackModel,
         judgeModel,

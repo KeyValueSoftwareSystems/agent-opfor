@@ -44,6 +44,7 @@ export interface EvaluatorViewModel {
   errors: number;
   passRate: number;
   results: ResultViewModel[];
+  tokenUsage?: { inputTokens: number; outputTokens: number; totalTokens: number };
 }
 
 export interface ReportViewModel {
@@ -57,6 +58,13 @@ export interface ReportViewModel {
     endpoint?: string;
     transport?: string;
     suiteId?: string;
+    /** Human-readable target type, e.g. "LLM Chatbot Interface". Extension-only today. */
+    type?: string;
+    /** e.g. "Browser automation (live tab)". Extension-only today. */
+    accessMethod?: string;
+    maxTurns?: number;
+    waitBetweenTurnsSec?: number;
+    messageLengthLimit?: number;
   };
   summary: {
     total: number;
@@ -65,8 +73,13 @@ export interface ReportViewModel {
     errors: number;
     safetyScore: number;
     attackSuccessRate: number;
+    tokenUsage?: { inputTokens: number; outputTokens: number; totalTokens: number };
+    /** Wall-clock time for the whole run, from the first evaluator to the last. */
+    durationMs?: number;
   };
   evaluators: EvaluatorViewModel[];
   /** Set when the run was stopped early due to a non-retryable LLM error. */
   stopReason?: string;
+  /** Free-text business/application context. Extension-only today. */
+  businessContext?: string;
 }

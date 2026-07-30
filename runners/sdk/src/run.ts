@@ -81,6 +81,7 @@ function transformReport(coreReport: UnifiedRunReport): RunResults {
     id: coreReport.reportId,
     timestamp: coreReport.generatedAt,
     targetName: coreReport.targetName,
+    suiteId: coreReport.suiteId,
     targetKind: coreReport.targetKind,
     effort: coreReport.effort,
     attackerModel: coreReport.attackModel,
@@ -107,6 +108,8 @@ function extractFindings(report: UnifiedRunReport): Finding[] {
           description: attack.judge.reasoning ?? "",
           evidence: attack.judge.evidence,
           standards: evaluator.standards,
+          score: attack.judge.score,
+          confidence: attack.judge.confidence,
         });
       }
     }
@@ -145,6 +148,11 @@ function transformAttackResult(
     response,
     verdict: core.judge.verdict,
     evidence: core.judge.evidence,
+    score: core.judge.score,
+    confidence: core.judge.confidence,
+    reasoning: core.judge.reasoning,
+    errorMessage: core.judge.errorMessage,
+    failingTurns: core.judge.failingTurns,
     turns: core.turns?.map((t) => {
       if (t.kind === "agent") {
         return {

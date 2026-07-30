@@ -8,7 +8,8 @@ test("loadKnowledge loads the bundled seed libraries", async () => {
   assert.ok(kb.personas.length >= 3, "expected several persona seeds");
   assert.ok(kb.strategies.length >= 3, "expected several strategy seeds");
 
-  // Ids come from the category directory names in HUNT_VULN_CLASS_CATEGORIES.
+  // Vuln-class ids are the evaluator *category* ids (evaluators/agent/<id>/README.md),
+  // not individual evaluator ids — "injection", not "prompt-injection".
   const injection = kb.vulnClasses.find((v) => v.id === "injection");
   assert.ok(
     injection,

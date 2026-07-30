@@ -39,6 +39,7 @@ const SEVERITY_WEIGHTS: Record<string, number> = {
   low: 1,
 };
 
+/** Return the numeric weight for a severity level (critical=4 … low=1). */
 function severityWeight(severity: string): number {
   return SEVERITY_WEIGHTS[severity.toLowerCase()] ?? 2;
 }
@@ -102,6 +103,8 @@ export interface ReportMeta {
   generatedAt: string;
   targetName: string;
   targetKind: "agent" | "mcp";
+  /** See {@link UnifiedRunReport.suiteId}. */
+  suiteId: string;
   effort: Effort;
   attackModel: string;
   judgeModel: string;
@@ -129,6 +132,7 @@ export function buildUnifiedReport(
     generatedAt: meta.generatedAt,
     targetName: meta.targetName,
     targetKind: meta.targetKind,
+    suiteId: meta.suiteId,
     effort: meta.effort,
     attackModel: meta.attackModel,
     judgeModel: meta.judgeModel,

@@ -4,6 +4,8 @@
  */
 
 import { log } from "./logger.js";
+import type { TokenTracker } from "../execute/tokenTracker.js";
+import { parseUsage } from "../execute/tokenTracker.js";
 
 export interface LlmError {
   isRetryable: boolean;
@@ -123,6 +125,8 @@ export interface RetryOptions {
   initialDelayMs?: number;
   maxDelayMs?: number;
   context?: string; // e.g., "attacker", "judge" for logging
+  /** When set, usage from a successful result's `.usage` field is auto-recorded. */
+  tokenTracker?: TokenTracker;
 }
 
 /**
@@ -130,13 +134,24 @@ export interface RetryOptions {
  * Retries on transient errors, throws immediately on permanent errors.
  */
 export async function withRetry<T>(fn: () => Promise<T>, options: RetryOptions = {}): Promise<T> {
-  const { maxRetries = 3, initialDelayMs = 1000, maxDelayMs = 30000, context = "LLM" } = options;
+  const {
+    maxRetries = 3,
+    initialDelayMs = 1000,
+    maxDelayMs = 30000,
+    context = "LLM",
+    tokenTracker,
+  } = options;
 
   let lastError: LlmError | null = null;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      return await fn();
+      const result = await fn();
+      if (tokenTracker && result && typeof result === "object" && "usage" in result) {
+        const validated = parseUsage((result as { usage?: unknown }).usage);
+        if (validated) tokenTracker.record(validated);
+      }
+      return result;
     } catch (err) {
       lastError = classifyError(err);
 

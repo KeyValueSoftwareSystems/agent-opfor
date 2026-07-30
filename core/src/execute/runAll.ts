@@ -16,6 +16,7 @@ import { createModel } from "../providers/factory.js";
 import type { LlmConfig } from "../config/types.js";
 import { getAdapter } from "../telemetry/adapter.js";
 import { runSetupTraceCuration } from "../telemetry/curation.js";
+import { TokenTracker } from "./tokenTracker.js";
 import { log } from "../lib/logger.js";
 
 export interface RunAllOptions {
@@ -50,6 +51,8 @@ export async function runAll(
   config: RunConfig,
   options?: RunAllOptions
 ): Promise<UnifiedRunReport> {
+  const runStartedAt = Date.now();
+
   // Fan every progress event to the legacy onProgress callback (backward-compat)
   // and to any registered lifecycle listeners.
   const listeners = options?.listeners ?? [];
@@ -62,6 +65,7 @@ export async function runAll(
   // if listTools() throws after connect). Everything else — model + evaluator
   // resolution included — runs inside the try so any failure reaches onRunError.
   let mcpTarget: Awaited<ReturnType<typeof createMcpTarget>> | null = null;
+  const tokenTracker = new TokenTracker();
 
   try {
     const attackModel = resolveModel(config.attackerLlm);
@@ -130,12 +134,18 @@ export async function runAll(
       agentTarget: options?.agentTarget,
       notify,
       signal: options?.signal,
+      tokenTracker,
     });
     evaluatorResults.push(...loop.evaluatorResults);
     const stopReason = loop.stopReason;
 
-    // Build report (partial or complete) with stop reason if applicable.
+    // Build report (partial or complete) with stop reason, token usage, and duration.
     const report = buildReport(config, evaluatorResults);
+    const usage = tokenTracker.totals;
+    if (usage.totalTokens > 0) {
+      report.summary.tokenUsage = usage;
+    }
+    report.summary.durationMs = Date.now() - runStartedAt;
     if (stopReason) {
       (report as UnifiedRunReport & { stopReason?: string }).stopReason = stopReason;
     }
@@ -269,10 +279,12 @@ function applyConfigDependsOn(
   });
 }
 
+/** Create a Vercel AI SDK LanguageModel from an opfor LlmConfig. */
 function resolveModel(cfg: LlmConfig): LanguageModel {
   return createModel(cfg);
 }
 
+/** Fetch and curate telemetry traces (if configured) to ground attacks in real usage. */
 async function curateTracesIfConfigured(
   config: RunConfig,
   model: LanguageModel,
@@ -298,6 +310,17 @@ async function curateTracesIfConfigured(
   }
 }
 
+/**
+ * Label for the "Evaluation Suite" report field. Only a `mode: "suite"` selection
+ * runs a whole named suite verbatim — explicit evaluator lists and preloaded specs
+ * are, by definition, a hand-picked subset, so they're labeled "Custom Suite"
+ * rather than borrowing a suite name that would overstate what actually ran.
+ */
+function suiteLabel(selection: RunConfig["selection"]): string {
+  return selection.mode === "suite" ? selection.suite : "Custom Suite";
+}
+
+/** Assemble a {@link UnifiedRunReport} from Node-side run config and evaluator results. */
 function buildReport(config: RunConfig, evaluators: EvaluatorResult[]): UnifiedRunReport {
   const { attackModel, judgeModel } = modelLabel(config.attackerLlm, config.judgeLlm);
   return buildUnifiedReport(
@@ -306,6 +329,7 @@ function buildReport(config: RunConfig, evaluators: EvaluatorResult[]): UnifiedR
       generatedAt: new Date().toISOString(),
       targetName: config.target.name,
       targetKind: config.target.kind,
+      suiteId: suiteLabel(config.selection),
       effort: config.effort,
       attackModel,
       judgeModel,
