@@ -153,6 +153,8 @@ The CLI loads `.env` from the current working directory automatically. Add `.env
 opfor run --config .opfor/configs/opfor-config-....json --env .env.prod
 ```
 
+> This key is for `opfor run`'s attacker LLM only. `opfor hunt` uses a separate, Claude-only credential — see [hunt.md § Authentication](hunt.md#authentication).
+
 Telemetry credentials (Langfuse, Netra) also come from env vars — see [Trace-aware testing](#trace-aware-testing-agent-only).
 
 > Add `.opfor/` to `.gitignore` — it contains configs and reports with embedded target metadata.
@@ -210,6 +212,24 @@ Partial reports include all completed evaluator results and are marked with `sto
 ```
 ⚠️  Run interrupted — results are partial. Re-run for a complete assessment.
 ```
+
+---
+
+## Token usage tracking
+
+Every LLM call (attacker generation, adaptive follow-ups, judge) is metered. After the run completes, the CLI prints a summary line:
+
+```
+Results: 5 passed, 2 failed, 0 errors
+Safety score: 71%
+Token usage: 51,323 input / 6,057 output (57,380 total)
+```
+
+Token usage is also included in the JSON report (`summary.tokenUsage` and per-evaluator `tokenUsage` fields) and in the HTML report's executive summary card. When using `--events`, the `run_finish` event includes token counts in its `summary` payload.
+
+The browser extension shows a `Tokens` stat on its Done screen.
+
+> Token counts reflect raw model usage (input + output tokens). No cost estimation is performed — provider pricing varies and changes frequently.
 
 ---
 

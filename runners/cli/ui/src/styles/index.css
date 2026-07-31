@@ -1,24 +1,92 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   AGENT OPFOR — live hunt dashboard
+   ───────────────────────────────────────────────────────────────────────────
+   Colour discipline: saturated crimson FILL means "critical" and nothing else.
+   The brand shows up everywhere as crimson *lines* — hairlines, rails, glows,
+   brackets — so a solid crimson chip always reads as a severity, never chrome.
+   The one exception is the setup screen's primary button, which shares no
+   surface with a severity chip.
+
+   Type: Inter + JetBrains Mono, self-hosted latin subsets (~88KB total) so the
+   dashboard renders identically offline on every OS. Sizes come off the --fs-*
+   scale — nudge the scale, not individual rules.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@font-face {
+  font-family: "Inter Variable";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("@fontsource-variable/inter/files/inter-latin-wght-normal.woff2") format("woff2");
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "JetBrains Mono Variable";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 800;
+  src: url("@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2")
+    format("woff2");
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
 :root {
-  --bg: #09090b;
-  --bg-card: #18181b;
-  --bg-hover: #27272a;
-  --bg-selected: #1e3a5f;
-  --border: #27272a;
-  --border-light: #3f3f46;
-  --text: #fafafa;
-  --text-muted: #a1a1aa;
-  --text-dim: #71717a;
-  --accent: #3b82f6;
-  --accent-glow: #3b82f640;
-  --crit: #ef4444;
-  --high: #f97316;
-  --med: #eab308;
-  --low: #22c55e;
-  --prompt: #172554;
-  --response: #14532d;
-  --connector: #3f3f46;
-  --font: "Inter", -apple-system, system-ui, sans-serif;
-  --mono: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+  /* Surfaces — near-black, warmed a few degrees so crimson sits in it */
+  --bg: #08070a;
+  --bg-panel: #0d0c11;
+  --bg-card: #121016;
+  --bg-hover: #1a171f;
+  --bg-active: #1f0d12;
+  --bg-inset: #050408;
+
+  /* Lines */
+  --border: #211e28;
+  --border-light: #2f2b38;
+  --connector: #2f2b38;
+
+  /* Type */
+  --text: #f4f2f5;
+  --text-muted: #a8a3b2;
+  /* Lightened from #746e80 — that value cleared as low as 3.86:1 against
+     --bg-card, below WCAG AA (4.5:1), on genuine small body text like
+     .field-hint and .conv-empty. This clears 5.3:1+ on every surface it's used against. */
+  --text-dim: #8b859a;
+
+  /* Brand — #FF4D4F is the logo red, everything else is derived from it */
+  --brand: #ff4d4f;
+  --brand-hot: #ff6f71;
+  --brand-deep: #c2181b;
+  --brand-glow: rgba(255, 77, 79, 0.4);
+  --brand-line: rgba(255, 77, 79, 0.28);
+  --brand-wash: rgba(255, 77, 79, 0.1);
+
+  /* Severity — critical IS the brand red; the rest step away from it so four
+     findings never read as four shades of the same thing */
+  --crit: #ff4d4f;
+  --high: #ff8a3d;
+  --med: #f5c33b;
+  --low: #3dd68c;
+
+  /* Conversation — attacker is ours (crimson), target is theirs (graphite) */
+  --attacker-bg: #180a0e;
+  --attacker-line: rgba(255, 77, 79, 0.2);
+  --target-bg: #0f1116;
+  --target-line: rgba(255, 255, 255, 0.07);
+
+  /* Type scale — every size in the app resolves to one of these */
+  --fs-2xs: 10.5px;
+  --fs-xs: 11.5px;
+  --fs-sm: 12.5px;
+  --fs-md: 14px;
+  --fs-lg: 15px;
+
+  --font: "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: "JetBrains Mono Variable", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 
 * {
@@ -34,8 +102,13 @@ body,
   background: var(--bg);
   color: var(--text);
   font-family: var(--font);
-  font-size: 14px;
-  line-height: 1.5;
+  font-size: var(--fs-md);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings:
+    "cv05" 1,
+    "ss03" 1;
 }
 
 .app {
@@ -44,54 +117,186 @@ body,
   flex-direction: column;
 }
 
+::selection {
+  background: var(--brand-glow);
+  color: #fff;
+}
+
+/* Live-updating numbers use tabular figures so they don't jitter as they tick */
+.cost,
+.score,
+.thread-turns,
+.turn-num,
+.finding-confidence {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Scrollbars — thin, and they only show colour on hover */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-light) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--border-light);
+  border: 2px solid transparent;
+  background-clip: content-box;
+  border-radius: 5px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--brand-line);
+  background-clip: content-box;
+}
+
+/* Shared: the uppercase mono micro-label used for every section heading */
+.tree-title,
+.findings-header h2,
+.form-section h2 {
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--text-dim);
+}
+
+/* Bracket corner-markers, all four from one element */
+.brackets {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(var(--brand), var(--brand)) 0 0 / 1px 22px no-repeat,
+    linear-gradient(var(--brand), var(--brand)) 0 0 / 22px 1px no-repeat,
+    linear-gradient(var(--brand), var(--brand)) 100% 0 / 1px 22px no-repeat,
+    linear-gradient(var(--brand), var(--brand)) 100% 0 / 22px 1px no-repeat,
+    linear-gradient(var(--brand), var(--brand)) 0 100% / 1px 22px no-repeat,
+    linear-gradient(var(--brand), var(--brand)) 0 100% / 22px 1px no-repeat,
+    linear-gradient(var(--brand), var(--brand)) 100% 100% / 1px 22px no-repeat,
+    linear-gradient(var(--brand), var(--brand)) 100% 100% / 22px 1px no-repeat;
+  opacity: 0.55;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    SETUP PAGE
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .setup-page {
+  position: relative;
   min-height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 40px 20px;
-  background: linear-gradient(135deg, #09090b 0%, #0f172a 100%);
+  padding: 56px 24px;
+  background: var(--bg);
+  overflow: hidden;
+}
+
+/* Crimson bloom behind the form */
+.setup-page::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(60% 45% at 50% 0%, rgba(255, 77, 79, 0.12), transparent 70%),
+    radial-gradient(90% 60% at 50% 120%, rgba(255, 77, 79, 0.06), transparent 70%);
+}
+
+/* Digital rain — vertical hairlines, masked into falling streaks */
+.rain {
+  position: absolute;
+  inset: -60% 0 0 0;
+  height: 220%;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0 26px,
+    var(--brand-wash) 26px 27px,
+    transparent 27px 54px
+  );
+  -webkit-mask-image: repeating-linear-gradient(
+    180deg,
+    transparent 0 70px,
+    #000 105px,
+    transparent 180px
+  );
+  mask-image: repeating-linear-gradient(180deg, transparent 0 70px, #000 105px, transparent 180px);
+  animation: rain-fall 16s linear infinite;
+}
+
+@keyframes rain-fall {
+  to {
+    transform: translateY(180px);
+  }
 }
 
 .setup-container {
+  position: relative;
+  z-index: 1;
   width: 100%;
-  max-width: 640px;
+  max-width: 700px;
 }
 
 .setup-header {
   text-align: center;
-  margin-bottom: 32px;
+  margin-bottom: 40px;
+}
+
+.setup-logo {
+  height: 68px;
+  width: auto;
+  margin-bottom: 22px;
 }
 
 .setup-header h1 {
-  font-size: 28px;
-  font-weight: 300;
-  margin-bottom: 8px;
-}
-
-.brand-text {
+  font-family: var(--mono);
+  font-size: var(--fs-md);
   font-weight: 800;
-  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.26em;
+  color: var(--brand);
+  margin-bottom: 12px;
 }
 
 .setup-header p {
   color: var(--text-muted);
-  font-size: 14px;
+  font-size: var(--fs-lg);
 }
 
 .setup-form {
-  background: var(--bg-card);
+  position: relative;
+  background: linear-gradient(180deg, var(--bg-card) 0%, var(--bg-panel) 100%);
   border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 24px;
+  border-radius: 3px;
+  padding: 34px 30px;
+  box-shadow:
+    0 0 0 1px rgba(255, 77, 79, 0.04),
+    0 24px 64px rgba(0, 0, 0, 0.6);
+}
+
+.loading {
+  font-family: var(--mono);
+  font-size: var(--fs-md);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  text-align: center;
+  padding: 60px 0;
 }
 
 .form-section {
-  margin-bottom: 24px;
+  margin-bottom: 30px;
 }
 
 .form-section:last-of-type {
@@ -99,20 +304,26 @@ body,
 }
 
 .form-section h2 {
-  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-dim);
-  margin-bottom: 12px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--border);
+  color: var(--text-muted);
+}
+
+/* Hairline that runs out from each section heading */
+.form-section h2::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, var(--border-light), transparent);
 }
 
 .form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  gap: 16px;
 }
 
 .form-grid.thirds {
@@ -126,7 +337,8 @@ body,
 .form-field {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 7px;
+  min-width: 0;
 }
 
 .form-field.full {
@@ -134,105 +346,494 @@ body,
 }
 
 .form-field label {
-  font-size: 11px;
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
   font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
   color: var(--text-muted);
+}
+
+/* Required marker — crimson, so a scan down the column finds the must-fills */
+.req {
+  color: var(--brand);
+  font-weight: 700;
+}
+
+/* Optional marker — sits right beside the field name, and drops out of the
+   uppercase mono so it reads as a note about the label, not another label */
+.label-tag {
+  font-family: var(--font);
+  font-size: var(--fs-sm);
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text-dim);
 }
 
 .form-field input,
 .form-field select,
 .form-field textarea {
-  padding: 10px 12px;
-  background: var(--bg);
+  padding: 12px 14px;
+  background: var(--bg-inset);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 2px;
   color: var(--text);
-  font-size: 13px;
+  font-size: var(--fs-lg);
   font-family: inherit;
   transition:
     border-color 0.15s,
-    box-shadow 0.15s;
+    box-shadow 0.15s,
+    background 0.15s;
+}
+
+.form-field input::placeholder,
+.form-field textarea::placeholder {
+  color: var(--text-dim);
+}
+
+.form-field input:hover,
+.form-field select:hover,
+.form-field textarea:hover {
+  border-color: var(--border-light);
 }
 
 .form-field input:focus,
 .form-field select:focus,
 .form-field textarea:focus {
   outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-glow);
+  background: var(--bg);
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px var(--brand-wash);
+}
+
+/* Optional fields recede one notch — same geometry, quieter chrome — so the
+   eye lands on the must-fills first. Full contrast returns on interaction. */
+.form-field.optional input {
+  border-color: #191720;
+}
+
+.form-field.optional input:hover {
+  border-color: var(--border-light);
 }
 
 .form-field textarea {
   resize: vertical;
-  min-height: 80px;
+  min-height: 96px;
+  line-height: 1.65;
 }
 
 .form-field select {
   cursor: pointer;
 }
 
+.form-field select option {
+  background: var(--bg-card);
+  color: var(--text);
+}
+
+/* Env-var resolution badge — green/amber, deliberately not the severity treatment */
+.env-badge {
+  font-family: var(--mono);
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-radius: 2px;
+  padding: 2px 6px;
+}
+
+.env-badge.ok {
+  color: var(--low);
+  background: rgba(61, 214, 140, 0.1);
+  border: 1px solid rgba(61, 214, 140, 0.3);
+}
+
+.env-badge.missing {
+  color: var(--med);
+  background: rgba(245, 195, 59, 0.1);
+  border: 1px solid rgba(245, 195, 59, 0.3);
+}
+
+/* Repeatable header name/value rows */
+.header-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.header-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) 32px;
+  gap: 8px;
+}
+
+.header-row input {
+  font-family: var(--mono);
+  font-size: var(--fs-sm);
+}
+
+.row-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  color: var(--text-dim);
+  font-size: var(--fs-lg);
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
+}
+
+.row-remove:hover {
+  color: var(--brand);
+  border-color: var(--brand-line);
+}
+
+.btn-ghost {
+  align-self: flex-start;
+  padding: 8px 14px;
+  background: transparent;
+  border: 1px dashed var(--border-light);
+  border-radius: 2px;
+  color: var(--text-muted);
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
+}
+
+.btn-ghost:hover {
+  color: var(--brand);
+  border-color: var(--brand-line);
+}
+
 .field-hint {
-  font-size: 10px;
+  font-size: var(--fs-sm);
+  line-height: 1.5;
   color: var(--text-dim);
 }
 
+.field-hint code {
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 1px 5px;
+}
+
+/* Which credential the attacker agents run on. Detected by default; switching to
+   API key / Gateway opens an override applied for this run only — never written
+   to disk — so --ui never forces a trip to a terminal or .env file. */
+.brain-auth-section {
+  margin-bottom: 22px;
+  padding: 14px 16px;
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+}
+
+.brain-auth-section > *:last-child {
+  margin-bottom: 0;
+}
+
+.brain-auth-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.brain-auth-label {
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-dim);
+}
+
+.brain-auth-value {
+  font-family: var(--mono);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.brain-auth-note {
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+  margin-bottom: 12px;
+}
+
+/* Amber, matching form validation — a misconfigured credential is a setup mistake,
+   not a security finding, so it must not borrow the critical-severity treatment. */
+.brain-auth-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  background: rgba(245, 195, 59, 0.08);
+  border: 1px solid rgba(245, 195, 59, 0.3);
+  border-left: 2px solid var(--med);
+  border-radius: 2px;
+  color: #f8dd93;
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+}
+
+.mode-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.mode-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border: 1px solid var(--border-light);
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition:
+    color 0.15s,
+    border-color 0.15s,
+    background 0.15s;
+}
+
+.mode-pill:hover {
+  border-color: var(--brand-line);
+}
+
+.mode-pill:has(input:checked) {
+  background: var(--brand-wash);
+  border-color: var(--brand);
+  color: var(--brand-hot);
+}
+
+.mode-pill input {
+  accent-color: var(--brand);
+  width: 11px;
+  height: 11px;
+  cursor: pointer;
+}
+
+/* Advanced — native <details> so it collapses with no JS. Default-closed keeps the
+   common path short; the power knobs are one click away rather than hidden. */
+.form-advanced {
+  margin-top: 30px;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  background: var(--bg-inset);
+}
+
+.form-advanced > summary {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 14px 16px;
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--text-muted);
+  list-style: none;
+  transition: color 0.15s;
+}
+
+.form-advanced > summary::-webkit-details-marker {
+  display: none;
+}
+
+/* Disclosure caret, rotated when open */
+.form-advanced > summary::before {
+  content: "▸";
+  color: var(--brand);
+  font-size: var(--fs-sm);
+  transition: transform 0.15s;
+}
+
+.form-advanced[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.form-advanced > summary:hover {
+  color: var(--text);
+}
+
+.advanced-hint {
+  font-family: var(--font);
+  font-size: var(--fs-sm);
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text-dim);
+}
+
+.advanced-grid {
+  padding: 4px 16px 18px;
+}
+
+.toggle-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 16px 16px;
+}
+
+.toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 11px 12px;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+
+.toggle:hover {
+  background: var(--bg-hover);
+  border-color: var(--border);
+}
+
+.toggle input {
+  accent-color: var(--brand);
+  width: 15px;
+  height: 15px;
+  margin-top: 2px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.toggle-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.toggle-title {
+  font-size: var(--fs-md);
+  font-weight: 500;
+  color: var(--text);
+}
+
+.toggle-hint {
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+  color: var(--text-dim);
+}
+
+/* Validation — amber, deliberately NOT the critical-severity treatment.
+   A malformed URL is not a security finding. */
 .form-error {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 12px;
-  background: #ef444420;
-  border: 1px solid #ef444440;
-  border-radius: 8px;
-  color: #fca5a5;
-  font-size: 13px;
-  margin-top: 16px;
+  gap: 11px;
+  padding: 13px 15px;
+  background: rgba(245, 195, 59, 0.08);
+  border: 1px solid rgba(245, 195, 59, 0.3);
+  border-left: 2px solid var(--med);
+  border-radius: 2px;
+  color: #f8dd93;
+  font-size: var(--fs-md);
+  margin-top: 22px;
+}
+
+.form-error-icon {
+  font-family: var(--mono);
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  color: var(--med);
 }
 
 .form-actions {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
-  margin-top: 24px;
-  padding-top: 24px;
+  gap: 14px;
+  margin-top: 30px;
+  padding-top: 30px;
   border-top: 1px solid var(--border);
 }
 
 .btn-primary {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 14px 32px;
-  background: var(--accent);
+  justify-content: center;
+  gap: 11px;
+  min-width: 280px;
+  padding: 17px 40px;
+  background: linear-gradient(180deg, var(--brand) 0%, var(--brand-deep) 100%);
   border: none;
-  border-radius: 8px;
+  border-radius: 2px;
   color: #fff;
-  font-size: 14px;
-  font-weight: 600;
+  font-family: var(--mono);
+  font-size: var(--fs-md);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
   cursor: pointer;
+  box-shadow: 0 0 24px rgba(255, 77, 79, 0.22);
   transition:
-    background 0.15s,
-    transform 0.1s;
+    box-shadow 0.15s,
+    transform 0.1s,
+    filter 0.15s;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #2563eb;
+  filter: brightness(1.12);
+  box-shadow: 0 0 34px rgba(255, 77, 79, 0.4);
 }
 
 .btn-primary:active:not(:disabled) {
-  transform: scale(0.98);
+  transform: translateY(1px);
+}
+
+.btn-primary:focus-visible {
+  outline: 2px solid var(--brand-hot);
+  outline-offset: 3px;
 }
 
 .btn-primary:disabled {
-  opacity: 0.6;
+  opacity: 0.55;
+  box-shadow: none;
   cursor: not-allowed;
 }
 
 .spinner {
-  width: 16px;
-  height: 16px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
+  width: 15px;
+  height: 15px;
+  border: 2px solid rgba(255, 255, 255, 0.28);
   border-top-color: #fff;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
@@ -244,94 +845,113 @@ body,
   }
 }
 
-.action-hint {
-  font-size: 12px;
-  color: var(--text-dim);
-}
-
-.action-hint code {
-  font-family: var(--mono);
-  background: var(--bg);
-  padding: 2px 6px;
-  border-radius: 4px;
-}
-
 /* ═══════════════════════════════════════════════════════════════════════════
    HEADER
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .header {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 16px;
-  background: var(--bg-card);
+  padding: 12px 22px;
+  background: var(--bg-panel);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+}
+
+/* Crimson hairline under the header — the brand's only full-width line */
+.header::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    var(--brand) 0%,
+    transparent 45%,
+    transparent 55%,
+    var(--brand) 100%
+  );
+  opacity: 0.5;
 }
 
 .header-left {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 20px;
 }
 
-.brand {
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  color: var(--accent);
+/* The full AGENT ✕ OPFOR lockup is a 4.4:1 hero mark — below ~40px its
+   letterforms drop under their legibility floor and it reads as weak rather
+   than small. Sized so the type carries; the header is built around it. */
+.header-logo {
+  height: 44px;
+  width: auto;
+  display: block;
 }
 
 .status {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 10px;
+  gap: 9px;
+  font-family: var(--mono);
+  font-size: var(--fs-sm);
   font-weight: 500;
-  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  padding-left: 20px;
+  border-left: 1px solid var(--border);
 }
 
 .status.running {
-  color: var(--low);
+  color: var(--brand);
 }
+
 .status.done {
   color: var(--text-dim);
 }
 
 .dot {
-  width: 5px;
-  height: 5px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: var(--text-dim);
+  flex-shrink: 0;
 }
 
+/* Live = crimson pulse. Green is reserved for low-severity/high-score. */
 .dot.live {
-  background: var(--low);
-  box-shadow: 0 0 6px var(--low);
-  animation: pulse 2s infinite;
+  background: var(--brand);
+  box-shadow: 0 0 9px var(--brand);
+  animation: pulse 1.8s ease-in-out infinite;
 }
 
 @keyframes pulse {
   0%,
   100% {
     opacity: 1;
+    transform: scale(1);
   }
   50% {
-    opacity: 0.4;
+    opacity: 0.35;
+    transform: scale(0.82);
   }
 }
 
 .demo-tag {
-  font-size: 9px;
+  font-family: var(--mono);
+  font-size: var(--fs-2xs);
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.12em;
   color: var(--med);
-  background: #eab30815;
-  border: 1px solid #eab30830;
-  border-radius: 3px;
-  padding: 2px 6px;
+  background: rgba(245, 195, 59, 0.1);
+  border: 1px solid rgba(245, 195, 59, 0.28);
+  border-radius: 2px;
+  padding: 3px 7px;
 }
 
 .header-center {
@@ -341,9 +961,11 @@ body,
 }
 
 .target {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text);
+  font-family: var(--mono);
+  font-size: var(--fs-md);
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
 }
 
 .header-right {
@@ -353,22 +975,24 @@ body,
 
 .cost {
   font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 500;
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  color: var(--text);
 }
 
 .budget {
   color: var(--text-dim);
+  font-weight: 400;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   LAYOUT — Narrow sidebar, wide chat
+   LAYOUT
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .layout {
   flex: 1;
   display: grid;
-  grid-template-columns: 200px 1fr 260px;
+  grid-template-columns: 236px 1fr 306px;
   min-height: 0;
 }
 
@@ -377,7 +1001,7 @@ body,
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  background: var(--bg);
+  background: var(--bg-panel);
 }
 
 .main-panel {
@@ -392,10 +1016,11 @@ body,
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  background: var(--bg-panel);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   THREAD TREE — Simple list sidebar
+   THREAD TREE
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .thread-tree {
@@ -408,61 +1033,65 @@ body,
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 12px;
+  padding: 13px 14px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
-}
-
-.tree-title {
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-dim);
 }
 
 .tree-header-right {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 9px;
 }
 
 .tree-badges {
   display: flex;
-  gap: 3px;
+  gap: 4px;
 }
 
+/* Count badges are outlined, not filled — a filled crimson pill would read as
+   a critical chip. Only the severity chip itself gets the solid fill. */
 .badge {
-  font-size: 9px;
+  font-family: var(--mono);
+  font-size: var(--fs-2xs);
   font-weight: 700;
-  min-width: 16px;
-  height: 16px;
+  min-width: 20px;
+  height: 19px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
-  color: #fff;
+  padding: 0 5px;
+  border-radius: 2px;
 }
 
 .badge.crit {
-  background: var(--crit);
+  color: var(--crit);
+  background: var(--brand-wash);
+  border: 1px solid var(--brand-line);
 }
+
 .badge.high {
-  background: var(--high);
+  color: var(--high);
+  background: rgba(255, 138, 61, 0.1);
+  border: 1px solid rgba(255, 138, 61, 0.3);
 }
+
 .badge.med {
-  background: var(--med);
-  color: #000;
+  color: var(--med);
+  background: rgba(245, 195, 59, 0.1);
+  border: 1px solid rgba(245, 195, 59, 0.3);
 }
 
 .follow-toggle {
+  display: flex;
   cursor: pointer;
 }
 
 .follow-toggle input {
-  accent-color: var(--accent);
-  width: 13px;
-  height: 13px;
+  accent-color: var(--brand);
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
 }
 
 .thread-list {
@@ -474,14 +1103,14 @@ body,
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 80px;
+  height: 88px;
 }
 
 .empty-spinner {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   border: 2px solid var(--border-light);
-  border-top-color: var(--accent);
+  border-top-color: var(--brand);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -489,22 +1118,37 @@ body,
 .section-divider {
   height: 1px;
   background: var(--border);
-  margin: 4px 12px;
+  margin: 6px 14px;
 }
 
 .thread-item {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   width: 100%;
-  padding: 8px 12px;
+  padding: 10px 14px;
   background: none;
   border: none;
   border-bottom: 1px solid var(--border);
   color: inherit;
   cursor: pointer;
   text-align: left;
-  transition: background 0.1s;
+  transition:
+    background 0.1s,
+    color 0.1s;
+}
+
+/* Severity rail lives in a pseudo-element so selection and severity can both
+   show at once instead of overwriting one border-left */
+.thread-item::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: transparent;
 }
 
 .thread-item:hover {
@@ -512,47 +1156,57 @@ body,
 }
 
 .thread-item.selected {
-  background: var(--bg-selected);
-  border-left: 2px solid var(--accent);
+  background: var(--bg-active);
 }
 
-.thread-item.has-finding {
-  border-left: 2px solid transparent;
+.thread-item.selected .thread-name {
+  color: var(--brand-hot);
 }
 
-.thread-item.has-finding.sev-critical {
-  border-left-color: var(--crit);
+.thread-item.selected::before {
+  background: var(--brand);
+  box-shadow: 0 0 10px var(--brand-glow);
 }
-.thread-item.has-finding.sev-high {
-  border-left-color: var(--high);
+
+.thread-item.has-finding.sev-critical::before {
+  background: var(--crit);
 }
-.thread-item.has-finding.sev-medium {
-  border-left-color: var(--med);
+.thread-item.has-finding.sev-high::before {
+  background: var(--high);
 }
-.thread-item.has-finding.sev-low {
-  border-left-color: var(--low);
+.thread-item.has-finding.sev-medium::before {
+  background: var(--med);
+}
+.thread-item.has-finding.sev-low::before {
+  background: var(--low);
+}
+
+.thread-item:focus-visible {
+  outline: 1px solid var(--brand);
+  outline-offset: -1px;
 }
 
 .tree-indent {
   color: var(--text-dim);
-  font-size: 10px;
-  margin-right: 2px;
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  margin-right: 1px;
 }
 
 .sev-dot {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   flex-shrink: 0;
 }
 
 .sev-dot.sev-critical {
   background: var(--crit);
-  box-shadow: 0 0 6px var(--crit);
+  box-shadow: 0 0 7px var(--crit);
 }
 .sev-dot.sev-high {
   background: var(--high);
-  box-shadow: 0 0 6px var(--high);
+  box-shadow: 0 0 7px rgba(255, 138, 61, 0.7);
 }
 .sev-dot.sev-medium {
   background: var(--med);
@@ -564,7 +1218,7 @@ body,
 .thread-name {
   flex: 1;
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--fs-sm);
   font-weight: 500;
   color: var(--text);
   white-space: nowrap;
@@ -574,7 +1228,7 @@ body,
 
 .thread-turns {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: var(--fs-xs);
   color: var(--text-dim);
 }
 
@@ -593,20 +1247,25 @@ body,
   align-items: center;
   justify-content: center;
   color: var(--text-dim);
+  font-size: var(--fs-md);
 }
 
 .empty-icon {
-  font-size: 24px;
-  margin-bottom: 8px;
-  opacity: 0.4;
+  font-family: var(--mono);
+  font-size: 30px;
+  font-weight: 300;
+  letter-spacing: 0.06em;
+  color: var(--border-light);
+  margin-bottom: 14px;
 }
 
 .conv-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 16px;
-  background: var(--bg-card);
+  gap: 12px;
+  padding: 13px 20px;
+  background: var(--bg-panel);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
@@ -614,55 +1273,67 @@ body,
 .conv-title {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 11px;
+  min-width: 0;
 }
 
 .conv-name {
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-lg);
   font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .conv-type {
-  font-size: 10px;
-  color: var(--text-dim);
-  background: var(--bg);
-  border-radius: 4px;
-  padding: 2px 6px;
+  font-family: var(--mono);
+  font-size: var(--fs-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 4px 8px;
+  white-space: nowrap;
 }
 
 .conv-findings-badge {
-  font-size: 10px;
-  font-weight: 600;
+  font-family: var(--mono);
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
   color: var(--crit);
-  background: #ef444415;
-  border: 1px solid #ef444430;
-  border-radius: 4px;
-  padding: 3px 8px;
+  background: var(--brand-wash);
+  border: 1px solid var(--brand-line);
+  border-radius: 2px;
+  padding: 4px 9px;
+  white-space: nowrap;
 }
 
 .conv-scroll {
   flex: 1;
   overflow-y: auto;
-  padding: 16px;
+  padding: 22px 20px;
 }
 
 .conv-empty {
-  padding: 32px;
+  padding: 44px;
   text-align: center;
   color: var(--text-dim);
-  font-size: 12px;
+  font-family: var(--mono);
+  font-size: var(--fs-sm);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
 .turn {
   display: flex;
-  gap: 12px;
-  margin-bottom: 20px;
-}
-
-.turn.breach .turn-marker .turn-num {
-  border-color: var(--crit);
-  color: var(--crit);
+  gap: 16px;
+  margin-bottom: 22px;
 }
 
 .turn-marker {
@@ -670,89 +1341,107 @@ body,
   flex-direction: column;
   align-items: center;
   flex-shrink: 0;
+  width: 30px;
 }
 
 .turn-num {
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
+  font-family: var(--mono);
+  font-size: var(--fs-sm);
   font-weight: 700;
   color: var(--text-dim);
-  border: 2px solid var(--border-light);
-  border-radius: 50%;
-  background: var(--bg);
+  border: 1px solid var(--border-light);
+  border-radius: 2px;
+  background: var(--bg-inset);
 }
 
-.breach-dot {
-  display: none;
-  width: 6px;
-  height: 6px;
-  margin-top: 6px;
-  background: var(--crit);
-  border-radius: 50%;
-  box-shadow: 0 0 6px var(--crit);
+/* Vertical connector between turns. Fades out rather than stopping dead, so
+   the last turn in the list doesn't look like a severed line. */
+.turn-marker::after {
+  content: "";
+  flex: 1;
+  width: 1px;
+  margin-top: 7px;
+  background: linear-gradient(180deg, var(--connector) 0%, var(--connector) 65%, transparent 100%);
 }
 
-.turn.breach .breach-dot {
-  display: block;
+.turn.breach .turn-num {
+  border-color: var(--crit);
+  color: var(--crit);
+  box-shadow: 0 0 12px rgba(255, 77, 79, 0.28);
 }
 
 .turn-content {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 11px;
   min-width: 0;
 }
 
 .msg {
-  border-radius: 10px;
+  border-radius: 2px;
   overflow: hidden;
   border: 1px solid transparent;
 }
 
 .msg.prompt {
-  background: var(--prompt);
-  border-color: #1e3a5f50;
+  background: var(--attacker-bg);
+  border-color: var(--attacker-line);
 }
 
 .msg.response {
-  background: var(--response);
-  border-color: #14532d50;
+  background: var(--target-bg);
+  border-color: var(--target-line);
+}
+
+/* Breached turns get a crimson outline on the target's reply — that's the row
+   the finding actually came from */
+.turn.breach .msg.response {
+  border-color: var(--brand-line);
+  box-shadow: inset 2px 0 0 var(--crit);
 }
 
 .msg-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
-  background: rgba(0, 0, 0, 0.25);
+  gap: 9px;
+  padding: 9px 14px;
+  background: rgba(0, 0, 0, 0.3);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
 }
 
 .msg-role {
-  font-size: 9px;
+  font-family: var(--mono);
+  font-size: var(--fs-2xs);
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.14em;
   color: rgba(255, 255, 255, 0.55);
 }
 
+.msg.prompt .msg-role {
+  color: var(--brand-hot);
+}
+
 .msg-meta {
-  font-size: 9px;
-  color: rgba(255, 255, 255, 0.3);
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 3px;
-  padding: 1px 5px;
+  font-family: var(--mono);
+  font-size: var(--fs-2xs);
+  color: rgba(255, 255, 255, 0.45);
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 2px;
+  padding: 3px 7px;
 }
 
 .score {
   margin-left: auto;
   font-family: var(--mono);
-  font-size: 9px;
-  font-weight: 600;
+  font-size: var(--fs-xs);
+  font-weight: 700;
   color: var(--low);
 }
 
@@ -761,11 +1450,15 @@ body,
 }
 
 .msg-text {
-  padding: 12px;
-  font-size: 12px;
-  line-height: 1.6;
+  padding: 14px;
+  font-size: var(--fs-lg);
+  line-height: 1.7;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.msg.prompt .msg-text {
+  color: #f2e2e2;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -776,38 +1469,33 @@ body,
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--bg);
+  background: var(--bg-panel);
 }
 
 .findings-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 14px;
+  padding: 13px 16px;
   border-bottom: 1px solid var(--border);
-}
-
-.findings-header h2 {
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-dim);
+  flex-shrink: 0;
 }
 
 .findings-count {
-  font-size: 10px;
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
   font-weight: 700;
   color: var(--crit);
-  background: #ef444420;
-  border-radius: 999px;
-  padding: 2px 8px;
+  background: var(--brand-wash);
+  border: 1px solid var(--brand-line);
+  border-radius: 2px;
+  padding: 3px 9px;
 }
 
 .findings-list {
   flex: 1;
   overflow-y: auto;
-  padding: 8px;
+  padding: 9px;
 }
 
 .findings-empty {
@@ -822,22 +1510,38 @@ body,
 }
 
 .findings-empty p {
-  font-size: 11px;
-  margin-top: 6px;
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  line-height: 1.6;
 }
 
 .finding {
+  position: relative;
   display: block;
   width: 100%;
   text-align: left;
-  padding: 10px;
-  margin-bottom: 6px;
+  padding: 13px 13px 13px 15px;
+  margin-bottom: 7px;
   background: var(--bg-card);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 2px;
   color: inherit;
   cursor: pointer;
-  transition: all 0.15s;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+
+.finding::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--border-light);
 }
 
 .finding:hover {
@@ -846,68 +1550,79 @@ body,
 }
 
 .finding.selected {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
+  background: var(--bg-active);
+  border-color: var(--brand-line);
+}
+
+.finding:focus-visible {
+  outline: 1px solid var(--brand);
+  outline-offset: 1px;
 }
 
 .finding-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 6px;
+  margin-bottom: 9px;
 }
 
+/* The severity chip — the only solid saturated fill in the whole dashboard */
 .sev {
-  font-size: 8px;
-  font-weight: 700;
+  font-family: var(--mono);
+  font-size: var(--fs-2xs);
+  font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #fff;
-  border-radius: 3px;
-  padding: 2px 5px;
+  letter-spacing: 0.12em;
+  border-radius: 2px;
+  padding: 3px 7px;
 }
 
 .sev.sev-critical {
   background: var(--crit);
+  color: #1a0003;
 }
 .sev.sev-high {
   background: var(--high);
+  color: #1f0d00;
 }
 .sev.sev-medium {
   background: var(--med);
-  color: #000;
+  color: #1c1500;
 }
 .sev.sev-low {
   background: var(--low);
+  color: #00160c;
 }
 
 .finding-confidence {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: var(--fs-xs);
   color: var(--text-dim);
 }
 
 .finding-name {
-  font-size: 11px;
+  font-size: var(--fs-md);
   font-weight: 600;
-  margin-bottom: 2px;
-  line-height: 1.3;
+  margin-bottom: 4px;
+  line-height: 1.4;
 }
 
 .finding-type {
-  font-size: 9px;
+  font-family: var(--mono);
+  font-size: var(--fs-2xs);
   color: var(--text-dim);
-  margin-bottom: 6px;
+  margin-bottom: 9px;
 }
 
 .finding-evidence {
   font-family: var(--mono);
-  font-size: 9px;
+  font-size: var(--fs-2xs);
+  line-height: 1.5;
   color: var(--text-muted);
-  background: var(--bg);
-  border-left: 2px solid var(--med);
-  border-radius: 0 4px 4px 0;
-  padding: 5px 8px;
+  background: var(--bg-inset);
+  border-left: 2px solid var(--border-light);
+  border-radius: 0 2px 2px 0;
+  padding: 7px 9px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -917,30 +1632,40 @@ body,
    RESPONSIVE
    ═══════════════════════════════════════════════════════════════════════════ */
 
-@media (max-width: 1200px) {
+@media (max-width: 1400px) {
   .layout {
-    grid-template-columns: 1fr 1fr 240px;
+    grid-template-columns: 220px 1fr 280px;
+  }
+}
+
+@media (max-width: 1100px) {
+  .layout {
+    grid-template-columns: 200px 1fr 250px;
   }
 
-  .tree-card {
-    width: 180px;
+  .header-logo {
+    height: 34px;
   }
 }
 
 @media (max-width: 900px) {
   .layout {
     grid-template-columns: 1fr;
-    grid-template-rows: 280px 1fr auto;
+    grid-template-rows: 240px 1fr 220px;
   }
 
-  .panel-left,
-  .panel-center {
+  .header-logo {
+    height: 28px;
+  }
+
+  .sidebar {
     border-right: none;
     border-bottom: 1px solid var(--border);
   }
 
-  .panel-right {
-    max-height: 200px;
+  .findings-sidebar {
+    border-left: none;
+    border-top: 1px solid var(--border);
   }
 
   .header-center {
@@ -952,7 +1677,27 @@ body,
     grid-template-columns: 1fr 1fr;
   }
 
-  .tree-card {
-    width: 160px;
+  .setup-form {
+    padding: 24px 20px;
+  }
+
+  .setup-logo {
+    height: 52px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rain {
+    animation: none;
+  }
+
+  .dot.live {
+    animation: none;
+  }
+
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
   }
 }

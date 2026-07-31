@@ -10,6 +10,7 @@ import { formatUpstreamSessions } from "../lib/summarizeSessionContext.js";
 import { log } from "../lib/logger.js";
 import { JUDGE_AGENT_SYSTEM } from "../prompts/judge-agent.js";
 import { withRetry, isStopError } from "../lib/llmRetry.js";
+import type { TokenTracker } from "../execute/tokenTracker.js";
 import { errorJudge, type JudgeResult, type Verdict } from "../lib/judgeTypes.js";
 import { verdictParser } from "./verdictParser.js";
 
@@ -118,7 +119,8 @@ export async function judgeResponse(
   observability?: JudgeObservabilityContext,
   conversationHistory?: ConversationTurn[],
   attackContext?: AttackContext,
-  upstreamSessions?: SessionContext[]
+  upstreamSessions?: SessionContext[],
+  tokenTracker?: TokenTracker
 ): Promise<JudgeResult> {
   const obsLines: string[] = [];
   if (observability?.propagatedTraceId?.trim()) {
@@ -204,7 +206,7 @@ export async function judgeResponse(
   try {
     const result = await withRetry(
       () => generateText({ model, system: JUDGE_SYSTEM, prompt: judgePrompt }),
-      { context: "Judge", maxRetries: 3 }
+      { context: "Judge", maxRetries: 3, tokenTracker }
     );
     return parseJudgeOutput(result.text);
   } catch (err) {

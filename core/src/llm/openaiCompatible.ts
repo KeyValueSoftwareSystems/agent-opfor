@@ -1,7 +1,10 @@
 import type { LlmConfig } from "../config/schema.js";
 import { PROVIDERS } from "../config/types.js";
 import { getEnv } from "../lib/env.js";
+import type { TokenTracker } from "../execute/tokenTracker.js";
+import { parseUsage } from "../execute/tokenTracker.js";
 
+/** Resolve the API key from the environment variable named in `model.apiKeyEnv`. */
 function resolveApiKey(model: LlmConfig): string | undefined {
   if (model.apiKeyEnv) {
     const v = getEnv(model.apiKeyEnv);
@@ -10,6 +13,7 @@ function resolveApiKey(model: LlmConfig): string | undefined {
   return undefined;
 }
 
+/** Build the `/chat/completions` URL for the given provider. */
 function chatCompletionsUrl(model: LlmConfig): string {
   if (model.provider === PROVIDERS.OPENAI_COMPATIBLE) {
     if (!model.baseURL)
@@ -62,11 +66,18 @@ async function drainBody(res: Response): Promise<void> {
   }
 }
 
+/**
+ * Send a chat completion request via raw fetch to an OpenAI-compatible endpoint
+ * and return the assistant message content. Automatically retries with relaxed
+ * parameters when the provider rejects JSON mode or temperature. Records token
+ * usage on the supplied {@link TokenTracker} when present.
+ */
 export async function chatCompletionJsonContent(args: {
   model: LlmConfig;
   system: string;
   user: string;
   isAcceptableJson?: (json: string) => boolean;
+  tokenTracker?: TokenTracker;
 }): Promise<string> {
   const apiKey = resolveApiKey(args.model);
   if (!apiKey) {
@@ -152,7 +163,16 @@ export async function chatCompletionJsonContent(args: {
     }
     const data = (await response.json()) as {
       choices?: Array<{ message?: { content?: string } }>;
+      usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
     };
+    if (args.tokenTracker && data.usage) {
+      const validated = parseUsage({
+        inputTokens: data.usage.prompt_tokens ?? 0,
+        outputTokens: data.usage.completion_tokens ?? 0,
+        totalTokens: data.usage.total_tokens ?? 0,
+      });
+      if (validated) args.tokenTracker.record(validated);
+    }
     const content = data.choices?.[0]?.message?.content;
     if (typeof content !== "string" || !content.trim()) {
       throw new Error("LLM returned empty content");
