@@ -150,12 +150,32 @@ Credentials are resolved in order:
 
 Options 2 and 3 require the [Claude Code CLI](https://docs.claude.com/claude-code) (`npm install -g @anthropic-ai/claude-code`).
 
-**Gateway / self-hosted proxy** — set both together (a token without a base URL is ignored):
+Note this is Claude-only, and independent of the provider key `opfor run` uses for its attacker LLM. Your target can still be any model or agent.
+
+**Gateway / self-hosted proxy** — set both together:
 
 ```bash
 ANTHROPIC_BASE_URL=https://your-gateway.example.com
 ANTHROPIC_AUTH_TOKEN=...
 ```
+
+> `ANTHROPIC_AUTH_TOKEN` on its own is **ignored**. A bare token is indistinguishable from one inherited from a parent Claude Code session, so it is stripped before the agents start — and the run silently falls through to the next credential in the list, which may mean billing your personal subscription instead of the gateway. `opfor hunt` warns about this at startup and on the `--ui` setup form.
+
+The credential actually in use is printed at startup (`Authenticating via: …`) and shown on the `--ui` setup form.
+
+**Skipping `.env` entirely** — the `--ui` setup form can also take an API key or gateway pair directly, if nothing is detected in the environment (or you'd rather not touch one at all). It's applied for that run only and never written to disk.
+
+### Pinning model snapshots
+
+`--model`, `--operator-model`, and `--scout-model` take the aliases `haiku` / `sonnet` / `opus`. To pin those aliases to specific snapshots — for a gateway that only exposes certain ids, or to freeze behaviour across runs — set:
+
+```bash
+ANTHROPIC_DEFAULT_HAIKU_MODEL=claude-haiku-4-5-20251001
+ANTHROPIC_DEFAULT_SONNET_MODEL=claude-sonnet-4-6
+ANTHROPIC_DEFAULT_OPUS_MODEL=claude-opus-4-8
+```
+
+Unset, each alias falls back to a built-in default. Full model ids can also be passed directly to the `--*-model` flags, bypassing aliases entirely.
 
 ## Vulnerability Classes
 

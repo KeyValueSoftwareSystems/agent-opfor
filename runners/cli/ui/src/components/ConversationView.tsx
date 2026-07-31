@@ -21,7 +21,6 @@ function TurnCard({
     <div className={`turn ${isFail ? "breach" : ""}`}>
       <div className="turn-marker">
         <span className="turn-num">{turnNumber}</span>
-        {isFail && <span className="breach-dot" />}
       </div>
       <div className="turn-content">
         <div className="msg prompt">
@@ -63,7 +62,9 @@ export function ConversationView({ thread, findings }: Props) {
   if (!thread) {
     return (
       <div className="conversation empty-state">
-        <div className="empty-icon">💬</div>
+        <div className="empty-icon" aria-hidden="true">
+          &lt;/&gt;
+        </div>
         <p>Select a thread to view the conversation</p>
       </div>
     );
