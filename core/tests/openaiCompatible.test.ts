@@ -51,3 +51,35 @@ test("retries an unacceptable JSON-mode response without response_format", async
     else process.env.OPFOR_TEST_API_KEY = originalApiKey;
   }
 });
+
+test("rejects malformed provider responses with an actionable error", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalApiKey = process.env.OPFOR_TEST_API_KEY;
+
+  process.env.OPFOR_TEST_API_KEY = "test-key";
+  globalThis.fetch = (async () =>
+    new Response(JSON.stringify({ choices: [] }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    })) as typeof fetch;
+
+  try {
+    await assert.rejects(
+      chatCompletionJsonContent({
+        model: {
+          provider: PROVIDERS.OPENAI_COMPATIBLE,
+          model: "test-model",
+          baseURL: "https://example.test/v1",
+          apiKeyEnv: "OPFOR_TEST_API_KEY",
+        },
+        system: "Return JSON.",
+        user: "Return JSON.",
+      }),
+      /invalid chat completion response.*Configure the provider/
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalApiKey === undefined) delete process.env.OPFOR_TEST_API_KEY;
+    else process.env.OPFOR_TEST_API_KEY = originalApiKey;
+  }
+});

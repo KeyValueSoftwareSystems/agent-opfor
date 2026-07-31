@@ -3,6 +3,26 @@ import { PROVIDERS } from "../config/types.js";
 import { getEnv } from "../lib/env.js";
 import type { TokenTracker } from "../execute/tokenTracker.js";
 import { parseUsage } from "../execute/tokenTracker.js";
+import { z } from "zod";
+
+const chatCompletionResponseSchema = z.object({
+  choices: z
+    .array(
+      z.object({
+        message: z.object({
+          content: z.string(),
+        }),
+      })
+    )
+    .min(1),
+  usage: z
+    .object({
+      prompt_tokens: z.number().optional(),
+      completion_tokens: z.number().optional(),
+      total_tokens: z.number().optional(),
+    })
+    .optional(),
+});
 
 /** Resolve the API key from the environment variable named in `model.apiKeyEnv`. */
 function resolveApiKey(model: LlmConfig): string | undefined {
@@ -161,10 +181,16 @@ export async function chatCompletionJsonContent(args: {
       const text = await response.text().catch(() => "");
       throw new Error(`LLM HTTP ${response.status}: ${text.slice(0, 500)}`);
     }
-    const data = (await response.json()) as {
-      choices?: Array<{ message?: { content?: string } }>;
-      usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
-    };
+    const parsed = chatCompletionResponseSchema.safeParse((await response.json()) as unknown);
+    if (!parsed.success) {
+      const details = parsed.error.issues
+        .map((issue) => `${issue.path.join(".") || "response"}: ${issue.message}`)
+        .join("; ");
+      throw new Error(
+        `LLM provider returned an invalid chat completion response (${details}). Configure the provider to return OpenAI-compatible choices with non-empty message content.`
+      );
+    }
+    const data = parsed.data;
     if (args.tokenTracker && data.usage) {
       const validated = parseUsage({
         inputTokens: data.usage.prompt_tokens ?? 0,
@@ -175,7 +201,9 @@ export async function chatCompletionJsonContent(args: {
     }
     const content = data.choices?.[0]?.message?.content;
     if (typeof content !== "string" || !content.trim()) {
-      throw new Error("LLM returned empty content");
+      throw new Error(
+        "LLM returned empty content. Configure the provider or prompt to return a non-empty JSON completion."
+      );
     }
     return extractJson(content);
   };
