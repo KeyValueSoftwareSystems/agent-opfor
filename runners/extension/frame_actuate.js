@@ -430,17 +430,42 @@ async function submitWithRetries({ inputEl, desiredMethod, buttonEl, originalTex
     };
   }
 
-  return { ok: false, attempts };
+  const inputTag = inputEl.tagName?.toLowerCase() || "?";
+  const inputVisible = isVisible(inputEl);
+  const inputText = getInputText(inputEl);
+  const textStillPresent = inputText.trim().length > 0;
+  const sendBtn = findGlobalSendButton();
+  const sendBtnDisabled = sendBtn ? isDisabledButton(sendBtn) : null;
+
+  return {
+    ok: false,
+    error: "submit_not_accepted",
+    detail: [
+      `input <${inputTag}> visible=${inputVisible}`,
+      `text_still_in_input=${textStillPresent} (${inputText.length} chars)`,
+      sendBtn
+        ? `send_button found=${selectorFromEl(sendBtn)} disabled=${sendBtnDisabled}`
+        : "send_button not_found",
+      `attempts=${attempts.length} (${attempts.map((a) => a.action).join(", ")})`,
+    ].join("; "),
+    attempts,
+  };
 }
 
 (() => {
   try {
     const plan = globalThis.__OPFOR_PLAN__;
-    if (!plan?.inputSelector) return { ok: false, error: "Missing plan.inputSelector" };
+    if (!plan?.inputSelector)
+      return { ok: false, error: "missing_plan", detail: "No plan.inputSelector provided" };
     // Never pass deep-selector syntax into querySelector (it will throw). Use deep resolver first.
     const input =
       resolveDeepSelector(plan.inputSelector) || safeQuerySelector(document, plan.inputSelector);
-    if (!input) return { ok: false, error: "inputSelector did not match" };
+    if (!input)
+      return {
+        ok: false,
+        error: "selector_not_found",
+        detail: `inputSelector "${plan.inputSelector}" matched no element — the widget may have closed or the page re-rendered`,
+      };
 
     const injectedText = String(plan.text ?? "hi");
     const setResult = setInputValue(input, injectedText);

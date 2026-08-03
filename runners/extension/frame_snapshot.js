@@ -95,7 +95,7 @@
 
   // ── Text collector (shared by both fast and full paths) ──────────────────────
   function collectText(node, depth, out) {
-    if (!node || depth > 15) return;
+    if (!node || depth > 25) return;
     if (node.nodeType === 1) {
       try {
         const st = window.getComputedStyle(node);

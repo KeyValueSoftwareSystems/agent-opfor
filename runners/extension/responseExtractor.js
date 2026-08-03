@@ -1,5 +1,6 @@
 import { sleep } from "./utils.js";
 import { state } from "./state.js";
+import { dbg } from "./debugLog.js";
 
 // ── Timestamp normalization ───────────────────────────────────────────────────
 // Many widgets prepend a changing timestamp to each message element's
@@ -47,17 +48,33 @@ function diffTextNodes(pre, post) {
 // ── Scan all frames, return the best container snapshot ───────────────────────
 
 async function scanBestFrame(tabId) {
-  const results = await chrome.scripting.executeScript({
-    target: { tabId, allFrames: true },
-    files: ["frame_snapshot.js"],
-  });
+  let results;
+  try {
+    results = await Promise.race([
+      chrome.scripting.executeScript({
+        target: { tabId, allFrames: true },
+        files: ["frame_snapshot.js"],
+      }),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("scanBestFrame timed out")), 15_000)
+      ),
+    ]);
+  } catch {
+    try {
+      results = await chrome.scripting.executeScript({
+        target: { tabId, frameIds: [0] },
+        files: ["frame_snapshot.js"],
+      });
+    } catch {
+      return null;
+    }
+  }
 
-  const hits = results
+  const hits = (results || [])
     .filter((r) => r.result?.ok)
     .map((r) => ({ frameId: r.frameId, ...r.result }))
     .sort((a, b) => b.score - a.score);
 
-  // Chat containers almost always live in iframes — prefer them over main frame
   const iframeHits = hits.filter((h) => h.frameId !== 0);
   return iframeHits.length > 0 ? iframeHits[0] : hits[0] || null;
 }
@@ -130,11 +147,18 @@ function hasFrameIdSafe(frameId) {
  * Falls back gracefully if prevSnapshot is a plain string or missing textNodes.
  */
 export async function extractResponse(tabId, frameId, lastUserText = "", prevSnapshot = "") {
-  const POLL_FAST = 350; // ms between polls while waiting / stabilising
-  const POLL_SLOW = 600; // ms while waiting for the first change
-  const GROWTH_COOLDOWN = 3000; // ms of no-growth required before accepting stable
+  const POLL_FAST = 350;
+  const POLL_SLOW = 600;
+  const GROWTH_COOLDOWN = 3000;
   const BASE_MAX_POLLS = 60;
   const GROWTH_MAX_WAIT = 180_000;
+
+  dbg("extract", "extractResponse started", {
+    frameId,
+    lastUserTextLen: lastUserText?.length,
+    prevSnapshotType: typeof prevSnapshot === "object" ? "object" : "string",
+    prevNodeCount: typeof prevSnapshot === "object" ? prevSnapshot?.nodeCount : undefined,
+  });
 
   // Normalise prevSnapshot — accept both old string format and new object format
   const prev =
@@ -248,6 +272,7 @@ export async function extractResponse(tabId, frameId, lastUserText = "", prevSna
       if (textGrowthStreak >= 2 && !sawTextGrowth) {
         sawTextGrowth = true;
         growthStartedAt = Date.now();
+        dbg("extract", "Streaming detected (text growing across polls)", { poll, curTextLen });
       }
       if (sawTextGrowth && poll >= maxPolls - 5) {
         const elapsed = Date.now() - growthStartedAt;
@@ -301,6 +326,13 @@ export async function extractResponse(tabId, frameId, lastUserText = "", prevSna
       );
 
       if (botLines.length > 0) {
+        dbg("extract", "Response extracted successfully", {
+          poll,
+          botLineCount: botLines.length,
+          textLen: botLines.join("\n").length,
+          textPreview: botLines.join("\n").slice(0, 200),
+          streaming: sawTextGrowth,
+        });
         return {
           ok: true,
           text: botLines.join("\n"),
@@ -326,8 +358,11 @@ export async function extractResponse(tabId, frameId, lastUserText = "", prevSna
     await sleep(sawTextGrowth ? POLL_FAST : POLL_SLOW);
   }
 
-  // Timeout — return whatever diff we have (without echo-filtering so we don't
-  // silently drop content when lastUserText wasn't available or didn't match)
+  dbg("extract", "Polling exhausted — checking for partial result", {
+    maxPolls,
+    sawTextGrowth,
+    hasBestSnap: !!bestSnap,
+  });
   if (bestSnap) {
     const { text } = diffTextNodes(baseTextNodes, bestSnap.textNodes);
     if (text.trim()) {
@@ -340,5 +375,6 @@ export async function extractResponse(tabId, frameId, lastUserText = "", prevSna
       };
     }
   }
+  dbg("extract", "TIMEOUT — no response extracted");
   return { ok: false, error: "Timeout waiting for response", text: "" };
 }

@@ -29,6 +29,7 @@ import { actClickSelector, actVerifyInputVisible } from "./domActions.js";
 import { extractResponse } from "./responseExtractor.js";
 import { aiPickInputInFrame, llmShortenMessage } from "./llmUiActions.js";
 import { resolveAgentBusinessContext, mergeBusinessContext } from "./agentContext.js";
+import { dbg } from "./debugLog.js";
 
 export async function sleepInterruptible(ms) {
   const step = 250;
@@ -276,6 +277,12 @@ export async function resetChatSession(tabId, readerCfg) {
 }
 
 export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
+  dbg("run", resume ? "RESUMING run" : "STARTING new run", {
+    suiteId: message?.suiteId,
+    evaluatorId: message?.evaluatorId,
+    maxRounds: message?.maxRounds ?? message?.turns,
+    scrapeFromSite: message?.scrapeFromSite,
+  });
   beginUiRunAbortController();
   state.OPFOR_STOP = false;
   state.OPFOR_STOP_INTENT = "cancel";
@@ -330,6 +337,11 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
     judgeLlmConfig = profileToLlmConfig(judgeCfg);
     attackerModel = createModel(attackerLlmConfig);
     judgeModel = createModel(judgeLlmConfig);
+    dbg("run", "LLM profiles loaded", {
+      attacker: { provider: attackerCfg.provider, model: attackerCfg.model },
+      judge: { provider: judgeCfg.provider, model: judgeCfg.model },
+      reader: { provider: readerCfg.provider, model: readerCfg.model },
+    });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     try {
@@ -534,6 +546,10 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
       });
 
       try {
+        dbg("run", "Resolving agent business context", {
+          scrapeFromSite,
+          agentDescription: agentDescription?.slice(0, 200),
+        });
         businessUseCase = await resolveAgentBusinessContext({
           scrapeFromSite,
           agentDescription,
@@ -541,6 +557,10 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
           tabId: tab.id,
           siteUrl: tab.url || "",
           readerCfg,
+        });
+        dbg("run", "Business context resolved", {
+          length: businessUseCase?.length,
+          preview: businessUseCase?.slice(0, 300),
         });
       } catch (detectErr) {
         if (!detectErr?.needsAgentDescription || state.OPFOR_STOP) throw detectErr;
@@ -624,7 +644,15 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
         evaluatorId: evaluatorSnapshot?.id,
       });
 
+      dbg("run", "Phase: locating chat widget");
       let located = await locateChatWidget(tab.id, readerCfg);
+      dbg("run", `Chat widget locate result: ${located.ok ? "OK" : "FAIL"}`, {
+        ok: located.ok,
+        error: located.error,
+        inputSelector: located.plan?.inputSelector,
+        frameId: located.best?.frameId,
+        confidence: located.plan?.confidence,
+      });
 
       const MAX_USER_RETRIES = 5;
       let userRetryCount = 0;
@@ -712,7 +740,15 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
     const suiteRec = catalog.suites.find((s) => s.id === suiteId);
     const suiteLabel = suiteRec ? `${suiteRec.name} (${suiteRec.id})` : suiteId;
 
-    // Build DomTarget adapter — handles send/extract/pause/stop/recovery
+    dbg("run", "Phase: running attacks", {
+      inputSelector: plan?.inputSelector,
+      submitMethod: plan?.submit?.method,
+      buttonSelector: plan?.submit?.buttonSelector,
+      frameId: best?.frameId,
+      maxRounds,
+      evaluatorId: evaluatorSnapshot?.id,
+    });
+
     const domTarget = createDomTarget(tab.id, best.frameId, plan, readerCfg, {
       waitMs,
       roundOffset: priorRounds,
@@ -870,6 +906,12 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
     // is reported as CANCELLED, not judged. Running the judge LLM here would
     // both delay the stop and produce a misleading PASS/FAIL-shaped verdict
     // for a turn the target never got to finish.
+    if (runError && runError.code !== "OPFOR_STOP") {
+      dbg("run", "runAllBrowser error", {
+        error: runError instanceof Error ? runError.message : String(runError),
+      });
+    }
+
     if (runError?.code === "OPFOR_STOP" || state.OPFOR_STOP) {
       // A pause with no usable widget plan can't be resumed — degrade it to a
       // cancel so the popup still gets a report instead of a dead snapshot.
@@ -973,6 +1015,13 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
     }
 
     // ── SUCCESS path ─────────────────────────────────────────────────────────
+    dbg("run", "Run completed successfully", {
+      evaluators: report.evaluators?.length,
+      verdict: report.evaluators?.[0]?.attacks?.[0]?.judge?.verdict,
+      score: report.evaluators?.[0]?.attacks?.[0]?.judge?.score,
+      transcriptLen: fullTranscript.length,
+      tokenUsage: report.summary?.tokenUsage,
+    });
     const attack = report.evaluators?.[0]?.attacks?.[0];
     const judgment = attack
       ? adaptJudgeResult(attack.judge)

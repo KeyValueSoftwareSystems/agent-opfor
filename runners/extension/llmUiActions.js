@@ -1,6 +1,12 @@
 import { callLlm } from "./llm.js";
+import { dbg } from "./debugLog.js";
 
 export async function aiPickInputInFrame(cfg, frame) {
+  dbg("llm", "aiPickInputInFrame called", {
+    frameId: frame?.frameId,
+    frameUrl: String(frame?.frameUrl || "").slice(0, 120),
+    snapshotLen: String(frame?.snapshot || "").length,
+  });
   const system = [
     "You are helping a browser extension identify a chat input box INSIDE A SINGLE FRAME.",
     "You receive a SANITIZED DOM snapshot for that frame only.",
@@ -28,7 +34,7 @@ export async function aiPickInputInFrame(cfg, frame) {
     String(frame.snapshot).slice(0, 60_000),
   ].join("\n");
 
-  return await callLlm({
+  const result = await callLlm({
     provider: cfg.provider,
     baseUrl: cfg.baseUrl,
     apiKey: cfg.apiKey,
@@ -38,6 +44,14 @@ export async function aiPickInputInFrame(cfg, frame) {
       { role: "user", content: user },
     ],
   });
+  dbg("llm", "aiPickInputInFrame result", {
+    inputSelector: result?.inputSelector,
+    launcherSelector: result?.launcherSelector,
+    submit: result?.submit,
+    confidence: result?.confidence,
+    notes: result?.notes,
+  });
+  return result;
 }
 
 function isAccessibilitySnapshot(snapshot) {
@@ -116,6 +130,14 @@ export async function aiUiNextAction(
   readerCfg,
   { frameUrl, snapshot, lastError, attempts, clickedLaunchers }
 ) {
+  dbg("llm", "aiUiNextAction called", {
+    frameUrl: String(frameUrl || "").slice(0, 120),
+    snapshotLen: String(snapshot || "").length,
+    attempts,
+    lastError: lastError || null,
+    clickedLaunchers,
+    mode: isAccessibilitySnapshot(snapshot) ? "ax-tree" : "dom-snapshot",
+  });
   const clickedNote = clickedLaunchers?.length
     ? `\nLaunchers already clicked (DO NOT click these again): ${clickedLaunchers.join(", ")}`
     : "";
@@ -135,7 +157,7 @@ export async function aiUiNextAction(
     .filter(Boolean)
     .join("\n");
 
-  return await callLlm({
+  const result = await callLlm({
     provider: readerCfg.provider,
     baseUrl: readerCfg.baseUrl,
     apiKey: readerCfg.apiKey,
@@ -145,6 +167,16 @@ export async function aiUiNextAction(
       { role: "user", content: user },
     ],
   });
+  dbg("llm", "aiUiNextAction result", {
+    action: result?.action,
+    inputSelector: result?.inputSelector,
+    launcherSelector: result?.launcherSelector,
+    submit: result?.submit,
+    confidence: result?.confidence,
+    waitMs: result?.waitMs,
+    notes: result?.notes,
+  });
+  return result;
 }
 
 export async function llmShortenMessage(cfg, originalMessage, maxLength) {

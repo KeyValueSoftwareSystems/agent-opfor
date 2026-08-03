@@ -6,6 +6,7 @@ import {
   setEnvProvider,
 } from "./dist/core.bundle.js";
 import { state } from "./state.js";
+import { dbg } from "./debugLog.js";
 
 // 0 for determinism, except gpt-5 (LiteLLM/OpenAI reject 0) and Anthropic (left unset).
 function providerTemperature(provider, model) {
@@ -25,12 +26,28 @@ export async function callLlm({ provider, baseUrl, apiKey, model, messages, sign
     apiKeyEnv: envVar,
     baseURL: baseUrl || undefined,
   });
+  const systemRole = messages?.find((m) => m.role === "system")?.content || "";
+  dbg("llm-call", `${provider}/${model}`, {
+    provider,
+    model,
+    messageCount: messages?.length,
+    systemPromptPreview: systemRole.slice(0, 150),
+    userPromptLen: messages?.find((m) => m.role === "user")?.content?.length,
+  });
   try {
-    return await generateJsonObject(llmModel, messages, {
+    const result = await generateJsonObject(llmModel, messages, {
       abortSignal: signal,
       temperature: providerTemperature(provider, model),
     });
+    dbg("llm-call", `${provider}/${model} -> OK`, {
+      resultKeys: result ? Object.keys(result) : null,
+    });
+    return result;
   } catch (e) {
+    dbg("llm-call", `${provider}/${model} -> ERROR`, {
+      error: e instanceof Error ? e.message : String(e),
+      name: e?.name,
+    });
     if (e?.name === "AbortError" || state.OPFOR_STOP) throw new Error("Run stopped.", { cause: e });
     throw e;
   }

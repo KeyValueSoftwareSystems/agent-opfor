@@ -2,6 +2,7 @@ import { actSendText, actVendorSendText } from "./domActions.js";
 import { snapshotCurrentResponse, extractResponse } from "./responseExtractor.js";
 import { llmShortenMessage } from "./llmUiActions.js";
 import { state } from "./state.js";
+import { dbg } from "./debugLog.js";
 
 const SHORTEN_MAX_RETRIES = 3;
 const PAUSE_POLL_MS = 300;
@@ -57,31 +58,56 @@ export function createDomTarget(tabId, frameId, plan, readerCfg, options = {}) {
 
   async function tryRecovery() {
     if (!onRecovery) return false;
+    dbg("send", "Attempting recovery (re-locate widget)", { consecutiveFailures });
     const recovered = await onRecovery().catch(() => null);
     if (recovered?.plan) {
+      dbg("send", "Recovery SUCCESS — widget re-located", {
+        newSelector: recovered.plan.inputSelector,
+        newFrameId: recovered.frameId,
+      });
       currentPlan = recovered.plan;
       currentFrameId = recovered.frameId ?? currentFrameId;
       consecutiveFailures = 0;
       return true;
     }
+    dbg("send", "Recovery FAILED — could not re-locate widget");
     return false;
   }
 
   return {
     async send(prompt, _options) {
-      // Honor pause: block until unpaused or stopped
       while (state.pauseRequested && !state.OPFOR_STOP) {
         await sleep(PAUSE_POLL_MS);
       }
       if (state.OPFOR_STOP) throw domTargetStopError();
 
       const round = roundOffset + turns.length + 1;
+      dbg("send", `Round ${round}: sending prompt`, {
+        round,
+        promptLen: prompt.length,
+        promptPreview: prompt.slice(0, 200),
+        frameId: currentFrameId,
+        inputSelector: currentPlan?.inputSelector,
+        submitMethod: currentPlan?.submit?.method,
+        vendorMode: !!currentPlan?.vendorMode,
+      });
 
-      // Pre-send snapshot (used for diff extraction)
       const prevSnapshot = await snapshotCurrentResponse(tabId, currentFrameId);
+      dbg("send", `Pre-send snapshot taken`, {
+        round,
+        nodeCount: prevSnapshot?.nodeCount ?? 0,
+        textLen: (prevSnapshot?.fullText || prevSnapshot?.text || "").length,
+      });
 
-      // Send with message_too_long retry and optional LLM shortening
       let { sendResult, textToSend } = await attemptSend(prompt);
+      dbg("send", `Send result: ${sendResult?.ok ? "OK" : "FAIL"}`, {
+        round,
+        ok: sendResult?.ok,
+        error: sendResult?.error,
+        detail: sendResult?.detail,
+        textLen: textToSend?.length,
+        shortened: textToSend !== prompt,
+      });
 
       // On send failure: try recovery (re-locate widget) before giving up
       if (!sendResult?.ok) {
@@ -92,7 +118,20 @@ export function createDomTarget(tabId, frameId, plan, readerCfg, options = {}) {
           }
         }
         if (!sendResult?.ok) {
-          throw new Error(`DomTarget send failed: ${sendResult?.error ?? "unknown error"}`);
+          const errCode = sendResult?.error ?? "no_result";
+          const detail = sendResult?.detail ?? "";
+          const selector = currentPlan?.inputSelector ?? "?";
+          const diag = [
+            `error=${errCode}`,
+            `frame=${currentFrameId}`,
+            `selector="${selector}"`,
+            `consecutiveFailures=${consecutiveFailures}`,
+            `recoveryAttempted=${consecutiveFailures >= MAX_CONSECUTIVE_FAILURES}`,
+            detail ? `detail: ${detail}` : "",
+          ]
+            .filter(Boolean)
+            .join(", ");
+          throw new Error(`DomTarget send failed: ${diag}`);
         }
       }
 
@@ -105,9 +144,15 @@ export function createDomTarget(tabId, frameId, plan, readerCfg, options = {}) {
 
       if (state.OPFOR_STOP) throw domTargetStopError();
 
-      // Extract response
       const extraction = await extractResponse(tabId, currentFrameId, textToSend, prevSnapshot);
       const assistantText = extraction?.ok ? String(extraction.text || "").trim() : "";
+      dbg("send", `Response extraction: ${extraction?.ok ? "OK" : "FAIL"}`, {
+        round,
+        ok: extraction?.ok,
+        error: extraction?.error,
+        textLen: assistantText.length,
+        textPreview: assistantText.slice(0, 300),
+      });
 
       if (assistantText) {
         consecutiveFailures = 0;

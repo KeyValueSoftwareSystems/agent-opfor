@@ -2801,6 +2801,68 @@
             </div>
             <textarea id="judgeHint" placeholder="Optional…"></textarea>
           </div>
+          <div style="border-top: 1px solid var(--line-2); padding-top: 14px; margin-top: 4px">
+            <div class="toggle-row">
+              <div class="body">
+                <div class="label">Debug mode</div>
+                <div class="help">Log every step to the service-worker console and storage.</div>
+              </div>
+              <button
+                id="debugToggle"
+                class="toggle"
+                role="switch"
+                aria-checked="false"
+                type="button"
+              >
+                <span class="knob"></span>
+              </button>
+            </div>
+            <div style="display: flex; gap: 6px; margin-top: 10px">
+              <button
+                id="debugExportBtn"
+                class="btn-ghost"
+                style="flex: 1; padding: 9px 10px; font-size: 12px"
+                type="button"
+              >
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.7"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+                Export logs
+              </button>
+              <button
+                id="debugClearBtn"
+                class="btn-ghost"
+                style="flex: 1; padding: 9px 10px; font-size: 12px"
+                type="button"
+              >
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.7"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <polyline points="3 6 5 6 21 6" />
+                  <path d="M19 6l-1.4 13.1A2 2 0 0 1 15.6 21H8.4a2 2 0 0 1-2-1.9L5 6" />
+                </svg>
+                Clear logs
+              </button>
+            </div>
+          </div>
         </div>
         <div class="adv-foot">
           <button id="advDoneBtn">Done</button>

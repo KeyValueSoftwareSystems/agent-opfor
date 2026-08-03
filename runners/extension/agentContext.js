@@ -1,6 +1,7 @@
 import { callLlm } from "./llm.js";
 import { collectFrames } from "./frameDiscovery.js";
 import { state } from "./state.js";
+import { dbg } from "./debugLog.js";
 
 /**
  * Merge homepage agent context with optional Advanced "business use case" text.
@@ -12,15 +13,40 @@ export function mergeBusinessContext(agentContext, extraBusinessUseCase) {
   return a || b || "";
 }
 
+const CONTEXT_TIMEOUT_MS = 45_000;
+
 /**
  * Use the reader LLM to infer what the on-page chat agent is from DOM snapshots.
  */
 export async function summarizeAgentFromTab(tabId, readerCfg, siteUrl = "") {
+  dbg("context", "summarizeAgentFromTab called", { tabId, siteUrl: String(siteUrl).slice(0, 120) });
+
+  return Promise.race([
+    _summarizeAgentFromTabInner(tabId, readerCfg, siteUrl),
+    new Promise((_, reject) =>
+      setTimeout(
+        () =>
+          reject(
+            new Error(`Agent context detection timed out after ${CONTEXT_TIMEOUT_MS / 1000}s`)
+          ),
+        CONTEXT_TIMEOUT_MS
+      )
+    ),
+  ]);
+}
+
+async function _summarizeAgentFromTabInner(tabId, readerCfg, siteUrl) {
   let frames = [];
   try {
     frames = await collectFrames(tabId);
-  } catch {
-    // proceed with empty frames; prompt will note missing snapshot
+    dbg("context", "Collected frames for agent summary", {
+      count: frames.length,
+      chatFrames: frames.filter((f) => (f.chatScore || 0) > 0).length,
+    });
+  } catch (e) {
+    dbg("context", "Frame collection failed — proceeding with empty frames", {
+      error: e instanceof Error ? e.message : String(e),
+    });
   }
 
   const top = frames.find((f) => f.frameId === 0);
@@ -78,8 +104,13 @@ export async function summarizeAgentFromTab(tabId, readerCfg, siteUrl = "") {
 
   const summary = typeof out?.summary === "string" ? out.summary.trim() : "";
   if (!summary) {
+    dbg("context", "Agent summary LLM returned empty summary");
     throw new Error("Agent summary LLM returned empty summary");
   }
+  dbg("context", "Agent summary generated", {
+    summaryLen: summary.length,
+    preview: summary.slice(0, 300),
+  });
   return summary;
 }
 
