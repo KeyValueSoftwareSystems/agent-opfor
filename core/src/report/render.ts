@@ -3,6 +3,7 @@
  * Shared by the CLI, MCP server, SDK, and browser extension runners.
  */
 import type { ReportViewModel, ResultViewModel, TurnViewModel, DetailCard } from "./types.js";
+import { formatStandardsLabel } from "../evaluators/standards.js";
 
 /** Format a token count for display (e.g. 51300 → "51.3K"). */
 function formatTokenCount(n: number): string {
@@ -197,7 +198,7 @@ export function renderReport(model: ReportViewModel): string {
           : null;
       const showTestHeading = e.results.length > 1;
       const cards = e.results
-        .map((r, i) => resultDetailCard(r, i, model.mode, showTestHeading, idx))
+        .map((r, i) => resultDetailCard(r, i, model.mode, showTestHeading, idx, e.standards))
         .join("");
       return `
         <div class="eval-detail" id="eval-${idx}">
@@ -342,7 +343,7 @@ export function renderReport(model: ReportViewModel): string {
   .exec-verdict-text.pass{color:var(--pass)}
   .exec-verdict-text.fail{color:var(--fail)}
   .exec-verdict-text.error{color:#D97706}
-  .exec-risk{font-size:11px;font-weight:600;padding:4px 11px;border-radius:999px;border:1px solid;white-space:nowrap}
+  .exec-risk{font-size:11px;font-weight:600;padding:4px 11px;border-radius:999px;border:1px solid;white-space:nowrap;cursor:default}
   .gauge-value{font-size:22px;font-weight:800;color:var(--text);text-align:center;margin-top:-30px}
   .gauge-sub{font-size:12px;color:var(--muted);text-align:center;margin-top:2px}
   .sc-value{font-size:26px;font-weight:800;line-height:1;color:var(--text)}
@@ -393,6 +394,8 @@ export function renderReport(model: ReportViewModel): string {
   .eval-meta-row{display:flex;flex-wrap:wrap;gap:36px;margin-bottom:14px}
   .eval-meta-col{display:flex;flex-direction:column;gap:6px}
   .eval-meta-col .meta-v-lg{font-size:20px;font-weight:700;color:var(--text);line-height:1}
+  .eval-meta-col.standards-col{margin-left:20px}
+  .eval-meta-col .meta-v-standards{font-size:13px;color:var(--text-2);line-height:1.5}
 
   /* ── Transcript ── */
   .transcript-toggle{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--muted);background:none;border:none;cursor:pointer;padding:12px 0 0;margin-top:2px;border-top:1px solid var(--line);width:100%}
@@ -403,17 +406,30 @@ export function renderReport(model: ReportViewModel): string {
   .transcript{border:1px solid var(--line);border-radius:8px;overflow:hidden}
   .transcript-header{padding:8px 12px;background:var(--surface-2);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}
   .tc-count{font-weight:400;color:var(--muted-2)}
-  .turn{padding:12px 0}
+  .transcript-body{display:flex;align-items:flex-start;gap:16px;padding:12px 12px 12px 0;max-height:560px;overflow-y:auto;overscroll-behavior:contain}
+  .turn-rail{display:flex;flex-direction:column;align-items:center;gap:16px;flex-shrink:0;position:sticky;top:4px;padding:4px 0 4px 12px}
+  .turn-step{position:relative;width:26px;height:26px;border-radius:7px;border:1px solid var(--line-2);background:var(--surface);color:var(--muted);font:700 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
+  .turn-step:hover{border-color:var(--muted-2);color:var(--text)}
+  .turn-step.active{border-color:var(--accent);color:var(--accent);background:rgba(255,77,79,0.08);box-shadow:0 0 0 2px rgba(255,77,79,0.18)}
+  .turn-step:not(:first-child)::before{content:"";position:absolute;bottom:100%;left:50%;transform:translateX(-50%);width:1px;height:16px;background:var(--line-2)}
+  .turn-content{flex:1;min-width:0}
+  .turn{padding:0 0 20px}
+  .turn:last-child{padding-bottom:0}
+  .turn-heading{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+  .turn-heading-label{font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+  .turn-heading-line{flex:1;height:1px;background:var(--line)}
   .turn-row{padding:2px 16px}
   .turn-row.attacker-row{padding-left:64px}
   .turn-row.agent-row{margin-top:12px}
   .turn-role{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--text);margin-bottom:6px}
   .turn-role .turn-icon{display:inline-flex;align-items:center}
-  .turn-role .turn-sep{color:var(--muted-2);font-weight:400}
-  .turn-role .turn-num{color:var(--muted);font-weight:500}
   .turn-row pre{margin:0;white-space:pre-wrap;word-break:break-word;font:13px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--text-2)}
   .agent-bubble{display:inline-block;max-width:78%;background:var(--surface-2);border-radius:10px;padding:10px 14px}
   .agent-bubble.turn-highlight{background:var(--fail-bg);border:1px dashed var(--fail-border)}
+  @media(max-width:640px){
+    .turn-rail{display:none}
+    .transcript-body{padding-left:12px}
+  }
 
   /* ── Footer ── */
   .report-footer{max-width:960px;margin:40px auto 0;padding:16px 24px;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
@@ -425,6 +441,8 @@ export function renderReport(model: ReportViewModel): string {
     .cover{-webkit-print-color-adjust:exact;print-color-adjust:exact}
     .eval-detail{border:1px solid var(--line)}
     .scope-card,.eval-detail,.exec-strip{break-inside:avoid;box-shadow:none}
+    .transcript-body{max-height:none;overflow:visible}
+    .turn-rail{position:static}
   }
   @media(max-width:640px){
     .cover-meta{grid-template-columns:1fr}
@@ -470,7 +488,7 @@ export function renderReport(model: ReportViewModel): string {
         <div class="exec-strip-label">Overall Verdict</div>
         <div class="exec-verdict-row">
           <div class="exec-verdict-text ${overallVerdict === "PASS" ? "pass" : overallVerdict === "ERROR" ? "error" : "fail"}">${overallVerdict === "PASS" ? "Pass" : overallVerdict === "ERROR" ? "Error" : "Fail"}</div>
-          <div class="exec-risk" style="color:${riskLevel.color};border-color:${riskLevel.color}66;background:${riskLevel.color}14">${overallVerdict === "ERROR" ? "Inconclusive" : riskLevel.label.toUpperCase()}</div>
+          <div class="exec-risk" title="Indicates the overall risk status calculated from default internal thresholds" style="color:${riskLevel.color};border-color:${riskLevel.color}66;background:${riskLevel.color}14">${overallVerdict === "ERROR" ? "Inconclusive" : riskLevel.label.toUpperCase()}</div>
         </div>
       </div>
       <div class="exec-strip-item" style="align-items:center">
@@ -554,7 +572,39 @@ export function renderReport(model: ReportViewModel): string {
       var open = wrap.classList.toggle('open');
       btn.querySelector('.tt-label').textContent = open ? 'View less details' : 'View more details';
       btn.querySelector('svg').style.transform = open ? 'rotate(180deg)' : 'rotate(0deg)';
+      if (open) {
+        requestAnimationFrame(function(){
+          var flagged = wrap.querySelector('.turn-highlight');
+          if (flagged) flagged.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+      }
     });
+  });
+  // Turn rail: click a step to jump to that turn; highlight whichever turn is
+  // topmost in view as the user scrolls (scroll-spy).
+  document.querySelectorAll('.transcript-body').forEach(function(body){
+    var steps = body.querySelectorAll('.turn-step');
+    if (!steps.length) return;
+    var turns = body.querySelectorAll('.turn[id]');
+    var inView = {};
+    var setActive = function(id){
+      steps.forEach(function(s){ s.classList.toggle('active', s.dataset.turn === id); });
+    };
+    steps.forEach(function(step){
+      step.addEventListener('click', function(){
+        var target = document.getElementById(step.dataset.turn);
+        if (target) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+    });
+    var observer = new IntersectionObserver(function(entries){
+      entries.forEach(function(entry){
+        inView[entry.target.id] = entry.isIntersecting;
+      });
+      var topmost = null;
+      turns.forEach(function(t){ if (!topmost && inView[t.id]) topmost = t.id; });
+      if (topmost) setActive(topmost);
+    }, { root: body, threshold: 0.4 });
+    turns.forEach(function(t){ observer.observe(t); });
   });
 })();
 </script>
@@ -564,35 +614,41 @@ export function renderReport(model: ReportViewModel): string {
 
 // ── Result detail card ────────────────────────────────────────────
 
-/** Role label row: icon + name, optionally " | Turn N". */
-function roleLabel(icon: string, name: string, turnLabel?: string): string {
-  const suffix = turnLabel
-    ? `<span class="turn-sep">|</span><span class="turn-num">${turnLabel}</span>`
-    : "";
-  return `<div class="turn-role"><span class="turn-icon">${icon}</span>${name}${suffix}</div>`;
+/** Role label row: icon + name. */
+function roleLabel(icon: string, name: string): string {
+  return `<div class="turn-role"><span class="turn-icon">${icon}</span>${name}</div>`;
+}
+
+/** "TURN N ────" heading rule that opens each turn block. */
+function turnHeading(turnIndex: number): string {
+  return `<div class="turn-heading"><span class="turn-heading-label">Turn ${turnIndex}</span><span class="turn-heading-line"></span></div>`;
 }
 
 /** Render a single conversation turn: the attacker prompt as plain text, the agent
  *  response as a left-anchored bubble (highlighted when the judge cited this turn
  *  in its `failingTurns`). There's no per-turn judge — the transcript is judged once,
  *  at the end, over the whole exchange — so the flagged-turn signal comes from the
- *  result-level `judge.failingTurns` list, not from `turn.judge`. */
-function renderTurn(turn: TurnViewModel, failingTurns: Set<number>): string {
+ *  result-level `judge.failingTurns` list, not from `turn.judge`.
+ *
+ *  `id` anchors this block for the turn-rail's scroll-spy + click-to-scroll (see the
+ *  inline <script> in {@link renderReport}). */
+function renderTurn(turn: TurnViewModel, failingTurns: Set<number>, id: string): string {
   const bubbleClass = failingTurns.has(turn.turnIndex)
     ? "agent-bubble turn-highlight"
     : "agent-bubble";
-  const turnLabel = `Turn ${turn.turnIndex}`;
+  const heading = turnHeading(turn.turnIndex);
 
   if (turn.detail.kind === "prompt") {
     return `
-      <div class="turn">
+      <div class="turn" id="${id}">
+        ${heading}
         <div class="turn-row attacker-row">
-          ${roleLabel(ATTACKER_ICON, "Attacker", turnLabel)}
+          ${roleLabel(ATTACKER_ICON, "Attacker")}
           <pre>${esc(truncate(turn.detail.prompt, 8000))}</pre>
         </div>
         <div class="turn-row agent-row">
           <div class="${bubbleClass}">
-            ${roleLabel(AGENT_ICON, "Agent", turnLabel)}
+            ${roleLabel(AGENT_ICON, "Agent")}
             <pre>${esc(truncate(turn.detail.response, 8000))}</pre>
           </div>
         </div>
@@ -604,14 +660,15 @@ function renderTurn(turn: TurnViewModel, failingTurns: Set<number>): string {
     : esc(truncate(turn.detail.response, 8000));
   const toolLabel = turn.detail.toolName ? ` · ${esc(turn.detail.toolName)}` : "";
   return `
-    <div class="turn">
+    <div class="turn" id="${id}">
+      ${heading}
       <div class="turn-row attacker-row">
-        ${roleLabel(ATTACKER_ICON, `Arguments${toolLabel}`, turnLabel)}
+        ${roleLabel(ATTACKER_ICON, `Arguments${toolLabel}`)}
         <pre>${tArgs}</pre>
       </div>
       <div class="turn-row agent-row">
         <div class="${bubbleClass}">
-          ${roleLabel(AGENT_ICON, "Tool Response", turnLabel)}
+          ${roleLabel(AGENT_ICON, "Tool Response")}
           <pre>${tResp}</pre>
         </div>
       </div>
@@ -659,21 +716,29 @@ function resultDetailCard(
   index: number,
   _mode: "agent" | "mcp",
   showTestHeading: boolean,
-  evalIndex: number
+  evalIndex: number,
+  standards?: Record<string, string>
 ): string {
   const verdict = r.judge.verdict;
   const failingTurns = new Set(r.judge.failingTurns ?? []);
 
-  const hasTurns = r.turns && r.turns.length > 0;
-  const turnCount = hasTurns ? r.turns!.length : 1;
-  const turnsHtml = hasTurns
-    ? r.turns!.map((t) => renderTurn(t, failingTurns)).join("")
-    : singleTurnTranscript(r.detail);
-
   // Deterministic per document (not a module-level counter) — repeated renders
   // of the same ReportViewModel (long-lived MCP server, snapshot tests) then
-  // produce identical data-for/data-target values.
+  // produce identical data-for/data-target/turn-anchor values.
   const tId = `t${evalIndex}-${index}`;
+
+  const hasTurns = r.turns && r.turns.length > 0;
+  const turnCount = hasTurns ? r.turns!.length : 1;
+  const turnId = (turnIndex: number): string => `${tId}-turn-${turnIndex}`;
+  const turnsHtml = hasTurns
+    ? r.turns!.map((t) => renderTurn(t, failingTurns, turnId(t.turnIndex))).join("")
+    : singleTurnTranscript(r.detail);
+
+  // A rail only helps when there's more than one turn to navigate between.
+  const railHtml =
+    hasTurns && turnCount > 1
+      ? `<div class="turn-rail">${r.turns!.map((t) => `<button class="turn-step" data-turn="${turnId(t.turnIndex)}" title="Jump to turn ${t.turnIndex}">${t.turnIndex}</button>`).join("")}</div>`
+      : "";
 
   const evidenceHtml =
     r.judge.evidence && r.judge.evidence !== "N/A"
@@ -692,17 +757,30 @@ function resultDetailCard(
       <div class="meta-v-lg">${verdict === "ERROR" ? "—" : `${r.judge.confidence}%`}</div>
     </div>`;
 
+  const standardsLabel = formatStandardsLabel(standards);
+  const standardsCol = standardsLabel
+    ? `
+    <div class="eval-meta-col standards-col">
+      <div class="detail-section-label">Standards</div>
+      <div class="meta-v-standards">${esc(standardsLabel)}</div>
+    </div>`
+    : "";
+
   return `
     ${showTestHeading ? `<div class="test-heading">Test ${index + 1} — ${esc(r.label)}</div>` : ""}
     ${reasoningHtml}
     ${evidenceHtml}
     <div class="eval-meta-row">
       ${confidenceCol}
+      ${standardsCol}
     </div>
     <div class="transcript-wrap" data-for="${tId}">
       <div class="transcript">
         <div class="transcript-header">Conversation Transcript <span class="tc-count">${turnCount} turn${turnCount === 1 ? "" : "s"}</span></div>
-        ${turnsHtml}
+        <div class="transcript-body">
+          ${railHtml}
+          <div class="turn-content">${turnsHtml}</div>
+        </div>
       </div>
     </div>
     <button class="transcript-toggle" data-target="${tId}">

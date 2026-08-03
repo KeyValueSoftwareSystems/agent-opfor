@@ -141,12 +141,18 @@ export function buildUnifiedReport(
   };
 }
 
-/** Format a "provider/model" label, falling back to the attacker model for the judge. */
+/**
+ * Format a "provider/model" label, falling back to the attacker model for the judge.
+ * `openai-compatible` is a generic custom-baseURL wrapper, not a real vendor identity,
+ * so it's dropped and only the model name is shown for that provider.
+ */
 export function modelLabel(
   attackerLlm: { provider: string; model: string },
   judgeLlm?: { provider: string; model: string }
 ): { attackModel: string; judgeModel: string } {
-  const attackModel = `${attackerLlm.provider}/${attackerLlm.model}`;
-  const judgeModel = judgeLlm ? `${judgeLlm.provider}/${judgeLlm.model}` : attackModel;
+  const format = (llm: { provider: string; model: string }): string =>
+    llm.provider === "openai-compatible" ? llm.model : `${llm.provider}/${llm.model}`;
+  const attackModel = format(attackerLlm);
+  const judgeModel = judgeLlm ? format(judgeLlm) : attackModel;
   return { attackModel, judgeModel };
 }
