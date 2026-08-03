@@ -74,6 +74,9 @@ export interface ReportDecision {
   threadId?: string;
   action: "continue" | "escalate" | "pivot" | "stop" | "dispatch" | "fork" | "note";
   rationale: string;
+  /** Full dispatch instructions for a "dispatch" action — where continue-vs-new, the target
+   *  threadId, and the generation number actually live (rationale is only the short label). */
+  dispatchPrompt?: string;
 }
 
 export interface PersonaTimelineEntry {

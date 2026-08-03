@@ -249,7 +249,11 @@ export function renderReportHtml(r: AutonomousReport): string {
     ? `<details class="appendix"><summary>Decision log (${r.decisionLog.length})</summary><div class="appendix-body">${r.decisionLog
         .map(
           (d) =>
-            `<div class="decision"><span class="decision-action decision-${esc(d.action)}">${esc(d.action)}</span> ${d.threadId ? `<span class="mono">${esc(d.threadId)}</span> ` : ""}${esc(d.rationale)}</div>`
+            `<div class="decision"><span class="decision-action decision-${esc(d.action)}">${esc(d.action)}</span> ${d.threadId ? `<span class="mono">${esc(d.threadId)}</span> ` : ""}${esc(d.rationale)}${
+              d.dispatchPrompt
+                ? `<details class="dispatch-detail"><summary>dispatch instructions</summary><pre>${esc(d.dispatchPrompt)}</pre></details>`
+                : ""
+            }</div>`
         )
         .join("")}</div></details>`
     : "";
@@ -440,6 +444,8 @@ export function renderReportHtml(r: AutonomousReport): string {
   .decision{padding:6px 0;border-top:1px solid var(--line);line-height:1.5}
   .decision-action{display:inline-block;font-size:10px;font-weight:700;text-transform:uppercase;padding:1px 6px;border-radius:4px;margin-right:7px;background:var(--surface-2);border:1px solid var(--line)}
   .decision-fork{color:#7c3aed}.decision-dispatch{color:#2563eb}.decision-stop{color:var(--fail)}.decision-pivot{color:#d97706}
+  .dispatch-detail{margin-top:4px}.dispatch-detail summary{cursor:pointer;color:var(--text-2);font-size:11px}
+  .dispatch-detail pre{margin:6px 0 0;padding:8px 10px;background:var(--surface-2);border:1px solid var(--line);border-radius:6px;white-space:pre-wrap;word-break:break-word;font-size:11px;line-height:1.5}
   .report-footer{max-width:1000px;margin:40px auto 0;padding:16px 24px;border-top:1px solid var(--line);display:flex;justify-content:space-between;font-size:12px;color:var(--muted)}
 
   @media print{body{background:#fff}.nav{display:none}.cover{-webkit-print-color-adjust:exact;print-color-adjust:exact}.stat-card,.scope-card,.finding-block,.finding-card,.matrix-wrap{break-inside:avoid}.finding-card{box-shadow:none}}

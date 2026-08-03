@@ -117,15 +117,11 @@ export class BudgetGuard {
     return { ok: true };
   }
 
-  /** Record the latest known cumulative cost (from SDK result/usage messages). Corrects estimation drift. */
+  /** Record the latest known cumulative cost. Authoritative — corrects the estimate in both directions. */
   recordCost(costUsd: number): void {
-    if (Number.isFinite(costUsd) && costUsd > this.lastKnownCostUsd) {
-      this.lastKnownCostUsd = costUsd;
-      // Keep accumulated estimate in sync so it doesn't double-count after correction.
-      if (costUsd > this.accumulatedTokenCostUsd) {
-        this.accumulatedTokenCostUsd = costUsd;
-      }
-    }
+    if (!Number.isFinite(costUsd)) return;
+    this.lastKnownCostUsd = costUsd;
+    this.accumulatedTokenCostUsd = costUsd;
   }
 
   /**

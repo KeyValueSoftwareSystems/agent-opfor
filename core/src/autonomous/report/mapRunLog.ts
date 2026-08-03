@@ -1,6 +1,7 @@
 // Map the in-memory RunLog into the native AutonomousReport.
 
 import { randomUUID } from "node:crypto";
+import { snip } from "../orchestrator/context.js";
 import { normalizeForMatch, sharesForkAncestry } from "../state/runLog.js";
 import type { RunLog, ThreadState, Finding } from "../state/runLog.js";
 import type {
@@ -173,6 +174,9 @@ export function mapRunLogToReport(log: RunLog): AutonomousReport {
         at: entry.at,
         action: "dispatch",
         rationale: desc?.description ?? "Dispatched a subagent.",
+        // The description is just a short label — the actual continue-vs-new-thread
+        // instructions, target threadId, and generation number live in the full prompt.
+        dispatchPrompt: desc?.prompt ? snip(desc.prompt, 400) : undefined,
       });
     }
   }
@@ -238,7 +242,9 @@ export function mapRunLogToReport(log: RunLog): AutonomousReport {
     synthesisComplete: !!synthesis,
     executiveNarrative:
       synthesis?.executiveSummary ??
-      "The run ended before a synthesis was submitted; this is a partial report built from recorded activity.",
+      (log.truncationReason
+        ? `The run ended before a synthesis was submitted (${log.truncationReason}); this is a partial report built from recorded activity.`
+        : "The run ended before a synthesis was submitted; this is a partial report built from recorded activity."),
     responsePatterns: synthesis?.responsePatterns ?? [],
     recommendations: synthesis?.recommendations ?? [],
   };

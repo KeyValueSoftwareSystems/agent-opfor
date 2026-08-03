@@ -2,7 +2,7 @@
 // adaptive multi-turn attack, self-judging and recording findings.
 
 import type { HuntOptions } from "../lib/types.js";
-import { ADVERSARIAL_TARGET_DEFENSE, sandboxingNote } from "./defenses.js";
+import { ADVERSARIAL_TARGET_DEFENSE, sandboxingNote, TOOL_SEARCH_FALLBACK } from "./defenses.js";
 import { toolId, TOOL_NAMES } from "../tools/server.js";
 
 export function buildOperatorPrompt(options: HuntOptions): string {
@@ -12,6 +12,8 @@ export function buildOperatorPrompt(options: HuntOptions): string {
 ${ADVERSARIAL_TARGET_DEFENSE}
 
 ${sandboxingNote(["send_to_target"])}
+
+${TOOL_SEARCH_FALLBACK}
 
 # Your task type (read it from the commander's instructions)
 - A NEW task → mint your own threadId under the namespace you were given and attack fresh.

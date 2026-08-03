@@ -186,7 +186,11 @@ export function registerHuntCommand(program: Command): void {
       "Hard USD budget; finalizes a partial report when reached (the real cost backstop; 0 = unlimited)",
       "10"
     )
-    .option("--verify", "Enable the independent second-model verifier (self_check)")
+    .option(
+      "--verify",
+      "Force-enable the independent second-model verifier (self_check); on by default when a Claude credential is available"
+    )
+    .option("--no-verify", "Disable the verifier even if a Claude credential is available")
     .option("--verifier-model <id>", "Verifier model id (defaults to commander model)")
     .option("--sequential", "Dispatch operators one at a time (rate-limited targets)")
     .option("--persist-inventions", "Persist novel personas/strategies back to the seed library")
@@ -391,6 +395,10 @@ export function registerHuntCommand(program: Command): void {
         );
       }
 
+      // Same credential the agents authenticate with (API key, gateway, OAuth token, or
+      // `claude login` subscription) — not just ANTHROPIC_API_KEY.
+      const verifierAuthAvailable = Boolean(resolveBrainAuth());
+
       const huntOptions: HuntOptions = {
         target,
         objective,
@@ -413,7 +421,8 @@ export function registerHuntCommand(program: Command): void {
               ? Number(opts.budgetUsd)
               : undefined
             : 10,
-        verify: Boolean(opts.verify),
+        // On by default when a credential is available; `--no-verify` forces it off.
+        verify: opts.verify === false ? false : opts.verify === true || verifierAuthAvailable,
         verifierModel: opts.verifierModel,
         sequential: Boolean(opts.sequential),
         persistInventions: Boolean(opts.persistInventions),
@@ -428,7 +437,7 @@ export function registerHuntCommand(program: Command): void {
         ` objective : ${objective}`,
         ` models    : commander=${huntOptions.commanderModel}  operator=${huntOptions.operatorModel}  scout=${huntOptions.scoutModel}`,
         ` limits    : operators≤${huntOptions.maxOperators}  turns≤${huntOptions.maxTurns}  thread-turns≤${huntOptions.maxThreadTurns}${huntOptions.budgetUsd ? `  budget=$${huntOptions.budgetUsd}` : ""}`,
-        ` verifier  : ${huntOptions.verify ? "on" : "off"}`,
+        ` verifier  : ${huntOptions.verify ? "on" : verifierAuthAvailable ? "off (--no-verify)" : "off (no Claude credential found)"}`,
         "════════════════════════════════════════════════════════════════",
       ].join("\n");
       process.stdout.write(header + "\n");

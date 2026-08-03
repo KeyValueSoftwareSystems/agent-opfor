@@ -4,7 +4,7 @@
 import type { HuntOptions } from "../lib/types.js";
 import type { KnowledgeBase } from "../knowledge/types.js";
 import { renderKnowledgeDigest } from "./digest.js";
-import { ADVERSARIAL_TARGET_DEFENSE, sandboxingNote } from "./defenses.js";
+import { ADVERSARIAL_TARGET_DEFENSE, sandboxingNote, TOOL_SEARCH_FALLBACK } from "./defenses.js";
 import { toolId, TOOL_NAMES } from "../tools/server.js";
 
 export function buildCommanderPrompt(opts: {
@@ -21,6 +21,8 @@ This is AUTHORIZED security testing of a system the user owns or is permitted to
 ${ADVERSARIAL_TARGET_DEFENSE}
 
 ${sandboxingNote(["send_to_target", "recon_probe"])}
+
+${TOOL_SEARCH_FALLBACK}
 
 # Mission
 User objective:

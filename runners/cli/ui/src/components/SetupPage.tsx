@@ -99,6 +99,9 @@ export function SetupPage({ onStart }: Props) {
   // A ref, not state: row ids only need to be unique React keys, and reading a
   // counter out of state here would hand every add in the same tick the same id.
   const headerIdRef = useRef(1);
+  // Only the auto-detect effect below should flip `verify` on for the user; once they've
+  // touched the checkbox themselves, their choice wins even if the effect fires again.
+  const verifyTouchedRef = useRef(false);
   const [envStatus, setEnvStatus] = useState<EnvStatus>("idle");
   const [brainAuth, setBrainAuth] = useState<BrainAuth>({});
   const [brainAuthMode, setBrainAuthMode] = useState<BrainAuthMode>("detected");
@@ -137,6 +140,14 @@ export function SetupPage({ onStart }: Props) {
       })
       .catch(() => setBrainAuthMode("apiKey"));
   }, []);
+
+  // Mirrors the CLI's --verify default (on when a credential is available). Reuses the
+  // brainAuth fetch above instead of a second, narrower check; never overrides a manual choice.
+  useEffect(() => {
+    if (brainAuth.method && !verifyTouchedRef.current) {
+      setConfig((prev) => (verifyTouchedRef.current ? prev : { ...prev, verify: true }));
+    }
+  }, [brainAuth.method]);
 
   // Tell the user whether the named env var actually resolves, rather than letting
   // them discover a typo as a 401 twenty seconds into a run.
@@ -804,11 +815,17 @@ export function SetupPage({ onStart }: Props) {
                 <input
                   type="checkbox"
                   checked={config.verify}
-                  onChange={(e) => updateConfig("verify", e.target.checked)}
+                  onChange={(e) => {
+                    verifyTouchedRef.current = true;
+                    updateConfig("verify", e.target.checked);
+                  }}
                 />
                 <span className="toggle-body">
                   <span className="toggle-title">Second-model verification</span>
-                  <span className="toggle-hint">Independent model re-checks findings</span>
+                  <span className="toggle-hint">
+                    Independent model re-checks findings — on by default when a Claude credential is
+                    available
+                  </span>
                 </span>
               </label>
             </div>

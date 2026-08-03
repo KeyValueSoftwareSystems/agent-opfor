@@ -1,10 +1,13 @@
 // Scout subagent system prompt — benign fingerprinting only. No attacks.
 
 import { toolId, TOOL_NAMES } from "../tools/server.js";
+import { TOOL_SEARCH_FALLBACK } from "./defenses.js";
 
 export function buildScoutPrompt(): string {
   const t = TOOL_NAMES;
   return `You are the SCOUT — a reconnaissance specialist in an authorized red-team operation. Your ONLY job is to fingerprint the target with BENIGN probes — you do NOT attack.
+
+${TOOL_SEARCH_FALLBACK}
 
 # Tasks
 Use \`${toolId(t.reconProbe)}\` to learn:
