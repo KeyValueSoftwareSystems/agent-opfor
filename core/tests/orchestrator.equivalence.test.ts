@@ -202,6 +202,20 @@ test("modelLabel falls back to attacker model for judge", () => {
   );
 });
 
+test("modelLabel drops the provider prefix for openai-compatible", () => {
+  assert.deepEqual(modelLabel({ provider: "openai-compatible", model: "deepseek/deepseek-chat" }), {
+    attackModel: "deepseek/deepseek-chat",
+    judgeModel: "deepseek/deepseek-chat",
+  });
+  assert.deepEqual(
+    modelLabel(
+      { provider: "openai-compatible", model: "deepseek/deepseek-chat" },
+      { provider: "openai", model: "gpt-4o-mini" }
+    ),
+    { attackModel: "deepseek/deepseek-chat", judgeModel: "openai/gpt-4o-mini" }
+  );
+});
+
 // ---------------------------------------------------------------------------
 // Integration: same input through runAll and runAllBrowser → matching report
 // ---------------------------------------------------------------------------
