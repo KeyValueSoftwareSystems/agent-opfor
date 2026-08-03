@@ -5,15 +5,46 @@
  * attack drivers. Each `generateText` / `generateObject` call site records its
  * usage after the call completes (including retries). Aggregated totals are
  * surfaced in the CLI summary, HTML/JSON report, and extension popup.
+ *
+ * Usage is recorded twice: once into flat run totals, and once into a per-model
+ * bucket. The per-model breakdown exists because a run can mix models — the
+ * judge may be a different (and far more expensive) model than the attacker —
+ * so a single combined total cannot be priced. See {@link ModelTokenUsage}.
  */
 
 import { z } from "zod";
+import {
+  modelKey,
+  resolveModelIdentity,
+  UNKNOWN_MODEL_KEY,
+  type ModelRef,
+} from "../providers/modelIdentity.js";
 
 /** Aggregated input/output/total token counts from LLM calls. */
 export interface TokenUsage {
   inputTokens: number;
   outputTokens: number;
   totalTokens: number;
+}
+
+/** Token usage attributed to one provider/model pair. */
+export interface ModelTokenUsage extends TokenUsage {
+  /** `"<provider>:<model>"`, or `"unknown"` for usage that could not be attributed. */
+  key: string;
+  provider: string;
+  model: string;
+  /** Which phases used this model — `"attacker"`, `"judge"`. Sorted, deduped. */
+  roles: string[];
+  /** Number of LLM calls recorded against this model. */
+  calls: number;
+}
+
+/** Optional provenance supplied alongside a usage recording. */
+export interface RecordAttribution {
+  /** The model the call was made against — an AI SDK model, an LlmConfig, or an identity. */
+  model?: ModelRef;
+  /** Run phase, e.g. `"attacker"` or `"judge"`. Case-insensitive. */
+  role?: string;
 }
 
 /** Shared zero-value constant to avoid re-allocating empty usage objects. */
@@ -53,6 +84,18 @@ export function parseUsage(raw: unknown): TokenUsage | undefined {
   return result.success ? result.data : undefined;
 }
 
+/** Mutable per-model accumulator; projected to {@link ModelTokenUsage} on read. */
+interface ModelBucket {
+  key: string;
+  provider: string;
+  model: string;
+  roles: Set<string>;
+  calls: number;
+  input: number;
+  output: number;
+  total: number;
+}
+
 /**
  * Accumulator for LLM token usage.
  *
@@ -64,20 +107,65 @@ export class TokenTracker {
   private input = 0;
   private output = 0;
   private total = 0;
+  private readonly buckets = new Map<string, ModelBucket>();
 
   /**
    * Record usage from a single LLM call. Safe to call with undefined/partial
    * usage. When `totalTokens` is supplied it is preserved; otherwise it falls
    * back to `inputTokens + outputTokens`.
+   *
+   * `attribution` is optional — usage recorded without it lands in the
+   * `"unknown"` bucket and still counts toward run totals, so an un-migrated
+   * call site degrades to today's behavior rather than losing tokens.
    */
-  record(usage?: { inputTokens?: number; outputTokens?: number; totalTokens?: number }): void {
+  record(
+    usage?: { inputTokens?: number; outputTokens?: number; totalTokens?: number },
+    attribution?: RecordAttribution
+  ): void {
     if (!usage) return;
     const inp = usage.inputTokens ?? 0;
     const out = usage.outputTokens ?? 0;
     const tot = usage.totalTokens ?? 0;
+    const resolvedTotal = tot > 0 ? tot : inp + out;
+
     this.input += inp;
     this.output += out;
-    this.total += tot > 0 ? tot : inp + out;
+    this.total += resolvedTotal;
+
+    this.recordToBucket(inp, out, resolvedTotal, attribution);
+  }
+
+  /** Fold one call's usage into its per-model bucket, creating the bucket on first sight. */
+  private recordToBucket(
+    inp: number,
+    out: number,
+    total: number,
+    attribution?: RecordAttribution
+  ): void {
+    const identity = resolveModelIdentity(attribution?.model);
+    const key = identity ? modelKey(identity) : UNKNOWN_MODEL_KEY;
+
+    let bucket = this.buckets.get(key);
+    if (!bucket) {
+      bucket = {
+        key,
+        provider: identity?.provider ?? "unknown",
+        model: identity?.model ?? "unknown",
+        roles: new Set<string>(),
+        calls: 0,
+        input: 0,
+        output: 0,
+        total: 0,
+      };
+      this.buckets.set(key, bucket);
+    }
+
+    const role = attribution?.role?.trim().toLowerCase();
+    if (role) bucket.roles.add(role);
+    bucket.calls += 1;
+    bucket.input += inp;
+    bucket.output += out;
+    bucket.total += total;
   }
 
   /** Current accumulated totals. Uses the provider-supplied total when available. */
@@ -87,6 +175,26 @@ export class TokenTracker {
       outputTokens: this.output,
       totalTokens: this.total,
     };
+  }
+
+  /**
+   * Per-model usage, heaviest first. Always sums to {@link totals}; models that
+   * could not be attributed appear under the `"unknown"` key rather than being
+   * dropped.
+   */
+  get breakdown(): ModelTokenUsage[] {
+    return [...this.buckets.values()]
+      .map((b) => ({
+        key: b.key,
+        provider: b.provider,
+        model: b.model,
+        roles: [...b.roles].sort(),
+        calls: b.calls,
+        inputTokens: b.input,
+        outputTokens: b.output,
+        totalTokens: b.total,
+      }))
+      .sort((a, b) => b.totalTokens - a.totalTokens || a.key.localeCompare(b.key));
   }
 
   /**
@@ -109,12 +217,15 @@ class ChildTracker extends TokenTracker {
     super();
   }
 
-  override record(usage?: {
-    inputTokens?: number;
-    outputTokens?: number;
-    totalTokens?: number;
-  }): void {
-    super.record(usage);
-    this.parent.record(usage);
+  override record(
+    usage?: {
+      inputTokens?: number;
+      outputTokens?: number;
+      totalTokens?: number;
+    },
+    attribution?: RecordAttribution
+  ): void {
+    super.record(usage, attribution);
+    this.parent.record(usage, attribution);
   }
 }

@@ -22,6 +22,35 @@ import {
   roleLabel,
   SEV_HEX,
 } from "./format.js";
+import type { RunCost } from "../pricing/types.js";
+import { formatUsd } from "../pricing/estimateCost.js";
+
+/**
+ * Sub-label for the cost card: the attacker/judge split when both are present
+ * (the number people act on — "the judge is most of the spend"), otherwise a
+ * coverage note. Always states when models went unpriced, so a partial total is
+ * never mistaken for a complete one.
+ */
+function costSubLabel(cost: RunCost): string {
+  if (cost.unpricedModels.length > 0) {
+    const priced = cost.byModel.length - cost.unpricedModels.length;
+    return `${priced} of ${cost.byModel.length} models priced — lower bound`;
+  }
+  const byRole = new Map<string, number>();
+  for (const m of cost.byModel) {
+    // One role → label it. Several → "mixed". None → "unknown": a bucket with no
+    // recorded phase is unattributed, which is not the same as serving several.
+    const role = m.roles.length === 1 ? m.roles[0] : m.roles.length > 1 ? "mixed" : "unknown";
+    byRole.set(role, (byRole.get(role) ?? 0) + (m.usd ?? 0));
+  }
+  if (byRole.size > 1) {
+    return [...byRole.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([role, usd]) => `${role} ${formatUsd(usd)}`)
+      .join(" · ");
+  }
+  return `${cost.byModel.length} model${cost.byModel.length === 1 ? "" : "s"} · attacker + judge only`;
+}
 
 // ── Mode-specific labels ─────────────────────────────────────────
 
@@ -131,7 +160,7 @@ export function renderReport(model: ReportViewModel): string {
               </div>
             </div>
             <div class="eval-summary-right">
-              ${e.tokenUsage ? `<span style="font-size:12px;color:var(--muted)">${formatTokenCount(e.tokenUsage.totalTokens)} tokens</span><span class="eval-sep">|</span>` : ""}
+              ${e.tokenUsage ? `<span style="font-size:12px;color:var(--muted)">${formatTokenCount(e.tokenUsage.totalTokens)} tokens${e.cost ? ` · ≈${formatUsd(e.cost.totalUsd)}` : ""}</span><span class="eval-sep">|</span>` : ""}
               <span class="verdict-tag ${verdictClass}">${evalVerdict === "PASS" ? "Pass" : evalVerdict === "ERROR" ? "Error" : "Fail"}</span>
               <span style="font-size:12px;color:var(--text)">Safety score: <strong>${avgScore ?? "—"}/10</strong></span>
             </div>
@@ -433,6 +462,15 @@ export function renderReport(model: ReportViewModel): string {
         <div class="exec-strip-label">Token Usage</div>
         <div class="sc-value">${formatTokenCount(summary.tokenUsage.totalTokens)}</div>
         <div class="sc-sub">${summary.tokenUsage.inputTokens.toLocaleString()} in · ${summary.tokenUsage.outputTokens.toLocaleString()} out</div>
+      </div>`
+          : ""
+      }
+      ${
+        summary.cost
+          ? `<div class="exec-strip-item">
+        <div class="exec-strip-label">Testing Cost</div>
+        <div class="sc-value" title="Estimated from published list prices (${esc(summary.cost.priceTableVersion)}). Excludes the target's own inference cost.">≈${formatUsd(summary.cost.totalUsd)}</div>
+        <div class="sc-sub">${esc(costSubLabel(summary.cost))}</div>
       </div>`
           : ""
       }

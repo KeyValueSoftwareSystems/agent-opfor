@@ -17,6 +17,7 @@ import type { LlmConfig } from "../config/types.js";
 import { getAdapter } from "../telemetry/adapter.js";
 import { runSetupTraceCuration } from "../telemetry/curation.js";
 import { TokenTracker } from "./tokenTracker.js";
+import { estimateRunCost } from "../pricing/estimateCost.js";
 import { log } from "../lib/logger.js";
 
 export interface RunAllOptions {
@@ -144,6 +145,8 @@ export async function runAll(
     const usage = tokenTracker.totals;
     if (usage.totalTokens > 0) {
       report.summary.tokenUsage = usage;
+      report.summary.tokenUsageByModel = tokenTracker.breakdown;
+      report.summary.cost = estimateRunCost(report.summary.tokenUsageByModel);
     }
     report.summary.durationMs = Date.now() - runStartedAt;
     if (stopReason) {

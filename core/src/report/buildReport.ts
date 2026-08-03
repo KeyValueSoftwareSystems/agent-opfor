@@ -90,6 +90,8 @@ function toEvaluatorViewModel(ev: EvaluatorResult): EvaluatorViewModel {
     passRate: ev.passRate,
     results: ev.attacks.map(toResultViewModel),
     tokenUsage: ev.tokenUsage,
+    tokenUsageByModel: ev.tokenUsageByModel,
+    cost: ev.cost,
   };
 }
 

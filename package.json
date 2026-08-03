@@ -38,6 +38,7 @@
     "format:check": "prettier --check .",
     "validate:skills": "tsx scripts/validate-skills.ts",
     "build:catalog": "tsx scripts/build-catalog.ts",
+    "build:pricing": "tsx scripts/build-pricing.ts",
     "build:catalog:check": "tsx scripts/build-catalog.ts --check",
     "test:catalog-generators": "node --import tsx/esm --test scripts/tests/*.test.mjs scripts/tests/*.test.ts runners/extension/tests/*.test.mjs",
     "smoke:pack": "tsx scripts/smoke-pack.ts",

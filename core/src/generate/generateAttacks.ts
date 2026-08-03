@@ -183,6 +183,7 @@ async function generatePatternAgentAttack(
       context: "Attacker",
       maxRetries: 3,
       tokenTracker,
+      model,
     });
     return result.text.trim();
   } catch (err) {
@@ -387,6 +388,7 @@ async function generateSingleMcpAttack(
       context: "Attacker (MCP)",
       maxRetries: 3,
       tokenTracker,
+      model,
     });
     return parseMcpAttackJson(result.text, tools[0].name);
   } catch (err) {
@@ -437,6 +439,7 @@ async function generatePatternMcpAttack(
       context: "Attacker (MCP)",
       maxRetries: 3,
       tokenTracker,
+      model,
     });
     return parseMcpAttackJson(result.text, tools[0].name);
   } catch (err) {

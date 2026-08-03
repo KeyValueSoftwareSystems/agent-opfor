@@ -206,7 +206,7 @@ export async function judgeResponse(
   try {
     const result = await withRetry(
       () => generateText({ model, system: JUDGE_SYSTEM, prompt: judgePrompt }),
-      { context: "Judge", maxRetries: 3, tokenTracker }
+      { context: "Judge", maxRetries: 3, tokenTracker, model }
     );
     return parseJudgeOutput(result.text);
   } catch (err) {

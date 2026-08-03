@@ -20,6 +20,7 @@ import {
   modelLabel,
 } from "./aggregate.js";
 import { TokenTracker } from "./tokenTracker.js";
+import { estimateRunCost } from "../pricing/estimateCost.js";
 import type {
   AgentAttackSpec,
   AttackResult,
@@ -189,6 +190,8 @@ export async function runAllBrowser(
             attackResults
           );
           partialResult.tokenUsage = evalTracker.totals;
+          partialResult.tokenUsageByModel = evalTracker.breakdown;
+          partialResult.cost = estimateRunCost(partialResult.tokenUsageByModel);
           evaluatorResults.push(partialResult);
         };
 
@@ -230,6 +233,8 @@ export async function runAllBrowser(
       attackResults
     );
     evResult.tokenUsage = evalTracker.totals;
+    evResult.tokenUsageByModel = evalTracker.breakdown;
+    evResult.cost = estimateRunCost(evResult.tokenUsageByModel);
     evaluatorResults.push(evResult);
   }
 
@@ -237,6 +242,8 @@ export async function runAllBrowser(
   const usage = tokenTracker.totals;
   if (usage.totalTokens > 0) {
     report.summary.tokenUsage = usage;
+    report.summary.tokenUsageByModel = tokenTracker.breakdown;
+    report.summary.cost = estimateRunCost(report.summary.tokenUsageByModel);
   }
   report.summary.durationMs = Date.now() - runStartedAt;
   return report;

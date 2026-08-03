@@ -108,6 +108,8 @@ export async function chatCompletionJsonContent(args: {
   user: string;
   isAcceptableJson?: (json: string) => boolean;
   tokenTracker?: TokenTracker;
+  /** Run phase this call belongs to, used to attribute recorded token usage. */
+  role?: string;
 }): Promise<string> {
   const apiKey = resolveApiKey(args.model);
   if (!apiKey) {
@@ -210,7 +212,7 @@ export async function chatCompletionJsonContent(args: {
         outputTokens: data.usage.completion_tokens ?? 0,
         totalTokens: data.usage.total_tokens ?? 0,
       });
-      if (validated) args.tokenTracker.record(validated);
+      if (validated) args.tokenTracker.record(validated, { model: args.model, role: args.role });
     }
     const content = data.choices?.[0]?.message?.content;
     if (typeof content !== "string" || !content.trim()) {

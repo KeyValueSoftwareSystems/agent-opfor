@@ -4,6 +4,8 @@
  */
 
 import type { JudgeResult } from "../lib/judgeTypes.js";
+import type { ModelTokenUsage } from "../execute/tokenTracker.js";
+import type { RunCost } from "../pricing/types.js";
 
 /** @deprecated Use JudgeResult from @keyvaluesystems/agent-opfor-core/lib/judgeTypes.js directly. */
 export type ReportJudge = JudgeResult;
@@ -45,6 +47,10 @@ export interface EvaluatorViewModel {
   passRate: number;
   results: ResultViewModel[];
   tokenUsage?: { inputTokens: number; outputTokens: number; totalTokens: number };
+  /** Same tokens as `tokenUsage`, split by the model that spent them. */
+  tokenUsageByModel?: ModelTokenUsage[];
+  /** Estimated USD cost of this evaluator's attacker + judge calls. */
+  cost?: RunCost;
 }
 
 export interface ReportViewModel {
@@ -74,6 +80,13 @@ export interface ReportViewModel {
     safetyScore: number;
     attackSuccessRate: number;
     tokenUsage?: { inputTokens: number; outputTokens: number; totalTokens: number };
+    /** Same tokens as `tokenUsage`, split by the model that spent them. */
+    tokenUsageByModel?: ModelTokenUsage[];
+    /**
+     * Estimated USD cost of the attacker + judge LLM calls. Excludes the
+     * target's own inference cost, which opfor cannot observe.
+     */
+    cost?: RunCost;
     /** Wall-clock time for the whole run, from the first evaluator to the last. */
     durationMs?: number;
   };

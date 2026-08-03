@@ -194,6 +194,7 @@ export async function judgeToolResponse(
     // Safe as a predicate because parseJson never throws — it degrades to ERROR.
     isAcceptableJson: (json) => verdictParser.parseJson(json).verdict !== "ERROR",
     tokenTracker: args.tokenTracker,
+    role: "judge",
   });
 
   return verdictParser.parseJson(raw);

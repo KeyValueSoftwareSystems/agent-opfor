@@ -1,5 +1,7 @@
 import type { LlmConfig, TelemetryConfig } from "../config/types.js";
 import type { JudgeResult } from "../run/types.js";
+import type { ModelTokenUsage } from "./tokenTracker.js";
+import type { RunCost } from "../pricing/types.js";
 
 export type Effort = "adaptive" | "comprehensive";
 
@@ -249,6 +251,10 @@ export interface EvaluatorResult {
   passRate: number;
   attacks: AttackResult[];
   tokenUsage?: { inputTokens: number; outputTokens: number; totalTokens: number };
+  /** Same tokens as `tokenUsage`, split by the model that spent them. */
+  tokenUsageByModel?: ModelTokenUsage[];
+  /** Estimated USD cost of this evaluator's attacker + judge calls. */
+  cost?: RunCost;
 }
 
 export interface UnifiedRunReport {
@@ -273,6 +279,13 @@ export interface UnifiedRunReport {
     safetyScore: number;
     attackSuccessRate: number;
     tokenUsage?: { inputTokens: number; outputTokens: number; totalTokens: number };
+    /** Same tokens as `tokenUsage`, split by the model that spent them. */
+    tokenUsageByModel?: ModelTokenUsage[];
+    /**
+     * Estimated USD cost of the attacker + judge LLM calls. Excludes the
+     * target's own inference cost, which opfor cannot observe.
+     */
+    cost?: RunCost;
     /** Wall-clock time for the whole run, from the first evaluator to the last. */
     durationMs?: number;
   };

@@ -126,3 +126,109 @@ test("parseUsage strips unknown provider metadata and returns normalized usage",
   });
   assert.deepStrictEqual(result, { inputTokens: 100, outputTokens: 20, totalTokens: 150 });
 });
+
+// ---------------------------------------------------------------------------
+// Per-model attribution
+// ---------------------------------------------------------------------------
+
+const ATTACKER = { provider: "openai-compatible", model: "deepseek/deepseek-v4-pro" };
+const JUDGE = { provider: "anthropic", model: "claude-opus-5" };
+
+test("fresh tracker has an empty breakdown", () => {
+  const t = new TokenTracker();
+  assert.deepStrictEqual(t.breakdown, []);
+});
+
+test("usage recorded without attribution lands in the unknown bucket, not dropped", () => {
+  const t = new TokenTracker();
+  t.record({ inputTokens: 100, outputTokens: 20 });
+  assert.equal(t.breakdown.length, 1);
+  assert.equal(t.breakdown[0].key, "unknown");
+  assert.equal(t.breakdown[0].totalTokens, 120);
+  assert.deepStrictEqual(t.totals, { inputTokens: 100, outputTokens: 20, totalTokens: 120 });
+});
+
+test("attributed usage is keyed by provider and model", () => {
+  const t = new TokenTracker();
+  t.record({ inputTokens: 100, outputTokens: 20 }, { model: ATTACKER, role: "attacker" });
+  const [b] = t.breakdown;
+  assert.equal(b.key, "openai-compatible:deepseek/deepseek-v4-pro");
+  assert.equal(b.provider, "openai-compatible");
+  assert.equal(b.model, "deepseek/deepseek-v4-pro");
+  assert.deepStrictEqual(b.roles, ["attacker"]);
+  assert.equal(b.calls, 1);
+});
+
+test("two models are tracked separately and still sum to run totals", () => {
+  const t = new TokenTracker();
+  t.record({ inputTokens: 80_000, outputTokens: 12_000 }, { model: ATTACKER, role: "attacker" });
+  t.record({ inputTokens: 20_000, outputTokens: 3_000 }, { model: JUDGE, role: "judge" });
+
+  assert.equal(t.breakdown.length, 2);
+  const sum = t.breakdown.reduce((n, b) => n + b.totalTokens, 0);
+  assert.equal(sum, t.totals.totalTokens);
+  assert.equal(t.totals.totalTokens, 115_000);
+});
+
+test("breakdown is ordered heaviest first", () => {
+  const t = new TokenTracker();
+  t.record({ inputTokens: 10, outputTokens: 1 }, { model: JUDGE });
+  t.record({ inputTokens: 500, outputTokens: 50 }, { model: ATTACKER });
+  assert.equal(t.breakdown[0].model, "deepseek/deepseek-v4-pro");
+});
+
+test("one model used for both phases accumulates both roles, deduped and sorted", () => {
+  const t = new TokenTracker();
+  t.record({ inputTokens: 10, outputTokens: 2 }, { model: JUDGE, role: "judge" });
+  t.record({ inputTokens: 10, outputTokens: 2 }, { model: JUDGE, role: "attacker" });
+  t.record({ inputTokens: 10, outputTokens: 2 }, { model: JUDGE, role: "judge" });
+
+  assert.equal(t.breakdown.length, 1);
+  assert.deepStrictEqual(t.breakdown[0].roles, ["attacker", "judge"]);
+  assert.equal(t.breakdown[0].calls, 3);
+});
+
+test("roles are normalized to lowercase so 'Judge' and 'judge' do not split", () => {
+  const t = new TokenTracker();
+  t.record({ inputTokens: 10, outputTokens: 2 }, { model: JUDGE, role: "Judge" });
+  t.record({ inputTokens: 10, outputTokens: 2 }, { model: JUDGE, role: "judge" });
+  assert.deepStrictEqual(t.breakdown[0].roles, ["judge"]);
+});
+
+test("attributed and unattributed usage coexist without losing tokens", () => {
+  const t = new TokenTracker();
+  t.record({ inputTokens: 100, outputTokens: 20 }, { model: ATTACKER, role: "attacker" });
+  t.record({ inputTokens: 7, outputTokens: 3 });
+  const sum = t.breakdown.reduce((n, b) => n + b.totalTokens, 0);
+  assert.equal(sum, t.totals.totalTokens);
+  assert.ok(t.breakdown.some((b) => b.key === "unknown"));
+});
+
+test("child tracker propagates attribution to its parent, not just totals", () => {
+  const parent = new TokenTracker();
+  const child = parent.child();
+  child.record({ inputTokens: 100, outputTokens: 20 }, { model: JUDGE, role: "judge" });
+
+  assert.equal(child.breakdown[0].key, "anthropic:claude-opus-5");
+  assert.equal(parent.breakdown[0].key, "anthropic:claude-opus-5");
+  assert.deepStrictEqual(parent.breakdown[0].roles, ["judge"]);
+});
+
+test("sibling children merge into one parent bucket per model", () => {
+  const parent = new TokenTracker();
+  const a = parent.child();
+  const b = parent.child();
+  a.record({ inputTokens: 100, outputTokens: 20 }, { model: ATTACKER, role: "attacker" });
+  b.record({ inputTokens: 200, outputTokens: 40 }, { model: ATTACKER, role: "attacker" });
+
+  assert.equal(parent.breakdown.length, 1);
+  assert.equal(parent.breakdown[0].calls, 2);
+  assert.equal(parent.breakdown[0].totalTokens, 360);
+});
+
+test("explicit totalTokens is preserved in the per-model bucket too", () => {
+  const t = new TokenTracker();
+  t.record({ inputTokens: 100, outputTokens: 20, totalTokens: 150 }, { model: JUDGE });
+  assert.equal(t.breakdown[0].totalTokens, 150);
+  assert.equal(t.totals.totalTokens, 150);
+});
