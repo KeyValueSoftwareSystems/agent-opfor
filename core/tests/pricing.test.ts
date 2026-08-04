@@ -5,6 +5,8 @@ import { estimateRunCost, formatUsd } from "../src/pricing/estimateCost.js";
 import { PRICE_TABLE, PRICE_TABLE_VERSION } from "../src/pricing/priceTable.generated.js";
 import { LITELLM_PROVIDER_ALIASES } from "../src/pricing/providerAliases.js";
 import type { ModelTokenUsage } from "../src/execute/tokenTracker.js";
+import type { RunCost } from "../src/pricing/types.js";
+import { formatCostDisplay } from "../src/report/render.js";
 
 /** Build a token-breakdown row without repeating the boilerplate. */
 function usage(
@@ -228,4 +230,43 @@ test("no displayed amount collapses to a bare zero unless it is truly zero", () 
     assert.notEqual(s, "$0.00", `${v} rendered as $0.00`);
     assert.ok(!/^\$0\.0+$/.test(s), `${v} rendered as all-zero string ${s}`);
   }
+});
+
+// ---------------------------------------------------------------------------
+// Cost display confidence
+//
+// Regression: totalUsd sums only *priced* models, so a run where nothing could
+// be priced legitimately totals 0 — and rendering that as "$0.00" makes an
+// unknown cost look free, which is the exact failure the design forbids.
+// ---------------------------------------------------------------------------
+
+/** Minimal RunCost for display tests. */
+function runCost(totalUsd: number, unpriced: string[]): RunCost {
+  return {
+    totalUsd,
+    currency: "USD",
+    byModel: [],
+    unpricedModels: unpriced,
+    complete: unpriced.length === 0,
+    priceTableVersion: PRICE_TABLE_VERSION,
+  };
+}
+
+test("a fully-priced run reads as an estimate", () => {
+  assert.equal(formatCostDisplay(runCost(1.25, [])), "≈$1.25");
+});
+
+test("a partially-priced run reads as a floor, not an estimate", () => {
+  assert.equal(formatCostDisplay(runCost(1.25, ["openai:mystery"])), "≥$1.25");
+});
+
+test("a run where nothing could be priced never renders as $0.00", () => {
+  const display = formatCostDisplay(runCost(0, ["openai:mystery"]));
+  assert.equal(display, "unpriced");
+  assert.ok(!display.includes("0.00"), "unknown cost must not look free");
+});
+
+test("a genuinely free run is still allowed to show zero", () => {
+  // Everything priced, everything free (e.g. a self-hosted model at $0).
+  assert.equal(formatCostDisplay(runCost(0, [])), "≈$0.00");
 });

@@ -26,6 +26,20 @@ import type { RunCost } from "../pricing/types.js";
 import { formatUsd } from "../pricing/estimateCost.js";
 
 /**
+ * Cost for display, carrying its own confidence.
+ *
+ * `totalUsd` sums only the models that could be priced, so when none of them
+ * could it is legitimately `0` — and `formatUsd(0)` is `"$0.00"`, which reads as
+ * "this run was free" rather than "we don't know". Distinguish the three cases
+ * at the point of display: `≈` for a complete estimate, `≥` for a partial one
+ * that is genuinely a floor, and no number at all when nothing was priced.
+ */
+export function formatCostDisplay(cost: RunCost): string {
+  if (cost.complete) return `≈${formatUsd(cost.totalUsd)}`;
+  return cost.totalUsd > 0 ? `≥${formatUsd(cost.totalUsd)}` : "unpriced";
+}
+
+/**
  * Sub-label for the cost card: the attacker/judge split when both are present
  * (the number people act on — "the judge is most of the spend"), otherwise a
  * coverage note. Always states when models went unpriced, so a partial total is
@@ -160,7 +174,7 @@ export function renderReport(model: ReportViewModel): string {
               </div>
             </div>
             <div class="eval-summary-right">
-              ${e.tokenUsage ? `<span style="font-size:12px;color:var(--muted)">${formatTokenCount(e.tokenUsage.totalTokens)} tokens${e.cost ? ` · ≈${formatUsd(e.cost.totalUsd)}` : ""}</span><span class="eval-sep">|</span>` : ""}
+              ${e.tokenUsage ? `<span style="font-size:12px;color:var(--muted)">${formatTokenCount(e.tokenUsage.totalTokens)} tokens${e.cost ? ` · ${formatCostDisplay(e.cost)}` : ""}</span><span class="eval-sep">|</span>` : ""}
               <span class="verdict-tag ${verdictClass}">${evalVerdict === "PASS" ? "Pass" : evalVerdict === "ERROR" ? "Error" : "Fail"}</span>
               <span style="font-size:12px;color:var(--text)">Safety score: <strong>${avgScore ?? "—"}/10</strong></span>
             </div>
@@ -469,7 +483,7 @@ export function renderReport(model: ReportViewModel): string {
         summary.cost
           ? `<div class="exec-strip-item">
         <div class="exec-strip-label">Testing Cost</div>
-        <div class="sc-value" title="Estimated from published list prices (${esc(summary.cost.priceTableVersion)}). Excludes the target's own inference cost.">≈${formatUsd(summary.cost.totalUsd)}</div>
+        <div class="sc-value" title="Estimated from published list prices (${esc(summary.cost.priceTableVersion)}). Excludes the target's own inference cost.">${formatCostDisplay(summary.cost)}</div>
         <div class="sc-sub">${esc(costSubLabel(summary.cost))}</div>
       </div>`
           : ""
