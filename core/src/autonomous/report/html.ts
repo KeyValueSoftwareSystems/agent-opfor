@@ -16,57 +16,16 @@ import {
   SEVERITY_ICON,
   CHEVRON_ICON,
 } from "../../report/brand.js";
-
-function esc(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-function truncate(s: string, n: number): string {
-  return s.length > n ? s.slice(0, n) + "…" : s;
-}
-
-/** Format a run duration for display (e.g. 754000 → "12m 34s"). */
-function formatDuration(ms: number): string {
-  const totalSeconds = Math.round(ms / 1000);
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-  if (hours > 0) return `${hours}h ${minutes}m`;
-  if (minutes > 0) return `${minutes}m ${seconds}s`;
-  return `${seconds}s`;
-}
-
-/** Map a safety score (0–100) to a red/amber/green hex colour. */
-function safetyColor(score: number): string {
-  if (score >= 70) return "#059669";
-  if (score >= 50) return "#D97706";
-  return "#DC2626";
-}
-
-const SEV_HEX: Record<Severity, string> = {
-  critical: "#DC2626",
-  high: "#EA580C",
-  medium: "#D97706",
-  low: "#16A34A",
-};
-const SEV_ORDER: Severity[] = ["critical", "high", "medium", "low"];
-
-/** Semi-circular SVG gauge for a 0-100 percentage score. */
-function gaugeSvg(pct: number, color: string): string {
-  const r = 52;
-  const circumference = Math.PI * r;
-  const offset = circumference * (1 - Math.max(0, Math.min(100, pct)) / 100);
-  return `<svg width="120" height="70" viewBox="0 0 120 70" style="display:block;margin:0">
-    <path d="M8 64 A ${r} ${r} 0 0 1 112 64" fill="none" stroke="var(--line)" stroke-width="9" stroke-linecap="round"/>
-    <path d="M8 64 A ${r} ${r} 0 0 1 112 64" fill="none" stroke="${color}" stroke-width="9" stroke-linecap="round"
-      stroke-dasharray="${circumference.toFixed(2)}" stroke-dashoffset="${offset.toFixed(2)}"/>
-  </svg>`;
-}
+import {
+  esc,
+  truncate,
+  formatDuration,
+  safetyColor,
+  gaugeSvg,
+  roleLabel,
+  SEV_HEX,
+  SEV_ORDER,
+} from "../../report/format.js";
 
 /** Wall-clock run time, when the report carries a usable `startedAt` (older ones don't). */
 function runDurationMs(r: AutonomousReport): number | undefined {
@@ -78,11 +37,6 @@ function runDurationMs(r: AutonomousReport): number | undefined {
 }
 
 // ── Transcript ───────────────────────────────────────────────────
-
-/** Role label row: icon + name. */
-function roleLabel(icon: string, name: string): string {
-  return `<div class="turn-role"><span class="turn-icon">${icon}</span>${name}</div>`;
-}
 
 /** One conversation turn: attacker prompt as plain text, target response as a bubble that's
  *  tinted when the judge cited this turn in `failingTurns`. `id` anchors the turn for the
@@ -263,7 +217,7 @@ function renderAttackTree(r: AutonomousReport, num: number): string {
   const e = r.exploration;
   return `<div class="section" id="tree">
     <div class="section-header"><div class="section-num">${num}</div><div class="section-title">Attack Tree</div>
-      <div class="section-subtitle">${r.summary.threads} threads · ${e.leadsFlagged} leads (${e.leadsSpawned} expanded / ${e.leadsDismissed} dropped) · depth ${e.maxDepthReached}</div></div>
+      <div class="section-subtitle">${byId.size} thread${byId.size === 1 ? "" : "s"} · ${e.leadsFlagged} leads (${e.leadsSpawned} expanded / ${e.leadsDismissed} dropped) · depth ${e.maxDepthReached}</div></div>
     <div class="tree-card"><pre class="tree">${esc(tree)}</pre></div>
   </div>`;
 }
@@ -301,6 +255,9 @@ export function renderReportHtml(r: AutonomousReport): string {
 
   // Safety score mirrors the run report's 0-100 scale: the inverse of attack success.
   // N/A when nothing was conclusively scored (no confirmed and no defended threads).
+  // summary.threads is really a finding count (mapRunLog sets it to findings.length), and one
+  // thread can yield several findings — so derive the real thread count for thread-labelled UI.
+  const threadCount = new Set(r.findings.map((f) => f.threadId)).size;
   const scoreable = r.summary.confirmed + r.summary.defended;
   const safetyScore = scoreable > 0 ? 100 - r.summary.attackSuccessRate : null;
   const durationMs = runDurationMs(r);
@@ -367,7 +324,7 @@ export function renderReportHtml(r: AutonomousReport): string {
 
   const narrative = r.synthesisComplete
     ? esc(r.executiveNarrative)
-    : `Assessment of <strong>${esc(r.target.name)}</strong>: <strong>${r.summary.confirmed}</strong> confirmed vulnerabilit${r.summary.confirmed === 1 ? "y" : "ies"} (${crit} critical, ${high} high) across ${r.summary.threads} attack threads — ${r.summary.attackSuccessRate}% attack-success rate.${r.truncated ? ` <em>Run truncated: ${esc(r.truncationReason ?? "")}.</em>` : ""}`;
+    : `Assessment of <strong>${esc(r.target.name)}</strong>: <strong>${r.summary.confirmed}</strong> confirmed vulnerabilit${r.summary.confirmed === 1 ? "y" : "ies"} (${crit} critical, ${high} high) across ${threadCount} attack thread${threadCount === 1 ? "" : "s"} — ${r.summary.attackSuccessRate}% attack-success rate.${r.truncated ? ` <em>Run truncated: ${esc(r.truncationReason ?? "")}.</em>` : ""}`;
 
   const outcomeLabel = r.objectiveOutcome.replace(/-/g, " ");
 
@@ -732,13 +689,14 @@ export function renderReportHtml(r: AutonomousReport): string {
         <div class="gauge-value">${safetyScore === null ? "N/A" : `${safetyScore}%`}</div>
       </div>
       <div class="exec-strip-item">
-        <div class="exec-strip-label">Attack Threads</div>
-        <div class="sc-value">${r.summary.threads}</div>
+        <div class="exec-strip-label">Findings</div>
+        <div class="sc-value">${r.findings.length}</div>
         <div class="sc-dots">
           <div class="sc-dot-row"><span class="sc-dot" style="background:var(--fail)"></span>${r.summary.confirmed} confirmed</div>
           <div class="sc-dot-row"><span class="sc-dot" style="background:var(--pass)"></span>${r.summary.defended} defended</div>
           ${r.summary.errors > 0 ? `<div class="sc-dot-row"><span class="sc-dot" style="background:#D97706"></span>${r.summary.errors} errored</div>` : ""}
         </div>
+        <div class="sc-sub">across ${threadCount} attack thread${threadCount === 1 ? "" : "s"}</div>
       </div>
       <div class="exec-strip-item">
         <div class="exec-strip-label">Attack Success</div>
@@ -772,7 +730,7 @@ export function renderReportHtml(r: AutonomousReport): string {
       </div>
       <div class="scope-card">
         <div class="scope-card-title">Exploration</div>
-        <div class="scope-row"><span class="scope-k">Attack Threads</span><span class="scope-v">${r.summary.threads}</span></div>
+        <div class="scope-row"><span class="scope-k">Attack Threads</span><span class="scope-v">${threadCount}</span></div>
         <div class="scope-row"><span class="scope-k">Leads Flagged</span><span class="scope-v">${r.exploration.leadsFlagged}</span></div>
         <div class="scope-row"><span class="scope-k">Leads Expanded / Dismissed</span><span class="scope-v">${r.exploration.leadsSpawned} / ${r.exploration.leadsDismissed}</span></div>
         <div class="scope-row"><span class="scope-k">Max Depth Reached</span><span class="scope-v">${r.exploration.maxDepthReached}${r.exploration.maxDepthReached === 0 ? " (root wave only)" : ""}</span></div>
@@ -831,7 +789,7 @@ export function renderReportHtml(r: AutonomousReport): string {
     <div class="section-header">
       <div class="section-num">${findingsNo}</div>
       <div class="section-title">Findings</div>
-      <div class="section-subtitle">${fails.length} confirmed · ${defended.length} defended${errored.length ? ` · ${errored.length} errored` : ""}${fails.length ? ` · <span style="color:var(--fail);font-weight:700">red</span> rail marker = breach turn` : ""}</div>
+      <div class="section-subtitle">${fails.length} confirmed finding${fails.length === 1 ? "" : "s"} · ${defended.length} defended${errored.length ? ` · ${errored.length} errored` : ""}${fails.length ? ` · <span style="color:var(--fail);font-weight:700">red</span> rail marker = breach turn` : ""}</div>
     </div>
     ${ordered.length ? ordered.map((f, i) => renderFindingCard(f, i)).join("") : '<div class="no-findings">No attack threads were recorded for this run.</div>'}
   </div>
