@@ -4,24 +4,29 @@ import { getEnv } from "../lib/env.js";
 import type { TokenTracker } from "../execute/tokenTracker.js";
 import { parseUsage } from "../execute/tokenTracker.js";
 import { z } from "zod";
+import { log } from "../lib/logger.js";
 
+// Only the response *shape* is enforced here. `content` and every `usage` field stay
+// nullish: providers legitimately send `content: null` (refusals, reasoning-only turns)
+// and `usage: null`, and a telemetry field must never fail a request that returned
+// usable content. Emptiness is judged below, where it can trigger the fallback.
 const chatCompletionResponseSchema = z.object({
   choices: z
     .array(
       z.object({
         message: z.object({
-          content: z.string(),
+          content: z.string().nullish(),
         }),
       })
     )
     .min(1),
   usage: z
     .object({
-      prompt_tokens: z.number().optional(),
-      completion_tokens: z.number().optional(),
-      total_tokens: z.number().optional(),
+      prompt_tokens: z.number().nullish(),
+      completion_tokens: z.number().nullish(),
+      total_tokens: z.number().nullish(),
     })
-    .optional(),
+    .nullish(),
 });
 
 /** Resolve the API key from the environment variable named in `model.apiKeyEnv`. */
@@ -91,6 +96,11 @@ async function drainBody(res: Response): Promise<void> {
  * and return the assistant message content. Automatically retries with relaxed
  * parameters when the provider rejects JSON mode or temperature. Records token
  * usage on the supplied {@link TokenTracker} when present.
+ *
+ * `isAcceptableJson` lets the caller reject a syntactically valid but useless
+ * payload (e.g. a judge verdict of `{}`); one retry without `response_format`
+ * follows, and its result is terminal. It must not throw — a predicate that
+ * throws propagates to the caller instead of triggering the fallback.
  */
 export async function chatCompletionJsonContent(args: {
   model: LlmConfig;
@@ -137,46 +147,49 @@ export async function chatCompletionJsonContent(args: {
       body: makeBody({ jsonMode: useJsonMode, temperature: useTemperature }),
     });
 
-  let res = await doFetch();
+  // Send one request, recovering from the two transport-level failures we know how to
+  // absorb: unsupported params (400) and rate limits (429). Every attempt goes through
+  // here, so the no-JSON-mode fallback below inherits the same recovery.
+  const send = async (): Promise<Response> => {
+    let res = await doFetch();
 
-  // 400 often means unsupported params — strip json_object and/or temperature and retry.
-  // Each discarded response's body must be drained before firing the next request:
-  // an unconsumed body holds its connection open, and issuing several rapid
-  // requests to the same host without draining them can exhaust the fetch
-  // connection pool and throw an opaque "TypeError: fetch failed" that masks
-  // the real LLM HTTP error below (e.g. an invalid model name, which returns
-  // the same 400 on every retry regardless of these params).
-  if (!res.ok && res.status === 400) {
-    if (useJsonMode) {
-      await drainBody(res);
-      useJsonMode = false;
-      res = await doFetch();
+    // 400 often means unsupported params — strip json_object and/or temperature and retry.
+    // Each discarded response's body must be drained before firing the next request:
+    // an unconsumed body holds its connection open, and issuing several rapid
+    // requests to the same host without draining them can exhaust the fetch
+    // connection pool and throw an opaque "TypeError: fetch failed" that masks
+    // the real LLM HTTP error below (e.g. an invalid model name, which returns
+    // the same 400 on every retry regardless of these params).
+    if (!res.ok && res.status === 400) {
+      if (useJsonMode) {
+        await drainBody(res);
+        useJsonMode = false;
+        res = await doFetch();
+      }
+      if (!res.ok && res.status === 400 && useTemperature) {
+        await drainBody(res);
+        useTemperature = false;
+        res = await doFetch();
+      }
     }
-    if (!res.ok && res.status === 400 && useTemperature) {
-      await drainBody(res);
-      useTemperature = false;
-      res = await doFetch();
+
+    // 429 rate limit — retry with exponential backoff (up to 3 attempts).
+    if (res.status === 429) {
+      const delays = [3000, 8000, 20000];
+      for (const delay of delays) {
+        const retryAfterHeader = res.headers.get("retry-after");
+        const waitMs = retryAfterHeader ? parseInt(retryAfterHeader) * 1000 : delay;
+        await drainBody(res);
+        await new Promise((r) => setTimeout(r, waitMs));
+        res = await doFetch();
+        if (res.status !== 429) break;
+      }
     }
-  }
 
-  // 429 rate limit — retry with exponential backoff (up to 3 attempts).
-  if (res.status === 429) {
-    const delays = [3000, 8000, 20000];
-    for (const delay of delays) {
-      const retryAfterHeader = res.headers.get("retry-after");
-      const waitMs = retryAfterHeader ? parseInt(retryAfterHeader) * 1000 : delay;
-      await new Promise((r) => setTimeout(r, waitMs));
-      res = await doFetch();
-      if (res.status !== 429) break;
-    }
-  }
+    return res;
+  };
 
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`LLM HTTP ${res.status}: ${text.slice(0, 500)}`);
-  }
-
-  const readJsonContent = async (response: Response): Promise<string> => {
+  const readContent = async (response: Response): Promise<string> => {
     if (!response.ok) {
       const text = await response.text().catch(() => "");
       throw new Error(`LLM HTTP ${response.status}: ${text.slice(0, 500)}`);
@@ -187,7 +200,7 @@ export async function chatCompletionJsonContent(args: {
         .map((issue) => `${issue.path.join(".") || "response"}: ${issue.message}`)
         .join("; ");
       throw new Error(
-        `LLM provider returned an invalid chat completion response (${details}). Configure the provider to return OpenAI-compatible choices with non-empty message content.`
+        `LLM provider returned an invalid chat completion response (${details}). Configure the provider to return OpenAI-compatible choices with a message object.`
       );
     }
     const data = parsed.data;
@@ -205,14 +218,30 @@ export async function chatCompletionJsonContent(args: {
         "LLM returned empty content. Configure the provider or prompt to return a non-empty JSON completion."
       );
     }
-    return extractJson(content);
+    return content;
   };
 
-  let json = await readJsonContent(res);
-  if (useJsonMode && args.isAcceptableJson && !args.isAcceptableJson(json)) {
-    useJsonMode = false;
-    json = await readJsonContent(await doFetch());
+  const firstContent = await readContent(await send());
+
+  // The fallback only helps when JSON mode is still on (a 400 may already have stripped
+  // it) and the caller can tell us the payload is unusable.
+  const canRetry = useJsonMode && Boolean(args.isAcceptableJson);
+
+  let firstJson: string | undefined;
+  try {
+    firstJson = extractJson(firstContent);
+  } catch (err) {
+    // No fallback available — surface the extraction failure as before.
+    if (!canRetry) throw err;
   }
 
-  return json;
+  if (firstJson !== undefined) {
+    if (!canRetry || !args.isAcceptableJson || args.isAcceptableJson(firstJson)) return firstJson;
+  }
+
+  log.dim(
+    "     ⚠ provider returned an unusable JSON-mode payload — retrying once without response_format"
+  );
+  useJsonMode = false;
+  return extractJson(await readContent(await send()));
 }
