@@ -68,13 +68,17 @@ export function estimateRunCost(breakdown?: ModelTokenUsage[]): RunCost | undefi
 }
 
 /**
- * Format a USD amount for display.
+ * Format a USD amount for display, with precision that scales to the amount.
  *
- * Fractions of a cent are the norm here — a smoke suite on a cheap model lands
- * around $0.00003 — and a fixed number of decimals renders those as "$0.0000",
- * which reads as free. So small amounts are shown to two significant figures
- * instead, and anything below a millionth of a dollar is labelled as such rather
- * than rounded away.
+ * Three bands, each solving a different problem:
+ *   - Below a cent, a fixed decimal count renders "$0.0000" and reads as free,
+ *     so these show two significant figures instead ("$0.0034").
+ *   - Between a cent and a dime, the third decimal is what distinguishes one
+ *     evaluator from another — "$0.037" vs "$0.049" is a third more expensive,
+ *     but both round to the same two-decimal figure.
+ *   - From a dime up, that precision is noise; show it as money ("$0.18").
+ *
+ * Anything below a millionth of a dollar is labelled rather than rounded away.
  */
 export function formatUsd(usd: number): string {
   if (usd === 0) return "$0.00";
@@ -82,6 +86,6 @@ export function formatUsd(usd: number): string {
   // Number() strips the trailing zeros toPrecision leaves behind (0.0034 stays
   // "0.0034" rather than becoming "0.0034000").
   if (usd < 0.01) return `$${Number(usd.toPrecision(2))}`;
-  if (usd < 1) return `$${usd.toFixed(3)}`;
+  if (usd < 0.1) return `$${usd.toFixed(3)}`;
   return `$${usd.toFixed(2)}`;
 }

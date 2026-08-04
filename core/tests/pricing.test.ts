@@ -216,8 +216,22 @@ test("sub-cent runs keep enough precision not to read as free", () => {
   assert.equal(formatUsd(0.000001), "$0.000001");
   assert.equal(formatUsd(0.0034), "$0.0034");
   assert.equal(formatUsd(0.0099), "$0.0099");
-  assert.equal(formatUsd(0.25), "$0.250");
   assert.equal(formatUsd(12.3456), "$12.35");
+});
+
+test("cent-to-dime amounts keep the digit that separates one evaluator from another", () => {
+  // Real per-evaluator figures from a run. At two decimals these collapse to
+  // $0.04 / $0.05 / $0.06 and you can no longer see which evaluator is dearest.
+  assert.equal(formatUsd(0.037), "$0.037");
+  assert.equal(formatUsd(0.049), "$0.049");
+  assert.equal(formatUsd(0.055), "$0.055");
+});
+
+test("a dime and up reads as plain money, not false precision", () => {
+  assert.equal(formatUsd(0.1), "$0.10");
+  assert.equal(formatUsd(0.177), "$0.18");
+  assert.equal(formatUsd(0.25), "$0.25");
+  assert.equal(formatUsd(0.999), "$1.00");
 });
 
 test("amounts too small to show are labelled, never rounded to zero", () => {

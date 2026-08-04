@@ -88,7 +88,7 @@ The extension uses a **single LLM configuration** for all operations (attack gen
 
 The extension runs up to **20 turns per evaluator** (default 10). It stops a given evaluator early when the judge returns a definitive verdict.
 
-**Token usage** is tracked per evaluator and shown on the Done screen and in the downloadable HTML report.
+**Token usage and testing cost** are tracked per evaluator and shown on the Done screen and in the downloadable HTML report. Cost covers the attacker and judge LLMs you configured in Options — the chat UI you are testing is driven through the browser, so there is nothing to bill for the target itself. See [Token usage and testing cost](cli.md#token-usage-and-testing-cost) for how the figure is derived and its caveats.
 
 ---
 

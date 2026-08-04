@@ -215,21 +215,38 @@ Partial reports include all completed evaluator results and are marked with `sto
 
 ---
 
-## Token usage tracking
+## Token usage and testing cost
 
-Every LLM call (attacker generation, adaptive follow-ups, judge) is metered. After the run completes, the CLI prints a summary line:
+Every LLM call (attacker generation, adaptive follow-ups, judge) is metered, and each is attributed to the model that made it. After the run completes, the CLI prints:
 
 ```
 Results: 5 passed, 2 failed, 0 errors
 Safety score: 71%
 Token usage: 51,323 input / 6,057 output (57,380 total)
+Testing cost: ≈$0.18
+   deepseek/deepseek-v4-pro [attacker]: ≈$0.037
+   anthropic/claude-opus-5 [judge]: ≈$0.14
 ```
 
-Token usage is also included in the JSON report (`summary.tokenUsage` and per-evaluator `tokenUsage` fields) and in the HTML report's executive summary card. When using `--events`, the `run_finish` event includes token counts in its `summary` payload.
+The per-model split is the actionable part — the judge is frequently the larger share, and switching it to a cheaper model is usually the easiest saving.
 
-The browser extension shows a `Tokens` stat on its Done screen.
+Both are included in the JSON report (`summary.tokenUsage`, `summary.tokenUsageByModel`, `summary.cost`, plus the same fields per evaluator) and in the HTML report's executive summary. When using `--events`, the `run_finish` event includes them in its `summary` payload.
 
-> Token counts reflect raw model usage (input + output tokens). No cost estimation is performed — provider pricing varies and changes frequently.
+The browser extension shows the same figures on its Done screen.
+
+### What the cost figure covers
+
+**"Testing cost" is opfor's own spend — the attacker and judge LLM calls.** It excludes your target's inference cost, which opfor cannot observe from the outside.
+
+Prices come from a snapshot of LiteLLM's public price map, vendored into the package. Nothing is downloaded at runtime, so runs work offline and a report re-rendered months later produces the same figure. The snapshot version is recorded in the JSON as `summary.cost.priceTableVersion`.
+
+Maintainers refresh it with `npm run build:pricing` (`-- --check` reports whether it has drifted from upstream).
+
+### Accuracy caveats
+
+- **Multi-turn runs are over-estimated.** Providers discount repeated context — and multi-turn attacks re-send the whole conversation each turn — but opfor prices every input token at the full rate. The more turns, the more conservative the figure.
+- **List prices only.** Negotiated rates, credits, and proxy markup are not reflected.
+- **Unknown models are never counted as free.** If a model isn't in the price table, the report says so and marks the total a lower bound (`≥` instead of `≈`, or `unpriced` when nothing could be priced). Treat `totalUsd` as a floor whenever `summary.cost.complete` is `false`.
 
 ---
 
