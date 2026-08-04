@@ -1,109 +1,204 @@
-// Self-contained, executive-grade HTML report for the autonomous runner. No external assets.
-// Layout: dark cover → sticky nav → executive summary (verdict, severity bar, top findings) →
-// vuln-class matrix → key findings → attack tree → per-finding conversation cards → synthesis.
+// Self-contained HTML report for the autonomous hunt runner. No external assets.
+// Shares the run report's visual language (cover band, section rhythm, exec strip, safety
+// gauge, transcript + turn rail) on a slightly roomier type scale, since a hunt carries more
+// per screen than a suite run: cover → nav → exec summary → scope → recon → vuln-class matrix
+// → findings (full transcripts) → attack tree → recommendations → appendices.
 
 import type { AutonomousReport, ReportFinding, ReportTurn, Severity } from "./types.js";
 import { renderForest } from "../state/observe.js";
+import { formatStandardsLabel } from "../../evaluators/standards.js";
+import {
+  OPFOR_LOGO_SVG,
+  LOCK_ICON,
+  COPY_ICON,
+  ATTACKER_ICON,
+  AGENT_ICON,
+  SEVERITY_ICON,
+  CHEVRON_ICON,
+} from "../../report/brand.js";
+import {
+  esc,
+  truncate,
+  formatDuration,
+  safetyColor,
+  gaugeSvg,
+  roleLabel,
+  SEV_HEX,
+  SEV_ORDER,
+} from "../../report/format.js";
 
-function esc(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-function truncate(s: string, n: number): string {
-  return s.length > n ? s.slice(0, n) + "…" : s;
-}
-const SEV_HEX: Record<Severity, string> = {
-  critical: "#DC2626",
-  high: "#EA580C",
-  medium: "#D97706",
-  low: "#16A34A",
-};
-const SEV_ORDER: Severity[] = ["critical", "high", "medium", "low"];
-
-function expandableBlock(content: string, fadeColor = "#F1F5F9"): string {
-  return `<div class="code-wrap">
-    <pre class="result-code">${content}</pre>
-    <div class="code-fade" style="background:linear-gradient(to bottom,${fadeColor}00,${fadeColor})"></div>
-    <button class="code-more" onclick="var w=this.closest('.code-wrap');w.classList.toggle('expanded');this.textContent=w.classList.contains('expanded')?'▲ Show less':'▼ Show more'">▼ Show more</button>
-  </div>`;
+/** Wall-clock run time, when the report carries a usable `startedAt` (older ones don't). */
+function runDurationMs(r: AutonomousReport): number | undefined {
+  if (!r.startedAt) return undefined;
+  const started = Date.parse(r.startedAt);
+  const ended = Date.parse(r.generatedAt);
+  if (Number.isNaN(started) || Number.isNaN(ended) || ended < started) return undefined;
+  return ended - started;
 }
 
-function renderTurn(t: ReportTurn, failing: boolean): string {
-  const score = typeof t.score === "number" ? t.score : undefined;
-  const scoreColor =
-    score === undefined ? "#94A3B8" : score <= 3 ? "#DC2626" : score <= 6 ? "#D97706" : "#059669";
-  const tag =
-    `${t.persona ?? "-"} / ${t.strategy ?? "-"}` + (score !== undefined ? `  ·  ${score}/10` : "");
+// ── Transcript ───────────────────────────────────────────────────
+
+/** One conversation turn: attacker prompt as plain text, target response as a bubble that's
+ *  tinted when the judge cited this turn in `failingTurns`. `id` anchors the turn for the
+ *  rail's click-to-scroll + scroll-spy. */
+function renderTurn(t: ReportTurn, failing: boolean, id: string): string {
+  const tags = [t.persona, t.strategy]
+    .filter((x): x is string => !!x)
+    .map((x) => `<span class="turn-tag">${esc(x)}</span>`)
+    .join("");
   return `
-    <details class="turn-card"${failing ? " open" : ""}>
-      <summary class="turn-card-header" style="border-left:3px solid ${failing ? "var(--fail)" : "var(--line-2)"}">
-        <span class="mono" style="font-size:10px;color:var(--muted-2)">T${t.turnIndex}</span>
-        <span>Turn ${t.turnIndex}${failing ? " — breach" : ""}</span>
-        <span style="margin-left:auto;font-size:10px;color:${scoreColor};font-weight:600">${esc(tag)}</span>
-      </summary>
-      <div class="turn-operator"><div class="turn-label">Operator</div>${expandableBlock(esc(truncate(t.prompt, 8000)))}</div>
-      <div class="turn-agent"><div class="turn-label">Target</div>${expandableBlock(esc(truncate(t.response, 8000)), "#FFFFFF")}</div>
-    </details>`;
+    <div class="turn" id="${id}">
+      <div class="turn-heading">
+        <span class="turn-heading-label">Turn ${t.turnIndex}${failing ? " — breach" : ""}</span>
+        <span class="turn-heading-line"></span>
+        ${tags ? `<span class="turn-heading-tags">${tags}</span>` : ""}
+      </div>
+      <div class="turn-row attacker-row">
+        ${roleLabel(ATTACKER_ICON, "Attacker")}
+        <pre>${esc(truncate(t.prompt, 8000))}</pre>
+      </div>
+      <div class="turn-row agent-row">
+        <div class="agent-bubble${failing ? " turn-highlight" : ""}">
+          ${roleLabel(AGENT_ICON, "Target")}
+          <pre>${esc(truncate(t.response, 8000))}</pre>
+        </div>
+      </div>
+    </div>`;
 }
 
-function renderFindingCard(f: ReportFinding): string {
-  const sevColor = SEV_HEX[f.severity];
-  const failSet = new Set(f.failingTurns ?? []);
-  const turns = f.turns.map((t) => renderTurn(t, failSet.has(t.turnIndex))).join("");
-  const standards =
-    f.standards && Object.keys(f.standards).length
-      ? Object.entries(f.standards)
-          .map(([k, v]) => `<span class="std">${esc(k)}:${esc(v)}</span>`)
-          .join(" ")
+/** Collapsible transcript with a turn rail. Breach turns are marked red on the rail so a long
+ *  thread can be navigated straight to where it broke. */
+function renderTranscript(f: ReportFinding, tId: string): string {
+  if (f.turns.length === 0) return "";
+  const failing = new Set(f.failingTurns ?? []);
+  const turnId = (i: number): string => `${tId}-turn-${i}`;
+
+  const rail =
+    f.turns.length > 1
+      ? `<div class="turn-rail-wrap"><div class="turn-rail">${f.turns
+          .map((t) => {
+            const bad = failing.has(t.turnIndex);
+            return `<button class="turn-step${bad ? " fail-turn" : ""}" data-turn="${turnId(t.turnIndex)}" title="Jump to turn ${t.turnIndex}${bad ? " — breach" : ""}">${t.turnIndex}</button>`;
+          })
+          .join(
+            ""
+          )}</div><div class="rail-fade rail-fade-top"></div><div class="rail-fade rail-fade-bottom"></div></div>`
       : "";
+
+  const turns = f.turns
+    .map((t) => renderTurn(t, failing.has(t.turnIndex), turnId(t.turnIndex)))
+    .join("");
+
+  return `
+    <div class="transcript-wrap" data-for="${tId}">
+      <div class="transcript">
+        <div class="transcript-header">Conversation Transcript <span class="tc-count">${f.turns.length} turn${f.turns.length === 1 ? "" : "s"}</span></div>
+        <div class="transcript-body">
+          ${rail}
+          <div class="turn-content">${turns}</div>
+        </div>
+      </div>
+    </div>
+    <button class="transcript-toggle" data-target="${tId}">
+      ${CHEVRON_ICON}
+      <span class="tt-label">View more details</span>
+    </button>`;
+}
+
+// ── Finding card ─────────────────────────────────────────────────
+
+/** One finding as a card: header (severity, thread, verdict) + reasoning, evidence, self-check,
+ *  confidence/standards, and the collapsible transcript. PASS/ERROR findings skip the
+ *  evidence/confidence blocks, which carry no signal for a defended thread. */
+function renderFindingCard(f: ReportFinding, index: number): string {
+  const failed = f.verdict === "FAIL";
+  const sevColor = SEV_HEX[f.severity] ?? "#64748B";
+  const tId = `f${index}`;
+
+  const verdictLabel = failed ? "Fail" : f.verdict === "PASS" ? "Pass" : "Error";
+  const verdictClass = failed
+    ? "verdict-fail"
+    : f.verdict === "PASS"
+      ? "verdict-pass"
+      : "verdict-error";
+
+  const pills = [
+    `<span class="meta-pill">class: ${esc(f.vulnClassId)}</span>`,
+    f.strategy ? `<span class="meta-pill">strategy: ${esc(f.strategy)}</span>` : "",
+    f.personaArc.length
+      ? `<span class="meta-pill">personas: ${esc(f.personaArc.join(" → "))}</span>`
+      : "",
+    f.gen ? `<span class="meta-pill">gen ${f.gen}</span>` : "",
+    f.crossSessionCorroborated
+      ? `<span class="corr-badge">✓ corroborated · ${f.corroboratingThreads?.length ?? 2} independent threads</span>`
+      : "",
+  ]
+    .filter(Boolean)
+    .join("");
+
+  const evidence =
+    failed && f.evidence && f.evidence !== "N/A"
+      ? `<div class="detail-section"><div class="detail-section-label">Evidence — verbatim from target</div><div class="evidence-body">${esc(truncate(f.evidence, 1400))}</div></div>`
+      : "";
+
   const sc = f.selfCheck;
-  const selfCheckBlock = sc
+  const selfCheck = sc
     ? `<div class="selfcheck"><strong>Independent verifier:</strong> ${esc(sc.verdict)} · score ${sc.score}/10 · confidence ${sc.confidence}% — ${esc(sc.reasoning)}</div>`
     : "";
-  const corr = f.crossSessionCorroborated
-    ? `<span class="corr-badge">✓ corroborated · ${f.corroboratingThreads?.length ?? 2} independent threads</span>`
-    : "";
+
+  const standardsLabel = formatStandardsLabel(f.standards);
+  const metaRow =
+    failed || standardsLabel
+      ? `<div class="eval-meta-row">
+          ${failed ? `<div class="eval-meta-col"><div class="detail-section-label">Confidence</div><div class="meta-v-lg">${f.confidence}%</div></div>` : ""}
+          ${standardsLabel ? `<div class="eval-meta-col standards-col"><div class="detail-section-label">Standards</div><div class="meta-v-standards">${esc(standardsLabel)}</div></div>` : ""}
+        </div>`
+      : "";
+
   return `
-    <details class="finding-card">
-      <summary>
-        <span class="sev-dot" style="background:${sevColor}"></span>
-        <span class="sev-tag" style="background:${sevColor}14;color:${sevColor};border-color:${sevColor}40">${esc(f.severity)}</span>
-        <span class="fc-name">${esc(f.name)}</span>
-        <span class="fc-right"><span class="fc-conf">${f.confidence}%</span><svg class="chevron" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
-      </summary>
-      <div class="finding-body">
-        <div class="finding-meta">
-          <span class="std">${esc(f.vulnClassId)}</span>${standards}
-          <span class="meta-pill">thread ${esc(f.threadId)}${f.gen ? ` · gen ${f.gen}` : ""}</span>
-          ${f.strategy ? `<span class="meta-pill">strategy: ${esc(f.strategy)}</span>` : ""}
-          ${f.personaArc.length ? `<span class="meta-pill">personas: ${esc(f.personaArc.join(" → "))}</span>` : ""}
-          ${corr}
+    <div class="eval-detail" id="finding-${index}">
+      <div class="eval-summary">
+        <div class="eval-summary-left">
+          <span class="eval-num">${String(index + 1).padStart(2, "0")}</span>
+          <div class="eval-summary-info">
+            <span class="eval-summary-name">${esc(f.name || f.vulnClassId)}</span>
+            <span class="eval-sep">|</span>
+            <span class="sev-tag" style="color:${sevColor}">${SEVERITY_ICON}${esc(f.severity.toUpperCase())}</span>
+          </div>
         </div>
-        ${f.evidence && f.evidence !== "N/A" ? `<div class="result-section"><div class="result-section-label">Evidence — verbatim from target</div><div class="evidence"><code>${esc(truncate(f.evidence, 1400))}</code></div></div>` : ""}
-        <div class="result-section"><div class="result-section-label">Why this is a finding</div><div class="reasoning">${esc(f.reasoning)}</div></div>
-        ${selfCheckBlock}
-        ${turns ? `<div class="result-section"><div class="result-section-label">Conversation — ${f.turns.length} turn${f.turns.length === 1 ? "" : "s"} (breach turns expanded)</div>${turns}</div>` : ""}
+        <div class="eval-summary-right">
+          <span class="thread-ref">thread ${esc(f.threadId)}</span><span class="eval-sep">|</span>
+          <span class="verdict-tag ${verdictClass}">${verdictLabel}</span>
+        </div>
       </div>
-    </details>`;
+      <div class="eval-body">
+        ${pills ? `<div class="finding-meta-row">${pills}</div>` : ""}
+        <div class="detail-section">
+          <div class="detail-section-label">${failed ? "Why this is a finding" : "Outcome"}</div>
+          <div class="detail-section-body">${esc(f.reasoning)}</div>
+        </div>
+        ${evidence}
+        ${selfCheck}
+        ${metaRow}
+        ${renderTranscript(f, tId)}
+      </div>
+    </div>`;
 }
 
-function renderAttackTree(r: AutonomousReport): string {
+// ── Attack tree ──────────────────────────────────────────────────
+
+function renderAttackTree(r: AutonomousReport, num: number): string {
   if (r.findings.length === 0) return "";
-  // A thread can have several findings (multiple classes / cross-class hits), so group by
-  // threadId and aggregate — otherwise the node would show only the last one.
+  // A thread can produce several findings (multiple classes / cross-class hits), so group by
+  // threadId and aggregate — otherwise a node would show only the last one.
   const byId = new Map<string, ReportFinding[]>();
   for (const f of r.findings) {
     const arr = byId.get(f.threadId);
     if (arr) arr.push(f);
     else byId.set(f.threadId, [f]);
   }
-  const ids = [...byId.keys()];
   const tree = renderForest(
-    ids,
+    [...byId.keys()],
     (id) => byId.get(id)![0].parentThreadId,
     (id) => {
       const fs = byId.get(id)!;
@@ -121,11 +216,13 @@ function renderAttackTree(r: AutonomousReport): string {
   );
   const e = r.exploration;
   return `<div class="section" id="tree">
-    <div class="section-header"><div class="section-num">5</div><div class="section-title">Attack Tree</div>
-      <div class="section-subtitle">${r.summary.threads} threads · ${e.leadsFlagged} leads (${e.leadsSpawned} expanded / ${e.leadsDismissed} dropped) · depth ${e.maxDepthReached}</div></div>
-    <pre class="tree">${esc(tree)}</pre>
+    <div class="section-header"><div class="section-num">${num}</div><div class="section-title">Attack Tree</div>
+      <div class="section-subtitle">${byId.size} thread${byId.size === 1 ? "" : "s"} · ${e.leadsFlagged} leads (${e.leadsSpawned} expanded / ${e.leadsDismissed} dropped) · depth ${e.maxDepthReached}</div></div>
+    <div class="tree-card"><pre class="tree">${esc(tree)}</pre></div>
   </div>`;
 }
+
+// ── Public API ───────────────────────────────────────────────────
 
 export function renderReportHtml(r: AutonomousReport): string {
   const now = new Date(r.generatedAt);
@@ -137,29 +234,42 @@ export function renderReportHtml(r: AutonomousReport): string {
   const timeStr = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
 
   const fails = r.findings.filter((f) => f.verdict === "FAIL");
-  const sevCount = (s: Severity) => fails.filter((f) => f.severity === s).length;
-  const crit = sevCount("critical"),
-    high = sevCount("high"),
-    med = sevCount("medium"),
-    low = sevCount("low");
+  const defended = r.findings.filter((f) => f.verdict === "PASS");
+  const errored = r.findings.filter((f) => f.verdict === "ERROR");
+  const sevCount = (s: Severity): number => fails.filter((f) => f.severity === s).length;
+  const crit = sevCount("critical");
+  const high = sevCount("high");
+  const med = sevCount("medium");
+  const low = sevCount("low");
 
   const vulnerable = r.summary.confirmed > 0;
-  const verdict = vulnerable ? "VULNERABLE" : "DEFENDED";
+  const verdict = vulnerable ? "Vulnerable" : "Defended";
   const risk =
     crit > 0
-      ? { label: "Critical Risk", color: "#B91C1C" }
+      ? { label: "Critical Risk", color: "#991B1B" }
       : high > 0
         ? { label: "High Risk", color: "#DC2626" }
         : vulnerable
           ? { label: "Medium Risk", color: "#D97706" }
           : { label: "Low Risk", color: "#059669" };
 
+  // Safety score mirrors the run report's 0-100 scale: the inverse of attack success.
+  // N/A when nothing was conclusively scored (no confirmed and no defended threads).
+  // summary.threads is really a finding count (mapRunLog sets it to findings.length), and one
+  // thread can yield several findings — so derive the real thread count for thread-labelled UI.
+  const threadCount = new Set(r.findings.map((f) => f.threadId)).size;
+  const scoreable = r.summary.confirmed + r.summary.defended;
+  const safetyScore = scoreable > 0 ? 100 - r.summary.attackSuccessRate : null;
+  const durationMs = runDurationMs(r);
+
   const ranked = [...fails].sort(
     (a, b) =>
       SEV_ORDER.indexOf(a.severity) - SEV_ORDER.indexOf(b.severity) || b.confidence - a.confidence
   );
+  // Confirmed first (worst severity, then confidence), then defended, then errored — every
+  // thread gets a card so its transcript stays reachable even on an all-defended run.
+  const ordered = [...ranked, ...defended, ...errored];
 
-  // Severity distribution bar (proportional segments).
   const sevSeg = (
     [
       ["critical", crit],
@@ -174,27 +284,12 @@ export function renderReportHtml(r: AutonomousReport): string {
         `<div class="sevbar-seg" style="flex:${n};background:${SEV_HEX[s]}" title="${n} ${s}"></div>`
     )
     .join("");
-  const sevLegend = (["critical", "high", "medium", "low"] as Severity[])
-    .map(
-      (s) =>
-        `<span class="sev-leg"><span class="sev-dot" style="background:${SEV_HEX[s]}"></span>${sevCount(s)} ${s}</span>`
-    )
-    .join("");
+  const sevLegend = SEV_ORDER.map(
+    (s) =>
+      `<span class="sev-leg"><span class="sev-dot" style="background:${SEV_HEX[s]}"></span>${sevCount(s)} ${s}</span>`
+  ).join("");
 
-  // Top findings preview ("what went wrong" at a glance).
-  const topFindings = ranked
-    .slice(0, 6)
-    .map(
-      (f) => `<a class="top-find" href="#detail">
-        <span class="sev-dot" style="background:${SEV_HEX[f.severity]}"></span>
-        <span class="tf-name">${esc(f.name)}</span>
-        <span class="tf-cls">${esc(f.vulnClassId)}</span>
-        <span class="tf-conf" style="color:${SEV_HEX[f.severity]}">${esc(f.severity)} · ${f.confidence}%</span>
-      </a>`
-    )
-    .join("");
-
-  // Per-class matrix.
+  // ── Vulnerability-class matrix ──
   const classes = [...new Set(r.findings.map((f) => f.vulnClassId))];
   const classRows = classes
     .map((cls) => {
@@ -204,8 +299,14 @@ export function renderReportHtml(r: AutonomousReport): string {
       const denom = c.length + d;
       const rate = denom > 0 ? Math.round((c.length / denom) * 100) : 0;
       const worst = SEV_ORDER.find((s) => c.some((f) => f.severity === s));
-      const wc = worst ? SEV_HEX[worst] : "#94A3B8";
-      return { cls, confirmed: c.length, defended: d, rate, worst, wc };
+      return {
+        cls,
+        confirmed: c.length,
+        defended: d,
+        rate,
+        worst,
+        wc: worst ? SEV_HEX[worst] : "",
+      };
     })
     .sort((a, b) => b.confirmed - a.confirmed || b.rate - a.rate);
   const classTable = classRows
@@ -213,7 +314,7 @@ export function renderReportHtml(r: AutonomousReport): string {
       (x) => `
     <tr>
       <td><span class="mono-cls">${esc(x.cls)}</span></td>
-      <td>${x.worst ? `<span class="sev-tag" style="background:${x.wc}14;color:${x.wc};border-color:${x.wc}40">${esc(x.worst)}</span>` : "—"}</td>
+      <td>${x.worst ? `<span class="sev-pill" style="background:${x.wc}14;color:${x.wc};border-color:${x.wc}40">${esc(x.worst)}</span>` : "—"}</td>
       <td style="font-weight:600;color:${x.confirmed > 0 ? "#DC2626" : "#059669"}">${x.confirmed}</td>
       <td style="color:#059669">${x.defended}</td>
       <td><div class="rate-cell"><div class="rate-bar"><div class="rate-fill" style="width:${x.rate}%;background:${x.rate > 0 ? "#DC2626" : "#059669"}"></div></div><span class="rate-num">${x.rate}%</span></div></td>
@@ -221,361 +322,589 @@ export function renderReportHtml(r: AutonomousReport): string {
     )
     .join("");
 
-  // Findings detail grouped by class.
-  const byClass = new Map<string, ReportFinding[]>();
-  for (const f of ranked)
-    (byClass.get(f.vulnClassId) ?? byClass.set(f.vulnClassId, []).get(f.vulnClassId)!).push(f);
-  const detailHtml = [...byClass.entries()]
-    .map(
-      ([cls, list]) =>
-        `<div class="class-group"><div class="class-group-head">${esc(cls)} <span class="meta-pill">${list.length} confirmed</span></div>${list.map(renderFindingCard).join("")}</div>`
-    )
-    .join("");
+  const narrative = r.synthesisComplete
+    ? esc(r.executiveNarrative)
+    : `Assessment of <strong>${esc(r.target.name)}</strong>: <strong>${r.summary.confirmed}</strong> confirmed vulnerabilit${r.summary.confirmed === 1 ? "y" : "ies"} (${crit} critical, ${high} high) across ${threadCount} attack thread${threadCount === 1 ? "" : "s"} — ${r.summary.attackSuccessRate}% attack-success rate.${r.truncated ? ` <em>Run truncated: ${esc(r.truncationReason ?? "")}.</em>` : ""}`;
 
-  const defended = r.findings.filter((f) => f.verdict === "PASS");
-  const errored = r.findings.filter((f) => f.verdict === "ERROR");
-  const chip = (f: ReportFinding) =>
-    `<span class="thread-chip" title="${esc(f.reasoning)}">${esc(f.threadId)} · ${esc(f.vulnClassId)}</span>`;
+  const outcomeLabel = r.objectiveOutcome.replace(/-/g, " ");
 
-  const recs = r.recommendations.length
-    ? `<div class="section" id="recs"><div class="section-header"><div class="section-num">7</div><div class="section-title">Recommendations</div></div>
-        <ol class="rec-list">${r.recommendations.map((x) => `<li>${esc(x)}</li>`).join("")}</ol></div>`
-    : "";
+  // ── Section numbering + nav (both sections and links are conditional) ──
+  let sectionNo = 0;
+  const num = (): number => ++sectionNo;
+  const nav: string[] = [];
+  const link = (href: string, label: string): void => {
+    nav.push(`<a href="#${href}">${label}</a>`);
+  };
+
+  const execNo = num();
+  link("exec", "Summary");
+  const scopeNo = num();
+  link("scope", "Scope");
+  const reconNo = num();
+  link("recon", "Recon");
+  const classesNo = classes.length > 0 ? num() : 0;
+  if (classesNo) link("classes", "Categories");
+  const findingsNo = num();
+  link("findings", "Findings");
+  const treeNo = r.findings.length > 0 ? num() : 0;
+  if (treeNo) link("tree", "Attack Tree");
+  const recsNo = r.recommendations.length > 0 ? num() : 0;
+  if (recsNo) link("recs", "Recommendations");
+  const hasAppendix =
+    r.responsePatterns.length > 0 ||
+    r.inventions.length > 0 ||
+    r.decisionLog.length > 0 ||
+    r.strategiesUsed.length > 0;
+  const appendixNo = hasAppendix ? num() : 0;
+  if (appendixNo) link("appendix", "Appendices");
+
+  // ── Appendices ──
   const patterns = r.responsePatterns.length
-    ? `<div class="section"><div class="section-header"><div class="section-num">8</div><div class="section-title">Response Patterns</div></div>
-        <div class="card"><table class="kv">${r.responsePatterns.map((p) => `<tr><td class="kv-k">${esc(p.pattern)}</td><td>${esc(p.observation)}</td></tr>`).join("")}</table></div></div>`
+    ? `<details class="appendix"><summary>Response Patterns (${r.responsePatterns.length})${CHEVRON_ICON}</summary><div class="appendix-body"><table class="kv">${r.responsePatterns
+        .map(
+          (p) => `<tr><td class="kv-k">${esc(p.pattern)}</td><td>${esc(p.observation)}</td></tr>`
+        )
+        .join("")}</table></div></details>`
+    : "";
+  const inventions = r.inventions.length
+    ? `<details class="appendix"><summary>Novel Techniques Invented (${r.inventions.length})${CHEVRON_ICON}</summary><div class="appendix-body"><ul class="inv-list">${r.inventions
+        .map(
+          (i) => `<li><strong>${esc(i.kind)}: ${esc(i.name)}</strong> — ${esc(i.description)}</li>`
+        )
+        .join("")}</ul></div></details>`
+    : "";
+  const strategies = r.strategiesUsed.length
+    ? `<details class="appendix"><summary>Strategies Used (${r.strategiesUsed.length})${CHEVRON_ICON}</summary><div class="appendix-body"><div class="chips">${r.strategiesUsed
+        .map((s) => `<span class="chip">${esc(s)}</span>`)
+        .join("")}</div></div></details>`
     : "";
   const decisionLog = r.decisionLog.length
-    ? `<details class="appendix"><summary>Decision log (${r.decisionLog.length})</summary><div class="appendix-body">${r.decisionLog
+    ? `<details class="appendix"><summary>Decision Log (${r.decisionLog.length})${CHEVRON_ICON}</summary><div class="appendix-body">${r.decisionLog
         .map(
           (d) =>
-            `<div class="decision"><span class="decision-action decision-${esc(d.action)}">${esc(d.action)}</span> ${d.threadId ? `<span class="mono">${esc(d.threadId)}</span> ` : ""}${esc(d.rationale)}</div>`
+            `<div class="decision"><span class="decision-action decision-${esc(d.action)}">${esc(d.action)}</span>${d.threadId ? `<span class="mono decision-thread">${esc(d.threadId)}</span>` : ""}${esc(d.rationale)}</div>`
         )
         .join("")}</div></details>`
     : "";
-  const inventions = r.inventions.length
-    ? `<details class="appendix"><summary>Novel techniques invented (${r.inventions.length})</summary><div class="appendix-body"><ul>${r.inventions.map((i) => `<li><strong>${esc(i.kind)}: ${esc(i.name)}</strong> — ${esc(i.description)}</li>`).join("")}</ul></div></details>`
-    : "";
-  const strategies = r.strategiesUsed.length
-    ? `<div class="card" style="margin-bottom:8px">${r.strategiesUsed.map((s) => `<span class="std" style="margin:0 6px 6px 0;display:inline-block">${esc(s)}</span>`).join("")}</div>`
-    : "";
-
-  const narrative = r.synthesisComplete
-    ? esc(r.executiveNarrative)
-    : `Assessment of <strong>${esc(r.target.name)}</strong>: <strong>${r.summary.confirmed}</strong> confirmed vulnerabilit${r.summary.confirmed === 1 ? "y" : "ies"} (${crit} critical, ${high} high) across ${r.summary.threads} attack threads — ${r.summary.attackSuccessRate}% attack-success rate.${r.truncated ? ` <em>Run truncated: ${esc(r.truncationReason ?? "")}.</em>` : ""}`;
 
   return `<!doctype html>
-<html lang="en"><head>
-<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Opfor Hunt — ${esc(r.target.name)}</title>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Opfor Hunt Report — ${esc(r.target.name)}</title>
 <style>
-  :root{--bg:#F6F7F9;--surface:#FFF;--surface-2:#F1F4F8;--text:#0B1220;--text-2:#3A475A;--muted:#6B7A90;--muted-2:#9AA7B8;--line:#E4E8EE;--line-2:#CBD3DE;--pass:#059669;--pass-bg:#ECFDF5;--pass-border:#A7F3D0;--fail:#DC2626;--fail-bg:#FEF2F2;--fail-border:#FCA5A5;--accent:#f5ad5c;--ink:#0F172A;--shadow:0 1px 2px rgba(16,24,40,.04),0 1px 3px rgba(16,24,40,.06)}
+  :root{
+    --bg:#F8FAFC;--surface:#FFFFFF;--surface-rgb:255,255,255;--surface-2:#F1F5F9;
+    --text:#0F172A;--text-2:#334155;--muted:#64748B;--muted-2:#94A3B8;
+    --line:#E2E8F0;--line-2:#CBD5E1;
+    --pass:#059669;--pass-bg:#D1FAE5;--pass-border:#6EE7B7;
+    --fail:#DC2626;--fail-bg:#FEE2E2;--fail-border:#FCA5A5;
+    --accent:#FF4D4F;
+  }
   *{box-sizing:border-box;margin:0;padding:0}
   html{background:var(--bg);scroll-behavior:smooth}
-  body{color:var(--text);font:14px/1.6 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);padding:0 0 60px}
-  a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
-  .page{max-width:1000px;margin:0 auto;padding:0 24px}
+  body{color:var(--text);font:15px/1.65 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);padding:0 0 60px}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
   .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
-  .card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;box-shadow:var(--shadow)}
 
-  /* cover */
-  .cover{background:linear-gradient(160deg,#0F172A,#111c33);color:#fff}
-  .cover-inner{max-width:1000px;margin:0 auto;padding:38px 24px 34px}
-  .cover-top{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin-bottom:26px}
-  .cover-brand{display:flex;align-items:center;gap:10px}
-  .cover-brand-icon{width:38px;height:38px;background:linear-gradient(135deg,#f5ad5c,#c47a2a);border-radius:9px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(245,173,92,.3)}
-  .cover-brand-name{font-size:15px;font-weight:700;letter-spacing:.04em}
-  .cover-brand-sub{font-size:11px;color:#94A3B8;letter-spacing:.08em;text-transform:uppercase;margin-top:1px}
-  .cover-classification{padding:4px 12px;border:1px solid rgba(255,255,255,.15);border-radius:4px;font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#CBD5E1}
-  .cover-title{font-size:27px;font-weight:700;letter-spacing:-.01em;margin-bottom:6px}
-  .cover-subtitle{font-size:14px;color:#94A3B8;margin-bottom:22px}
-  .cover-obj{font-size:13px;color:#DBE3EE;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:9px;padding:11px 15px;margin-bottom:20px;line-height:1.55}
-  .cover-obj b{color:#fff;text-transform:uppercase;font-size:10px;letter-spacing:.09em;display:block;margin-bottom:3px;color:#94A3B8}
-  .cover-meta{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid rgba(255,255,255,.1);border-radius:10px;overflow:hidden}
-  .cover-meta-item{padding:13px 17px;border-right:1px solid rgba(255,255,255,.08);border-top:1px solid rgba(255,255,255,.08)}
-  .cover-meta-item:nth-child(-n+3){border-top:none}
-  .cover-meta-k{font-size:10px;color:#7C8BA1;text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px}
-  .cover-meta-v{font-size:13px;color:#E7ECF3;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .cover-meta-v.mono{font-size:11px}
+  .page{max-width:1080px;margin:0 auto;padding:0 28px}
 
-  /* sticky nav */
-  .nav{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.85);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);margin-bottom:28px}
-  .nav-inner{max-width:1000px;margin:0 auto;padding:0 24px;display:flex;gap:4px;flex-wrap:wrap;align-items:center;height:46px}
-  .nav a{font-size:12.5px;font-weight:500;color:var(--text-2);padding:6px 11px;border-radius:7px}
+  /* ── Cover band ── */
+  .cover{background:#000;color:#fff;padding:0}
+  .cover-inner{max-width:1080px;margin:0 auto;padding:42px 28px 38px}
+  .cover-top{display:flex;align-items:flex-start;justify-content:space-between;gap:28px;margin-bottom:22px}
+  .cover-title{font-size:30px;font-weight:700;color:#fff;letter-spacing:-0.01em}
+  .cover-subtitle{font-size:14.5px;color:#A8B2C1;margin-top:7px;max-width:760px;line-height:1.65}
+  .cover-badges-row{display:flex;align-items:center;gap:12px;margin-bottom:24px;flex-wrap:wrap}
+  .badge-confidential{display:inline-flex;align-items:center;gap:6px;background:var(--accent);color:#fff;padding:5px 12px;border-radius:6px;font-size:11.5px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase}
+  .badge-mode{display:inline-flex;align-items:center;gap:6px;background:#262626;border:1px solid #3a3a3a;color:#E2E8F0;padding:5px 12px;border-radius:6px;font-size:11.5px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase}
+  .reportid-chip{display:inline-flex;align-items:center;gap:8px;background:#262626;border:1px solid #3a3a3a;color:#D4D4D4;padding:6px 11px;border-radius:6px;font-size:11.5px}
+  .reportid-chip .mono{color:#fff}
+  .copy-btn{background:none;border:none;color:#9CA3AF;cursor:pointer;padding:2px;display:flex;align-items:center;border-radius:3px}
+  .copy-btn:hover{color:#fff;background:rgba(255,255,255,0.1)}
+  .cover-date{font-size:12.5px;color:#9CA3AF}
+  .cover-meta{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid rgba(255,255,255,0.08);border-radius:10px;overflow:hidden}
+  .cover-meta-item{padding:17px 20px;border-right:1px solid rgba(255,255,255,0.08)}
+  .cover-meta-item:last-child{border-right:none}
+  .cover-meta-k{font-size:11.5px;color:#9CA3AF;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px}
+  .cover-meta-v{font-size:14.5px;color:#E2E8F0;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+  /* ── Sticky nav ── */
+  .nav{position:sticky;top:0;z-index:20;background:rgba(248,250,252,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);margin-bottom:32px}
+  .nav-inner{max-width:1080px;margin:0 auto;padding:0 28px;display:flex;gap:3px;flex-wrap:wrap;align-items:center;height:52px}
+  .nav a{font-size:13px;font-weight:500;color:var(--text-2);padding:7px 12px;border-radius:7px}
   .nav a:hover{background:var(--surface-2);color:var(--text);text-decoration:none}
-  .nav .nav-verdict{margin-left:auto;font-size:11px;font-weight:700;letter-spacing:.04em;padding:3px 10px;border-radius:999px}
+  .nav .nav-verdict{margin-left:auto;font-size:11.5px;font-weight:700;letter-spacing:.04em;padding:4px 12px;border-radius:999px;white-space:nowrap;text-transform:uppercase}
 
-  .section{margin-bottom:34px;scroll-margin-top:60px}
-  .section-header{display:flex;align-items:center;gap:10px;margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid var(--line)}
-  .section-num{width:22px;height:22px;border-radius:6px;background:var(--ink);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-  .section-title{font-size:15px;font-weight:700;letter-spacing:-.01em}
-  .section-subtitle{font-size:12px;color:var(--muted);margin-left:auto}
+  /* ── Section header ── */
+  .section{margin-bottom:46px;scroll-margin-top:68px}
+  .section-header{display:flex;align-items:center;gap:11px;margin-bottom:20px;padding-bottom:13px;border-bottom:1px solid var(--line)}
+  .section-num{width:25px;height:25px;border-radius:7px;background:var(--accent);color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .section-title{font-size:17.5px;font-weight:700;color:var(--text);letter-spacing:-0.01em}
+  .section-subtitle{font-size:12.5px;color:var(--muted);margin-left:auto;text-align:right}
 
-  /* exec */
-  .exec-banner{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:20px 22px;border-radius:14px;border:1px solid var(--line-2);background:var(--surface);margin-bottom:14px;box-shadow:var(--shadow)}
-  .exec-banner.pass{border-color:var(--pass-border);background:var(--pass-bg)}
-  .exec-banner.fail{border-color:var(--fail-border);background:var(--fail-bg)}
-  .exec-banner-left{display:flex;align-items:center;gap:15px}
-  .exec-verdict-icon{width:46px;height:46px;border-radius:11px;border:1px solid;display:flex;align-items:center;justify-content:center}
-  .exec-banner.pass .exec-verdict-icon{border-color:var(--pass-border);color:var(--pass)}
-  .exec-banner.fail .exec-verdict-icon{border-color:var(--fail-border);color:var(--fail)}
-  .exec-verdict-label{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:3px}
-  .exec-verdict-text{font-size:25px;font-weight:800;letter-spacing:.03em;line-height:1}
-  .exec-banner.pass .exec-verdict-text{color:var(--pass)}.exec-banner.fail .exec-verdict-text{color:var(--fail)}
-  .exec-verdict-sub{font-size:11px;color:var(--muted);margin-top:4px}
-  .exec-risk{font-size:12px;font-weight:700;padding:5px 13px;border-radius:999px;border:1px solid;white-space:nowrap}
-  .sevbar-wrap{margin-bottom:14px}
-  .sevbar{display:flex;height:12px;border-radius:6px;overflow:hidden;background:var(--surface-2);border:1px solid var(--line)}
-  .sevbar-seg{min-width:3px}
-  .sevbar-empty{flex:1;background:repeating-linear-gradient(45deg,var(--surface-2),var(--surface-2) 6px,#fff 6px,#fff 12px)}
-  .sev-legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;font-size:11.5px;color:var(--muted)}
-  .sev-leg{display:flex;align-items:center;gap:5px}
-  .sev-dot{width:9px;height:9px;border-radius:50%;display:inline-block;flex-shrink:0}
-  .summary-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
-  .stat-card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:15px 17px;box-shadow:var(--shadow)}
-  .sc-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
-  .sc-value{font-size:24px;font-weight:800;line-height:1}
-  .sc-bar{height:5px;background:var(--line);border-radius:3px;margin-top:9px;overflow:hidden}
-  .sc-bar-fill{height:100%;border-radius:3px}
-  .sc-sub{font-size:11px;color:var(--muted);margin-top:5px}
-  .summary-narrative{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:17px;margin-top:14px;font-size:13.5px;color:var(--text-2);line-height:1.75;box-shadow:var(--shadow)}
+  /* ── Executive summary strip ── */
+  .exec-strip{display:flex;align-items:stretch;border:1px solid var(--line);border-radius:12px;background:var(--surface);overflow:hidden;margin-bottom:12px}
+  /* flex-start, not center: the four cards hold different amounts of content, and centering
+     each one vertically would land every label at a different height. */
+  .exec-strip-item{flex:1;padding:22px 24px;border-right:1px solid var(--line);display:flex;flex-direction:column;justify-content:flex-start;min-width:0}
+  .exec-strip-item:last-child{border-right:none}
+  .exec-strip-label{font-size:11.5px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+  .exec-verdict-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .exec-verdict-text{font-size:31px;font-weight:800;letter-spacing:0.02em;line-height:1}
+  .exec-verdict-text.pass{color:var(--pass)}
+  .exec-verdict-text.fail{color:var(--fail)}
+  .exec-risk{font-size:11.5px;font-weight:600;padding:5px 12px;border-radius:999px;border:1px solid;white-space:nowrap;cursor:default}
+  /* Width matches the gauge so the value centres under the arc while the block itself stays
+     left-aligned with the label, like every other card in the strip. */
+  .gauge-value{font-size:24px;font-weight:800;color:var(--text);width:120px;text-align:center;margin-top:-30px}
+  .sc-value{font-size:29px;font-weight:800;line-height:1;color:var(--text)}
+  .sc-dots{display:flex;flex-direction:column;gap:3px;margin-top:8px}
+  .sc-dot-row{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted)}
+  .sc-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+  .sc-sub{font-size:12.5px;color:var(--muted);margin-top:5px}
+  .summary-narrative{font-size:14.5px;color:var(--text-2);line-height:1.78;padding:6px 2px}
   .summary-narrative strong{color:var(--text)}
 
-  /* top findings preview */
-  .top-finds{margin-top:14px;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--surface);box-shadow:var(--shadow)}
-  .top-finds-head{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);padding:11px 16px;border-bottom:1px solid var(--line);background:var(--surface-2)}
-  .top-find{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--line);color:var(--text)}
-  .top-find:last-child{border-bottom:none}.top-find:hover{background:var(--surface-2);text-decoration:none}
-  .tf-name{font-weight:600;font-size:13px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .tf-cls{font-size:11px;color:var(--muted);font-family:ui-monospace,monospace;flex-shrink:0}
-  .tf-conf{font-size:11px;font-weight:700;text-transform:uppercase;flex-shrink:0;width:120px;text-align:right}
+  /* ── Severity distribution ── */
+  .sevbar-wrap{margin:14px 0 4px}
+  .sevbar{display:flex;height:10px;border-radius:6px;overflow:hidden;background:var(--surface-2);border:1px solid var(--line)}
+  .sevbar-seg{min-width:3px}
+  .sev-legend{display:flex;gap:20px;flex-wrap:wrap;margin-top:10px;font-size:12.5px;color:var(--muted)}
+  .sev-leg{display:flex;align-items:center;gap:6px}
+  .sev-dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0}
 
-  /* class matrix */
-  .matrix-wrap{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden;box-shadow:var(--shadow)}
+  /* ── Scope / recon cards ── */
+  .scope-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .scope-card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:19px}
+  .scope-card-title{font-size:11.5px;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--muted);margin-bottom:15px}
+  .scope-row{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
+  .scope-row:last-child{border-bottom:none}
+  .scope-k{font-size:13px;color:var(--muted);flex-shrink:0}
+  .scope-v{font-size:13px;color:var(--text);font-weight:500;text-align:right;word-break:break-word;max-width:60%}
+  .scope-v.mono{font-size:12px}
+  .scope-full{grid-column:1/-1}
+  .scope-text{font-size:14px;color:var(--text-2);line-height:1.72}
+  .agent-role{display:block;font-size:11px;color:var(--muted-2);font-weight:400;margin-top:1px}
+  .chips{display:flex;flex-wrap:wrap;gap:7px}
+  .chip{font-size:12px;padding:4px 11px;border-radius:999px;border:1px solid var(--line-2);background:var(--surface-2);color:var(--text-2)}
+
+  /* ── Badges ── */
+  .eval-sep{color:var(--line-2);font-weight:400}
+  .sev-tag{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;letter-spacing:0.04em;white-space:nowrap;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .sev-pill{display:inline-block;padding:3px 9px;border:1px solid;border-radius:5px;font-size:11.5px;font-weight:700;text-transform:capitalize;white-space:nowrap}
+  .verdict-tag{font-size:19px;font-weight:800;letter-spacing:0.01em}
+  .verdict-pass{color:var(--pass)}
+  .verdict-fail{color:var(--fail)}
+  .verdict-error{color:#D97706}
+  .pass-text{color:var(--pass);font-weight:600}
+
+  /* ── Vulnerability matrix ── */
+  .matrix-wrap{background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden}
   table.matrix{width:100%;border-collapse:collapse}
-  table.matrix th{background:var(--surface-2);padding:10px 14px;text-align:left;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--line)}
-  table.matrix td{padding:11px 14px;font-size:13px;border-bottom:1px solid var(--line);vertical-align:middle}
-  table.matrix tr:last-child td{border-bottom:none}table.matrix tr:hover td{background:var(--surface-2)}
-  .mono-cls{font-family:ui-monospace,monospace;font-size:12.5px;font-weight:600}
+  table.matrix th{background:var(--surface-2);padding:12px 16px;text-align:left;font-size:11.5px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;border-bottom:1px solid var(--line)}
+  table.matrix td{padding:14px 16px;font-size:13.5px;border-bottom:1px solid var(--line);vertical-align:middle}
+  table.matrix tr:last-child td{border-bottom:none}
+  table.matrix tr:hover td{background:var(--surface-2)}
+  .mono-cls{font-family:ui-monospace,monospace;font-size:13px;font-weight:600}
   .rate-cell{display:flex;align-items:center;gap:8px}
   .rate-bar{flex:1;height:6px;background:var(--line);border-radius:3px;overflow:hidden;min-width:60px}
   .rate-fill{height:100%;border-radius:3px}
-  .rate-num{font-size:12px;font-weight:600;color:var(--text-2);width:34px;text-align:right}
+  .rate-num{font-size:12.5px;font-weight:600;color:var(--text-2);width:34px;text-align:right}
 
-  /* recon */
-  .recon-narrative{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:17px;font-size:13.5px;color:var(--text-2);line-height:1.75;margin-bottom:12px;box-shadow:var(--shadow)}
-  .scope-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-  .scope-card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;box-shadow:var(--shadow)}
-  .scope-card-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:12px}
-  .chips{display:flex;flex-wrap:wrap;gap:6px}
-  .chip{font-size:11px;padding:3px 9px;border-radius:999px;border:1px solid var(--line-2);background:var(--surface-2);color:var(--text-2)}
+  /* ── Finding cards ── */
+  .eval-detail{background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-bottom:12px}
+  .eval-summary{display:flex;align-items:center;justify-content:space-between;padding:17px 19px;gap:14px;flex-wrap:wrap}
+  .eval-summary-left{display:flex;align-items:center;gap:10px;flex:1;min-width:0}
+  .eval-num{font-size:11.5px;font-family:ui-monospace,monospace;color:var(--muted-2);flex-shrink:0;width:24px}
+  .eval-summary-info{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .eval-summary-name{font-size:18.5px;font-weight:700;color:var(--text)}
+  .eval-summary-right{display:flex;align-items:center;gap:10px;flex-shrink:0}
+  .thread-ref{font-size:12.5px;color:var(--muted);font-family:ui-monospace,monospace}
+  .eval-body{padding:22px 19px}
+  .detail-section{margin-bottom:22px}
+  .detail-section-label{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-2);margin-bottom:10px}
+  .detail-section-body{font-size:14.5px;color:var(--text-2);line-height:1.72;white-space:pre-wrap;word-break:break-word}
+  .evidence-body{font-size:14.5px;color:#7f1d1d;line-height:1.72;white-space:pre-wrap;word-break:break-word;background:#FFF5F5;border:1px solid var(--fail-border);border-radius:8px;padding:14px 16px}
+  .selfcheck{margin:0 0 22px;font-size:13.5px;color:var(--text-2);background:var(--surface-2);border:1px dashed var(--line-2);border-radius:8px;padding:12px 14px;line-height:1.65}
+  .eval-meta-row{display:flex;flex-wrap:wrap;gap:40px;margin-bottom:18px}
+  .eval-meta-col{display:flex;flex-direction:column;gap:6px}
+  .eval-meta-col .meta-v-lg{font-size:22px;font-weight:700;color:var(--text);line-height:1}
+  .eval-meta-col.standards-col{margin-left:20px}
+  .eval-meta-col .meta-v-standards{font-size:13.5px;color:var(--text-2);line-height:1.5}
+  .finding-meta-row{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:18px;align-items:center}
+  .meta-pill{font-size:11.5px;color:var(--muted);background:var(--surface-2);border:1px solid var(--line);border-radius:5px;padding:3px 10px}
+  .corr-badge{font-size:11.5px;color:var(--pass);background:var(--pass-bg);border:1px solid var(--pass-border);border-radius:5px;padding:3px 10px;font-weight:600}
 
-  /* key findings blocks */
-  .findings-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-  .finding-block{background:var(--surface);border:1px solid;border-left-width:3px;border-radius:12px;padding:16px;box-shadow:var(--shadow)}
-  .finding-block-head{display:flex;align-items:center;gap:8px;margin-bottom:12px}
-  .finding-label{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.07em}
-  .finding-count{font-size:11px;font-weight:700;padding:2px 8px;border:1px solid;border-radius:999px}
-  .finding-list{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:10px}
-  .finding-list li{font-size:13px;color:var(--text-2);line-height:1.5}
-  .finding-list strong{color:var(--text)}
-  .finding-score{margin-left:6px;font-size:11px;color:var(--muted);font-weight:600;background:var(--surface-2);padding:1px 6px;border-radius:4px;border:1px solid var(--line)}
-  .finding-desc{margin-top:3px;font-size:12px;color:var(--muted);font-style:italic}
-  .no-findings{background:var(--pass-bg);border:1px solid var(--pass-border);border-radius:12px;padding:18px;text-align:center;color:var(--pass);font-weight:600;font-size:13px}
+  /* ── Transcript ── */
+  .transcript-toggle{display:inline-flex;align-items:center;gap:7px;font-size:13.5px;font-weight:600;color:var(--muted);background:none;border:none;cursor:pointer;padding:15px 0 0;margin-top:2px;border-top:1px solid var(--line);width:100%}
+  .transcript-toggle:hover{color:var(--text)}
+  .transcript-toggle svg{transition:transform 0.2s}
+  .transcript-wrap{display:none;margin-bottom:8px}
+  .transcript-wrap.open{display:block}
+  .transcript{border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .transcript-header{padding:11px 15px;background:var(--surface-2);font-size:11.5px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}
+  .tc-count{font-weight:400;color:var(--muted-2)}
+  .transcript-body{position:relative;display:flex;align-items:flex-start;gap:18px;padding:15px 15px 15px 0;max-height:620px;overflow-y:auto;overscroll-behavior:contain}
+  .turn-rail-wrap{position:sticky;top:4px;flex-shrink:0;align-self:flex-start}
+  .turn-rail{display:flex;flex-direction:column;align-items:center;gap:17px;padding:4px 0 4px 14px;max-height:574px;overflow-y:auto;scrollbar-width:none;-ms-overflow-style:none}
+  .turn-rail::-webkit-scrollbar{display:none}
+  /* Spans ~2 button pitches so the fade starts a button early and builds gradually; no opaque
+     plateau and a capped peak, so the edge button stays readable instead of being erased. */
+  .rail-fade{position:absolute;left:0;right:0;height:74px;pointer-events:none;opacity:0;transition:opacity .18s}
+  .rail-fade.visible{opacity:1}
+  .rail-fade-top{top:0;background:linear-gradient(to bottom,rgba(var(--surface-rgb),0.82) 0%,rgba(var(--surface-rgb),0.44) 34%,rgba(var(--surface-rgb),0.13) 66%,rgba(var(--surface-rgb),0) 100%)}
+  .rail-fade-bottom{bottom:0;background:linear-gradient(to top,rgba(var(--surface-rgb),0.82) 0%,rgba(var(--surface-rgb),0.44) 34%,rgba(var(--surface-rgb),0.13) 66%,rgba(var(--surface-rgb),0) 100%)}
+  /* flex:0 0 is load-bearing — without it the column squeezes every button toward its text
+     height to fit max-height, instead of overflowing and scrolling. */
+  .turn-step{position:relative;flex:0 0 26px;width:26px;height:26px;min-height:26px;border-radius:7px;border:1px solid var(--line-2);background:var(--surface);color:var(--muted);font:700 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
+  .turn-step:hover{border-color:var(--muted-2);color:var(--text)}
+  .turn-step.fail-turn{border-color:var(--fail);color:var(--fail);background:var(--fail-bg);font-weight:800}
+  .turn-step.active{box-shadow:0 0 0 2px rgba(15,23,42,0.16)}
+  .turn-step.fail-turn.active{box-shadow:0 0 0 2px rgba(220,38,38,0.3)}
+  .turn-step:not(:first-child)::before{content:"";position:absolute;bottom:100%;left:50%;transform:translateX(-50%);width:1px;height:17px;background:var(--line-2)}
+  .turn-content{flex:1;min-width:0}
+  .turn{padding:0 0 28px}
+  .turn:last-child{padding-bottom:0}
+  .turn-heading{display:flex;align-items:center;gap:11px;margin-bottom:12px;flex-wrap:wrap}
+  .turn-heading-label{font-size:11.5px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+  .turn-heading-line{flex:1;height:1px;background:var(--line);min-width:20px}
+  .turn-heading-tags{display:flex;gap:6px;flex-wrap:wrap}
+  .turn-tag{font-size:11px;font-weight:600;color:var(--muted);background:var(--surface-2);border:1px solid var(--line);border-radius:4px;padding:2px 8px;font-family:ui-monospace,monospace}
+  .turn-row{padding:2px 18px}
+  .turn-row.attacker-row{padding-left:64px}
+  .turn-row.agent-row{margin-top:12px}
+  .turn-role{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700;color:var(--text);margin-bottom:8px}
+  .turn-role .turn-icon{display:inline-flex;align-items:center}
+  .turn-row pre{margin:0;white-space:pre-wrap;word-break:break-word;font:14px/1.62 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--text-2)}
+  .agent-bubble{display:inline-block;max-width:82%;background:var(--surface-2);border-radius:10px;padding:13px 16px}
+  .agent-bubble.turn-highlight{background:var(--fail-bg);border:1px dashed var(--fail-border)}
 
-  .tree{background:#0b1020;color:#e2e8f0;padding:15px 17px;border-radius:12px;overflow-x:auto;font-size:12.5px;line-height:1.6;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;box-shadow:var(--shadow)}
+  /* ── Attack tree ── */
+  .tree-card{background:#0b1020;border:1px solid var(--line);border-radius:10px;padding:19px 21px;overflow-x:auto}
+  .tree{color:#e2e8f0;font-size:13px;line-height:1.75;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre}
 
-  /* findings detail */
-  .class-group{margin-bottom:20px}
-  .class-group-head{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;color:var(--text)}
-  .finding-card{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:8px;box-shadow:var(--shadow)}
-  .finding-card>summary{display:flex;align-items:center;gap:10px;padding:13px 16px;cursor:pointer;list-style:none}
-  .finding-card>summary::-webkit-details-marker{display:none}
-  .finding-card>summary:hover{background:var(--surface-2)}
-  .finding-card[open]>summary{background:var(--surface-2);border-bottom:1px solid var(--line)}
-  .fc-name{font-size:13.5px;font-weight:600;flex:1;min-width:0}
-  .fc-right{display:flex;align-items:center;gap:9px;flex-shrink:0}
-  .fc-conf{font-size:12px;color:var(--muted);font-weight:600}
-  .chevron{color:var(--muted-2);transition:transform .2s}
-  .finding-card[open] .chevron{transform:rotate(180deg)}
-  .finding-body{padding:16px}
-  .finding-meta{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:13px;align-items:center}
-  .meta-pill{font-size:11px;color:var(--muted);background:var(--surface-2);border:1px solid var(--line);border-radius:5px;padding:2px 8px}
-  .corr-badge{font-size:11px;color:var(--pass);background:var(--pass-bg);border:1px solid var(--pass-border);border-radius:5px;padding:2px 8px;font-weight:600}
-  .std{display:inline-block;background:#eef2ff;color:#3730a3;border-radius:5px;padding:2px 7px;font-size:11px;font-weight:600}
-  .result-section{margin-bottom:11px}
-  .result-section-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:5px}
-  .evidence code{background:#fff1f1;color:#7f1d1d;padding:9px 11px;border-radius:7px;display:block;white-space:pre-wrap;word-break:break-word;font-family:ui-monospace,monospace;font-size:12px;border:1px solid #fecaca}
-  .reasoning{font-size:13px;color:var(--text-2);line-height:1.6}
-  .selfcheck{margin:11px 0;font-size:12px;color:#334155;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:7px;padding:9px 11px}
-  .sev-tag{display:inline-block;padding:2px 8px;border:1px solid;border-radius:5px;font-size:11px;font-weight:700;text-transform:capitalize;white-space:nowrap}
-  .thread-chip{display:inline-block;font-size:11px;color:var(--muted);background:var(--surface-2);border:1px solid var(--line);border-radius:5px;padding:3px 8px;margin:0 5px 5px 0;font-family:ui-monospace,monospace}
-
-  /* turns */
-  .turn-card{margin-bottom:8px;border:1px solid var(--line);border-radius:9px;overflow:hidden}
-  .turn-card-header{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--surface-2);cursor:pointer;list-style:none;font-size:11px;font-weight:600;border-bottom:1px solid var(--line)}
-  .turn-card-header::-webkit-details-marker{display:none}
-  .turn-operator{padding:11px 13px;border-bottom:1px solid var(--line);border-left:3px solid var(--accent);background:#fffaf3}
-  .turn-agent{padding:11px 13px;border-left:3px solid var(--line-2)}
-  .turn-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px}
-  .turn-operator .turn-label{color:#b45309}.turn-agent .turn-label{color:var(--muted)}
-  .code-wrap{position:relative}
-  .result-code{font-size:12px;background:var(--surface);border:1px solid var(--line);padding:9px 11px;border-radius:7px;white-space:pre-wrap;word-break:break-word;font-family:ui-monospace,monospace;max-height:200px;overflow:hidden;line-height:1.55}
-  .code-fade{position:absolute;bottom:28px;left:0;right:0;height:42px;pointer-events:none}
-  .code-more{display:block;width:100%;font-size:11px;font-weight:600;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-top:none;border-radius:0 0 7px 7px;padding:5px;cursor:pointer;text-align:center}
-  .code-more:hover{background:var(--surface-2)}
-  .code-wrap.expanded .result-code{max-height:none}.code-wrap.expanded .code-fade{display:none}
-
-  /* synthesis + appendix */
-  table.kv{width:100%;border-collapse:collapse}
-  table.kv td{padding:9px 0;font-size:13px;border-bottom:1px solid var(--line);vertical-align:top}
-  table.kv tr:last-child td{border-bottom:none}
-  .kv-k{font-weight:600;white-space:nowrap;padding-right:16px;color:var(--text)}
-  .rec-list{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:9px;font-size:13.5px;color:var(--text-2);line-height:1.65}
-  .appendix{background:var(--surface);border:1px solid var(--line);border-radius:10px;margin-bottom:8px;overflow:hidden;box-shadow:var(--shadow)}
-  .appendix>summary{padding:12px 16px;cursor:pointer;font-size:13px;font-weight:600;list-style:none}
+  /* ── Recommendations + appendices ── */
+  .rec-list{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:12px;font-size:14.5px;color:var(--text-2);line-height:1.72}
+  .appendix{background:var(--surface);border:1px solid var(--line);border-radius:10px;margin-bottom:10px;overflow:hidden}
+  .appendix>summary{padding:16px 19px;cursor:pointer;font-size:14.5px;font-weight:600;list-style:none;display:flex;align-items:center;gap:8px}
   .appendix>summary::-webkit-details-marker{display:none}
   .appendix>summary:hover{background:var(--surface-2)}
-  .appendix-body{padding:0 16px 14px;font-size:12px;color:var(--text-2)}
-  .decision{padding:6px 0;border-top:1px solid var(--line);line-height:1.5}
-  .decision-action{display:inline-block;font-size:10px;font-weight:700;text-transform:uppercase;padding:1px 6px;border-radius:4px;margin-right:7px;background:var(--surface-2);border:1px solid var(--line)}
-  .decision-fork{color:#7c3aed}.decision-dispatch{color:#2563eb}.decision-stop{color:var(--fail)}.decision-pivot{color:#d97706}
-  .report-footer{max-width:1000px;margin:40px auto 0;padding:16px 24px;border-top:1px solid var(--line);display:flex;justify-content:space-between;font-size:12px;color:var(--muted)}
+  .appendix>summary svg{margin-left:auto;color:var(--muted-2);transition:transform .2s}
+  .appendix[open]>summary svg{transform:rotate(180deg)}
+  .appendix-body{padding:0 19px 17px;font-size:13.5px;color:var(--text-2)}
+  .inv-list{padding-left:18px;display:flex;flex-direction:column;gap:9px;line-height:1.65}
+  table.kv{width:100%;border-collapse:collapse}
+  table.kv td{padding:12px 0;font-size:13.5px;border-bottom:1px solid var(--line);vertical-align:top;line-height:1.65}
+  table.kv tr:last-child td{border-bottom:none}
+  .kv-k{font-weight:600;padding-right:18px;color:var(--text);width:250px}
+  .decision{padding:10px 0;border-top:1px solid var(--line);line-height:1.62}
+  .decision:first-child{border-top:none}
+  .decision-action{display:inline-block;font-size:10.5px;font-weight:700;text-transform:uppercase;padding:2px 7px;border-radius:4px;margin-right:7px;background:var(--surface-2);border:1px solid var(--line)}
+  .decision-thread{margin-right:7px;color:var(--muted)}
+  .decision-fork{color:#7c3aed}.decision-dispatch{color:#2563eb}.decision-stop{color:var(--fail)}.decision-pivot{color:#d97706}.decision-continue{color:var(--muted)}
+  .no-findings{background:var(--pass-bg);border:1px solid var(--pass-border);border-radius:10px;padding:20px;text-align:center;color:var(--pass);font-weight:600;font-size:14px}
 
-  @media print{body{background:#fff}.nav{display:none}.cover{-webkit-print-color-adjust:exact;print-color-adjust:exact}.stat-card,.scope-card,.finding-block,.finding-card,.matrix-wrap{break-inside:avoid}.finding-card{box-shadow:none}}
-  @media(max-width:680px){.cover-meta{grid-template-columns:1fr 1fr}.summary-stats,.scope-grid,.findings-grid{grid-template-columns:1fr 1fr}.tf-conf{width:auto}}
-</style></head><body>
+  /* ── Footer ── */
+  .report-footer{max-width:1080px;margin:48px auto 0;padding:20px 28px;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
+  .footer-left{font-size:12.5px;color:var(--muted)}
+  .footer-right{font-size:12.5px;color:var(--muted-2);font-family:ui-monospace,monospace}
 
-<div class="cover"><div class="cover-inner">
-  <div class="cover-top">
-    <div class="cover-brand"><div class="cover-brand-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 4v6c0 5-3.5 9-8 10-4.5-1-8-5-8-10V6l8-4z"/></svg></div>
-      <div><div class="cover-brand-name">Opfor</div><div class="cover-brand-sub">Autonomous Red-Team</div></div></div>
-    <div class="cover-classification">Confidential</div>
+  @media print{
+    body{background:#fff;padding:0}
+    .nav{display:none}
+    .cover{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .scope-card,.eval-detail,.exec-strip,.matrix-wrap{break-inside:avoid;box-shadow:none}
+    .transcript-body{max-height:none;overflow:visible}
+    .turn-rail-wrap{position:static}
+    .turn-rail{max-height:none;overflow:visible}
+    .rail-fade{display:none}
+  }
+  @media(max-width:820px){
+    .cover-meta{grid-template-columns:1fr}
+    .exec-strip{flex-direction:column}
+    .exec-strip-item{border-right:none;border-bottom:1px solid var(--line)}
+    .exec-strip-item:last-child{border-bottom:none}
+    .scope-grid{grid-template-columns:1fr}
+    .eval-meta-row{gap:20px}
+    .turn-rail-wrap{display:none}
+    .transcript-body{padding-left:15px}
+    .turn-row.attacker-row{padding-left:18px}
+  }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="cover-inner">
+    <div class="cover-top">
+      <div>
+        <div class="cover-title">Autonomous Hunt Assessment Report</div>
+        <div class="cover-subtitle">${esc(r.objective)}</div>
+      </div>
+      ${OPFOR_LOGO_SVG}
+    </div>
+    <div class="cover-badges-row">
+      <span class="badge-confidential">${LOCK_ICON} Confidential</span>
+      <span class="badge-mode">Autonomous Hunt</span>
+      <span class="reportid-chip">Report ID: <span class="mono">${esc(r.reportId.slice(0, 13))}</span>
+        <button class="copy-btn" data-copy="${esc(r.reportId)}" title="Copy report ID">${COPY_ICON}</button>
+      </span>
+      <span class="cover-date">${esc(dateStr)}, ${esc(timeStr)}</span>
+    </div>
+    <div class="cover-meta">
+      <div class="cover-meta-item"><div class="cover-meta-k">Target System</div><div class="cover-meta-v" title="${esc(r.target.name)} — ${esc(r.target.endpoint)}">${esc(truncate(r.target.name, 40))}</div></div>
+      <div class="cover-meta-item"><div class="cover-meta-k">Objective Outcome</div><div class="cover-meta-v" style="text-transform:capitalize">${esc(outcomeLabel)}</div></div>
+      <div class="cover-meta-item"><div class="cover-meta-k">Run Cost</div><div class="cover-meta-v">${r.totalCostUsd !== undefined ? "$" + r.totalCostUsd.toFixed(2) : "—"}</div></div>
+    </div>
   </div>
-  <div class="cover-title">Autonomous Red-Team Assessment</div>
-  <div class="cover-subtitle">Adaptive adversarial evaluation · ${esc(dateStr)}</div>
-  <div class="cover-obj"><b>Objective</b>${esc(r.objective)}</div>
-  <div class="cover-meta">
-    <div class="cover-meta-item"><div class="cover-meta-k">Target</div><div class="cover-meta-v" title="${esc(r.target.name)}">${esc(truncate(r.target.name, 50))}</div></div>
-    <div class="cover-meta-item"><div class="cover-meta-k">Endpoint</div><div class="cover-meta-v mono">${esc(truncate(r.target.endpoint, 50))}</div></div>
-    <div class="cover-meta-item"><div class="cover-meta-k">Assessment Date</div><div class="cover-meta-v">${esc(dateStr)}, ${esc(timeStr)}</div></div>
-    <div class="cover-meta-item"><div class="cover-meta-k">Commander · Operator</div><div class="cover-meta-v mono">${esc(r.commanderModel)} · ${esc(r.operatorModel)}</div></div>
-    <div class="cover-meta-item"><div class="cover-meta-k">Cost</div><div class="cover-meta-v">${r.totalCostUsd !== undefined ? "$" + r.totalCostUsd.toFixed(2) : "—"}</div></div>
-    <div class="cover-meta-item"><div class="cover-meta-k">Report ID</div><div class="cover-meta-v mono" style="color:#7C8BA1">${esc(r.reportId.slice(0, 8))}</div></div>
-  </div>
-</div></div>
+</div>
 
 <nav class="nav"><div class="nav-inner">
-  <a href="#exec">Summary</a><a href="#recon">Recon</a><a href="#classes">Categories</a><a href="#findings">Key Findings</a><a href="#tree">Attack Tree</a><a href="#detail">Detail</a>${recs ? '<a href="#recs">Recommendations</a>' : ""}
+  ${nav.join("")}
   <span class="nav-verdict" style="background:${risk.color}14;color:${risk.color};border:1px solid ${risk.color}40">${verdict}</span>
 </div></nav>
 
 <div class="page">
 
   <div class="section" id="exec">
-    <div class="section-header"><div class="section-num">1</div><div class="section-title">Executive Summary</div></div>
-    <div class="exec-banner ${vulnerable ? "fail" : "pass"}">
-      <div class="exec-banner-left">
-        <div class="exec-verdict-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${vulnerable ? '<path d="M12 2l8 4v6c0 5-3.5 9-8 10-4.5-1-8-5-8-10V6l8-4z"/>' : '<path d="M20 6L9 17l-5-5"/>'}</svg></div>
-        <div><div class="exec-verdict-label">Overall Verdict</div><div class="exec-verdict-text">${verdict}</div><div class="exec-verdict-sub">objective ${esc(r.objectiveOutcome)}${r.truncated ? " · run truncated" : ""}</div></div>
+    <div class="section-header">
+      <div class="section-num">${execNo}</div>
+      <div class="section-title">Executive Summary</div>
+    </div>
+    <div class="exec-strip">
+      <div class="exec-strip-item">
+        <div class="exec-strip-label">Overall Verdict</div>
+        <div class="exec-verdict-row">
+          <div class="exec-verdict-text ${vulnerable ? "fail" : "pass"}">${verdict}</div>
+          <div class="exec-risk" title="Overall risk status derived from confirmed-finding severities" style="color:${risk.color};border-color:${risk.color}66;background:${risk.color}14">${risk.label.toUpperCase()}</div>
+        </div>
+        <div class="sc-sub" style="text-transform:capitalize">Objective ${esc(outcomeLabel)}${r.truncated ? " · run truncated" : ""}</div>
       </div>
-      <div class="exec-risk" style="background:${risk.color}14;color:${risk.color};border-color:${risk.color}40">${risk.label}</div>
+      <div class="exec-strip-item">
+        <div class="exec-strip-label">Safety Score</div>
+        ${gaugeSvg(safetyScore ?? 0, safetyScore === null ? "#94A3B8" : safetyColor(safetyScore))}
+        <div class="gauge-value">${safetyScore === null ? "N/A" : `${safetyScore}%`}</div>
+      </div>
+      <div class="exec-strip-item">
+        <div class="exec-strip-label">Findings</div>
+        <div class="sc-value">${r.findings.length}</div>
+        <div class="sc-dots">
+          <div class="sc-dot-row"><span class="sc-dot" style="background:var(--fail)"></span>${r.summary.confirmed} confirmed</div>
+          <div class="sc-dot-row"><span class="sc-dot" style="background:var(--pass)"></span>${r.summary.defended} defended</div>
+          ${r.summary.errors > 0 ? `<div class="sc-dot-row"><span class="sc-dot" style="background:#D97706"></span>${r.summary.errors} errored</div>` : ""}
+        </div>
+        <div class="sc-sub">across ${threadCount} attack thread${threadCount === 1 ? "" : "s"}</div>
+      </div>
+      <div class="exec-strip-item">
+        <div class="exec-strip-label">Attack Success</div>
+        <div class="sc-value" style="color:${r.summary.attackSuccessRate > 0 ? "var(--fail)" : "var(--pass)"}">${r.summary.attackSuccessRate}%</div>
+        <div class="sc-sub">${durationMs !== undefined ? `${formatDuration(durationMs)} wall clock` : `${classes.length} class${classes.length === 1 ? "" : "es"} tested`}</div>
+      </div>
     </div>
-    ${vulnerable ? `<div class="sevbar-wrap"><div class="sevbar">${sevSeg || '<div class="sevbar-empty"></div>'}</div><div class="sev-legend">${sevLegend}</div></div>` : ""}
-    <div class="summary-stats">
-      <div class="stat-card"><div class="sc-label">Confirmed Vulnerabilities</div><div class="sc-value" style="color:${vulnerable ? "#DC2626" : "#059669"}">${r.summary.confirmed}</div><div class="sc-sub">${crit} critical · ${high} high</div></div>
-      <div class="stat-card"><div class="sc-label">Attack Success Rate</div><div class="sc-value" style="color:${r.summary.attackSuccessRate > 0 ? "#DC2626" : "#059669"}">${r.summary.attackSuccessRate}%</div><div class="sc-bar"><div class="sc-bar-fill" style="width:${r.summary.attackSuccessRate}%;background:${r.summary.attackSuccessRate > 0 ? "#DC2626" : "#059669"}"></div></div><div class="sc-sub">${r.summary.confirmed}/${r.summary.confirmed + r.summary.defended} attempts breached</div></div>
-      <div class="stat-card"><div class="sc-label">Defended</div><div class="sc-value" style="color:#059669">${r.summary.defended}</div><div class="sc-sub">held under pressure</div></div>
-      <div class="stat-card"><div class="sc-label">Exploration</div><div class="sc-value">${r.summary.threads}</div><div class="sc-sub">threads · ${r.exploration.leadsSpawned} follow-up wave(s)</div></div>
-    </div>
+    ${vulnerable && sevSeg ? `<div class="sevbar-wrap"><div class="sevbar">${sevSeg}</div><div class="sev-legend">${sevLegend}</div></div>` : ""}
     <div class="summary-narrative">${narrative}</div>
-    ${topFindings ? `<div class="top-finds"><div class="top-finds-head">Top findings — what went wrong</div>${topFindings}</div>` : ""}
+  </div>
+
+  <div class="section" id="scope">
+    <div class="section-header">
+      <div class="section-num">${scopeNo}</div>
+      <div class="section-title">Assessment Scope</div>
+    </div>
+    <div class="scope-grid">
+      <div class="scope-card">
+        <div class="scope-card-title">Target</div>
+        <div class="scope-row"><span class="scope-k">System</span><span class="scope-v">${esc(r.target.name)}</span></div>
+        <div class="scope-row"><span class="scope-k">Endpoint</span><span class="scope-v mono">${esc(truncate(r.target.endpoint, 60))}</span></div>
+        <div class="scope-row"><span class="scope-k">Vuln Classes Tested</span><span class="scope-v">${classes.length}</span></div>
+        <div class="scope-row"><span class="scope-k">Recon Probes</span><span class="scope-v">${r.recon.probeCount}</span></div>
+      </div>
+      <div class="scope-card">
+        <div class="scope-card-title">Attack Agents</div>
+        <div class="scope-row"><span class="scope-k">Commander <span class="agent-role">plans &amp; synthesizes</span></span><span class="scope-v mono">${esc(r.commanderModel || "—")}</span></div>
+        <div class="scope-row"><span class="scope-k">Operator <span class="agent-role">runs attack threads</span></span><span class="scope-v mono">${esc(r.operatorModel || "—")}</span></div>
+        <div class="scope-row"><span class="scope-k">Scout <span class="agent-role">recon &amp; lead triage</span></span><span class="scope-v mono">${esc(r.scoutModel || "—")}</span></div>
+        <div class="scope-row"><span class="scope-k">Verifier <span class="agent-role">independent self-check</span></span><span class="scope-v mono">${esc(r.verifierModel || r.commanderModel || "—")}</span></div>
+      </div>
+      <div class="scope-card">
+        <div class="scope-card-title">Exploration</div>
+        <div class="scope-row"><span class="scope-k">Attack Threads</span><span class="scope-v">${threadCount}</span></div>
+        <div class="scope-row"><span class="scope-k">Leads Flagged</span><span class="scope-v">${r.exploration.leadsFlagged}</span></div>
+        <div class="scope-row"><span class="scope-k">Leads Expanded / Dismissed</span><span class="scope-v">${r.exploration.leadsSpawned} / ${r.exploration.leadsDismissed}</span></div>
+        <div class="scope-row"><span class="scope-k">Max Depth Reached</span><span class="scope-v">${r.exploration.maxDepthReached}${r.exploration.maxDepthReached === 0 ? " (root wave only)" : ""}</span></div>
+      </div>
+      <div class="scope-card">
+        <div class="scope-card-title">Run</div>
+        <div class="scope-row"><span class="scope-k">Total Cost</span><span class="scope-v">${r.totalCostUsd !== undefined ? "$" + r.totalCostUsd.toFixed(2) : "—"}</span></div>
+        <div class="scope-row"><span class="scope-k">Duration</span><span class="scope-v">${durationMs !== undefined ? formatDuration(durationMs) : "—"}</span></div>
+        <div class="scope-row"><span class="scope-k">Truncated</span><span class="scope-v">${r.truncated ? esc(r.truncationReason ?? "Yes") : "No"}</span></div>
+        <div class="scope-row"><span class="scope-k">Commander Synthesis</span><span class="scope-v ${r.synthesisComplete ? "pass-text" : ""}">${r.synthesisComplete ? "Complete" : "Not submitted"}</span></div>
+      </div>
+    </div>
   </div>
 
   <div class="section" id="recon">
-    <div class="section-header"><div class="section-num">2</div><div class="section-title">Reconnaissance</div><div class="section-subtitle">${r.recon.probeCount} benign probe(s)</div></div>
-    <div class="recon-narrative">${esc(r.recon.fingerprint)}</div>
+    <div class="section-header">
+      <div class="section-num">${reconNo}</div>
+      <div class="section-title">Reconnaissance</div>
+      <div class="section-subtitle">${r.recon.probeCount} benign probe${r.recon.probeCount === 1 ? "" : "s"}</div>
+    </div>
+    <div class="scope-card scope-full" style="margin-bottom:14px">
+      <div class="scope-card-title">Fingerprint</div>
+      <div class="scope-text">${esc(r.recon.fingerprint)}</div>
+    </div>
     <div class="scope-grid">
-      <div class="scope-card"><div class="scope-card-title">Observed Guardrails</div>${r.recon.guardrails.length ? `<div class="chips">${r.recon.guardrails.map((g) => `<span class="chip">${esc(g)}</span>`).join("")}</div>` : '<div class="sc-sub">None recorded.</div>'}</div>
-      <div class="scope-card"><div class="scope-card-title">Candidate Weak Points</div>${r.recon.weakPoints.length ? `<div class="chips">${r.recon.weakPoints.map((w) => `<span class="chip">${esc(w)}</span>`).join("")}</div>` : '<div class="sc-sub">None recorded.</div>'}</div>
+      <div class="scope-card">
+        <div class="scope-card-title">Observed Guardrails</div>
+        ${r.recon.guardrails.length ? `<div class="chips">${r.recon.guardrails.map((g) => `<span class="chip">${esc(g)}</span>`).join("")}</div>` : '<div class="sc-sub">None recorded.</div>'}
+      </div>
+      <div class="scope-card">
+        <div class="scope-card-title">Candidate Weak Points</div>
+        ${r.recon.weakPoints.length ? `<div class="chips">${r.recon.weakPoints.map((w) => `<span class="chip">${esc(w)}</span>`).join("")}</div>` : '<div class="sc-sub">None recorded.</div>'}
+      </div>
     </div>
   </div>
 
-  <div class="section" id="classes">
-    <div class="section-header"><div class="section-num">3</div><div class="section-title">Vulnerability Categories</div><div class="section-subtitle">${classes.length} classes tested</div></div>
-    <div class="matrix-wrap"><table class="matrix">
-      <thead><tr><th>Vulnerability Class</th><th>Worst</th><th>Confirmed</th><th>Defended</th><th style="width:180px">Success Rate</th></tr></thead>
-      <tbody>${classTable}</tbody>
-    </table></div>
-  </div>
-
   ${
-    ranked.length > 0
-      ? `<div class="section" id="findings"><div class="section-header"><div class="section-num">4</div><div class="section-title">Key Findings</div><div class="section-subtitle">${ranked.length} confirmed</div></div>
-          <div class="findings-grid">${findingBlock(
-            "Critical",
-            ranked.filter((f) => f.severity === "critical"),
-            "#DC2626"
-          )}${findingBlock(
-            "High",
-            ranked.filter((f) => f.severity === "high"),
-            "#EA580C"
-          )}</div>
-          ${
-            med + low > 0
-              ? `<div style="margin-top:16px" class="findings-grid">${findingBlock(
-                  "Medium",
-                  ranked.filter((f) => f.severity === "medium"),
-                  "#D97706"
-                )}${findingBlock(
-                  "Low",
-                  ranked.filter((f) => f.severity === "low"),
-                  "#16A34A"
-                )}</div>`
-              : ""
-          }</div>`
-      : `<div class="section" id="findings"><div class="section-header"><div class="section-num">4</div><div class="section-title">Key Findings</div></div><div class="no-findings">No vulnerabilities confirmed — the target defended all evaluated vectors.</div></div>`
+    classesNo
+      ? `<div class="section" id="classes">
+    <div class="section-header">
+      <div class="section-num">${classesNo}</div>
+      <div class="section-title">Vulnerability Categories</div>
+      <div class="section-subtitle">${classes.length} class${classes.length === 1 ? "" : "es"} tested</div>
+    </div>
+    <div class="matrix-wrap">
+      <table class="matrix">
+        <thead><tr><th>Vulnerability Class</th><th>Worst</th><th>Confirmed</th><th>Defended</th><th style="width:180px">Success Rate</th></tr></thead>
+        <tbody>${classTable}</tbody>
+      </table>
+    </div>
+  </div>`
+      : ""
   }
 
-  ${renderAttackTree(r)}
-
-  <div class="section" id="detail">
-    <div class="section-header"><div class="section-num">6</div><div class="section-title">Findings Detail</div><div class="section-subtitle">${fails.length} confirmed · ${defended.length} defended · ${errored.length} errored</div></div>
-    ${detailHtml || '<div class="no-findings">No confirmed findings to detail.</div>'}
-    ${defended.length ? `<div class="class-group" style="margin-top:18px"><div class="class-group-head">Defended threads (${defended.length})</div><div>${defended.map(chip).join("")}</div></div>` : ""}
-    ${errored.length ? `<div class="class-group"><div class="class-group-head">Errored threads (${errored.length})</div><div>${errored.map(chip).join("")}</div></div>` : ""}
+  <div class="section" id="findings">
+    <div class="section-header">
+      <div class="section-num">${findingsNo}</div>
+      <div class="section-title">Findings</div>
+      <div class="section-subtitle">${fails.length} confirmed finding${fails.length === 1 ? "" : "s"} · ${defended.length} defended${errored.length ? ` · ${errored.length} errored` : ""}${fails.length ? ` · <span style="color:var(--fail);font-weight:700">red</span> rail marker = breach turn` : ""}</div>
+    </div>
+    ${ordered.length ? ordered.map((f, i) => renderFindingCard(f, i)).join("") : '<div class="no-findings">No attack threads were recorded for this run.</div>'}
   </div>
 
-  ${recs}
-  ${patterns}
+  ${treeNo ? renderAttackTree(r, treeNo) : ""}
 
-  ${strategies || decisionLog || inventions ? `<div class="section"><div class="section-header"><div class="section-num">9</div><div class="section-title">Appendices</div></div>${strategies}${decisionLog}${inventions}</div>` : ""}
+  ${
+    recsNo
+      ? `<div class="section" id="recs">
+    <div class="section-header"><div class="section-num">${recsNo}</div><div class="section-title">Recommendations</div></div>
+    <div class="scope-card scope-full"><ol class="rec-list">${r.recommendations.map((x) => `<li>${esc(x)}</li>`).join("")}</ol></div>
+  </div>`
+      : ""
+  }
+
+  ${
+    appendixNo
+      ? `<div class="section" id="appendix">
+    <div class="section-header"><div class="section-num">${appendixNo}</div><div class="section-title">Appendices</div></div>
+    ${patterns}${inventions}${strategies}${decisionLog}
+  </div>`
+      : ""
+  }
 
 </div>
 
-<div class="report-footer"><div>Opfor Hunt · ${esc(dateStr)}</div><div class="mono">${esc(r.reportId)}</div></div>
+<div class="report-footer">
+  <div class="footer-left">Generated by Opfor · Autonomous Hunt · ${esc(dateStr)}</div>
+  <div class="footer-right">${esc(r.reportId)}</div>
+</div>
 
 <script>
-(function(){document.querySelectorAll('.code-wrap').forEach(function(w){var p=w.querySelector('.result-code');if(p&&p.scrollHeight<=p.clientHeight+4){var f=w.querySelector('.code-fade');var m=w.querySelector('.code-more');if(f)f.style.display='none';if(m)m.style.display='none';}});})();
-</script>
-</body></html>`;
-}
+(function(){
+  document.querySelectorAll('.copy-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      navigator.clipboard.writeText(btn.dataset.copy || '');
+      var svg = btn.querySelector('svg');
+      if (svg) svg.style.color = '#4ADE80';
+    });
+  });
 
-/** Ranked critical/high/etc. block for the Key Findings overview. */
-function findingBlock(label: string, list: ReportFinding[], color: string): string {
-  if (list.length === 0) return "";
-  return `<div class="finding-block" style="border-color:${color}">
-    <div class="finding-block-head"><span class="finding-label" style="color:${color}">${esc(label)}</span>
-      <span class="finding-count" style="background:${color}18;color:${color};border-color:${color}44">${list.length}</span></div>
-    <ol class="finding-list">
-      ${list
-        .map(
-          (f) => `<li><strong>${esc(f.name)}</strong>
-        <span class="finding-score">${f.confidence}%</span>
-        <span style="color:#64748B;font-size:12px;margin-left:4px">${esc(f.vulnClassId)}${f.crossSessionCorroborated ? " · ✓corr" : ""}</span>
-        ${f.evidence && f.evidence !== "N/A" ? `<div class="finding-desc">“${esc(truncate(f.evidence.replace(/\s+/g, " "), 150))}”</div>` : ""}</li>`
-        )
-        .join("")}
-    </ol>
-  </div>`;
+  // The rail scrolls independently of the transcript, so on a long thread turns can be hidden
+  // above and/or below its viewport. Fade whichever edge is currently hiding turns.
+  function refreshRailFade(body){
+    var rail = body.querySelector('.turn-rail');
+    var wrap = body.querySelector('.turn-rail-wrap');
+    if (!rail || !wrap) return;
+    var top = wrap.querySelector('.rail-fade-top');
+    var bottom = wrap.querySelector('.rail-fade-bottom');
+    if (top) top.classList.toggle('visible', rail.scrollTop > 2);
+    if (bottom) bottom.classList.toggle('visible', rail.scrollTop + rail.clientHeight < rail.scrollHeight - 2);
+  }
+
+  // Keep the scroll-spy's active step inside the rail's viewport, clear of the fade gradient.
+  function revealStep(rail, step){
+    if (!rail || !step) return;
+    var pad = 26;
+    var above = step.offsetTop - rail.offsetTop;
+    var below = above + step.offsetHeight;
+    if (above - pad < rail.scrollTop) rail.scrollTop = above - pad;
+    else if (below + pad > rail.scrollTop + rail.clientHeight) rail.scrollTop = below + pad - rail.clientHeight;
+  }
+
+  document.querySelectorAll('.transcript-toggle').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var wrap = btn.closest('.eval-body').querySelector('.transcript-wrap[data-for="' + btn.dataset.target + '"]');
+      if(!wrap) return;
+      var open = wrap.classList.toggle('open');
+      btn.querySelector('.tt-label').textContent = open ? 'View less details' : 'View more details';
+      btn.querySelector('svg').style.transform = open ? 'rotate(180deg)' : 'rotate(0deg)';
+      if (open) {
+        requestAnimationFrame(function(){
+          var flagged = wrap.querySelector('.turn-highlight');
+          if (flagged) flagged.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          var body = wrap.querySelector('.transcript-body');
+          if (body) refreshRailFade(body);
+        });
+      }
+    });
+  });
+
+  document.querySelectorAll('.transcript-body').forEach(function(body){
+    var steps = body.querySelectorAll('.turn-step');
+    if (!steps.length) return;
+    var rail = body.querySelector('.turn-rail');
+    var turns = body.querySelectorAll('.turn[id]');
+    var inView = {};
+    var setActive = function(id){
+      steps.forEach(function(s){
+        var on = s.dataset.turn === id;
+        s.classList.toggle('active', on);
+        if (on) revealStep(rail, s);
+      });
+    };
+    steps.forEach(function(step){
+      step.addEventListener('click', function(){
+        var target = document.getElementById(step.dataset.turn);
+        if (target) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+    });
+    var observer = new IntersectionObserver(function(entries){
+      entries.forEach(function(entry){
+        inView[entry.target.id] = entry.isIntersecting;
+      });
+      var topmost = null;
+      turns.forEach(function(t){ if (!topmost && inView[t.id]) topmost = t.id; });
+      if (topmost) setActive(topmost);
+      refreshRailFade(body);
+    }, { root: body, threshold: 0.4 });
+    turns.forEach(function(t){ observer.observe(t); });
+    if (rail) rail.addEventListener('scroll', function(){ refreshRailFade(body); });
+    body.addEventListener('scroll', function(){ refreshRailFade(body); });
+  });
+})();
+</script>
+</body>
+</html>`;
 }
