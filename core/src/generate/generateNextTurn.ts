@@ -194,7 +194,7 @@ export async function generateNextAdaptiveTurn(params: {
 
   const result = await generateText({ model, system, prompt: userBlock });
   const usage1 = parseUsage(result.usage);
-  if (usage1) params.tokenTracker?.record(usage1);
+  if (usage1) params.tokenTracker?.record(usage1, { model, role: "attacker" });
   const parsed = parseAttackerOutput(result.text);
   if (!parsed.message) throw new Error("generateNextAdaptiveTurn: empty model response");
   const message =
@@ -343,7 +343,7 @@ export async function generateNextMcpTurn(
 
   const result = await generateText({ model, system, prompt: user });
   const usage2 = parseUsage(result.usage);
-  if (usage2) tokenTracker?.record(usage2);
+  if (usage2) tokenTracker?.record(usage2, { model, role: "attacker" });
 
   try {
     const cleaned = result.text

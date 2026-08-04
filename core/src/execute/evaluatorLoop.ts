@@ -17,6 +17,7 @@ import { verdictIcon } from "../lib/verdictIcon.js";
 import { TurnPlan } from "./turnPlan.js";
 import { isStopError, getStopReason } from "../lib/llmRetry.js";
 import type { TokenTracker } from "./tokenTracker.js";
+import { estimateRunCost } from "../pricing/estimateCost.js";
 import { log } from "../lib/logger.js";
 import type {
   RunConfig,
@@ -226,7 +227,11 @@ export async function runEvaluatorAttacks(
         attackResults.push(makeFailedResult(stopReason));
         notify({ type: "attack_done", attackId: attack.id, verdict: "ERROR" });
         const partialResult = toEvaluatorResult(evaluatorMeta, attackResults);
-        if (evalTracker) partialResult.tokenUsage = evalTracker.totals;
+        if (evalTracker) {
+          partialResult.tokenUsage = evalTracker.totals;
+          partialResult.tokenUsageByModel = evalTracker.breakdown;
+          partialResult.cost = estimateRunCost(partialResult.tokenUsageByModel);
+        }
         evaluatorResults.push(partialResult);
         return { evaluatorResults, stopReason };
       }
@@ -243,7 +248,11 @@ export async function runEvaluatorAttacks(
     notify({ type: "evaluator_done", evaluatorId: evaluator.id, passed, failed, errors });
 
     const evResult = toEvaluatorResult(evaluatorMeta, attackResults);
-    if (evalTracker) evResult.tokenUsage = evalTracker.totals;
+    if (evalTracker) {
+      evResult.tokenUsage = evalTracker.totals;
+      evResult.tokenUsageByModel = evalTracker.breakdown;
+      evResult.cost = estimateRunCost(evResult.tokenUsageByModel);
+    }
     evaluatorResults.push(evResult);
     sessionMap.set(evaluator.id, captureSessionContext(evaluator, attackResults));
   }
