@@ -217,9 +217,9 @@ Partial reports include all completed evaluator results and are marked with `sto
 
 ## Token usage and testing cost
 
-Every LLM call (attacker generation, adaptive follow-ups, judge) is metered, and each is attributed to the model that made it. After the run completes, the CLI prints:
+The instrumented LLM calls (attacker generation, adaptive follow-ups, judge, MCP baseline scans) are metered, and each is attributed to the model that made it. After the run completes, the CLI prints:
 
-```
+```text
 Results: 5 passed, 2 failed, 0 errors
 Safety score: 71%
 Token usage: 51,323 input / 6,057 output (57,380 total)
@@ -246,7 +246,8 @@ Maintainers refresh it with `npm run build:pricing` (`-- --check` reports whethe
 
 - **Multi-turn runs are over-estimated.** Providers discount repeated context — and multi-turn attacks re-send the whole conversation each turn — but opfor prices every input token at the full rate. The more turns, the more conservative the figure.
 - **List prices only.** Negotiated rates, credits, and proxy markup are not reflected.
-- **Unknown models are never counted as free.** If a model isn't in the price table, the report says so and marks the total a lower bound (`≥` prefix, or `unpriced` when nothing could be priced). Treat `totalUsd` as a floor whenever `summary.cost.complete` is `false`.
+- **Unknown models are never counted as free.** If a model isn't in the price table, the report says so and marks the total a lower bound (`≥` prefix, or `unpriced` when nothing could be priced).
+- **Not every call is instrumented yet.** Trace curation, session summarisation, and `generateJsonObject` record no token usage, so their spend never reaches the total. `summary.cost.complete` reports only that every model opfor _saw_ was priced — it cannot vouch for calls that reported nothing. Treat `totalUsd` as a floor in all cases.
 
 ---
 

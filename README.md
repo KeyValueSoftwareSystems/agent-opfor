@@ -113,9 +113,9 @@ Each run lands in its own subfolder under `.opfor/reports/run-report-<compactTs>
 
 ### Testing cost
 
-Every run reports what it cost to run, broken down by model:
+Every run reports what its instrumented LLM calls cost, broken down by model:
 
-```
+```text
 Token usage: 51,323 input / 6,057 output (57,380 total)
 Testing cost: $0.18
    deepseek/deepseek-v4-pro [attacker]: $0.037
@@ -128,6 +128,7 @@ Prices come from a snapshot of LiteLLM's public price map that ships with the pa
 
 - **Multi-turn runs read high.** Providers discount repeated context, and a multi-turn attack re-sends the conversation each turn — opfor prices every input token at full rate, so the real bill is usually lower.
 - **Unknown models are never counted as free.** A model missing from the price table is reported as unpriced and the total is marked a lower bound, rather than silently reading as $0.
+- **A few helper calls aren't metered yet.** Trace curation, session summarisation and one JSON helper don't report token usage, so their spend is missing from the total. Treat the figure as a floor.
 
 → [Token usage and testing cost](docs/cli.md#token-usage-and-testing-cost)
 
