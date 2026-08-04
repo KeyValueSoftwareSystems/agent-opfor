@@ -12,7 +12,8 @@
  */
 
 import type { ModelTokenUsage } from "../execute/tokenTracker.js";
-import { lookupPrice, PRICE_TABLE_VERSION } from "./lookupPrice.js";
+import { lookupPrice } from "./lookupPrice.js";
+import { PRICE_TABLE_VERSION } from "./priceTable.generated.js";
 import type { ModelCost, RunCost } from "./types.js";
 
 /** Price one model's usage. */

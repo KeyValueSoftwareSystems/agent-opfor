@@ -53,7 +53,15 @@ export interface RunCost {
    * `totalUsd` is a lower bound — surface this rather than implying $0.
    */
   unpricedModels: string[];
-  /** True when every model that spent tokens was priced. */
+  /**
+   * True when every model **that reported tokens** was priced.
+   *
+   * Deliberately narrower than "all spend is accounted for": a call site that
+   * records no usage at all produces no bucket, so there is nothing here to flag.
+   * A few helper paths (trace curation, session summarisation, `generateJsonObject`)
+   * still do not report usage, so `complete: true` means "nothing we saw was
+   * unpriced", not "nothing was missed". Treat `totalUsd` as a floor either way.
+   */
   complete: boolean;
   /** Which price snapshot produced this, for reproducibility. */
   priceTableVersion: string;

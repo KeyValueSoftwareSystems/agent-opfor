@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { lookupPrice, priceCandidates, PRICE_TABLE_VERSION } from "../src/pricing/lookupPrice.js";
+import { lookupPrice, priceCandidates } from "../src/pricing/lookupPrice.js";
 import { estimateRunCost, formatUsd } from "../src/pricing/estimateCost.js";
-import { PRICE_TABLE } from "../src/pricing/priceTable.generated.js";
+import { PRICE_TABLE, PRICE_TABLE_VERSION } from "../src/pricing/priceTable.generated.js";
 import { LITELLM_PROVIDER_ALIASES } from "../src/pricing/providerAliases.js";
 import type { ModelTokenUsage } from "../src/execute/tokenTracker.js";
 

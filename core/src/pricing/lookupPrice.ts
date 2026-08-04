@@ -81,5 +81,3 @@ export function lookupPrice(provider: string, model: string): PriceLookupResult 
   }
   return undefined;
 }
-
-export { PRICE_TABLE_VERSION } from "./priceTable.generated.js";

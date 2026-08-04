@@ -24,6 +24,7 @@ import { createHash } from "node:crypto";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { format, resolveConfig } from "prettier";
 import { VENDORED_LITELLM_PROVIDERS } from "../core/src/pricing/providerAliases.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -170,7 +171,14 @@ async function main(): Promise<void> {
   // Version off the pruned content, not the fetch time: regenerating against an
   // unchanged upstream must be a no-op diff.
   const version = `litellm-${createHash("sha256").update(body).digest("hex").slice(0, 12)}`;
-  const contents = renderModule(body, version, entryCount);
+  // Run the rendered module through the repo's Prettier config before comparing
+  // or writing. Without this the committed file (reformatted by the pre-commit
+  // hook) never equals this script's raw output, which would make `--check`
+  // report "stale" forever and turn every regeneration into a full-file diff.
+  const contents = await format(renderModule(body, version, entryCount), {
+    ...(await resolveConfig(OUT_FILE)),
+    parser: "typescript",
+  });
 
   const existing = await readFile(OUT_FILE, "utf8").catch(() => null);
 

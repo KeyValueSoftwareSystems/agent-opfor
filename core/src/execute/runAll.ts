@@ -118,6 +118,7 @@ export async function runAll(
           config,
           outputDir: options?.outputDir,
           notify,
+          tokenTracker,
         }))
       );
     }
