@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { z } from "zod";
 import { chatCompletionJsonContent } from "../src/llm/openaiCompatible.js";
 import { PROVIDERS } from "../src/config/types.js";
 import { TokenTracker } from "../src/execute/tokenTracker.js";
+
+const requestBodySchema = z.record(z.string(), z.unknown());
 
 const MODEL = {
   provider: PROVIDERS.OPENAI_COMPATIBLE,
@@ -40,9 +43,12 @@ async function withStubbedFetch<T>(
 
   process.env.OPFOR_TEST_API_KEY = "test-key";
   globalThis.fetch = (async (_input, init) => {
-    bodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+    bodies.push(requestBodySchema.parse(JSON.parse(String(init?.body)) as unknown));
     const response = queue.shift();
-    assert.ok(response, "fetch called more times than the test queued responses");
+    assert.ok(
+      response,
+      "test queued fewer responses than fetch calls — queue one response per expected fetch call"
+    );
     return response;
   }) as typeof fetch;
 
@@ -147,7 +153,11 @@ test("recovers the fallback request from a rate limit instead of failing the cal
 });
 
 test("returns content when the provider omits usage telemetry", async () => {
-  for (const usage of [null, { prompt_tokens: null, completion_tokens: 4, total_tokens: null }]) {
+  for (const usage of [
+    undefined,
+    null,
+    { prompt_tokens: null, completion_tokens: 4, total_tokens: null },
+  ]) {
     await withStubbedFetch([textCompletion(VERDICT, usage)], async () => {
       const result = await chatCompletionJsonContent({
         model: MODEL,
