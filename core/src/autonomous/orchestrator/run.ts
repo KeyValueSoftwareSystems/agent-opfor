@@ -337,5 +337,7 @@ export async function runAutonomous(
   const report = mapRunLogToReport(runLog);
   report.commanderModel = options.commanderModel;
   report.operatorModel = options.operatorModel;
+  report.scoutModel = options.scoutModel;
+  report.verifierModel = options.verifierModel ?? options.commanderModel;
   return report;
 }
