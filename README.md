@@ -117,9 +117,9 @@ Every run reports what it cost to run, broken down by model:
 
 ```
 Token usage: 51,323 input / 6,057 output (57,380 total)
-Testing cost: ≈$0.18
-   deepseek/deepseek-v4-pro [attacker]: ≈$0.037
-   anthropic/claude-opus-5 [judge]: ≈$0.14
+Testing cost: $0.18
+   deepseek/deepseek-v4-pro [attacker]: $0.037
+   anthropic/claude-opus-5 [judge]: $0.14
 ```
 
 This is **opfor's own spend** — the attacker and judge LLMs. It excludes your target's inference cost, which opfor cannot see from the outside. The per-model split is the useful part: the judge is often the bigger share, and pointing it at a cheaper model is usually the easiest saving.

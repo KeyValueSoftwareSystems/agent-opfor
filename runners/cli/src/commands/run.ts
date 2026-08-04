@@ -267,9 +267,9 @@ export function registerRunCommand(program: Command): void {
           const note = summary.cost.complete
             ? ""
             : ` (lower bound — unpriced: ${summary.cost.unpricedModels.join(", ")})`;
-          log.info(`Testing cost: ≈${formatUsd(summary.cost.totalUsd)}${note}`);
+          log.info(`Testing cost: ${formatUsd(summary.cost.totalUsd)}${note}`);
           for (const m of summary.cost.byModel) {
-            const amount = m.usd === undefined ? "not priced" : `≈${formatUsd(m.usd)}`;
+            const amount = m.usd === undefined ? "not priced" : formatUsd(m.usd);
             const roles = m.roles.length ? ` [${m.roles.join(", ")}]` : "";
             log.info(`   ${m.model}${roles}: ${amount}`);
           }

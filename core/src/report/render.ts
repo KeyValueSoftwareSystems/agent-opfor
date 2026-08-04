@@ -30,12 +30,15 @@ import { formatUsd } from "../pricing/estimateCost.js";
  *
  * `totalUsd` sums only the models that could be priced, so when none of them
  * could it is legitimately `0` — and `formatUsd(0)` is `"$0.00"`, which reads as
- * "this run was free" rather than "we don't know". Distinguish the three cases
- * at the point of display: `≈` for a complete estimate, `≥` for a partial one
- * that is genuinely a floor, and no number at all when nothing was priced.
+ * "this run was free" rather than "we don't know".
+ *
+ * A complete total is shown plain; that it is a list-price estimate is stated in
+ * the card's tooltip and the docs rather than decorating every figure. The other
+ * two cases keep their marker because the number alone would mislead: `≥` says
+ * the real total is higher, and an unpriced run has no number worth printing.
  */
 export function formatCostDisplay(cost: RunCost): string {
-  if (cost.complete) return `≈${formatUsd(cost.totalUsd)}`;
+  if (cost.complete) return formatUsd(cost.totalUsd);
   return cost.totalUsd > 0 ? `≥${formatUsd(cost.totalUsd)}` : "unpriced";
 }
 

@@ -267,7 +267,7 @@ function runCost(totalUsd: number, unpriced: string[]): RunCost {
 }
 
 test("a fully-priced run reads as an estimate", () => {
-  assert.equal(formatCostDisplay(runCost(1.25, [])), "≈$1.25");
+  assert.equal(formatCostDisplay(runCost(1.25, [])), "$1.25");
 });
 
 test("a partially-priced run reads as a floor, not an estimate", () => {
@@ -282,5 +282,5 @@ test("a run where nothing could be priced never renders as $0.00", () => {
 
 test("a genuinely free run is still allowed to show zero", () => {
   // Everything priced, everything free (e.g. a self-hosted model at $0).
-  assert.equal(formatCostDisplay(runCost(0, [])), "≈$0.00");
+  assert.equal(formatCostDisplay(runCost(0, [])), "$0.00");
 });
