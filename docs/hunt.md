@@ -39,6 +39,12 @@ Add `--ui` to watch the attack tree unfold in a live dashboard.
 | `--session-field <name>`     | Body field for the session id (client-owned, stateful)                                                      |
 | `--target-config <path>`     | JSON file with a run-style `target` block; enables server-owned & header sessions, and local-script targets |
 
+### Retries
+
+A transient failure (5xx, network error, timeout) retries up to 2 times with backoff, logged as
+warnings. For targets with real side effects (bookings, refunds), a retry can duplicate an action
+if it already succeeded before the response failed.
+
 ### Session handling
 
 For a client-owned stateful target, `--stateful --session-field <name>` sends opfor's id in that
@@ -111,6 +117,13 @@ respond before it's killed.
 | `--model <id>`          | `sonnet` |
 | `--operator-model <id>` | `sonnet` |
 | `--scout-model <id>`    | `haiku`  |
+
+### Verification
+
+`--verify` enables an independent second-model check (`self_check`) for HIGH/CRITICAL findings.
+On by default when a Claude credential is available (see [Authentication](#authentication)), off
+otherwise. `--no-verify` forces it off. `--verifier-model <id>` picks the verifier model (defaults
+to the commander model).
 
 ### Limits
 

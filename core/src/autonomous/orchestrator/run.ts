@@ -174,6 +174,10 @@ export async function runAutonomous(
     hooks: buildHooks(runLog, runHooks?.progress),
     // We never want the agent touching the local filesystem/shell.
     disallowedTools: ["Bash", "Read", "Write", "Edit", "WebFetch", "WebSearch", "Glob", "Grep"],
+    // `tools: []` (tried previously) also drops the built-in Task/Agent dispatch tool, leaving
+    // the commander unable to spawn operators. Keep just DISPATCH_TOOLS instead of the full
+    // built-in preset — also keeps total tool count under the schema-deferral threshold.
+    tools: DISPATCH_TOOLS,
   };
 
   const kickoff = `Begin the autonomous red-team assessment now. Start with reconnaissance, then plan and dispatch your operators. Objective:\n"""\n${options.objective}\n"""`;
@@ -309,9 +313,14 @@ export async function runAutonomous(
   }
 
   if (!runLog.completed && !runLog.truncated) {
-    // Stream ended without a submit_report (e.g. agent stopped early).
-    runLog.truncated = runLog.findings.length === 0 && runLog.threads.size === 0;
-    if (runLog.truncated) runLog.truncationReason = "agent ended without producing activity";
+    // Stream ended without submit_report landing — truncated regardless of activity level
+    // (previously only flagged when there was none, missing runs that did real work but
+    // never confirmed completion).
+    runLog.truncated = true;
+    runLog.truncationReason =
+      runLog.findings.length === 0 && runLog.threads.size === 0
+        ? "agent ended without producing activity"
+        : "agent ended without submitting a final report";
   }
 
   // Final exploration shape — the branching tree + tallies, for the live log.

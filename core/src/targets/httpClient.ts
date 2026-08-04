@@ -5,9 +5,15 @@
 
 import type { SessionConfig } from "../execute/types.js";
 import { expandEnvInHeaders } from "../lib/env.js";
+import { log } from "../lib/logger.js";
 
 export const REQUEST_TIMEOUT_MS = 30_000;
 export const RATE_LIMIT_BACKOFF_MS = 5_000;
+// Bounded retry for TRANSIENT failures only (5xx status, thrown network/timeout errors) —
+// a 4xx is never transient and retrying it wastes budget/time for no benefit; 429 keeps its
+// own distinct sleep-then-report contract below, which callers/models are designed around.
+export const TRANSIENT_RETRY_ATTEMPTS = 2; // extra attempts beyond the first (3 total)
+export const TRANSIENT_RETRY_BACKOFF_MS = 1_000;
 
 export interface HttpTargetMessage {
   role: "user" | "assistant";
@@ -239,43 +245,66 @@ export async function httpSend(
     applySessionToRequest(body, headers, resolveSessionPlan(config), options.sessionId);
   }
 
-  try {
-    const res = await fetch(config.endpoint, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    });
+  for (let attempt = 0; attempt <= TRANSIENT_RETRY_ATTEMPTS; attempt++) {
+    const isLastAttempt = attempt === TRANSIENT_RETRY_ATTEMPTS;
+    try {
+      const res = await fetch(config.endpoint, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
 
-    if (res.status === 429) {
-      await sleep(RATE_LIMIT_BACKOFF_MS);
+      if (res.status === 429) {
+        await sleep(RATE_LIMIT_BACKOFF_MS);
+        return {
+          response: "",
+          isError: false,
+          rateLimited: true,
+          errorMessage: "HTTP 429 (rate limited)",
+        };
+      }
+
+      const text = await res.text();
+      if (!res.ok) {
+        // 5xx is a transient backend hiccup worth a bounded retry (this is exactly the shape
+        // of a target-side auth/key blip we've seen in practice); 4xx is not transient.
+        if (res.status >= 500 && !isLastAttempt) {
+          // Retrying resends the request — risky if the target already acted on it (side effects).
+          log.warn(
+            `HTTP ${res.status} from target — retrying turn (attempt ${attempt + 2}/${TRANSIENT_RETRY_ATTEMPTS + 1}). If the target already acted on this request before failing, the retry will resend it.`
+          );
+          await sleep(TRANSIENT_RETRY_BACKOFF_MS * (attempt + 1));
+          continue;
+        }
+        return {
+          response: "",
+          isError: true,
+          rateLimited: false,
+          errorMessage: `HTTP ${res.status}: ${text.slice(0, 300)}`,
+        };
+      }
+
+      const captured = captureSessionFromResponse(text, res.headers, resolveSessionPlan(config));
       return {
-        response: "",
+        response: extractReply(text, config.responsePath),
         isError: false,
-        rateLimited: true,
-        errorMessage: "HTTP 429 (rate limited)",
-      };
-    }
-
-    const text = await res.text();
-    if (!res.ok) {
-      return {
-        response: "",
-        isError: true,
         rateLimited: false,
-        errorMessage: `HTTP ${res.status}: ${text.slice(0, 300)}`,
+        sessionId: captured,
       };
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      // Network failures and AbortSignal.timeout() firing both land here — also transient.
+      if (!isLastAttempt) {
+        log.warn(
+          `${message} — retrying turn (attempt ${attempt + 2}/${TRANSIENT_RETRY_ATTEMPTS + 1}). If the target already acted on this request, the retry will resend it.`
+        );
+        await sleep(TRANSIENT_RETRY_BACKOFF_MS * (attempt + 1));
+        continue;
+      }
+      return { response: "", isError: true, rateLimited: false, errorMessage: message };
     }
-
-    const captured = captureSessionFromResponse(text, res.headers, resolveSessionPlan(config));
-    return {
-      response: extractReply(text, config.responsePath),
-      isError: false,
-      rateLimited: false,
-      sessionId: captured,
-    };
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    return { response: "", isError: true, rateLimited: false, errorMessage: message };
   }
+  // Unreachable: the loop always returns on its last iteration (isLastAttempt is true then).
+  throw new Error("unreachable: httpSend retry loop exited without returning");
 }
