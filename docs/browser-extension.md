@@ -88,6 +88,8 @@ The extension uses a **single LLM configuration** for all operations (attack gen
 
 The extension runs up to **20 turns per evaluator** (default 10). It stops a given evaluator early when the judge returns a definitive verdict.
 
+**Token usage and testing cost** are tracked per evaluator and shown on the Done screen and in the downloadable HTML report. Cost covers the attacker and judge LLMs you configured in Options. Whatever the target chat spends on its own inference is excluded — opfor drives it through the browser and cannot observe or meter that spend. See [Token usage and testing cost](cli.md#token-usage-and-testing-cost) for how the figure is derived and its caveats.
+
 ---
 
 ## What it tests

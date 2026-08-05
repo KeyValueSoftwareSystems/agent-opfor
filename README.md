@@ -111,6 +111,27 @@ When you run a scan, opfor:
 
 Each run lands in its own subfolder under `.opfor/reports/run-report-<compactTs>-<slug>-<shortId>/` containing `<slug>-report.html` and `<slug>-report.json`. Autonomous `opfor hunt` runs use the same layout under `hunt-report-<compactTs>-<slug>-<shortId>/`.
 
+### Testing cost
+
+Every run reports what its instrumented LLM calls cost, broken down by model:
+
+```text
+Token usage: 51,323 input / 6,057 output (57,380 total)
+Testing cost: $0.18
+   deepseek/deepseek-v4-pro [attacker]: $0.037
+   anthropic/claude-opus-5 [judge]: $0.14
+```
+
+This is **opfor's own spend** — the attacker and judge LLMs. It excludes your target's inference cost, which opfor cannot see from the outside. The per-model split is the useful part: the judge is often the bigger share, and pointing it at a cheaper model is usually the easiest saving.
+
+Prices come from a snapshot of LiteLLM's public price map that ships with the package, so runs work offline and a report re-rendered later produces the same figure. Two caveats worth knowing:
+
+- **Multi-turn runs read high.** Providers discount repeated context, and a multi-turn attack re-sends the conversation each turn — opfor prices every input token at full rate, so the real bill is usually lower.
+- **Unknown models are never counted as free.** A model missing from the price table is reported as unpriced and the total is marked a lower bound, rather than silently reading as $0.
+- **A few helper calls aren't metered yet.** Trace curation, session summarisation and one JSON helper don't report token usage, so their spend is missing from the total. Treat the figure as a floor.
+
+→ [Token usage and testing cost](docs/cli.md#token-usage-and-testing-cost)
+
 ## Evaluator coverage
 
 Opfor ships with curated suites that map to industry standards. Pick a suite or run individual evaluators.

@@ -8,6 +8,7 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 import { randomUUID } from "../lib/random.js";
 import { judgeToolResponse } from "../run/judge.js";
+import type { TokenTracker } from "./tokenTracker.js";
 import { errorJudge as mcpErrorJudge } from "../lib/judgeTypes.js";
 import { toEvaluatorResult } from "./aggregate.js";
 import { log } from "../lib/logger.js";
@@ -24,6 +25,12 @@ export interface BaselineScanContext {
   config: RunConfig;
   outputDir?: string;
   notify: (event: ProgressEvent) => void;
+  /**
+   * Run-level token accumulator. Baseline scans judge every tool description and
+   * resource before the evaluator loop starts, so without this their spend is
+   * invisible to the run's token count and cost estimate.
+   */
+  tokenTracker?: TokenTracker;
 }
 
 /**
@@ -132,6 +139,7 @@ async function scanResources(ctx: BaselineScanContext): Promise<AttackResult[]> 
     try {
       judgeResult = await judgeToolResponse({
         model: judgeModelConfig,
+        tokenTracker: ctx.tokenTracker,
         evaluator: {
           id: evalId,
           name: "MCP Resource Exposure",
@@ -186,6 +194,7 @@ async function scanToolDescriptions(ctx: BaselineScanContext): Promise<AttackRes
     try {
       judgeResult = await judgeToolResponse({
         model: judgeModelConfig,
+        tokenTracker: ctx.tokenTracker,
         evaluator: {
           id: evalId,
           name: "Tool Description Poisoning Scan",

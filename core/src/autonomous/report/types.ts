@@ -94,6 +94,10 @@ export interface AutonomousReport {
   objectiveOutcome: "achieved" | "partially-achieved" | "not-achieved" | "inconclusive";
   commanderModel: string;
   operatorModel: string;
+  /** Optional — older reports predate these fields. */
+  scoutModel?: string;
+  /** Falls back to the commander model when unset. */
+  verifierModel?: string;
   /** Whether the run was truncated by a budget/turn ceiling. */
   truncated: boolean;
   truncationReason?: string;

@@ -1,6 +1,11 @@
 // Shared mutable run state. Use the object reference so all modules see live values.
 export const state = {
   OPFOR_STOP: false,
+  // "pause" (resumable) or "cancel" (discard) — set from the OPFOR_UI_STOP
+  // message so orchestrator.js knows whether to persist a resumable
+  // snapshot. Defaults to "cancel" so an unspecified/legacy stop never
+  // leaves behind a resumable run the user never asked to keep.
+  OPFOR_STOP_INTENT: "cancel",
   uiRunAbortController: null,
   retryLocateResolver: null,
 };

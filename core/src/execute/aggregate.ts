@@ -39,6 +39,7 @@ const SEVERITY_WEIGHTS: Record<string, number> = {
   low: 1,
 };
 
+/** Return the numeric weight for a severity level (critical=4 … low=1). */
 function severityWeight(severity: string): number {
   return SEVERITY_WEIGHTS[severity.toLowerCase()] ?? 2;
 }
@@ -102,6 +103,8 @@ export interface ReportMeta {
   generatedAt: string;
   targetName: string;
   targetKind: "agent" | "mcp";
+  /** See {@link UnifiedRunReport.suiteId}. */
+  suiteId: string;
   effort: Effort;
   attackModel: string;
   judgeModel: string;
@@ -129,6 +132,7 @@ export function buildUnifiedReport(
     generatedAt: meta.generatedAt,
     targetName: meta.targetName,
     targetKind: meta.targetKind,
+    suiteId: meta.suiteId,
     effort: meta.effort,
     attackModel: meta.attackModel,
     judgeModel: meta.judgeModel,
@@ -137,12 +141,18 @@ export function buildUnifiedReport(
   };
 }
 
-/** Format a "provider/model" label, falling back to the attacker model for the judge. */
+/**
+ * Format a "provider/model" label, falling back to the attacker model for the judge.
+ * `openai-compatible` is a generic custom-baseURL wrapper, not a real vendor identity,
+ * so it's dropped and only the model name is shown for that provider.
+ */
 export function modelLabel(
   attackerLlm: { provider: string; model: string },
   judgeLlm?: { provider: string; model: string }
 ): { attackModel: string; judgeModel: string } {
-  const attackModel = `${attackerLlm.provider}/${attackerLlm.model}`;
-  const judgeModel = judgeLlm ? `${judgeLlm.provider}/${judgeLlm.model}` : attackModel;
+  const format = (llm: { provider: string; model: string }): string =>
+    llm.provider === "openai-compatible" ? llm.model : `${llm.provider}/${llm.model}`;
+  const attackModel = format(attackerLlm);
+  const judgeModel = judgeLlm ? format(judgeLlm) : attackModel;
   return { attackModel, judgeModel };
 }

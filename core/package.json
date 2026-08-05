@@ -43,6 +43,10 @@
       "types": "./dist/providers/*.d.ts",
       "default": "./dist/providers/*.js"
     },
+    "./pricing/*.js": {
+      "types": "./dist/pricing/*.d.ts",
+      "default": "./dist/pricing/*.js"
+    },
     "./evaluators/*.js": {
       "types": "./dist/evaluators/*.d.ts",
       "default": "./dist/evaluators/*.js"

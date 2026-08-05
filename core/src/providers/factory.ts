@@ -7,6 +7,7 @@ import { createAzure } from "@ai-sdk/azure";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import type { LlmConfig } from "../config/types.js";
 import { getEnv } from "../lib/env.js";
+import { rememberModelIdentity } from "./modelIdentity.js";
 
 export interface ProviderCapabilities {
   supportsJsonMode: boolean;
@@ -201,5 +202,9 @@ export function createModel(llm: LlmConfig): LanguageModel {
   if (adapter.capabilities.requiresBaseURL && !llm.baseURL) {
     throw new Error(adapter.baseUrlError ?? `baseURL is required for provider '${llm.provider}'`);
   }
-  return adapter.build({ apiKey, model: llm.model, baseURL: llm.baseURL });
+  const built = adapter.build({ apiKey, model: llm.model, baseURL: llm.baseURL });
+  // The built model no longer carries the opfor provider name (openai-compatible
+  // becomes "custom.chat"), so record it here for token-usage attribution.
+  rememberModelIdentity(built, llm);
+  return built;
 }

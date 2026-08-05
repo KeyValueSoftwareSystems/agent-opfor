@@ -19,6 +19,7 @@ import type { TelemetryConfig } from "../config/types.js";
 import type { UnifiedTargetConfig } from "./types.js";
 import { ConversationHistory } from "./conversationHistory.js";
 import type { AttackDriver } from "./attackRunner.js";
+import type { TokenTracker } from "./tokenTracker.js";
 
 export interface AgentAttackContext {
   targetConfig?: UnifiedTargetConfig;
@@ -32,6 +33,7 @@ export interface AgentAttackContext {
    * id, capture whatever the target returns).
    */
   initialSessionId?: string;
+  tokenTracker?: TokenTracker;
 }
 
 /**
@@ -136,6 +138,7 @@ export class AgentAttackDriver implements AttackDriver<string, string> {
       traceContext: this.attack.traceContext,
       previousTechnique: this.previousTechnique,
       upstreamSessions: this.attack.upstreamSessions,
+      tokenTracker: this.context?.tokenTracker,
     });
     this.previousTechnique = result.technique;
     log.dim(
@@ -218,7 +221,8 @@ export class AgentAttackDriver implements AttackDriver<string, string> {
               ),
               this.history.size > 2 ? this.history.messages : undefined,
               { patternName: this.attack.patternName, judgeHint: this.attack.judgeHint },
-              this.attack.upstreamSessions
+              this.attack.upstreamSessions,
+              this.context?.tokenTracker
             );
 
     return {

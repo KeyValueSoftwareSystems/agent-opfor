@@ -7,12 +7,14 @@ import { writeReport } from "@keyvaluesystems/agent-opfor-core/report/buildRepor
 import type { RunConfig } from "@keyvaluesystems/agent-opfor-core/execute/types.js";
 import { parseRunConfig } from "@keyvaluesystems/agent-opfor-core/config/schema.js";
 import { normalizeEffort } from "@keyvaluesystems/agent-opfor-core/execute/effortCompat.js";
+import { formatUsd } from "@keyvaluesystems/agent-opfor-core/pricing/estimateCost.js";
 import { runSetupAndWrite } from "./setup.js";
 import { ensureOpforDirs, OPFOR_DIR, OPFOR_REPORTS_DIR } from "../lib/artifacts.js";
 import { ConsoleProgressListener } from "../lib/consoleProgressListener.js";
 import { JsonlEventListener } from "../lib/jsonlEventListener.js";
 import type { RunListener } from "@keyvaluesystems/agent-opfor-core/execute/runListener.js";
 
+/** Register the `opfor run` CLI command with its options and SIGINT handler. */
 export function registerRunCommand(program: Command): void {
   program
     .command("run")
@@ -253,6 +255,25 @@ export function registerRunCommand(program: Command): void {
         }
 
         log.info(`Safety score: ${summary.safetyScore}%`);
+        if (summary.tokenUsage) {
+          const { inputTokens, outputTokens, totalTokens } = summary.tokenUsage;
+          log.info(
+            `Token usage: ${inputTokens.toLocaleString()} input / ${outputTokens.toLocaleString()} output (${totalTokens.toLocaleString()} total)`
+          );
+        }
+        if (summary.cost) {
+          // "Testing cost", not "total cost" — the target's own inference spend is
+          // invisible to opfor, and an unpriced model makes this a lower bound.
+          const note = summary.cost.complete
+            ? ""
+            : ` (lower bound — unpriced: ${summary.cost.unpricedModels.join(", ")})`;
+          log.info(`Testing cost: ${formatUsd(summary.cost.totalUsd)}${note}`);
+          for (const m of summary.cost.byModel) {
+            const amount = m.usd === undefined ? "not priced" : formatUsd(m.usd);
+            const roles = m.roles.length ? ` [${m.roles.join(", ")}]` : "";
+            log.info(`   ${m.model}${roles}: ${amount}`);
+          }
+        }
         log.success(`\nReport: ${html}`);
         log.info(`   JSON: ${json}`);
 

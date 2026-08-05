@@ -69,4 +69,21 @@ export {
 } from "./providers/factory.js";
 export type { LlmConfig, ProviderName } from "./config/types.js";
 
+// Cost estimation. The vendored price table is a plain inlined module with no
+// Node imports, so esbuild bundles it for the extension like any other source.
+export { estimateRunCost, formatUsd } from "./pricing/estimateCost.js";
+export { lookupPrice } from "./pricing/lookupPrice.js";
+export { PRICE_TABLE_VERSION } from "./pricing/priceTable.generated.js";
+export type { RunCost, ModelCost, ModelPrice, CostSource } from "./pricing/types.js";
+export type { ModelTokenUsage, TokenUsage } from "./execute/tokenTracker.js";
+
 export { getAdapter } from "./telemetry/adapter.js";
+
+export { renderReport } from "./report/render.js";
+export type {
+  ReportViewModel,
+  EvaluatorViewModel,
+  ResultViewModel,
+  TurnViewModel,
+  DetailCard,
+} from "./report/types.js";

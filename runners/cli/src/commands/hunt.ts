@@ -1,8 +1,7 @@
 import type { Command } from "commander";
 import path from "node:path";
 import { readFile } from "node:fs/promises";
-import { createWriteStream, existsSync, mkdirSync, type WriteStream } from "node:fs";
-import { homedir } from "node:os";
+import { createWriteStream, mkdirSync, type WriteStream } from "node:fs";
 import { consola } from "consola";
 import type {
   HuntOptions,
@@ -23,6 +22,7 @@ import {
 } from "@keyvaluesystems/agent-opfor-core/autonomous/report/writeReport.js";
 import { startUiServer } from "../ui/server.js";
 import { mergeReporters } from "../ui/bridge.js";
+import { resolveBrainAuth, noBrainAuthMessage } from "../lib/brainAuth.js";
 
 /** Short HH:MM:SS timestamp for live log lines. */
 function clock(): string {
@@ -146,35 +146,6 @@ function mapAgentTargetToAutonomous(t: ReturnType<typeof parseAgentTarget>): Tar
   };
 }
 
-const NO_BRAIN_AUTH_MESSAGE =
-  "No Claude credentials found. Set ANTHROPIC_API_KEY, or run `claude login` / `claude setup-token` to use a Claude subscription.";
-
-/**
- * Resolve which credential the Claude Agent SDK will authenticate with, for a
- * user-facing log line — or null if none is configured.
- *
- * The SDK resolves credentials itself (first match wins): ANTHROPIC_API_KEY →
- * CLAUDE_CODE_OAUTH_TOKEN → a stored `~/.claude/.credentials.json` from a Claude
- * subscription login (`claude setup-token` / `claude login`). This is a courtesy
- * pre-check so we can emit an actionable message instead of a cryptic SDK error;
- * it must therefore recognize the subscription path, not just env vars.
- */
-function resolveBrainAuth(): string | null {
-  if (process.env.ANTHROPIC_API_KEY?.trim()) return "ANTHROPIC_API_KEY";
-  // ANTHROPIC_AUTH_TOKEN only counts alongside ANTHROPIC_BASE_URL: buildChildEnv()
-  // strips a bare token (it's treated as an inherited session token), so counting
-  // it here without a gateway URL would pass the gate then lose the credential.
-  if (process.env.ANTHROPIC_AUTH_TOKEN?.trim() && process.env.ANTHROPIC_BASE_URL?.trim()) {
-    return `gateway (${process.env.ANTHROPIC_BASE_URL})`;
-  }
-  if (process.env.CLAUDE_CODE_OAUTH_TOKEN?.trim()) return "CLAUDE_CODE_OAUTH_TOKEN";
-  // Claude subscription: credentials stored on disk by `claude setup-token` / `claude login`.
-  if (existsSync(path.join(homedir(), ".claude", ".credentials.json"))) {
-    return "Claude subscription (~/.claude/.credentials.json)";
-  }
-  return null;
-}
-
 function intOr(value: string | undefined, fallback: number): number {
   const n = parseInt(value ?? "", 10);
   return Number.isFinite(n) && n > 0 ? n : fallback;
@@ -280,13 +251,19 @@ export function registerHuntCommand(program: Command): void {
       // --target-config, e.g. a local-script target), launch the setup wizard.
       // Otherwise --ui means the live dashboard for the already-configured target.
       if (opts.ui && !opts.endpoint && !opts.targetConfig) {
+        // Unlike the direct-run path below, the setup form can accept a brain-auth
+        // override (API key or gateway pair) for this run only — so a missing
+        // credential here is not fatal; the browser still opens and the form
+        // requires an override before it lets you start.
         const brainAuth = resolveBrainAuth();
-        if (!brainAuth) {
-          consola.error(NO_BRAIN_AUTH_MESSAGE);
-          process.exitCode = 1;
-          return;
+        if (brainAuth) {
+          consola.info(`Authenticating via: ${brainAuth.method}`);
+          if (brainAuth.warning) consola.warn(brainAuth.warning);
+        } else {
+          consola.warn(
+            "No Claude credential detected — provide one on the setup page before starting."
+          );
         }
-        consola.info(`Authenticating via: ${brainAuth}`);
 
         const uiPort = intOr(opts.uiPort, 3847);
 
@@ -326,6 +303,7 @@ export function registerHuntCommand(program: Command): void {
           },
           setupMode: true,
           initialConfig,
+          brainAuth: brainAuth ?? undefined,
           openBrowser: true,
           onLog: (line) => {
             process.stdout.write(line + "\n");
@@ -367,11 +345,12 @@ export function registerHuntCommand(program: Command): void {
 
       const brainAuth = resolveBrainAuth();
       if (!brainAuth) {
-        consola.error(NO_BRAIN_AUTH_MESSAGE);
+        consola.error(noBrainAuthMessage());
         process.exitCode = 1;
         return;
       }
-      consola.info(`Authenticating via: ${brainAuth}`);
+      consola.info(`Authenticating via: ${brainAuth.method}`);
+      if (brainAuth.warning) consola.warn(brainAuth.warning);
 
       // Check endpoint is provided when not using setup UI (the endpoint may
       // instead come from --target-config).

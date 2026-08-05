@@ -150,6 +150,10 @@ export interface Finding {
   description: string;
   evidence?: string;
   standards?: Record<string, string>;
+  /** Judge safety score (0-10). */
+  score?: number;
+  /** Judge confidence (0-100). */
+  confidence?: number;
 }
 
 export interface AttackResult {
@@ -160,6 +164,16 @@ export interface AttackResult {
   response: string;
   verdict: "PASS" | "FAIL" | "ERROR";
   evidence?: string;
+  /** Judge safety score (0-10). */
+  score?: number;
+  /** Judge confidence (0-100). */
+  confidence?: number;
+  /** Judge's reasoning for the verdict. */
+  reasoning?: string;
+  /** Set when verdict is "ERROR" — why the judge/attack failed to complete. */
+  errorMessage?: string;
+  /** For multi-turn attacks, the 1-indexed turns that caused a FAIL verdict. */
+  failingTurns?: number[];
   turns?: Array<{
     turnIndex: number;
     prompt: string;
@@ -184,6 +198,8 @@ export interface RunResults {
   id: string;
   timestamp: string;
   targetName: string;
+  /** The evaluation suite that was run, or "Custom Suite" for a hand-picked selection. */
+  suiteId: string;
   targetKind: "agent" | "mcp";
   effort: Effort;
   attackerModel: string;
@@ -196,6 +212,8 @@ export interface RunResults {
     errors: number;
     safetyScore: number;
     attackSuccessRate: number;
+    /** Wall-clock time for the whole run, from the first evaluator to the last. */
+    durationMs?: number;
   };
   findings: Finding[];
   evaluators: EvaluatorResult[];

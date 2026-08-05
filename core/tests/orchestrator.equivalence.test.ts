@@ -172,6 +172,7 @@ test("buildUnifiedReport derives safetyScore + attackSuccessRate identically for
     generatedAt: "t",
     targetName: "x",
     targetKind: "agent" as const,
+    suiteId: "custom-suite-test",
     effort: "adaptive" as const,
     attackModel: "p/m",
     judgeModel: "p/m",
@@ -198,6 +199,20 @@ test("modelLabel falls back to attacker model for judge", () => {
   assert.deepEqual(
     modelLabel({ provider: "openai", model: "gpt" }, { provider: "groq", model: "llama" }),
     { attackModel: "openai/gpt", judgeModel: "groq/llama" }
+  );
+});
+
+test("modelLabel drops the provider prefix for openai-compatible", () => {
+  assert.deepEqual(modelLabel({ provider: "openai-compatible", model: "deepseek/deepseek-chat" }), {
+    attackModel: "deepseek/deepseek-chat",
+    judgeModel: "deepseek/deepseek-chat",
+  });
+  assert.deepEqual(
+    modelLabel(
+      { provider: "openai-compatible", model: "deepseek/deepseek-chat" },
+      { provider: "openai", model: "gpt-4o-mini" }
+    ),
+    { attackModel: "deepseek/deepseek-chat", judgeModel: "openai/gpt-4o-mini" }
   );
 });
 
@@ -238,11 +253,13 @@ test("runAll and runAllBrowser produce matching reports for the same input", asy
   );
 
   // The two paths must agree on the verdict tallies and derived summary.
-  assert.deepEqual(
-    browserReport.summary,
-    nodeReport.summary,
-    "summary must match across orchestrators"
-  );
+  // durationMs is wall-clock and legitimately differs between the two separately
+  // timed runs, so it's checked for shape only, not cross-orchestrator equality.
+  const { durationMs: nodeDurationMs, ...nodeSummary } = nodeReport.summary;
+  const { durationMs: browserDurationMs, ...browserSummary } = browserReport.summary;
+  assert.deepEqual(browserSummary, nodeSummary, "summary must match across orchestrators");
+  assert.ok(typeof nodeDurationMs === "number" && nodeDurationMs >= 0);
+  assert.ok(typeof browserDurationMs === "number" && browserDurationMs >= 0);
   assert.equal(browserReport.evaluators.length, nodeReport.evaluators.length);
   for (let i = 0; i < nodeReport.evaluators.length; i++) {
     const n = nodeReport.evaluators[i];

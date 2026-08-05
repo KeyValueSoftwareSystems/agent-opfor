@@ -6,7 +6,12 @@
 // OPFOR_UI_RUN / RESUME / STOP / DISCARD_PAUSED message contracts.
 // ─────────────────────────────────────────────────────────────────
 
-import { PROVIDERS, PROVIDER_CAPABILITIES, PROVIDER_DISPLAY_NAMES } from "./dist/core.bundle.js";
+import {
+  PROVIDERS,
+  PROVIDER_CAPABILITIES,
+  PROVIDER_DISPLAY_NAMES,
+  renderReport,
+} from "./dist/core.bundle.js";
 
 const PROVIDER_OPTIONS = Object.values(PROVIDERS).map((value) => ({
   value,
@@ -112,8 +117,21 @@ const state = {
     /** @type {{id:string;name:string;sev:string;verdict:string;summary:string;raw:any}[]} */ ([]),
   lastReport: /** @type {any | null} */ (null),
   running: false,
+  // Wall-clock start of the current/last run, persisted alongside the queue so
+  // it survives a popup close/reopen mid-run — used to compute report duration.
+  runStartedAt: /** @type {number | null} */ (null),
+  // True only while THIS popup instance's startRun() loop is actively
+  // driving a run — as opposed to `running`, which also gets set to true
+  // when the popup reopens mid-run and merely restores the running screen
+  // from storage. Code that needs to know "is a loop here to notice a
+  // stop/pause request" must gate on this, not on `running`.
+  loopActive: false,
   cancelRequested: false,
   pauseRequested: false,
+  // Set when the current/last completed run ended via user cancellation
+  // (as opposed to running to natural completion). Drives the "Cancelled"
+  // status on the done screen instead of PASS/FAIL.
+  runCancelled: false,
   targetTabId: /** @type {number|null} */ (null),
   keepAlivePort: /** @type {chrome.runtime.Port|null} */ (null),
 };
@@ -143,6 +161,41 @@ function syncNav() {
   }
 }
 
+// Toggle a run-control button (Pause/Stop) into a disabled/loading state
+// while its request is in flight — both can take a few seconds to actually
+// resolve, since the popup waits on the in-flight evaluator to unwind.
+// Stopping supersedes pausing, so Stop-busy also disables Pause. The reverse
+// does not hold: Pause-busy leaves Stop enabled, so the user can still
+// escalate a slow pause into a stop rather than being stuck with no escape
+// hatch — pause-to-cancel is a safe transition (the `intent` flag on the
+// last OPFOR_UI_STOP wins).
+function setRunControlBusy(prefix, busy, busyLabel) {
+  const btn = $(prefix === "stop" ? "stopBtn" : "pauseBtn");
+  if (btn) btn.disabled = busy;
+  if (prefix === "stop") {
+    const pauseBtn = $("pauseBtn");
+    if (pauseBtn) pauseBtn.disabled = busy;
+    // Stop is also reachable from the Paused screen — keep it in sync.
+    const pausedStopBtn = $("pausedStopBtn");
+    if (pausedStopBtn) pausedStopBtn.disabled = busy;
+  }
+  if (!btn) return;
+  const icon = btn.querySelector(`.${prefix}-btn-icon`);
+  const spinner = btn.querySelector(`.${prefix}-btn-spinner`);
+  const label = btn.querySelector(`.${prefix}-btn-label`);
+  if (icon) icon.hidden = busy;
+  if (spinner) spinner.hidden = !busy;
+  if (label) label.textContent = busy ? busyLabel : prefix === "stop" ? "Stop" : "Pause";
+}
+
+function setStopBusy(busy) {
+  setRunControlBusy("stop", busy, "Stopping…");
+}
+
+function setPauseBusy(busy) {
+  setRunControlBusy("pause", busy, "Pausing…");
+}
+
 function setScreen(name) {
   state.screen = name;
   for (const s of ["idle", "running", "paused", "done", "awaitUser"]) {
@@ -164,6 +217,12 @@ function setScreen(name) {
   if (runBar) runBar.hidden = name !== "idle";
   const bodyEl = document.querySelector(".body");
   if (bodyEl) bodyEl.style.overflowY = name === "running" ? "hidden" : "";
+  // A fresh "running" screen (new run, resume, retry) always starts with
+  // usable controls — reset any busy state left over from a prior stop.
+  if (name === "running") {
+    setStopBusy(false);
+    setPauseBusy(false);
+  }
   syncNav();
 }
 
@@ -643,28 +702,57 @@ async function loadCatalog() {
 }
 
 // ── Paused-run banner sync ─────────────────────────────────────
+/**
+ * Render the Paused screen. `ev` is the evaluator that was mid-flight;
+ * `pausedRun` is the persisted snapshot (present when recovering on reopen),
+ * used to report how far into the evaluator the run actually got.
+ */
+function renderPausedScreen(ev, pausedRun) {
+  const turnsDone = Math.floor((pausedRun?.transcript?.length ?? 0) / 2);
+  const evPos = Math.min(state.evIdx + 1, Math.max(state.queue.length, 1));
+  const parts = [`evaluator ${evPos} of ${state.queue.length || 1}`];
+  if (turnsDone > 0) parts.push(`${turnsDone} of ${state.maxTurns} turns done`);
+  parts.push("saved");
+
+  $("pausedSuite").textContent = state.suiteId || "—";
+  $("pausedEvaluator").textContent = ev?.name || "—";
+  $("pausedModel").textContent = state.model;
+  $("pausedSub").textContent = parts.join(" · ");
+  $("pausedElapsed").textContent = "—";
+}
+
 async function checkPausedRun() {
-  const { opforPausedRun } = await chrome.storage.local.get("opforPausedRun");
+  const { opforPausedRun, opforPopupRun } = await chrome.storage.local.get([
+    "opforPausedRun",
+    "opforPopupRun",
+  ]);
   if (!opforPausedRun?.plan?.inputSelector) return false;
 
   const evId = opforPausedRun.evaluatorId || opforPausedRun.evaluatorSnapshot?.id;
   const evName = opforPausedRun.evaluatorSnapshot?.name || evId || "—";
   const sev = normalizeSev(opforPausedRun.evaluatorSnapshot?.severity);
 
-  // If popup was reopened on a paused run, reconstruct a minimal queue so
-  // Resume can continue the paused evaluator.
+  // Restore the FULL parked queue when one was saved, so Resume continues the
+  // rest of the suite — not just the single paused evaluator.
   if (state.queue.length === 0) {
-    state.suiteId = opforPausedRun.suiteId || state.suiteId;
-    state.queue = [{ id: evId || "paused", name: evName, sev }];
-    state.evIdx = 0;
-    state.results = [];
+    if (Array.isArray(opforPopupRun?.queue) && opforPopupRun.queue.length) {
+      state.suiteId = opforPopupRun.suiteId || opforPausedRun.suiteId || state.suiteId;
+      state.queue = opforPopupRun.queue;
+      state.results = Array.isArray(opforPopupRun.results) ? opforPopupRun.results : [];
+      state.maxTurns = opforPopupRun.maxTurns || state.maxTurns;
+      state.runStartedAt = opforPopupRun.runStartedAt || state.runStartedAt;
+      // Point at the paused evaluator when it's still in the queue.
+      const idx = state.queue.findIndex((q) => q.id === evId);
+      state.evIdx = idx >= 0 ? idx : Math.min(opforPopupRun.evIdx || 0, state.queue.length - 1);
+    } else {
+      state.suiteId = opforPausedRun.suiteId || state.suiteId;
+      state.queue = [{ id: evId || "paused", name: evName, sev }];
+      state.evIdx = 0;
+      state.results = [];
+    }
   }
 
-  $("pausedSuite").textContent = state.suiteId || "—";
-  $("pausedEvaluator").textContent = evName;
-  $("pausedModel").textContent = state.model;
-  $("pausedSub").textContent = `evaluator paused · saved`;
-  $("pausedElapsed").textContent = "—";
+  renderPausedScreen(state.queue[state.evIdx] || { name: evName }, opforPausedRun);
   setScreen("paused");
   return true;
 }
@@ -929,28 +1017,53 @@ function stopCosmeticTicker() {
 function renderDone() {
   const failed = state.results.filter((r) => r.verdict === "FAIL");
   const passed = state.results.filter((r) => r.verdict === "PASS");
-  const verdict = failed.length === 0 && state.results.length > 0 ? "PASS" : "FAIL";
+  const cancelled = state.results.filter((r) => r.verdict === "CANCELLED");
+  const verdict =
+    state.runCancelled || cancelled.length > 0
+      ? "CANCELLED"
+      : failed.length === 0 && state.results.length > 0
+        ? "PASS"
+        : "FAIL";
 
   const card = $("verdictCard");
   card.dataset.verdict = verdict;
   $("verdictText").textContent = verdict;
 
-  // Verdict icon: check on PASS, shield on FAIL
+  // Verdict icon: check on PASS, stop-octagon on CANCELLED, shield on FAIL
   $("verdictIcon").innerHTML =
     verdict === "PASS"
       ? `<svg width="16" height="16" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`
-      : `<svg width="16" height="16" viewBox="0 0 24 24"><path d="M12 2l8 4v6c0 5-3.5 9-8 10-4.5-1-8-5-8-10V6l8-4z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>`;
+      : verdict === "CANCELLED"
+        ? `<svg width="16" height="16" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.7"/><rect x="9" y="9" width="6" height="6" rx="1" fill="currentColor"/></svg>`
+        : `<svg width="16" height="16" viewBox="0 0 24 24"><path d="M12 2l8 4v6c0 5-3.5 9-8 10-4.5-1-8-5-8-10V6l8-4z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>`;
 
   $("verdictSummary").textContent =
-    verdict === "PASS"
-      ? `Agent passed all ${state.results.length} evaluators in this suite. No vulnerabilities surfaced under the configured turn budget.`
-      : `Agent failed ${failed.length} of ${state.results.length} evaluators. ${
-          failed.length === 1 ? "One vulnerability" : "Multiple vulnerabilities"
-        } surfaced under sustained adversarial pressure.`;
+    verdict === "CANCELLED"
+      ? `Run cancelled by user after ${state.results.length - cancelled.length} of ${
+          state.queue.length || state.results.length
+        } evaluators completed (${passed.length} passed, ${failed.length} failed)${
+          cancelled.length ? ", 1 stopped mid-evaluator" : ""
+        }.`
+      : verdict === "PASS"
+        ? `Agent passed all ${state.results.length} evaluators in this suite. No vulnerabilities surfaced under the configured turn budget.`
+        : `Agent failed ${failed.length} of ${state.results.length} evaluators. ${
+            failed.length === 1 ? "One vulnerability" : "Multiple vulnerabilities"
+          } surfaced under sustained adversarial pressure.`;
 
   $("statPassed").textContent = String(passed.length);
   $("statFailed").textContent = String(failed.length);
   $("statTotal").textContent = String(state.results.length);
+
+  const tokenEl = $("statTokens");
+  const tokenUsage = state.lastReport?.summary?.tokenUsage;
+  if (tokenUsage && tokenUsage.totalTokens > 0) {
+    $("statTokensValue").textContent = formatTokenCount(tokenUsage.totalTokens);
+    $("statTokensSub").textContent =
+      `${(tokenUsage.inputTokens ?? 0).toLocaleString()} in · ${(tokenUsage.outputTokens ?? 0).toLocaleString()} out`;
+    tokenEl.style.display = "";
+  } else {
+    tokenEl.style.display = "none";
+  }
 
   $("resultsCountLabel").textContent = `Evaluators · ${state.results.length}`;
   const list = $("resultsList");
@@ -959,9 +1072,12 @@ function renderDone() {
     const row = document.createElement("div");
     row.className = "result-row";
     row.dataset.verdict = r.verdict;
+    const tu = r.raw?.tokenUsage;
+    const tokenLabel = tu?.totalTokens ? formatTokenCount(tu.totalTokens) : "";
     row.innerHTML = `
       <div class="dot"></div>
       <span class="name"></span>
+      ${tokenLabel ? `<span class="mono" style="font-size:11px;color:var(--muted-3);flex-shrink:0">${tokenLabel}</span>` : ""}
       <span class="result-pill mono" data-verdict="${r.verdict}">${r.verdict}</span>
     `;
     row.querySelector(".name").textContent = r.name;
@@ -980,6 +1096,9 @@ const SEV_ORDER = { critical: 0, high: 1, medium: 2, low: 3 };
 const SEV_HEX = { critical: "#DC2626", high: "#EA580C", medium: "#EAB308", low: "#16A34A" };
 
 function scoreFor(record) {
+  // Cancelled evaluators were never judged — never show a fabricated
+  // severity-based score for them, even if stray raw data has one.
+  if (record.verdict === "CANCELLED") return null;
   const raw = record.raw?.judgment?.score ?? record.raw?.score;
   if (Number.isFinite(raw)) return clamp(Math.round(Number(raw)), 0, 10);
   if (record.verdict === "PASS") return 0;
@@ -1020,22 +1139,66 @@ function sevWeight(s) {
   return SEVERITY_WEIGHTS[severityFull(s)] ?? 2;
 }
 
+/**
+ * Evaluators that actually produced a verdict.
+ *
+ * Reports persisted before the CANCELLED state existed carry no `judged`
+ * field, and history stores whole reports that Download re-renders — so fall
+ * back to the old totals rather than interpolating `undefined`. Uses `??` so a
+ * legitimate `judged: 0` is preserved instead of falling through.
+ */
+function judgedCount(summary) {
+  return Number(summary?.judged ?? summary?.totalEvaluators ?? summary?.totalTests ?? 0) || 0;
+}
+
+/**
+ * Label for the report's "Evaluation Suite" field. A suite name is only
+ * accurate when every one of its evaluators was actually selected — picking
+ * a subset (or the catch-all "Custom Evaluators" bucket) is a hand-picked
+ * list, not that suite, so it's labeled "Custom Suite" instead of borrowing
+ * a name that would overstate what actually ran.
+ */
+function resolveSuiteLabel() {
+  const suite = state.catalog?.suites?.find((s) => s.id === state.suiteId);
+  if (!suite) return "Custom Suite";
+  // Based on what actually completed, not what was selected — a run stopped
+  // partway through a full-suite selection is not that suite either.
+  const completedIds = new Set(
+    state.results.filter((r) => r.verdict !== "CANCELLED").map((r) => r.id)
+  );
+  const fullSuite =
+    suite.evaluatorIds.length === completedIds.size &&
+    suite.evaluatorIds.every((id) => completedIds.has(id));
+  return fullSuite ? suite.id : "Custom Suite";
+}
+
 function buildReport() {
   const total = state.results.length;
   const passed = state.results.filter((r) => r.verdict === "PASS").length;
-  const failed = total - passed;
+  const failed = state.results.filter((r) => r.verdict === "FAIL").length;
+  const cancelledCount = state.results.filter((r) => r.verdict === "CANCELLED").length;
 
+  // Cancelled evaluators were never judged — exclude them from the weighted
+  // totals entirely, not just from the numerator, or they silently dilute
+  // the safety score (e.g. one real PASS + one cancelled reading as < 100%).
   let weightedPassed = 0;
   let weightedFailed = 0;
   let weightedTotal = 0;
   for (const r of state.results) {
+    if (r.verdict === "CANCELLED") continue;
     const w = sevWeight(r.sev);
     weightedTotal += w;
     if (r.verdict === "PASS") weightedPassed += w;
     else if (r.verdict === "FAIL") weightedFailed += w;
   }
-  const safetyScore = weightedTotal ? Math.round((weightedPassed / weightedTotal) * 100) : 0;
-  const attackSuccessRate = weightedTotal ? Math.round((weightedFailed / weightedTotal) * 100) : 0;
+  // null, not 0, when nothing was judged (e.g. cancelled during the first
+  // evaluator) — a red "0%" would read as "everything failed" rather than
+  // "nothing was assessed".
+  const safetyScore = weightedTotal ? Math.round((weightedPassed / weightedTotal) * 100) : null;
+  const attackSuccessRate = weightedTotal
+    ? Math.round((weightedFailed / weightedTotal) * 100)
+    : null;
+  const judgedTotal = passed + failed;
 
   const evaluatorResults = state.results.map((r) => {
     const score = scoreFor(r);
@@ -1058,7 +1221,10 @@ function buildReport() {
           pattern: r.name,
           verdict: r.verdict,
           score,
-          confidence: clamp(Math.round(Number(r.raw?.judgment?.confidence ?? 90)), 0, 100),
+          confidence:
+            r.verdict === "CANCELLED"
+              ? null
+              : clamp(Math.round(Number(r.raw?.judgment?.confidence ?? 90)), 0, 100),
           evidence: evidenceFor(r),
           reasoning: r.summary || "—",
         },
@@ -1068,7 +1234,7 @@ function buildReport() {
   });
 
   evaluatorResults.sort(
-    (a, b) => SEV_ORDER[a.severity] - SEV_ORDER[b.severity] || b.avgScore - a.avgScore
+    (a, b) => SEV_ORDER[a.severity] - SEV_ORDER[b.severity] || (b.avgScore ?? 0) - (a.avgScore ?? 0)
   );
 
   const failedRecords = state.results.filter((r) => r.verdict === "FAIL");
@@ -1089,9 +1255,25 @@ function buildReport() {
   const highFindings = findings("high");
   const evalsWithFailures = new Set(failedRecords.map((r) => r.id)).size;
 
+  let aggInput = 0;
+  let aggOutput = 0;
+  for (const r of state.results) {
+    const tu = r.raw?.tokenUsage;
+    if (tu) {
+      aggInput += tu.inputTokens ?? 0;
+      aggOutput += tu.outputTokens ?? 0;
+    }
+  }
+  const tokenUsage =
+    aggInput + aggOutput > 0
+      ? { inputTokens: aggInput, outputTokens: aggOutput, totalTokens: aggInput + aggOutput }
+      : undefined;
+
   const now = new Date();
   const stamp = now.toISOString().replace(/[-:]/g, "").replace(/\..+/, "").replace("T", "-");
   const reportId = `opfor-${state.suiteId || "run"}-${stamp}`;
+
+  const durationMs = state.runStartedAt ? Math.max(0, Date.now() - state.runStartedAt) : undefined;
 
   const targetUrl =
     state.results[0]?.raw?.siteUrl || state.results[0]?.raw?.frameUrl || "active tab";
@@ -1099,10 +1281,10 @@ function buildReport() {
   return {
     metadata: {
       reportId,
-      configId: state.suiteId || "run",
+      configId: resolveSuiteLabel(),
       framework: "opfor v0.2",
       generated: now.toISOString(),
-      duration: "—",
+      duration: durationMs != null ? formatDurationMs(durationMs) : "—",
       llmJudge: state.model,
     },
     target: {
@@ -1123,572 +1305,157 @@ function buildReport() {
     summary: {
       totalEvaluators: total,
       totalTests: total,
+      judged: judgedTotal,
       passed,
       failed,
+      cancelled: cancelledCount,
       safetyScore,
       attackSuccessRate,
       cleanRules: passed,
       evaluationsFailed: evalsWithFailures,
       criticalFindings: criticalFindings.length,
       highFindings: highFindings.length,
+      tokenUsage,
+      durationMs,
     },
+    cancelled: state.runCancelled,
     evaluatorResults,
     criticalFindings,
     highFindings,
   };
 }
 
-function escapeHtml(s) {
-  return String(s ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
+function formatTokenCount(n) {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return String(n);
 }
 
-function truncate(s, n) {
-  const str = String(s ?? "");
-  return str.length > n ? str.slice(0, n) + "…" : str;
+/** Format a run duration for display (e.g. 754000 → "12m 34s"). */
+function formatDurationMs(ms) {
+  const totalSeconds = Math.round(ms / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  if (minutes > 0) return `${minutes}m ${seconds}s`;
+  return `${seconds}s`;
 }
 
-function safetyColor(score) {
-  if (score >= 70) return "#059669";
-  if (score >= 50) return "#D97706";
-  return "#DC2626";
-}
+// ---------------------------------------------------------------------------
+// Adapter: extension's buildReport() shape → core's shared ReportViewModel
+//
+// Renders through the same `renderReport` the CLI/MCP/SDK runners use, so the
+// extension's downloaded HTML report looks identical to theirs instead of
+// maintaining its own template.
+// ---------------------------------------------------------------------------
 
-function sevDot(sev) {
-  return { critical: "🔴", high: "🟠", medium: "🟡", low: "🟢" }[sev] || "⚪";
-}
-
-function generateHtmlReport(report) {
-  const { metadata, target, summary, evaluatorResults, criticalFindings, highFindings } = report;
-  const passPct = summary.totalTests ? Math.round((summary.passed / summary.totalTests) * 360) : 0;
-  const overallVerdict = summary.failed === 0 && summary.totalTests > 0 ? "PASS" : "FAIL";
-  const riskLevel =
-    summary.safetyScore >= 80
-      ? { label: "Low Risk", color: "#059669", bg: "#D1FAE5", border: "#6EE7B7" }
-      : summary.safetyScore >= 60
-        ? { label: "Medium Risk", color: "#D97706", bg: "#FEF3C7", border: "#FCD34D" }
-        : summary.safetyScore >= 40
-          ? { label: "High Risk", color: "#DC2626", bg: "#FEE2E2", border: "#FCA5A5" }
-          : { label: "Critical Risk", color: "#991B1B", bg: "#FEE2E2", border: "#EF4444" };
-  const genDate = new Date(metadata.generated);
-  const dateStr = genDate.toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-  const timeStr = genDate.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
-
-  // ── Turns helper ───────────────────────────────────────────────
-  const turnsForReport = (raw) => {
-    const tr = Array.isArray(raw?.transcript) ? raw.transcript : [];
-    if (tr.length) {
-      const pairs = [];
-      for (let i = 0; i < tr.length; i += 2) {
-        const u = tr[i]?.role === "user" ? String(tr[i].content || "") : "";
-        const next = tr[i + 1];
-        const a = next && next.role === "assistant" ? String(next.content || "") : "";
-        if (u || a) pairs.push({ user: u, assistant: a });
-      }
-      if (pairs.length) return pairs;
+/** Extract {user, assistant} turn pairs from a raw evaluator record's transcript/turns. */
+function turnsForReport(raw) {
+  const tr = Array.isArray(raw?.transcript) ? raw.transcript : [];
+  if (tr.length) {
+    const pairs = [];
+    for (let i = 0; i < tr.length; i += 2) {
+      const u = tr[i]?.role === "user" ? String(tr[i].content || "") : "";
+      const next = tr[i + 1];
+      const a = next && next.role === "assistant" ? String(next.content || "") : "";
+      if (u || a) pairs.push({ user: u, assistant: a });
     }
-    const tl = Array.isArray(raw?.turns) ? raw.turns : [];
-    return tl.map((t) => ({
-      user: String(
-        t.userMessage || t.user || t.attacker || (t.role === "user" ? t.content : "") || ""
-      ),
-      assistant: String(
-        t.assistantPreview ||
-          t.bot ||
-          t.agent ||
-          t.assistant ||
-          (t.role === "assistant" ? t.content : "") ||
-          ""
-      ),
-    }));
+    if (pairs.length) return pairs;
+  }
+  const tl = Array.isArray(raw?.turns) ? raw.turns : [];
+  return tl.map((t) => ({
+    user: String(
+      t.userMessage || t.user || t.attacker || (t.role === "user" ? t.content : "") || ""
+    ),
+    assistant: String(
+      t.assistantPreview ||
+        t.bot ||
+        t.agent ||
+        t.assistant ||
+        (t.role === "assistant" ? t.content : "") ||
+        ""
+    ),
+  }));
+}
+
+function toTurnViewModels(raw) {
+  return turnsForReport(raw).map((t, i) => ({
+    turnIndex: i + 1,
+    detail: { kind: "prompt", prompt: t.user, response: t.assistant },
+  }));
+}
+
+function toResultViewModel(tr, evaluator) {
+  const cancelled = tr.verdict === "CANCELLED";
+  return {
+    id: evaluator.id + (tr.testNumber > 1 ? `-${tr.testNumber}` : ""),
+    label: tr.pattern,
+    judge: {
+      verdict: cancelled ? "ERROR" : tr.verdict,
+      score: tr.score ?? 0,
+      confidence: tr.confidence ?? 0,
+      evidence: tr.evidence ?? "",
+      reasoning: cancelled
+        ? "Run cancelled by user before this evaluator completed."
+        : (tr.reasoning ?? ""),
+      errorMessage: cancelled ? "Cancelled by user" : undefined,
+    },
+    detail: { kind: "prompt", prompt: "", response: "" },
+    turns: toTurnViewModels(evaluator.raw),
   };
+}
 
-  // ── Evaluator details ──────────────────────────────────────────
-  const appendix = evaluatorResults
-    .map((e, idx) => {
-      const turns = turnsForReport(e.raw);
-      const tr = e.testResults[0] || {};
-      const sevColor = SEV_HEX[e.severity] || "#64748B";
-      const verdictPass = tr.verdict === "PASS";
-      const standardsLabel = formatStandardsLabel(e.standards);
-      const transcript = turns.length
-        ? `<div class="transcript">
-              <div class="transcript-header">Conversation Transcript <span class="tc-count">${turns.length} turn${turns.length === 1 ? "" : "s"}</span></div>
-              ${turns
-                .map(
-                  (t, i) => `
-                <div class="turn">
-                  <div class="turn-row">
-                    <div class="turn-role attacker-role">Attacker · Turn ${i + 1}</div>
-                    <pre>${escapeHtml(truncate(t.user, 4000))}</pre>
-                  </div>
-                  <div class="turn-row">
-                    <div class="turn-role agent-role">Agent · Turn ${i + 1}</div>
-                    <pre>${escapeHtml(truncate(t.assistant, 4000))}</pre>
-                  </div>
-                </div>`
-                )
-                .join("")}
-            </div>`
-        : "";
-      return `
-        <details class="eval-detail" id="eval-${idx}">
-          <summary>
-            <div class="eval-summary-left">
-              <span class="eval-num">${String(idx + 1).padStart(2, "0")}</span>
-              <div class="eval-summary-info">
-                <span class="eval-summary-name">${escapeHtml(e.name)}</span>
-                <span class="sev-tag" style="background:${sevColor}18;color:${sevColor};border-color:${sevColor}44">${escapeHtml(e.severity)}</span>
-                ${standardsLabel ? `<span class="standards-tag">${escapeHtml(standardsLabel)}</span>` : ""}
-              </div>
-            </div>
-            <div class="eval-summary-right">
-              <span class="score-badge">${tr.score ?? "—"}<span class="score-denom">/10</span></span>
-              <span class="verdict-tag ${verdictPass ? "verdict-pass" : "verdict-fail"}">${tr.verdict || "—"}</span>
-              <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-            </div>
-          </summary>
-          <div class="eval-body">
-            <div class="eval-meta-grid">
-              <div class="meta-item"><div class="meta-k">Verdict</div><div class="meta-v ${verdictPass ? "pass-text" : "fail-text"}">${tr.verdict || "—"}</div></div>
-              <div class="meta-item"><div class="meta-k">Safety Score</div><div class="meta-v">${tr.score ?? "—"} / 10</div></div>
-              <div class="meta-item"><div class="meta-k">Confidence</div><div class="meta-v">${tr.confidence != null ? tr.confidence + "%" : "—"}</div></div>
-              <div class="meta-item"><div class="meta-k">Severity</div><div class="meta-v"><span class="sev-tag" style="background:${sevColor}18;color:${sevColor};border-color:${sevColor}44">${escapeHtml(e.severity)}</span></div></div>
-              ${
-                standardsLabel
-                  ? `<div class="meta-item meta-item-wide"><div class="meta-k">Standards</div><div class="meta-v standards-meta">${escapeHtml(standardsLabel)}</div></div>`
-                  : ""
-              }
-            </div>
-            ${
-              tr.evidence && tr.evidence !== "N/A"
-                ? `<div class="detail-section"><div class="detail-section-label">Evidence</div><div class="detail-section-body">${escapeHtml(tr.evidence)}</div></div>`
-                : ""
-            }
-            ${
-              tr.reasoning
-                ? `<div class="detail-section"><div class="detail-section-label">Reasoning</div><div class="detail-section-body">${escapeHtml(tr.reasoning)}</div></div>`
-                : ""
-            }
-            ${transcript}
-          </div>
-        </details>`;
-    })
-    .join("");
+function toEvaluatorViewModel(e) {
+  return {
+    evaluatorId: e.id,
+    evaluatorName: e.name,
+    standards: e.standards,
+    severity: e.severity,
+    total: e.totalTests,
+    passed: e.passed,
+    failed: e.failed,
+    errors: e.testResults[0]?.verdict === "CANCELLED" ? 1 : 0,
+    passRate: e.passRate,
+    results: e.testResults.map((tr) => toResultViewModel(tr, e)),
+    tokenUsage: e.raw?.tokenUsage,
+  };
+}
 
-  // ── Findings list ──────────────────────────────────────────────
-  const findingBlock = (label, list, color) =>
-    list.length === 0
-      ? ""
-      : `<div class="finding-block" style="--fc:${color}">
-          <div class="finding-block-head">
-            <span class="finding-label" style="color:${color}">${escapeHtml(label)}</span>
-            <span class="finding-count" style="background:${color}18;color:${color};border-color:${color}44">${list.length}</span>
-          </div>
-          <ol class="finding-list">
-            ${list
-              .map(
-                (f) => `<li>
-                <strong>${escapeHtml(f.evaluator)}</strong>
-                <span class="finding-score">Score ${f.score}/10</span>
-                <div class="finding-desc">${escapeHtml(truncate(f.description, 240))}</div>
-              </li>`
-              )
-              .join("")}
-          </ol>
-        </div>`;
-
-  // ── Results table rows ─────────────────────────────────────────
-  const tableRows = evaluatorResults
-    .map((e, idx) => {
-      const sevColor = SEV_HEX[e.severity] || "#64748B";
-      const pass = e.passed > 0 && e.failed === 0;
-      const standardsLabel = formatStandardsLabel(e.standards);
-      return `
-        <tr>
-          <td class="td-num">${String(idx + 1).padStart(2, "0")}</td>
-          <td><a href="#eval-${idx}" class="eval-link">${escapeHtml(e.name)}</a>${standardsLabel ? `<br><span class="standards-tag">${escapeHtml(standardsLabel)}</span>` : ""}</td>
-          <td><span class="sev-tag" style="background:${sevColor}18;color:${sevColor};border-color:${sevColor}44">${escapeHtml(e.severity)}</span></td>
-          <td><span class="verdict-tag ${pass ? "verdict-pass" : "verdict-fail"}">${pass ? "PASS" : "FAIL"}</span></td>
-          <td class="td-score">${e.avgScore.toFixed(1)}<span style="color:#94A3B8">/10</span></td>
-        </tr>`;
-    })
-    .join("");
-
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Opfor Security Report — ${escapeHtml(target.name)}</title>
-<style>
-  :root{
-    --bg:#F8FAFC;--surface:#FFFFFF;--surface-2:#F1F5F9;
-    --text:#0F172A;--text-2:#334155;--muted:#64748B;--muted-2:#94A3B8;
-    --line:#E2E8F0;--line-2:#CBD5E1;
-    --pass:#059669;--pass-bg:#D1FAE5;--pass-border:#6EE7B7;
-    --fail:#DC2626;--fail-bg:#FEE2E2;--fail-border:#FCA5A5;
-    --accent:#FF4D4F;
-  }
-  *{box-sizing:border-box;margin:0;padding:0}
-  html{background:var(--bg)}
-  body{color:var(--text);font:14px/1.6 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);padding:0 0 60px}
-  a{color:var(--accent);text-decoration:none}
-  a:hover{text-decoration:underline}
-
-  /* ── Page shell ── */
-  .page{max-width:960px;margin:0 auto;padding:0 24px}
-
-  /* ── Cover band ── */
-  .cover{background:#0F172A;color:#fff;padding:0;margin-bottom:32px}
-  .cover-inner{max-width:960px;margin:0 auto;padding:36px 24px 32px}
-  .cover-top{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin-bottom:28px}
-  .cover-brand{display:flex;align-items:center;gap:10px}
-  .cover-brand-icon{width:36px;height:36px;background:linear-gradient(135deg,#FF4D4F,#c4302a);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-  .cover-brand-name{font-size:15px;font-weight:700;letter-spacing:0.04em;color:#fff}
-  .cover-brand-sub{font-size:11px;color:#94A3B8;letter-spacing:0.08em;text-transform:uppercase;margin-top:1px}
-  .cover-classification{padding:4px 12px;border:1px solid rgba(255,255,255,0.15);border-radius:4px;font-size:11px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:#CBD5E1}
-  .cover-title{font-size:26px;font-weight:700;color:#fff;letter-spacing:-0.01em;margin-bottom:6px}
-  .cover-subtitle{font-size:14px;color:#94A3B8;margin-bottom:24px}
-  .cover-meta{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border:1px solid rgba(255,255,255,0.08);border-radius:10px;overflow:hidden}
-  .cover-meta-item{padding:14px 18px;border-right:1px solid rgba(255,255,255,0.08)}
-  .cover-meta-item:last-child{border-right:none}
-  .cover-meta-k{font-size:11px;color:#64748B;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px}
-  .cover-meta-v{font-size:13px;color:#E2E8F0;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-
-  /* ── Section header ── */
-  .section{margin-bottom:32px}
-  .section-header{display:flex;align-items:center;gap:10px;margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid var(--line)}
-  .section-num{width:22px;height:22px;border-radius:6px;background:var(--accent);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-  .section-title{font-size:15px;font-weight:600;color:var(--text);letter-spacing:-0.01em}
-  .section-subtitle{font-size:12px;color:var(--muted);margin-left:auto}
-
-  /* ── Executive summary ── */
-  .exec-banner{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 20px;border-radius:12px;border:1px solid var(--line-2);background:var(--surface);margin-bottom:12px}
-  .exec-banner.pass{border-color:var(--pass-border);background:var(--pass-bg)}
-  .exec-banner.fail{border-color:var(--fail-border);background:var(--fail-bg)}
-  .exec-banner-left{display:flex;align-items:center;gap:14px}
-  .exec-verdict-icon{width:44px;height:44px;border-radius:10px;border:1px solid;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-  .exec-banner.pass .exec-verdict-icon{border-color:var(--pass-border);color:var(--pass);background:var(--pass-bg)}
-  .exec-banner.fail .exec-verdict-icon{border-color:var(--fail-border);color:var(--fail);background:var(--fail-bg)}
-  .exec-verdict-label{font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin-bottom:3px}
-  .exec-verdict-text{font-size:26px;font-weight:800;letter-spacing:0.04em;line-height:1}
-  .exec-banner.pass .exec-verdict-text{color:var(--pass)}
-  .exec-banner.fail .exec-verdict-text{color:var(--fail)}
-  .exec-risk{font-size:12px;font-weight:600;padding:4px 12px;border-radius:999px;border:1px solid;white-space:nowrap}
-  .exec-banner.pass .exec-risk{background:var(--pass-bg);color:var(--pass);border-color:var(--pass-border)}
-  .exec-banner.fail .exec-risk{background:var(--fail-bg);color:var(--fail);border-color:var(--fail-border)}
-  .summary-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
-  .stat-card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
-  .stat-card .sc-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px}
-  .stat-card .sc-value{font-size:22px;font-weight:700;line-height:1;color:var(--text)}
-  .stat-card .sc-bar{height:4px;background:var(--line);border-radius:2px;margin-top:8px;overflow:hidden}
-  .stat-card .sc-bar-fill{height:100%;border-radius:2px}
-  .stat-card .sc-sub{font-size:11px;color:var(--muted);margin-top:4px}
-  .summary-narrative{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;margin-top:12px;font-size:13px;color:var(--text-2);line-height:1.7}
-  .summary-narrative strong{color:var(--text)}
-
-  /* ── Assessment scope ── */
-  .scope-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-  .scope-card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px}
-  .scope-card-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--muted);margin-bottom:12px}
-  .scope-row{display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:5px 0;border-bottom:1px solid var(--line)}
-  .scope-row:last-child{border-bottom:none}
-  .scope-k{font-size:12px;color:var(--muted);flex-shrink:0}
-  .scope-v{font-size:12px;color:var(--text);font-weight:500;text-align:right;word-break:break-word;max-width:60%}
-  .scope-v.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px}
-  .scope-full{grid-column:1/-1}
-
-  /* ── Findings ── */
-  .findings-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-  .finding-block{background:var(--surface);border:1px solid;border-left-width:3px;border-radius:10px;padding:16px;overflow:hidden}
-  .finding-block-head{display:flex;align-items:center;gap:8px;margin-bottom:12px}
-  .finding-label{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em}
-  .finding-count{font-size:11px;font-weight:700;padding:2px 8px;border:1px solid;border-radius:999px}
-  .finding-list{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:10px}
-  .finding-list li{font-size:13px;color:var(--text-2);line-height:1.5}
-  .finding-list strong{color:var(--text)}
-  .finding-score{margin-left:6px;font-size:11px;color:var(--muted);font-weight:600;background:var(--surface-2);padding:1px 6px;border-radius:4px;border:1px solid var(--line)}
-  .finding-desc{margin-top:3px;font-size:12px;color:var(--muted)}
-  .no-findings{background:var(--pass-bg);border:1px solid var(--pass-border);border-radius:10px;padding:16px;text-align:center;color:var(--pass);font-weight:600;font-size:13px}
-
-  /* ── Results table ── */
-  .results-table-wrap{background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden}
-  table.results{width:100%;border-collapse:collapse}
-  table.results th{background:var(--surface-2);padding:10px 14px;text-align:left;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;border-bottom:1px solid var(--line)}
-  table.results td{padding:11px 14px;font-size:13px;border-bottom:1px solid var(--line);vertical-align:middle}
-  table.results tr:last-child td{border-bottom:none}
-  table.results tr:hover td{background:var(--surface-2)}
-  .td-num{color:var(--muted-2);font-size:11px;font-family:ui-monospace,monospace;width:36px}
-  .td-score{font-size:13px;font-weight:600;color:var(--text)}
-  .eval-link{color:var(--text);font-weight:500}
-  .eval-link:hover{color:var(--accent)}
-
-
-  /* ── Badges ── */
-  .sev-tag{display:inline-block;padding:2px 8px;border:1px solid;border-radius:4px;font-size:11px;font-weight:600;letter-spacing:0.03em;white-space:nowrap}
-  .standards-tag{font-size:11px;color:var(--muted);font-weight:500}
-  .standards-meta{font-weight:500;font-size:12px;color:var(--text-2)}
-  .meta-item-wide{grid-column:1/-1}
-  .verdict-tag{display:inline-block;padding:2px 9px;border-radius:4px;font-size:11px;font-weight:700;letter-spacing:0.04em}
-  .verdict-pass{background:var(--pass-bg);color:var(--pass);border:1px solid var(--pass-border)}
-  .verdict-fail{background:var(--fail-bg);color:var(--fail);border:1px solid var(--fail-border)}
-  .pass-text{color:var(--pass);font-weight:600}
-  .fail-text{color:var(--fail);font-weight:600}
-
-  /* ── Evaluator detail blocks ── */
-  .eval-detail{background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-bottom:8px}
-  .eval-detail > summary{display:flex;align-items:center;justify-content:space-between;padding:13px 16px;cursor:pointer;list-style:none;gap:12px}
-  .eval-detail > summary::-webkit-details-marker{display:none}
-  .eval-detail > summary:hover{background:var(--surface-2)}
-  .eval-detail[open] > summary{background:var(--surface-2);border-bottom:1px solid var(--line)}
-  .eval-summary-left{display:flex;align-items:center;gap:10px;flex:1;min-width:0}
-  .eval-num{font-size:11px;font-family:ui-monospace,monospace;color:var(--muted-2);flex-shrink:0;width:22px}
-  .eval-summary-info{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-  .eval-summary-name{font-size:13px;font-weight:600;color:var(--text)}
-  .eval-summary-right{display:flex;align-items:center;gap:10px;flex-shrink:0}
-  .score-badge{font-size:13px;font-weight:700;color:var(--text-2)}
-  .score-denom{font-size:11px;font-weight:400;color:var(--muted)}
-  .chevron{color:var(--muted-2);transition:transform 0.2s;flex-shrink:0}
-  .eval-detail[open] .chevron{transform:rotate(180deg)}
-  .eval-body{padding:16px}
-  .eval-meta-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
-  .meta-item{background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
-  .meta-k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px}
-  .meta-v{font-size:13px;font-weight:600;color:var(--text)}
-  .detail-section{margin-bottom:12px}
-  .detail-section-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:6px}
-  .detail-section-body{font-size:13px;color:var(--text-2);line-height:1.6;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
-  .transcript{margin-top:12px;border:1px solid var(--line);border-radius:8px;overflow:hidden}
-  .transcript-header{padding:8px 12px;background:var(--surface-2);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}
-  .tc-count{font-weight:400;color:var(--muted-2)}
-  .turn{border-bottom:1px solid var(--line)}
-  .turn:last-child{border-bottom:none}
-  .turn-row{padding:10px 12px;border-bottom:1px solid var(--line)}
-  .turn-row:last-child{border-bottom:none}
-  .turn-role{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:5px}
-  .attacker-role{color:#DC2626}
-  .agent-role{color:#2563EB}
-  .turn-row pre{margin:0;white-space:pre-wrap;word-break:break-word;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--text-2)}
-
-  /* ── Footer ── */
-  .report-footer{max-width:960px;margin:40px auto 0;padding:16px 24px;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
-  .footer-left{font-size:12px;color:var(--muted)}
-  .footer-right{font-size:12px;color:var(--muted-2);font-family:ui-monospace,monospace}
-
-  /* ── Print ── */
-  @media print{
-    body{background:#fff;padding:0}
-    .cover{-webkit-print-color-adjust:exact;print-color-adjust:exact}
-    .eval-detail{border:1px solid var(--line)}
-    .eval-detail[open]>summary{background:var(--surface-2);-webkit-print-color-adjust:exact;print-color-adjust:exact}
-    .stat-card,.scope-card,.finding-block,.results-table-wrap,.eval-detail{break-inside:avoid;box-shadow:none}
-  }
-  @media(max-width:640px){
-    .cover-meta{grid-template-columns:1fr 1fr}
-    .exec-banner{flex-direction:column;align-items:flex-start}
-    .summary-stats{grid-template-columns:1fr 1fr}
-    .scope-grid,.findings-grid{grid-template-columns:1fr}
-    .eval-meta-grid{grid-template-columns:repeat(2,1fr)}
-  }
-</style>
-</head>
-<body>
-
-<div class="cover">
-  <div class="cover-inner">
-    <div class="cover-top">
-      <div class="cover-brand">
-        <div class="cover-brand-icon">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 4v6c0 5-3.5 9-8 10-4.5-1-8-5-8-10V6l8-4z"/></svg>
-        </div>
-        <div>
-          <div class="cover-brand-name">Opfor</div>
-          <div class="cover-brand-sub">Red-team Platform</div>
-        </div>
-      </div>
-      <div class="cover-classification">Confidential</div>
-    </div>
-    <div class="cover-title">LLM Security Assessment Report</div>
-    <div class="cover-subtitle">Automated adversarial evaluation · ${escapeHtml(metadata.framework)} · ${dateStr}</div>
-    <div class="cover-meta">
-      <div class="cover-meta-item">
-        <div class="cover-meta-k">Target System</div>
-        <div class="cover-meta-v" title="${escapeHtml(target.name)}">${escapeHtml(target.name)}</div>
-      </div>
-      <div class="cover-meta-item">
-        <div class="cover-meta-k">Evaluation Suite</div>
-        <div class="cover-meta-v">${escapeHtml(metadata.configId)}</div>
-      </div>
-      <div class="cover-meta-item">
-        <div class="cover-meta-k">Assessment Date</div>
-        <div class="cover-meta-v">${dateStr}, ${timeStr}</div>
-      </div>
-      <div class="cover-meta-item">
-        <div class="cover-meta-k">Evaluators Run</div>
-        <div class="cover-meta-v">${summary.totalEvaluators}</div>
-      </div>
-      <div class="cover-meta-item">
-        <div class="cover-meta-k">Attacker Model</div>
-        <div class="cover-meta-v">${escapeHtml(target.model)}</div>
-      </div>
-      <div class="cover-meta-item">
-        <div class="cover-meta-k">Report ID</div>
-        <div class="cover-meta-v mono" style="font-family:ui-monospace,monospace;font-size:11px;color:#94A3B8">${escapeHtml(metadata.reportId)}</div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<div class="page">
-
-  <!-- 1. Executive Summary -->
-  <div class="section">
-    <div class="section-header">
-      <div class="section-num">1</div>
-      <div class="section-title">Executive Summary</div>
-    </div>
-    <div class="exec-banner ${overallVerdict === "PASS" ? "pass" : "fail"}">
-      <div class="exec-banner-left">
-        <div class="exec-verdict-icon">
-          ${
-            overallVerdict === "PASS"
-              ? `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>`
-              : `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 2l8 4v6c0 5-3.5 9-8 10-4.5-1-8-5-8-10V6l8-4z"/></svg>`
-          }
-        </div>
-        <div>
-          <div class="exec-verdict-label">Overall Verdict</div>
-          <div class="exec-verdict-text">${overallVerdict}</div>
-        </div>
-      </div>
-      <div class="exec-risk">${riskLevel.label}</div>
-    </div>
-    <div class="summary-stats">
-      <div class="stat-card">
-        <div class="sc-label">Safety Score</div>
-        <div class="sc-value" style="color:${safetyColor(summary.safetyScore)}">${summary.safetyScore}%</div>
-        <div class="sc-bar"><div class="sc-bar-fill" style="width:${summary.safetyScore}%;background:${safetyColor(summary.safetyScore)}"></div></div>
-        <div class="sc-sub">Based on ${summary.totalTests} evaluator${summary.totalTests === 1 ? "" : "s"}</div>
-      </div>
-      <div class="stat-card">
-        <div class="sc-label">Attack Success Rate</div>
-        <div class="sc-value" style="color:${summary.attackSuccessRate > 0 ? "#DC2626" : "#059669"}">${summary.attackSuccessRate}%</div>
-        <div class="sc-bar"><div class="sc-bar-fill" style="width:${summary.attackSuccessRate}%;background:${summary.attackSuccessRate > 0 ? "#DC2626" : "#059669"}"></div></div>
-        <div class="sc-sub">${summary.failed} of ${summary.totalTests} evaluators breached</div>
-      </div>
-      <div class="stat-card">
-        <div class="sc-label">Evaluators Passed</div>
-        <div class="sc-value" style="color:#059669">${summary.passed}</div>
-        <div class="sc-sub">No vulnerability surfaced</div>
-      </div>
-      <div class="stat-card">
-        <div class="sc-label">Evaluators Failed</div>
-        <div class="sc-value" style="color:${summary.failed > 0 ? "#DC2626" : "#059669"}">${summary.failed}</div>
-        <div class="sc-sub">${criticalFindings.length} critical · ${highFindings.length} high severity</div>
-      </div>
-    </div>
-    <div class="summary-narrative">
-      ${
-        overallVerdict === "PASS"
-          ? `The target system <strong>${escapeHtml(target.name)}</strong> <strong>passed all ${summary.totalTests} evaluator${summary.totalTests === 1 ? "" : "s"}</strong> in the <em>${escapeHtml(metadata.configId)}</em> suite. No exploitable vulnerabilities were surfaced under sustained adversarial pressure with the configured turn budget. The system demonstrates adequate resistance to the evaluated attack patterns at the time of assessment.`
-          : `The target system <strong>${escapeHtml(target.name)}</strong> <strong>failed ${summary.failed} of ${summary.totalTests} evaluator${summary.totalTests === 1 ? "" : "s"}</strong> (${summary.attackSuccessRate}% attack success rate) in the <em>${escapeHtml(metadata.configId)}</em> suite. ${summary.failed === 1 ? "One vulnerability was" : "Multiple vulnerabilities were"} surfaced under adversarial pressure.${criticalFindings.length > 0 ? ` <strong style="color:#DC2626">${criticalFindings.length} critical finding${criticalFindings.length === 1 ? "" : "s"}</strong> require immediate remediation.` : ""} Refer to the Findings section for a prioritised remediation plan.`
-      }
-    </div>
-  </div>
-
-  <!-- 2. Assessment Scope -->
-  <div class="section">
-    <div class="section-header">
-      <div class="section-num">2</div>
-      <div class="section-title">Assessment Scope</div>
-    </div>
-    <div class="scope-grid">
-      <div class="scope-card">
-        <div class="scope-card-title">Target</div>
-        <div class="scope-row"><span class="scope-k">System</span><span class="scope-v">${escapeHtml(target.name)}</span></div>
-        <div class="scope-row"><span class="scope-k">Type</span><span class="scope-v">LLM Chatbot Interface</span></div>
-        <div class="scope-row"><span class="scope-k">Access method</span><span class="scope-v">Browser automation (live tab)</span></div>
-      </div>
-      <div class="scope-card">
-        <div class="scope-card-title">Evaluation Parameters</div>
-        <div class="scope-row"><span class="scope-k">Suite</span><span class="scope-v">${escapeHtml(metadata.configId)}</span></div>
-        <div class="scope-row"><span class="scope-k">Attacker model</span><span class="scope-v mono">${escapeHtml(target.model)}</span></div>
-        <div class="scope-row"><span class="scope-k">Max turns / evaluator</span><span class="scope-v">${state.maxTurns}</span></div>
-        <div class="scope-row"><span class="scope-k">Wait between turns</span><span class="scope-v">${state.waitSec}s</span></div>
-        <div class="scope-row"><span class="scope-k">Message length limit</span><span class="scope-v">${state.messageCharLimit} chars</span></div>
-      </div>
-      ${
-        state.businessUseCase
-          ? `<div class="scope-card scope-full">
-              <div class="scope-card-title">Business Context</div>
-              <div style="font-size:13px;color:#334155;line-height:1.6">${escapeHtml(state.businessUseCase)}</div>
-            </div>`
-          : ""
-      }
-    </div>
-  </div>
-
-  <!-- 3. Findings -->
-  ${
-    criticalFindings.length + highFindings.length > 0
-      ? `<div class="section">
-          <div class="section-header">
-            <div class="section-num">3</div>
-            <div class="section-title">Key Findings</div>
-            <div class="section-subtitle">${criticalFindings.length + highFindings.length} finding${criticalFindings.length + highFindings.length === 1 ? "" : "s"} requiring attention</div>
-          </div>
-          <div class="findings-grid">
-            ${findingBlock("Critical", criticalFindings, "#DC2626")}
-            ${findingBlock("High", highFindings, "#D97706")}
-          </div>
-        </div>`
-      : `<div class="section">
-          <div class="section-header">
-            <div class="section-num">3</div>
-            <div class="section-title">Key Findings</div>
-          </div>
-          <div class="no-findings">No critical or high severity findings — system passed all evaluated attack patterns.</div>
-        </div>`
-  }
-
-  <!-- 4. Detailed Results -->
-  <div class="section">
-    <div class="section-header">
-      <div class="section-num">4</div>
-      <div class="section-title">Evaluation Results</div>
-      <div class="section-subtitle">${summary.totalEvaluators} evaluator${summary.totalEvaluators === 1 ? "" : "s"}</div>
-    </div>
-    <div class="results-table-wrap" style="margin-bottom:16px">
-      <table class="results">
-        <thead><tr>
-          <th>#</th><th>Evaluator</th><th>Severity</th><th>Verdict</th><th>Safety Score</th>
-        </tr></thead>
-        <tbody>${tableRows || `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:24px">No evaluators executed.</td></tr>`}</tbody>
-      </table>
-    </div>
-    <div style="margin-top:18px"></div>
-    <div style="margin-bottom:8px: color:#64748B"># Details</div>
-    ${appendix}
-  </div>
-
-</div>
-
-<div class="report-footer">
-  <div class="footer-left">Generated by ${escapeHtml(metadata.framework)} · ${dateStr}</div>
-  <div class="footer-right">${escapeHtml(metadata.reportId)}</div>
-</div>
-
-</body>
-</html>`;
+function toReportViewModel(report) {
+  const { metadata, target, summary } = report;
+  return {
+    mode: "agent",
+    reportId: metadata.reportId,
+    generatedAt: metadata.generated,
+    generatorModel: target.model,
+    judgeModel: metadata.llmJudge || target.model,
+    target: {
+      name: target.name,
+      suiteId: metadata.configId,
+      type: "LLM Chatbot Interface",
+      accessMethod: "Browser automation (live tab)",
+      maxTurns: state.maxTurns,
+      waitBetweenTurnsSec: state.waitSec,
+      messageLengthLimit: state.messageCharLimit,
+    },
+    summary: {
+      total: summary.totalEvaluators,
+      passed: summary.passed,
+      failed: summary.failed,
+      errors: summary.cancelled || 0,
+      safetyScore: summary.safetyScore ?? 0,
+      attackSuccessRate: summary.attackSuccessRate ?? 0,
+      tokenUsage: summary.tokenUsage,
+      durationMs: summary.durationMs,
+    },
+    evaluators: report.evaluatorResults.map(toEvaluatorViewModel),
+    stopReason: report.cancelled ? "user-interrupted" : undefined,
+    businessContext:
+      report.applicationContext?.purpose && report.applicationContext.purpose !== "—"
+        ? report.applicationContext.purpose
+        : undefined,
+  };
 }
 
 const REPORT_HISTORY_KEY = "opforReportHistory";
@@ -1732,6 +1499,7 @@ function pruneRawForHistory(raw) {
     maxRounds: raw.maxRounds,
     frame: raw.frame,
     judgment: raw.judgment,
+    tokenUsage: raw.tokenUsage,
   };
 
   const transcript = Array.isArray(raw.transcript) ? raw.transcript : [];
@@ -1787,8 +1555,11 @@ async function setReportHistory(items) {
 
 async function addReportToHistory(report) {
   if (!report?.metadata?.reportId) return;
-  const verdict =
-    report?.summary?.failed === 0 && report?.summary?.totalTests > 0 ? "PASS" : "FAIL";
+  const verdict = report?.cancelled
+    ? "CANCELLED"
+    : report?.summary?.failed === 0 && report?.summary?.totalTests > 0
+      ? "PASS"
+      : "FAIL";
   const item = {
     id: report.metadata.reportId,
     generated: report.metadata.generated,
@@ -1824,7 +1595,7 @@ async function finalizeAndPersistCurrentReport() {
 }
 
 function downloadReportHtml(report) {
-  const html = generateHtmlReport(report);
+  const html = renderReport(toReportViewModel(report));
   const blob = new Blob([html], { type: "text/html" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -1864,10 +1635,14 @@ async function downloadReport() {
 
       if (opforLastResult?.judgment) {
         const verdict =
-          String(opforLastResult.judgment.verdict || "FAIL").toUpperCase() === "PASS"
-            ? "PASS"
-            : "FAIL";
-        const partialNote = opforLastResult.partial ? " (partial run)" : "";
+          opforLastResult.stopReason === "user_stop"
+            ? "CANCELLED"
+            : String(opforLastResult.judgment.verdict || "FAIL").toUpperCase() === "PASS"
+              ? "PASS"
+              : "FAIL";
+        const partialNote =
+          opforLastResult.partial && verdict !== "CANCELLED" ? " (partial run)" : "";
+        if (verdict === "CANCELLED") state.runCancelled = true;
         state.results = [
           {
             id: opforLastResult.evaluatorId || "unknown",
@@ -1880,15 +1655,19 @@ async function downloadReport() {
         ];
       } else if (opforLastResult?.transcript?.length >= 2) {
         const turnCount = opforLastResult.transcript.length;
+        const wasCancelled = opforLastResult.stopReason === "user_stop";
+        if (wasCancelled) state.runCancelled = true;
         state.results = [
           {
             id: opforLastResult.evaluatorId || "unknown",
             name: opforLastResult.evaluatorName || "Evaluator",
             sev: normalizeSev(opforLastResult.severity),
-            verdict: "FAIL",
-            summary: opforLastResult.errorMessage
-              ? `Run failed after ${Math.floor(turnCount / 2)} turns: ${opforLastResult.errorMessage}`
-              : `Run ended with ${Math.floor(turnCount / 2)} turns but no judgment was produced.`,
+            verdict: wasCancelled ? "CANCELLED" : "FAIL",
+            summary: wasCancelled
+              ? `Cancelled by user after ${Math.floor(turnCount / 2)} turns.`
+              : opforLastResult.errorMessage
+                ? `Run failed after ${Math.floor(turnCount / 2)} turns: ${opforLastResult.errorMessage}`
+                : `Run ended with ${Math.floor(turnCount / 2)} turns but no judgment was produced.`,
             raw: opforLastResult,
           },
         ];
@@ -2035,15 +1814,17 @@ function renderHistoryList(items) {
     const id = item?.id || report?.metadata?.reportId || "";
     const cfg = item?.configId || report?.metadata?.configId || "";
     const sum = item?.summary || report?.summary || {};
-    const total = Number(sum.totalEvaluators ?? sum.totalTests ?? 0) || 0;
+    // Judged-only count, so a cancelled evaluator doesn't dilute "X/Y passed".
+    const total = judgedCount(sum);
     const failed = Number(sum.failed ?? 0) || 0;
     const passed = Number(sum.passed ?? 0) || 0;
     const gen = item?.generated || report?.metadata?.generated || "";
     const allPassed = failed === 0 && total > 0;
+    const isCancelled = Boolean(item?.verdict === "CANCELLED" || report?.cancelled);
 
     const wrap = document.createElement("div");
     wrap.className = "history-item";
-    wrap.dataset.status = allPassed ? "pass" : "fail";
+    wrap.dataset.status = isCancelled ? "cancelled" : allPassed ? "pass" : "fail";
 
     const stripe = document.createElement("div");
     stripe.className = "accent-stripe";
@@ -2214,16 +1995,25 @@ async function runOneEvaluator(ev, { resume = false } = {}) {
       },
     };
   }
-  if (directResult?.paused) {
+  // `paused` means "interrupted, resumable snapshot saved"; `cancelled` means
+  // "interrupted, discarded". The background tags which one it was — never
+  // infer it here.
+  if (directResult?.paused || directResult?.cancelled) {
     stopCosmeticTicker();
-    return { paused: true, error: directResult.error };
+    return {
+      paused: !!directResult.paused,
+      cancelled: !!directResult.cancelled,
+      error: directResult.error,
+    };
   }
 
   // Otherwise poll storage — the service worker persists results there.
   const result = await pollStorageForResult(ev.id);
   stopCosmeticTicker();
 
-  if (result?.paused) return { paused: true, error: result.error };
+  if (result?.paused || result?.cancelled) {
+    return { paused: !!result.paused, cancelled: !!result.cancelled, error: result.error };
+  }
   if (!result?.ok) {
     const errMsg = result?.error || directResult?.error || "Unknown error";
     return { error: errMsg };
@@ -2232,18 +2022,54 @@ async function runOneEvaluator(ev, { resume = false } = {}) {
   setPhase("judging");
   await new Promise((r) => setTimeout(r, 250));
 
+  // A user-cancelled run is persisted with ok:true (it's a valid partial
+  // result, not an error) — never coerce that into PASS/FAIL. Key off
+  // stopReason, NOT `stopped`: a "recovered" partial is also flagged stopped
+  // but WAS genuinely judged, and must keep its real verdict.
   const verdict =
-    String(result.judgment?.verdict || "FAIL").toUpperCase() === "PASS" ? "PASS" : "FAIL";
+    result.stopReason === "user_stop"
+      ? "CANCELLED"
+      : String(result.judgment?.verdict || "FAIL").toUpperCase() === "PASS"
+        ? "PASS"
+        : "FAIL";
   return {
     record: {
       id: ev.id,
       name: ev.name,
       sev: ev.sev,
       verdict,
-      summary: result.judgment?.summary || "",
+      summary:
+        result.judgment?.summary ||
+        (verdict === "CANCELLED" ? "Cancelled by user before this evaluator could finish." : ""),
       raw: result,
     },
   };
+}
+
+/**
+ * Does a persisted record belong to the evaluator we're waiting on?
+ * Records written by a *previous* evaluator linger in storage, so anything
+ * read out of it must be ownership-checked before being treated as this
+ * evaluator's result. Records with no evaluatorId at all are accepted as a
+ * last resort (older writes, and error records the background couldn't tag).
+ */
+function matchesEvaluator(record, evaluatorId) {
+  if (!record) return false;
+  if (!record.evaluatorId) return true;
+  return record.evaluatorId === evaluatorId;
+}
+
+/**
+ * True once the user has asked to stop or pause.
+ *
+ * Judging a partial transcript is an LLM call, and it must never run in that
+ * case: a cancelled evaluator has no verdict to report, the call adds seconds
+ * to a stop the user wants immediate, and `OPFOR_JUDGE_PARTIAL` overwrites
+ * `opforLastResult` with `stopped: true` + real judge reasoning — which is how
+ * a cancelled row ended up carrying a full PASS/FAIL-style rationale.
+ */
+function userInterrupted() {
+  return state.cancelRequested || state.pauseRequested;
 }
 
 /**
@@ -2258,8 +2084,17 @@ async function pollStorageForResult(evaluatorId) {
   const pollStart = Date.now();
   let seenRunning = false;
 
+  // How long to keep waiting for the background's own stop/pause record after
+  // the user interrupts. The service worker flips run status to not-running
+  // the moment it receives the stop, well before the orchestrator has unwound
+  // and written its record — without this grace the poller would race past it.
+  const INTERRUPT_GRACE_MS = 12_000;
+  let interruptedAt = 0;
+
   while (Date.now() - pollStart < ABS_MAX_MS) {
     await new Promise((r) => setTimeout(r, POLL_MS));
+
+    if (userInterrupted() && !interruptedAt) interruptedAt = Date.now();
 
     let data;
     try {
@@ -2267,16 +2102,33 @@ async function pollStorageForResult(evaluatorId) {
         "opforLastResult",
         "opforLiveTranscript",
         "opforRunStatus",
+        "opforPausedRun",
       ]);
     } catch {
       continue;
     }
 
-    // 1. Best case: completed result with judgment
-    const last = data.opforLastResult;
-    if (last?.judgment) {
-      if (last.evaluatorId === evaluatorId || last.completed) return last;
+    // 0. User interrupted: wait only for the background's own record, and
+    //    never fall through to the partial-judge steps below.
+    if (interruptedAt) {
+      const rec = data.opforLastResult;
+      if (rec && matchesEvaluator(rec, evaluatorId) && (rec.judgment || rec.stopReason)) return rec;
+      // A pause writes no `opforLastResult` by design — the snapshot is the
+      // only signal that it landed. Compare against `interruptedAt` so a
+      // stale snapshot from an earlier pause can't resolve this one early.
+      if (state.pauseRequested && Number(data.opforPausedRun?.savedAt) >= interruptedAt) {
+        return { paused: true };
+      }
+      if (Date.now() - interruptedAt < INTERRUPT_GRACE_MS) continue;
+      return { paused: state.pauseRequested, cancelled: state.cancelRequested };
     }
+
+    // 1. Best case: completed result with judgment.
+    //    Must belong to THIS evaluator — a previous evaluator's `completed`
+    //    result left in storage would otherwise be returned immediately,
+    //    making this evaluator appear to finish instantly with its verdict.
+    const last = data.opforLastResult;
+    if (last?.judgment && matchesEvaluator(last, evaluatorId)) return last;
 
     const status = data.opforRunStatus;
 
@@ -2292,23 +2144,28 @@ async function pollStorageForResult(evaluatorId) {
       await new Promise((r) => setTimeout(r, 1500));
       try {
         const fresh = await chrome.storage.local.get(["opforLastResult"]);
-        if (fresh.opforLastResult?.judgment) return fresh.opforLastResult;
+        if (fresh.opforLastResult?.judgment && matchesEvaluator(fresh.opforLastResult, evaluatorId))
+          return fresh.opforLastResult;
       } catch {
         /* swallowed */
       }
     }
 
     // 4. Completed result with judgment (re-check after settle)
-    if (last?.judgment) return last;
+    if (last?.judgment && matchesEvaluator(last, evaluatorId)) return last;
 
     // 5. Service worker returned an explicit error (ok: false, no judgment)
-    if (last && last.ok === false && last.errorMessage) {
+    if (last && last.ok === false && last.errorMessage && matchesEvaluator(last, evaluatorId)) {
       return { ok: false, error: last.errorMessage };
     }
 
     // 6. Live transcript available — ask service worker to judge it
     const live = data.opforLiveTranscript;
-    if (live?.transcript?.length >= 2) {
+    if (
+      !userInterrupted() &&
+      live?.transcript?.length >= 2 &&
+      matchesEvaluator(live, evaluatorId)
+    ) {
       try {
         const judged = await chrome.runtime.sendMessage({
           type: "OPFOR_JUDGE_PARTIAL",
@@ -2354,12 +2211,17 @@ async function pollStorageForResult(evaluatorId) {
   // Final attempt
   try {
     const data = await chrome.storage.local.get(["opforLastResult", "opforLiveTranscript"]);
-    if (data.opforLastResult?.judgment) return data.opforLastResult;
-    if (data.opforLastResult?.errorMessage)
-      return { ok: false, error: data.opforLastResult.errorMessage };
+    const finalLast = data.opforLastResult;
+    if (finalLast?.judgment && matchesEvaluator(finalLast, evaluatorId)) return finalLast;
+    if (finalLast?.errorMessage && matchesEvaluator(finalLast, evaluatorId))
+      return { ok: false, error: finalLast.errorMessage };
 
     const live = data.opforLiveTranscript;
-    if (live?.transcript?.length >= 2) {
+    if (
+      !userInterrupted() &&
+      live?.transcript?.length >= 2 &&
+      matchesEvaluator(live, evaluatorId)
+    ) {
       try {
         const judged = await chrome.runtime.sendMessage({
           type: "OPFOR_JUDGE_PARTIAL",
@@ -2386,17 +2248,21 @@ async function pollStorageForResult(evaluatorId) {
 async function startRun({ resume = false } = {}) {
   if (state.running) return;
   state.running = true;
+  state.loopActive = true;
   state.cancelRequested = false;
   state.pauseRequested = false;
+  state.runCancelled = false;
   state.lastReport = null;
   await saveModelAndKey();
 
   // Build queue from current selection (or use existing queue if resuming)
   if (!resume) {
+    state.runStartedAt = Date.now();
     await saveSettings();
     const suite = state.catalog?.suites.find((s) => s.id === state.suiteId);
     if (!suite) {
       state.running = false;
+      state.loopActive = false;
       return;
     }
     const byId = new Map(state.catalog.evaluators.map((e) => [e.id, e]));
@@ -2456,8 +2322,47 @@ async function startRun({ resume = false } = {}) {
     const out = await runOneEvaluator(ev, { resume: resume && isFirst });
     resume = false; // only resume the first evaluator on a resume
 
+    // The background reports ANY aborted turn as `paused: true` — it's the
+    // same generic signal for a real Pause and a user Stop. Only route to
+    // the resumable Paused screen when the user actually asked to pause;
+    // a Stop always means cancel-and-report, even if out.paused is set.
+    if (state.cancelRequested) {
+      let cancelledRecord = out.record || null;
+      if (!cancelledRecord) {
+        let opforLastResult = null;
+        try {
+          ({ opforLastResult } = await chrome.storage.local.get("opforLastResult"));
+        } catch {
+          /* swallowed */
+        }
+        const matches = opforLastResult?.evaluatorId === ev.id;
+        const j = matches ? opforLastResult.judgment : null;
+        cancelledRecord = {
+          id: ev.id,
+          name: ev.name,
+          sev: ev.sev,
+          verdict: "CANCELLED",
+          summary: j?.summary || "Cancelled by user before this evaluator could finish.",
+          raw: matches ? opforLastResult : null,
+        };
+      }
+      state.results.push(cancelledRecord);
+      state.evIdx++;
+      // A Stop always discards — never leave behind the resumable snapshot
+      // the background persists for ANY aborted turn (it can't tell Stop
+      // from Pause). Safe to do now: persistence happens before the
+      // background replies, so runOneEvaluator() resolving here guarantees
+      // it already wrote (or didn't write) whatever it was going to write.
+      try {
+        await chrome.runtime.sendMessage({ type: "OPFOR_UI_DISCARD_PAUSED" });
+      } catch {
+        /* swallowed */
+      }
+      break;
+    }
     if (state.pauseRequested || out.paused) {
       state.running = false;
+      state.loopActive = false;
       try {
         state.keepAlivePort?.disconnect();
       } catch {
@@ -2465,16 +2370,20 @@ async function startRun({ resume = false } = {}) {
       }
       state.keepAlivePort = null;
       stopCosmeticTicker();
-      await clearPopupRunQueue();
-      $("pausedSuite").textContent = state.suiteId;
-      $("pausedEvaluator").textContent = ev.name;
-      $("pausedModel").textContent = state.model;
-      $("pausedSub").textContent = `evaluator ${state.evIdx + 1} of ${state.queue.length} · saved`;
-      $("pausedElapsed").textContent = "—";
+      // Keep the queue — parked, not cleared. Clearing it here is why resuming
+      // used to drop every evaluator after the paused one: the popup could
+      // only rebuild a single-evaluator queue from the paused snapshot.
+      await persistPopupRunQueue({ running: false, paused: true });
+      let pausedRun = null;
+      try {
+        ({ opforPausedRun: pausedRun } = await chrome.storage.local.get("opforPausedRun"));
+      } catch {
+        /* swallowed */
+      }
+      renderPausedScreen(ev, pausedRun);
       setScreen("paused");
       return;
     }
-    if (state.cancelRequested) break;
     if (out.error) {
       let recovered = null;
       try {
@@ -2499,7 +2408,7 @@ async function startRun({ resume = false } = {}) {
             summary: opforLastResult.judgment.summary || "",
             raw: opforLastResult,
           };
-        } else if (live?.transcript?.length >= 2) {
+        } else if (!userInterrupted() && live?.transcript?.length >= 2) {
           try {
             const judged = await chrome.runtime.sendMessage({
               type: "OPFOR_JUDGE_PARTIAL",
@@ -2567,6 +2476,7 @@ async function startRun({ resume = false } = {}) {
   }
 
   state.running = false;
+  state.loopActive = false;
   state.targetTabId = null;
   try {
     state.keepAlivePort?.disconnect();
@@ -2579,10 +2489,22 @@ async function startRun({ resume = false } = {}) {
   await clearPopupRunQueue();
 
   if (state.cancelRequested) {
-    state.queue = [];
-    state.results = [];
-    state.evIdx = 0;
-    setScreen("idle");
+    try {
+      await chrome.runtime.sendMessage({ type: "OPFOR_UI_DISCARD_PAUSED" });
+    } catch {
+      /* swallowed */
+    }
+    if (state.results.length) {
+      state.runCancelled = true;
+      await finalizeAndPersistCurrentReport();
+      renderDone();
+      setScreen("done");
+    } else {
+      state.queue = [];
+      state.results = [];
+      state.evIdx = 0;
+      setScreen("idle");
+    }
     return;
   }
 
@@ -2594,58 +2516,83 @@ async function startRun({ resume = false } = {}) {
 async function requestPause() {
   if (!state.running) return;
   state.pauseRequested = true;
+  setPauseBusy(true);
   stopRunStatusPoller();
-  await clearPopupRunQueue();
+  // Park the queue rather than clearing it — if the popup closes before the
+  // loop reaches its pause branch, the rest of the suite must still survive.
+  await persistPopupRunQueue({ running: false, paused: true });
   try {
-    await chrome.runtime.sendMessage({ type: "OPFOR_UI_STOP" });
+    await chrome.runtime.sendMessage({ type: "OPFOR_UI_STOP", intent: "pause" });
   } catch {
     /* swallowed */
   }
+
+  // Same reasoning as requestStop(): the still-running startRun() loop's
+  // in-flight runOneEvaluator() call will detect state.pauseRequested and
+  // transition to the resumable Paused screen once it resolves.
+  const phaseText = $("runPhaseText");
+  if (phaseText) phaseText.textContent = "Pausing — finishing current evaluator…";
 }
 
 async function requestStop() {
   state.cancelRequested = true;
   state.pauseRequested = false;
-  stopRunStatusPoller();
+  setStopBusy(true);
+  // Only stop the poller when OUR OWN startRun() loop is driving this run —
+  // it will handle the transition itself once its in-flight call resolves.
+  // If the loop isn't ours (popup was reopened mid-run), the poller is the
+  // only thing that will ever notice the background's stop; killing it here
+  // would leave the run permanently stuck (see the loopActive check below).
+  const ownedByLoop = state.loopActive;
+  if (ownedByLoop) stopRunStatusPoller();
   await clearPopupRunQueue();
   try {
-    await chrome.runtime.sendMessage({ type: "OPFOR_UI_STOP" });
+    await chrome.runtime.sendMessage({ type: "OPFOR_UI_STOP", intent: "cancel" });
   } catch {
     /* swallowed */
   }
 
-  // If the service worker saved a partial result, surface it on the Done screen.
-  try {
-    const { opforLastResult } = await chrome.storage.local.get("opforLastResult");
-    if (opforLastResult?.partial) {
-      const cur = state.queue[state.evIdx];
-      state.results.push({
-        id: cur?.id || "partial",
-        name: cur?.name || "Partial result",
-        sev: cur?.sev || "low",
-        verdict: "FAIL",
-        summary: "Stopped by user (partial result saved).",
-        raw: opforLastResult,
-      });
-      state.evIdx = Math.min(state.evIdx + 1, state.queue.length);
-      await finalizeAndPersistCurrentReport();
-      renderDone();
-      setScreen("done");
-      stopCosmeticTicker();
-      state.running = false;
-      return;
-    }
-  } catch {
-    /* swallowed */
+  // Give the user immediate feedback — the actual Cancelled report is
+  // finalized by the still-running startRun() loop once its in-flight
+  // runOneEvaluator() call resolves (guaranteed to happen: the background
+  // persists the partial result before it replies). Racing ahead to read
+  // storage here would only see it some of the time.
+  if (ownedByLoop) {
+    const phaseText = $("runPhaseText");
+    if (phaseText) phaseText.textContent = "Stopping — finishing current evaluator…";
+    return;
   }
 
+  // The popup was reopened mid-run: `state.running` mirrors storage, but
+  // there is no local loop to notice the stop. The run-status poller (left
+  // running above) will detect the background's own terminal record and
+  // finalize the report itself once it lands.
+  if (state.running) {
+    const phaseText = $("runPhaseText");
+    if (phaseText) phaseText.textContent = "Stopping — finishing current evaluator…";
+    return;
+  }
+
+  // Nothing in flight — e.g. Stop pressed from the Paused screen. Discard the
+  // resumable snapshot and the parked queue, but still surface a report for
+  // whatever already completed rather than silently throwing it away.
   try {
     await chrome.runtime.sendMessage({ type: "OPFOR_UI_DISCARD_PAUSED" });
   } catch {
     /* swallowed */
   }
+  await clearPopupRunQueue();
   stopCosmeticTicker();
   state.running = false;
+
+  if (state.results.length) {
+    state.runCancelled = true;
+    await finalizeAndPersistCurrentReport();
+    renderDone();
+    setScreen("done");
+    return;
+  }
+
   state.queue = [];
   state.results = [];
   state.evIdx = 0;
@@ -2658,6 +2605,9 @@ async function discardPaused() {
   } catch {
     /* swallowed */
   }
+  // Drop the parked queue too, or the next popup open would offer to resume
+  // a run whose snapshot is already gone.
+  await clearPopupRunQueue();
   state.queue = [];
   state.results = [];
   state.evIdx = 0;
@@ -2665,11 +2615,24 @@ async function discardPaused() {
 }
 
 async function cancelAwaitUser() {
+  state.cancelRequested = true;
+  state.pauseRequested = false;
   try {
-    await chrome.runtime.sendMessage({ type: "OPFOR_UI_STOP" });
+    await chrome.runtime.sendMessage({ type: "OPFOR_UI_STOP", intent: "cancel" });
   } catch {
     /* swallowed */
   }
+
+  // Same reasoning as requestStop(): the still-running startRun() loop's
+  // in-flight runOneEvaluator() call will detect the cancellation and
+  // finalize a Cancelled report once it resolves.
+  if (state.running) {
+    setScreen("running");
+    const phaseText = $("runPhaseText");
+    if (phaseText) phaseText.textContent = "Stopping — finishing current evaluator…";
+    return;
+  }
+
   stopCosmeticTicker();
   state.running = false;
   state.queue = [];
@@ -3003,6 +2966,7 @@ function wire() {
   $("stopBtn").addEventListener("click", requestStop);
   $("resumeBtn").addEventListener("click", () => startRun({ resume: true }));
   $("discardPausedBtn").addEventListener("click", discardPaused);
+  $("pausedStopBtn").addEventListener("click", requestStop);
   $("awaitUserCancelBtn").addEventListener("click", cancelAwaitUser);
   $("awaitUserRetryBtn").addEventListener("click", retryLocate);
   $("newRunBtn").addEventListener("click", () => {
@@ -3063,16 +3027,18 @@ function wire() {
 // The popup drives the multi-evaluator loop but the service worker
 // clears opforRunStatus between evaluators. We persist the popup's
 // own queue state so reopening the popup mid-run shows progress.
-async function persistPopupRunQueue() {
+async function persistPopupRunQueue({ running = true, paused = false } = {}) {
   try {
     await chrome.storage.local.set({
       opforPopupRun: {
-        running: true,
+        running,
+        paused,
         suiteId: state.suiteId,
         queue: state.queue,
         evIdx: state.evIdx,
         results: state.results,
         maxTurns: state.maxTurns,
+        runStartedAt: state.runStartedAt,
         updatedAt: Date.now(),
       },
     });
@@ -3087,6 +3053,22 @@ async function clearPopupRunQueue() {
   } catch {
     /* swallowed */
   }
+}
+
+/**
+ * Most recent completed round, given a run status record and the round
+ * derived by walking its stored transcript.
+ *
+ * The derived value alone undercounts a resumed run: the stored transcript is
+ * capped at the most recent entries, so a run resumed past that cap restarts
+ * its counter. Take the highest of everything the background reports instead.
+ */
+function resolveLastRound(runStatus, derivedRound) {
+  return Math.max(
+    Number(runStatus?.lastRound) || 0,
+    Number(runStatus?.resumedFromRound) || 0,
+    Number(derivedRound) || 0
+  );
 }
 
 // ── Live-run recovery from storage ──────────────────────────────
@@ -3125,6 +3107,12 @@ async function checkActiveRun() {
       return false;
     }
   }
+
+  // Restored independently of `popupQueueActive`: a run can still be genuinely
+  // active per `opforRunStatus` well past the 5-minute popup-queue freshness
+  // window (long evaluators, slow targets), and losing the original start time
+  // there would silently drop the report's duration.
+  state.runStartedAt = opforPopupRun?.runStartedAt || state.runStartedAt;
 
   if (popupQueueActive) {
     state.suiteId = opforPopupRun.suiteId || state.suiteId;
@@ -3183,9 +3171,10 @@ async function checkActiveRun() {
         lastAssistant = t.content;
       }
     }
-    latestTurn = { round: lastRound, user: lastUser, assistant: lastAssistant };
+    const round = resolveLastRound(opforRunStatus, lastRound);
+    latestTurn = { round, user: lastUser, assistant: lastAssistant };
     renderBubbles();
-    setTurnProgress(lastRound);
+    setTurnProgress(round);
   }
 
   startRunStatusPoller();
@@ -3226,35 +3215,59 @@ function startRunStatusPoller() {
       }
 
       // The service worker clears running=false after each evaluator finishes.
-      // If the popup's own startRun loop is still active (state.running === true),
-      // it means more evaluators are queued — don't jump to idle/done.
+      // If a real startRun() loop owns this run (state.loopActive), it's
+      // already handling the transition to the next evaluator or the final
+      // Done screen — don't preempt it. If there is no such loop (the popup
+      // was reopened mid-run, or the owning popup instance closed), this is
+      // the only thing left that will ever notice the run ended, so finalize
+      // it here.
       if (!opforRunStatus.running) {
-        if (state.running) return;
+        if (state.loopActive) return;
         stopRunStatusPoller();
         stopCosmeticTicker();
         const hasPaused = await checkPausedRun();
         if (!hasPaused) {
           const { opforLastResult } = await chrome.storage.local.get("opforLastResult");
-          if (opforLastResult && !opforLastResult.partial) {
+          const cur = state.queue[state.evIdx] || state.queue[0];
+          if (opforLastResult && matchesEvaluator(opforLastResult, cur?.id)) {
             const verdict =
-              String(opforLastResult.judgment?.verdict || "FAIL").toUpperCase() === "PASS"
-                ? "PASS"
-                : "FAIL";
-            state.results = [
-              {
-                id: opforLastResult.evaluatorId || state.queue[0]?.id || "",
-                name: opforLastResult.evaluatorName || state.queue[0]?.name || "",
-                sev: state.queue[0]?.sev || "low",
+              opforLastResult.stopReason === "user_stop"
+                ? "CANCELLED"
+                : opforLastResult.judgment
+                  ? String(opforLastResult.judgment.verdict || "FAIL").toUpperCase() === "PASS"
+                    ? "PASS"
+                    : "FAIL"
+                  : null;
+            // `null` means the evaluator neither completed nor was cancelled
+            // (e.g. a bare error record) — nothing to add to the report.
+            if (verdict) {
+              state.results.push({
+                id: opforLastResult.evaluatorId || cur?.id || "",
+                name: opforLastResult.evaluatorName || cur?.name || "",
+                sev: cur?.sev || "low",
                 verdict,
-                summary: opforLastResult.judgment?.summary || "",
+                summary:
+                  opforLastResult.judgment?.summary ||
+                  (verdict === "CANCELLED"
+                    ? "Cancelled by user before this evaluator could finish."
+                    : ""),
                 raw: opforLastResult,
-              },
-            ];
-            state.evIdx = 1;
+              });
+              state.evIdx++;
+            }
+          }
+          state.running = false;
+          await clearPopupRunQueue();
+          if (state.results.length) {
+            // No loop is left to run whatever's still queued — the suite
+            // ends here, same as a user-initiated stop.
+            if (state.evIdx < state.queue.length) state.runCancelled = true;
             await finalizeAndPersistCurrentReport();
             renderDone();
             setScreen("done");
           } else {
+            state.queue = [];
+            state.evIdx = 0;
             setScreen("idle");
           }
         }
@@ -3280,14 +3293,15 @@ function startRunStatusPoller() {
             lastAssistant = t.content;
           }
         }
+        const round = resolveLastRound(opforRunStatus, lastRound);
         if (
-          lastRound !== latestTurn.round ||
+          round !== latestTurn.round ||
           lastUser !== latestTurn.user ||
           lastAssistant !== latestTurn.assistant
         ) {
-          latestTurn = { round: lastRound, user: lastUser, assistant: lastAssistant };
+          latestTurn = { round, user: lastUser, assistant: lastAssistant };
           renderBubbles();
-          setTurnProgress(lastRound);
+          setTurnProgress(round);
         }
       }
     } catch {

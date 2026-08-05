@@ -150,6 +150,12 @@ export async function runAutonomous(
     const report = mapRunLogToReport(runLog);
     report.commanderModel = options.commanderModel;
     report.operatorModel = options.operatorModel;
+    report.scoutModel = options.scoutModel;
+    // Left unset when verification never ran, so the report doesn't advertise a verifier that
+    // was never granted the self_check tool. The renderer falls back to "—".
+    report.verifierModel = verifyEnabled
+      ? (options.verifierModel ?? options.commanderModel)
+      : undefined;
     return report;
   }
 

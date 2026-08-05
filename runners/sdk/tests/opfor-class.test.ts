@@ -35,6 +35,7 @@ describe("Opfor class", () => {
       id: "test-id",
       timestamp: new Date().toISOString(),
       targetName: "Test",
+      suiteId: "quick-smoke",
       targetKind: "agent" as const,
       effort: "adaptive" as const,
       attackerModel: "test",
