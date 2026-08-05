@@ -15,6 +15,12 @@ import { buildRedteamServer, REDTEAM_SERVER_NAME, toolId, TOOL_NAMES } from "../
 import { buildHooks, type ProgressReporter } from "../state/hooks.js";
 import { threadTreeText, countsLine } from "../state/observe.js";
 import { buildCommanderPrompt } from "../prompts/commander.js";
+import {
+  curateHuntTracesIfConfigured,
+  telemetryCapabilities,
+  probeTraceRoundTrip,
+  type TraceRoundTrip,
+} from "../lib/telemetry.js";
 import { buildOperatorPrompt } from "../prompts/operator.js";
 import { buildScoutPrompt } from "../prompts/scout.js";
 import { mapRunLogToReport } from "../report/mapRunLog.js";
@@ -75,6 +81,8 @@ export async function runAutonomous(
   options: HuntOptions,
   runHooks?: RunHooks
 ): Promise<AutonomousReport> {
+  const reporter = runHooks?.progress;
+  const signal = runHooks?.signal;
   const target = createTargetClient(options.target);
   const knowledge = await loadKnowledge(options.seedDir);
 
@@ -104,6 +112,99 @@ export async function runAutonomous(
     maxTotalSends: options.maxTotalSends,
   });
 
+  // Shared tail: map whatever the run captured (complete or partial) into a report. Defined
+  // early so an abort caught during telemetry preflight — before the agent even exists — can
+  // finalize the same way a mid-run interrupt does, instead of duplicating the logic.
+  async function finalize(): Promise<AutonomousReport> {
+    if (!runLog.completed && !runLog.truncated) {
+      // Stream ended without a submit_report (e.g. agent stopped early).
+      runLog.truncated = runLog.findings.length === 0 && runLog.threads.size === 0;
+      if (runLog.truncated) runLog.truncationReason = "agent ended without producing activity";
+    }
+
+    // Final exploration shape — the branching tree + tallies, for the live log.
+    if (reporter) {
+      reporter.onLine(countsLine(runLog));
+      reporter.onLine("Attack tree:\n" + threadTreeText(runLog));
+    }
+
+    // Generate a real synthesis narrative when the run was interrupted before the
+    // commander could call submit_report. Fires for budget exhaustion, errors, and
+    // early agent stops — any case where runLog.synthesis is still undefined. Skipped when
+    // nothing was captured at all (e.g. cancelled before the agent even started) — an LLM
+    // call has nothing to synthesize there, and it would defeat the point of honoring
+    // cancellation promptly; mapRunLogToReport's deterministic fallback covers this case.
+    const hasActivity =
+      runLog.threads.size > 0 || runLog.findings.length > 0 || runLog.recon.length > 0;
+    if (runLog.truncated && !runLog.completed && !runLog.synthesis && hasActivity) {
+      const remainingBudgetUsd =
+        budget.budgetUsd !== undefined ? budget.budgetUsd - budget.spentUsd : undefined;
+      reporter?.onLine("⏳ Generating synthesis from partial run data…");
+      const synthesis = await generateForcedSynthesis(runLog, options, remainingBudgetUsd);
+      if (synthesis) {
+        runLog.synthesis = synthesis;
+        reporter?.onLine("✓ Partial synthesis complete");
+      }
+    }
+
+    const report = mapRunLogToReport(runLog);
+    report.commanderModel = options.commanderModel;
+    report.operatorModel = options.operatorModel;
+    report.scoutModel = options.scoutModel;
+    // Left unset when verification never ran, so the report doesn't advertise a verifier that
+    // was never granted the self_check tool. The renderer falls back to "—".
+    report.verifierModel = verifyEnabled
+      ? (options.verifierModel ?? options.commanderModel)
+      : undefined;
+    return report;
+  }
+
+  // Honor cancellation before any telemetry preflight work — curation makes an LLM call and
+  // the round-trip probe sends a live request to the target, so a Ctrl+C at the very start of
+  // the run must not let either fire.
+  if (signal?.aborted) {
+    runLog.truncated = true;
+    runLog.truncationReason = USER_INTERRUPT_REASON;
+    return finalize();
+  }
+
+  // Optional trace-aware grounding: curate historic production traces into a summary the
+  // commander uses to target its attacks. No-op (undefined) unless telemetry is configured.
+  const traceSummary = await curateHuntTracesIfConfigured(options, options.outputDir);
+  if (traceSummary) {
+    reporter?.onLine("Grounded attack planning on curated production traces.");
+  }
+
+  if (signal?.aborted) {
+    runLog.truncated = true;
+    runLog.truncationReason = USER_INTERRUPT_REASON;
+    return finalize();
+  }
+
+  // Trace-aware capabilities are gated independently — grounding works on any instrumented
+  // backend, but propagation + enrichment additionally need the target to echo our injected
+  // trace id back into its telemetry. Verify that assumption once, up front, with one benign probe.
+  const caps = telemetryCapabilities(options.telemetry);
+  let traceRoundTrip: TraceRoundTrip | undefined;
+  if (caps.propagation) {
+    traceRoundTrip = await probeTraceRoundTrip(options.telemetry, target, runLog.runId);
+    reporter?.onLine(
+      traceRoundTrip === "ok"
+        ? "Trace round-trip confirmed — the target echoes propagated trace ids to the backend."
+        : "⚠️  Trace round-trip NOT detected — get_trace may return nothing. An empty trace is NOT " +
+            "proof the target is clean; grounded planning is unaffected."
+    );
+  }
+  if (caps.grounding) {
+    runLog.telemetry = { grounded: Boolean(traceSummary), traceRoundTrip };
+  }
+
+  if (signal?.aborted) {
+    runLog.truncated = true;
+    runLog.truncationReason = USER_INTERRUPT_REASON;
+    return finalize();
+  }
+
   const ctx: RunContext = {
     options,
     target,
@@ -112,7 +213,10 @@ export async function runAutonomous(
     budget,
     sessionGate: new SessionGate(),
     verifyEnabled,
-    reporter: runHooks?.progress,
+    telemetryCaps: caps,
+    traceRoundTrip,
+    traceCache: new Map(),
+    reporter,
   };
   const server = buildRedteamServer(ctx);
 
@@ -128,6 +232,9 @@ export async function runAutonomous(
     toolId(t.registerInvention),
   ];
   if (verifyEnabled) operatorTools.push(toolId(t.selfCheck));
+  // get_trace only works when propagation is configured (a trace id was actually sent to the
+  // target) — not merely when a provider is set. A grounding-only config must NOT offer it.
+  if (caps.propagation) operatorTools.push(toolId(t.getTrace));
 
   const scoutTools = [toolId(t.reconProbe), toolId(t.listKnowledge)];
 
@@ -141,7 +248,7 @@ export async function runAutonomous(
     operator: {
       description:
         "Adversarial specialist — owns one vulnerability vector, runs an adaptive multi-turn attack, self-judges, and records findings.",
-      prompt: buildOperatorPrompt(options),
+      prompt: buildOperatorPrompt(options, { caps, traceRoundTrip }),
       tools: operatorTools,
       model: options.operatorModel,
     },
@@ -160,9 +267,10 @@ export async function runAutonomous(
     ...DISPATCH_TOOLS,
   ];
   if (verifyEnabled) commanderTools.push(toolId(t.selfCheck));
+  if (caps.propagation) commanderTools.push(toolId(t.getTrace));
 
   const queryOptions: Options = {
-    systemPrompt: buildCommanderPrompt({ options, knowledge }),
+    systemPrompt: buildCommanderPrompt({ options, knowledge, traceSummary, caps }),
     model: options.commanderModel,
     agents,
     mcpServers: { [REDTEAM_SERVER_NAME]: server },
@@ -176,11 +284,17 @@ export async function runAutonomous(
     disallowedTools: ["Bash", "Read", "Write", "Edit", "WebFetch", "WebSearch", "Glob", "Grep"],
   };
 
+  // Last cancellation checkpoint before the agent SDK spins up — an abort during setup above
+  // must not create a query at all.
+  if (signal?.aborted) {
+    runLog.truncated = true;
+    runLog.truncationReason = USER_INTERRUPT_REASON;
+    return finalize();
+  }
+
   const kickoff = `Begin the autonomous red-team assessment now. Start with reconnaissance, then plan and dispatch your operators. Objective:\n"""\n${options.objective}\n"""`;
 
   const q = query({ prompt: kickoff, options: queryOptions });
-  const reporter = runHooks?.progress;
-  const signal = runHooks?.signal;
 
   reporter?.onLine("Autonomous assessment started — commander initializing…");
 
@@ -308,40 +422,5 @@ export async function runAutonomous(
     runLog.truncationReason = USER_INTERRUPT_REASON;
   }
 
-  if (!runLog.completed && !runLog.truncated) {
-    // Stream ended without a submit_report (e.g. agent stopped early).
-    runLog.truncated = runLog.findings.length === 0 && runLog.threads.size === 0;
-    if (runLog.truncated) runLog.truncationReason = "agent ended without producing activity";
-  }
-
-  // Final exploration shape — the branching tree + tallies, for the live log.
-  if (reporter) {
-    reporter.onLine(countsLine(runLog));
-    reporter.onLine("Attack tree:\n" + threadTreeText(runLog));
-  }
-
-  // Generate a real synthesis narrative when the run was interrupted before the
-  // commander could call submit_report. Fires for budget exhaustion, errors, and
-  // early agent stops — any case where runLog.synthesis is still undefined.
-  if (runLog.truncated && !runLog.completed && !runLog.synthesis) {
-    const remainingBudgetUsd =
-      budget.budgetUsd !== undefined ? budget.budgetUsd - budget.spentUsd : undefined;
-    reporter?.onLine("⏳ Generating synthesis from partial run data…");
-    const synthesis = await generateForcedSynthesis(runLog, options, remainingBudgetUsd);
-    if (synthesis) {
-      runLog.synthesis = synthesis;
-      reporter?.onLine("✓ Partial synthesis complete");
-    }
-  }
-
-  const report = mapRunLogToReport(runLog);
-  report.commanderModel = options.commanderModel;
-  report.operatorModel = options.operatorModel;
-  report.scoutModel = options.scoutModel;
-  // Left unset when verification never ran, so the report doesn't advertise a verifier that
-  // was never granted the self_check tool. The renderer falls back to "—".
-  report.verifierModel = verifyEnabled
-    ? (options.verifierModel ?? options.commanderModel)
-    : undefined;
-  return report;
+  return finalize();
 }

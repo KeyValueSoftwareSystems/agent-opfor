@@ -179,6 +179,7 @@ function buildCoreOptions(options: HuntOptions): CoreHuntOptions {
     persistInventions: false,
     seedDir: undefined,
     outputDir: path.resolve(options.outputDir ?? ".opfor/reports"),
+    telemetry: options.telemetry,
   };
 }
 

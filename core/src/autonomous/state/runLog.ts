@@ -14,6 +14,8 @@ export interface ThreadTurn {
   rateLimited: boolean;
   /** Self-judged score recorded for this turn, if any (0-10, 10 = defended). */
   score?: number;
+  /** OTEL trace id propagated to the target on this turn (trace-aware testing), if any. */
+  traceId?: string;
 }
 
 export interface ThreadState {
@@ -29,6 +31,12 @@ export interface ThreadState {
   forkedFromTurn?: number;
   /** Exploration generation (root wave = 0; a follow-up dispatched from a lead = lead.gen). */
   gen?: number;
+  /**
+   * OTEL trace id propagated on this thread's sends (trace-aware testing). Minted lazily on
+   * first send when telemetry propagation is configured; reused for every turn of the thread.
+   * A fork leaves this unset so it mints a fresh id — a fork is a new target session.
+   */
+  traceId?: string;
 }
 
 export interface Finding {
@@ -46,6 +54,8 @@ export interface Finding {
   reasoning: string;
   failingTurns?: number[];
   selfCheck?: SelfCheckResult;
+  /** Recorded target trace (JSON excerpt) for the failing turns, when telemetry enrichment is on. */
+  traceJson?: string;
   at: string;
 }
 
@@ -143,6 +153,15 @@ export interface RunLog {
   truncated: boolean;
   truncationReason?: string;
   totalCostUsd?: number;
+  /** Run-level OTEL trace id, minted lazily when telemetry propagation uses `per-run` strategy. */
+  traceId?: string;
+  /** Trace-aware testing status for the report: what actually worked this run. */
+  telemetry?: {
+    /** Attack planning was grounded on curated production traces. */
+    grounded: boolean;
+    /** Preflight verdict: whether the target echoed our injected trace id back to the backend. */
+    traceRoundTrip?: "ok" | "not-detected";
+  };
 }
 
 export function createRunLog(params: {
@@ -296,6 +315,14 @@ export function sharesForkAncestry(log: RunLog, a: string, b: string): boolean {
 /** Whitespace-normalize for the evidence-substring hallucination guard. */
 export function normalizeForMatch(s: string): string {
   return s.replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+/** True if `evidence` appears (verbatim, whitespace-normalized) inside `text`. */
+export function evidenceFoundInText(text: string | undefined, evidence: string): boolean {
+  if (!text) return false;
+  const needle = normalizeForMatch(evidence);
+  if (needle.length < 3) return false;
+  return normalizeForMatch(text).includes(needle);
 }
 
 /** True if `evidence` appears in any recorded target response on the thread. */

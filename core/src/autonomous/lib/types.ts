@@ -2,6 +2,7 @@
 // This package is fully standalone — it does NOT import from @keyvaluesystems/agent-opfor-core.
 
 import type { SessionConfig } from "../../execute/types.js";
+import type { TelemetryConfig } from "../../config/types.js";
 
 /** How the target HTTP agent maintains conversation state. */
 export type TargetMode = "stateless" | "stateful";
@@ -96,6 +97,12 @@ export interface HuntOptions {
   outputDir: string;
   /** Max benign recon probes before recon must conclude. */
   maxReconProbes: number;
+  /**
+   * Optional trace-aware testing config (Netra/Langfuse). Reuses `opfor run`'s telemetry
+   * shape. When set, hunt grounds attack generation on real production traces and can
+   * propagate a trace id per thread + enrich findings with the recorded trace.
+   */
+  telemetry?: TelemetryConfig;
 }
 
 /** A target fingerprint produced by the recon phase. */

@@ -213,6 +213,10 @@ export async function httpSend(
     history?: HttpTargetMessage[];
     sessionId?: string;
     extraHeaders?: Record<string, string>;
+    /** Trace-aware testing: top-level body field to inject the trace id into. */
+    traceIdBodyField?: string;
+    /** The trace id value for `traceIdBodyField`. */
+    traceId?: string;
   } = {}
 ): Promise<HttpSendResult> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -238,6 +242,10 @@ export async function httpSend(
     setByPath(body, config.promptPath?.trim() || "prompt", prompt);
     applySessionToRequest(body, headers, resolveSessionPlan(config), options.sessionId);
   }
+
+  // Trace-aware testing: inject the trace id into a top-level body field if configured.
+  const traceField = options.traceIdBodyField?.trim();
+  if (traceField && options.traceId) body[traceField] = options.traceId;
 
   try {
     const res = await fetch(config.endpoint, {

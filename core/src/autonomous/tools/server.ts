@@ -8,6 +8,7 @@ import { reconProbeTool } from "./reconProbe.js";
 import { sendToTargetTool } from "./sendToTarget.js";
 import { forkThreadTool } from "./forkThread.js";
 import { getThreadTool } from "./getThread.js";
+import { getTraceTool } from "./getTrace.js";
 import { flagLeadTool } from "./flagLead.js";
 import { listLeadsTool } from "./listLeads.js";
 import { selfCheckTool } from "./selfCheck.js";
@@ -29,6 +30,7 @@ export const TOOL_NAMES = {
   sendToTarget: "send_to_target",
   forkThread: "fork_thread",
   getThread: "get_thread",
+  getTrace: "get_trace",
   flagLead: "flag_lead",
   listLeads: "list_leads",
   selfCheck: "self_check",
@@ -48,6 +50,7 @@ export function buildRedteamServer(ctx: RunContext) {
       sendToTargetTool(ctx),
       forkThreadTool(ctx),
       getThreadTool(ctx),
+      getTraceTool(ctx),
       flagLeadTool(ctx),
       listLeadsTool(ctx),
       selfCheckTool(ctx),

@@ -163,6 +163,21 @@ const results = await opfor.hunt({
 });
 ```
 
+`hunt()` also accepts an optional `telemetry` block — the same shape as `run()`'s (see [Telemetry](#telemetry)). It unlocks three independent capabilities: **grounded planning** (needs `provider` + trace access; the primary value, works on any backend), **silent-leak detection** via `get_trace` (needs a `propagation` block), and **finding enrichment** (needs `propagation` + `enrichJudgeFromTrace`). Propagation/enrichment only work if the target echoes the injected trace id into its own telemetry — hunt runs a preflight round-trip check and reports `trace round-trip: OK` / `NOT DETECTED` so you know whether they will. Grounded planning needs an `ANTHROPIC_API_KEY` (or gateway); trace fetching uses the telemetry backend's own credentials. See **[Trace-aware hunting](hunt.md#trace-aware-hunting-optional)**.
+
+```typescript
+const results = await hunt({
+  target: { url: "https://api.example.com/chat" },
+  objective: "Find data leaks and authorization flaws",
+  telemetry: {
+    provider: "netra",
+    netra: { baseUrl: "http://localhost:3000", traceSelection: { lookbackHours: 24 } },
+    propagation: { headers: { "x-trace-id": "{{traceId}}" }, traceIdStrategy: "per-attack" },
+    enrichJudgeFromTrace: true,
+  },
+});
+```
+
 ## Targets
 
 ### HTTP Endpoint

@@ -134,6 +134,42 @@ respond before it's killed.
 
 Each run writes everything into one folder — `hunt-report-<timestamp>-<target>-<id>/` — containing the live log (`hunt-live.log`), the structured event trail (`run-events.jsonl`), and the final `*-report.html` / `*-report.json`.
 
+## Trace-aware hunting (optional)
+
+If your target is wired to an observability backend (Netra or Langfuse), hunt can use its production traces — the same `telemetry` config `opfor run` uses (see **[Trace-aware testing](telemetry.md)** for the full field reference). This is strictly opt-in; the zero-config quick-start is unchanged. It unlocks **three independent capabilities**, gated separately on what your config provides:
+
+- **Grounded attack planning** (needs `provider` + trace access) — hunt curates real historic traces into a summary the commander plans against, so attacks target the agent's actual tools, data, and flows instead of generic guesses. This is the primary value and works on **any** instrumented backend.
+- **Silent-leak detection** (needs a `propagation` block) — hunt mints a trace id per attack thread, propagates it to the target on every turn, and gives operators a `get_trace` tool to inspect the recorded tool calls / retrieval behind a reply. This catches data that leaks into a tool call or an unauthorized record fetched but rendered as a clean answer — invisible in the reply alone.
+- **Finding enrichment** (needs `propagation` + `enrichJudgeFromTrace`) — confirmed findings carry the recorded trace excerpt in the report, and the independent verifier judges against it too.
+
+> **Propagation and enrichment only work if the target cooperates.** They depend on the target reading the trace id you inject (`x-trace-id` header or a body field) and exporting its telemetry under _that_ id to the backend hunt queries. Many agents mint their own server-side trace id and ignore an inbound one. To avoid a false sense of coverage, hunt runs a **preflight round-trip check** during recon: it sends one benign probe with a trace id, then tries to read that trace back. The result is reported as `trace round-trip: OK` or `NOT DETECTED`. On `NOT DETECTED`, hunt **continues** (the miss may be ingestion lag) but warns you, records it in the report, and tells operators that an empty `get_trace` is **not** evidence the target is clean. Grounded planning is unaffected either way.
+
+Point hunt at a telemetry config in either of two ways:
+
+```bash
+# Dedicated file (bare `telemetry` block, or a { "telemetry": … } wrapper)
+opfor hunt --endpoint https://your-target.com/chat --objective "…" --telemetry-config telemetry.json
+
+# Or reuse an existing `opfor run` config — hunt reads its `telemetry` sibling block
+opfor hunt --target-config opfor.config.json --objective "…"
+```
+
+| Option                      | Description                                                                                       |
+| --------------------------- | ------------------------------------------------------------------------------------------------- |
+| `--telemetry-config <path>` | JSON file with a run-style `telemetry` block. Overrides a `telemetry` block in `--target-config`. |
+
+```jsonc
+// telemetry.json
+{
+  "provider": "netra",
+  "netra": { "baseUrl": "http://localhost:3000", "traceSelection": { "lookbackHours": 24 } },
+  "propagation": { "headers": { "x-trace-id": "{{traceId}}" }, "traceIdStrategy": "per-attack" },
+  "enrichJudgeFromTrace": true,
+}
+```
+
+> **Grounded planning needs an Anthropic API key.** The curator/summarizer LLM runs via `ANTHROPIC_API_KEY` (or a gateway: `ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN`). On a subscription/OAuth login only, hunt still runs and still propagates + enriches findings — it just skips grounded planning with a one-line notice. Trace propagation and finding enrichment use the telemetry backend's own credentials (`NETRA_API_KEY` / Langfuse keys), not the brain key.
+
 ## Stopping a run
 
 Press **Ctrl+C** once to stop early: the agent is interrupted, and a report is still written from the findings gathered so far (with the live log and event trail already on disk). The report is marked as truncated so it's clear the assessment was cut short. Press **Ctrl+C** a second time to force-quit without writing a report.

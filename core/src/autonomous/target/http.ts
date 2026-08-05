@@ -18,6 +18,12 @@ export type { HttpSendResult as TargetSendResult };
 export interface TargetSendOptions {
   threadId: string;
   history: HttpTargetMessage[];
+  /** Trace-aware testing: extra headers (e.g. `x-trace-id`) to set on this request. */
+  extraHeaders?: Record<string, string>;
+  /** Top-level JSON body field to inject the trace id into (e.g. `trace_id`). */
+  traceIdBodyField?: string;
+  /** The trace id value for `traceIdBodyField`. */
+  traceId?: string;
 }
 
 export interface TargetClient {
@@ -54,6 +60,9 @@ export function createTargetClient(config: TargetConfig): TargetClient {
       const result = await httpSend(httpConfig, prompt, {
         history: options.history,
         sessionId: wireSessionId,
+        extraHeaders: options.extraHeaders,
+        traceIdBodyField: options.traceIdBodyField,
+        traceId: options.traceId,
       });
       if (plan.mode === "server") {
         if (result.sessionId) {
