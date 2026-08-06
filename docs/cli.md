@@ -202,12 +202,14 @@ Where `<slug>` is the target name slugified (e.g. `erkala-travel-support-agent`)
 
 Pressing Ctrl+C during `opfor run` triggers a graceful shutdown instead of killing the process:
 
-| Press  | Behavior                                                                                                  |
-| ------ | --------------------------------------------------------------------------------------------------------- |
-| First  | Finishes the in-flight attack, skips remaining evaluators/attacks, writes a partial report, exits cleanly |
-| Second | Force-kills immediately (`exit 130`)                                                                      |
+| Press  | Behavior                                                                                                      |
+| ------ | ------------------------------------------------------------------------------------------------------------- |
+| First  | Finishes the in-flight turn, skips remaining turns/attacks/evaluators, writes a partial report, exits cleanly |
+| Second | Force-kills immediately (`exit 130`)                                                                          |
 
-Partial reports include all completed evaluator results and are marked with `stopReason: "user-interrupted"` in the JSON output. The CLI prints a warning:
+The stop is checked between **turns**, not just between attacks, so a multi-turn attack stops after the turn in progress rather than running its full turn budget first. What that costs you is one turn's latency — a model call plus a target call — however high `turns` is set.
+
+Partial reports include all completed evaluator results and are marked with `stopReason: "user-interrupted"` in the JSON output. The interrupted attack is still judged on the transcript it managed to collect, so a partially-completed multi-turn attack is not discarded. The CLI prints a warning:
 
 ```
 ⚠️  Run interrupted — results are partial. Re-run for a complete assessment.
