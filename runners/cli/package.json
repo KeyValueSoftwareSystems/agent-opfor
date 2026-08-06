@@ -1,6 +1,6 @@
 {
   "name": "@keyvaluesystems/agent-opfor-cli",
-  "version": "0.10.1",
+  "version": "0.10.2",
   "description": "Opfor CLI — security testing for AI agents and MCP servers (opfor setup|run|hunt)",
   "license": "Apache-2.0",
   "type": "module",
