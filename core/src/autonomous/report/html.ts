@@ -760,7 +760,7 @@ export function renderReportHtml(r: AutonomousReport): string {
       </div>
       <div class="exec-strip-item exec-strip-item--bottom">
         <div class="exec-strip-label">Safety Score<span class="info-icon">i</span>
-          <div class="info-tooltip">Share of scoreable threads that defended successfully.</div>
+          <div class="info-tooltip">Share of scoreable findings that defended successfully.</div>
         </div>
         <div class="exec-strip-body">
           ${gaugeSvg(safetyScore ?? 0, safetyScore === null ? "#94A3B8" : safetyColor(safetyScore))}
@@ -769,7 +769,7 @@ export function renderReportHtml(r: AutonomousReport): string {
       </div>
       <div class="exec-strip-item exec-strip-item--bottom">
         <div class="exec-strip-label">Findings<span class="info-icon">i</span>
-          <div class="info-tooltip">One entry per attack thread: confirmed means a real vulnerability, defended means the target held.</div>
+          <div class="info-tooltip">One entry per finding: confirmed means a real vulnerability, defended means the target held.</div>
         </div>
         <div class="exec-strip-body">
           <div class="sc-value">${r.findings.length}</div>
