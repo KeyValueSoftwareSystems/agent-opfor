@@ -1,15 +1,30 @@
 import { sleep } from "./utils.js";
+import { dbg } from "./debugLog.js";
 
 /** Inject shadow DOM patch in MAIN world so closed shadow roots become accessible. */
 export async function injectShadowPatch(tabId) {
   try {
-    await chrome.scripting.executeScript({
-      target: { tabId, allFrames: true },
-      files: ["frame_shadow_patch.js"],
-      world: "MAIN",
-    });
+    await Promise.race([
+      chrome.scripting.executeScript({
+        target: { tabId, allFrames: true },
+        files: ["frame_shadow_patch.js"],
+        world: "MAIN",
+      }),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("shadow patch timed out")), 10_000)
+      ),
+    ]);
   } catch {
-    /* swallowed */
+    dbg("dom", "injectShadowPatch allFrames failed/timed out, trying main frame only");
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId, frameIds: [0] },
+        files: ["frame_shadow_patch.js"],
+        world: "MAIN",
+      });
+    } catch {
+      /* swallowed */
+    }
   }
 }
 
@@ -28,42 +43,111 @@ export async function preparePageForChat(tabId) {
 }
 
 export async function actSendText(tabId, frameId, plan) {
-  await chrome.scripting.executeScript({
-    target: { tabId, frameIds: [frameId] },
-    func: (p) => {
-      globalThis.__OPFOR_PLAN__ = p;
-    },
-    args: [plan],
+  dbg("dom", "actSendText", {
+    frameId,
+    inputSelector: plan?.inputSelector,
+    submitMethod: plan?.submit?.method,
+    buttonSelector: plan?.submit?.buttonSelector,
+    textLen: plan?.text?.length,
   });
-  const act2 = await chrome.scripting.executeScript({
-    target: { tabId, frameIds: [frameId] },
-    files: ["frame_actuate.js"],
-  });
-  return act2?.[0]?.result;
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId, frameIds: [frameId] },
+      func: (p) => {
+        globalThis.__OPFOR_PLAN__ = p;
+      },
+      args: [plan],
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    dbg("dom", "actSendText plan inject FAILED", { frameId, error: msg });
+    return {
+      ok: false,
+      error: `script_inject_failed`,
+      detail: `Could not inject plan into frame ${frameId}: ${msg}`,
+    };
+  }
+  try {
+    const act2 = await chrome.scripting.executeScript({
+      target: { tabId, frameIds: [frameId] },
+      files: ["frame_actuate.js"],
+    });
+    const result = act2?.[0]?.result;
+    if (result === undefined || result === null) {
+      dbg("dom", "actSendText frame_actuate returned null", { frameId, result });
+      return {
+        ok: false,
+        error: "script_no_result",
+        detail: `frame_actuate.js returned ${result} in frame ${frameId} — the frame may have been removed or navigated`,
+      };
+    }
+    dbg("dom", `actSendText result: ${result.ok ? "OK" : "FAIL"}`, {
+      frameId,
+      ok: result.ok,
+      error: result.error,
+      detail: result.detail,
+    });
+    return result;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    dbg("dom", "actSendText frame_actuate threw", { frameId, error: msg });
+    return {
+      ok: false,
+      error: "script_exec_failed",
+      detail: `frame_actuate.js threw in frame ${frameId}: ${msg}`,
+    };
+  }
 }
 
 export async function actVendorSendText(tabId, text) {
-  await chrome.scripting.executeScript({
-    target: { tabId, frameIds: [0] },
-    func: (t) => {
-      globalThis.__opforVendorText = t;
-    },
-    args: [text],
-    world: "MAIN",
-  });
-  // Re-discover vendor input in case page re-rendered.
-  await chrome.scripting.executeScript({
-    target: { tabId, frameIds: [0] },
-    files: ["frame_vendor_api.js"],
-    world: "MAIN",
-  });
+  dbg("dom", "actVendorSendText", { textLen: text?.length });
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId, frameIds: [0] },
+      func: (t) => {
+        globalThis.__opforVendorText = t;
+      },
+      args: [text],
+      world: "MAIN",
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return {
+      ok: false,
+      error: "vendor_inject_failed",
+      detail: `Could not inject text into main frame: ${msg}`,
+    };
+  }
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId, frameIds: [0] },
+      files: ["frame_vendor_api.js"],
+      world: "MAIN",
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: "vendor_api_failed", detail: `frame_vendor_api.js failed: ${msg}` };
+  }
   await sleep(200);
-  const res = await chrome.scripting.executeScript({
-    target: { tabId, frameIds: [0] },
-    files: ["frame_vendor_send.js"],
-    world: "MAIN",
-  });
-  return res?.[0]?.result;
+  try {
+    const res = await chrome.scripting.executeScript({
+      target: { tabId, frameIds: [0] },
+      files: ["frame_vendor_send.js"],
+      world: "MAIN",
+    });
+    const result = res?.[0]?.result;
+    if (result === undefined || result === null) {
+      return {
+        ok: false,
+        error: "vendor_no_result",
+        detail: "frame_vendor_send.js returned no result — vendor API may have changed",
+      };
+    }
+    return result;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: "vendor_send_failed", detail: `frame_vendor_send.js threw: ${msg}` };
+  }
 }
 
 export async function actClickSelector(tabId, frameId, selector) {

@@ -1,12 +1,48 @@
 import { sleep } from "./utils.js";
+import { dbg } from "./debugLog.js";
+
+const COLLECT_TIMEOUT_MS = 15_000;
 
 export async function collectFrames(tabId) {
-  const frameSnapshots = await chrome.scripting.executeScript({
-    target: { tabId, allFrames: true },
-    files: ["frame_collect.js"],
-  });
+  dbg("frame", "collectFrames starting", { tabId });
 
-  return (frameSnapshots || [])
+  let frameSnapshots;
+  try {
+    frameSnapshots = await Promise.race([
+      chrome.scripting.executeScript({
+        target: { tabId, allFrames: true },
+        files: ["frame_collect.js"],
+      }),
+      new Promise((_, reject) =>
+        setTimeout(
+          () => reject(new Error(`frame_collect timed out after ${COLLECT_TIMEOUT_MS}ms`)),
+          COLLECT_TIMEOUT_MS
+        )
+      ),
+    ]);
+  } catch (e) {
+    dbg("frame", "collectFrames allFrames failed, falling back to main frame only", {
+      error: e instanceof Error ? e.message : String(e),
+    });
+    try {
+      frameSnapshots = await Promise.race([
+        chrome.scripting.executeScript({
+          target: { tabId, frameIds: [0] },
+          files: ["frame_collect.js"],
+        }),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("main-frame-only collect timed out")), 10_000)
+        ),
+      ]);
+    } catch (e2) {
+      dbg("frame", "collectFrames main-frame fallback also failed", {
+        error: e2 instanceof Error ? e2.message : String(e2),
+      });
+      return [];
+    }
+  }
+
+  const frames = (frameSnapshots || [])
     .map((r) => ({
       frameId: r.frameId,
       snapshot: r.result?.snapshot,
@@ -18,6 +54,21 @@ export async function collectFrames(tabId) {
       bestSendSelector: r.result?.bestSendSelector ?? "",
     }))
     .filter((f) => typeof f.snapshot === "string" && f.snapshot.length > 0);
+
+  dbg("frame", "collectFrames done", {
+    rawCount: (frameSnapshots || []).length,
+    filteredCount: frames.length,
+    frames: frames.map((f) => ({
+      frameId: f.frameId,
+      url: String(f.frameUrl || "").slice(0, 100),
+      inputCount: f.inputCount,
+      chatScore: f.chatScore,
+      bestInputSelector: f.bestInputSelector || null,
+      bestInputScore: f.bestInputScore,
+    })),
+  });
+
+  return frames;
 }
 
 /** Boost score for frames that are clearly dedicated chat surfaces (not the parent page). */

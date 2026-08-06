@@ -10,6 +10,13 @@ import {
 } from "./dist/core.bundle.js";
 import { resetChatSession, executeAdaptiveRedTeamRun } from "./orchestrator.js";
 import { persistPartialResult } from "./storage.js";
+import {
+  isDebugEnabled,
+  setDebugEnabled,
+  getDebugLogs,
+  clearDebugLogs,
+  exportDebugLogs,
+} from "./debugLog.js";
 
 async function configureSidePanel() {
   if (!chrome.sidePanel?.setPanelBehavior) return;
@@ -294,6 +301,44 @@ function handleMainMessages(message, sendResponse) {
               : String(e);
         sendResponse({ ok: false, error: msg });
       }
+    })();
+    return true;
+  }
+
+  if (message?.type === "OPFOR_DEBUG_TOGGLE") {
+    (async () => {
+      const on = !!message.enabled;
+      await setDebugEnabled(on);
+      sendResponse({ ok: true, enabled: on });
+    })();
+    return true;
+  }
+
+  if (message?.type === "OPFOR_DEBUG_STATUS") {
+    sendResponse({ ok: true, enabled: isDebugEnabled() });
+    return true;
+  }
+
+  if (message?.type === "OPFOR_DEBUG_EXPORT") {
+    (async () => {
+      const text = await exportDebugLogs();
+      sendResponse({ ok: true, text });
+    })();
+    return true;
+  }
+
+  if (message?.type === "OPFOR_DEBUG_CLEAR") {
+    (async () => {
+      await clearDebugLogs();
+      sendResponse({ ok: true });
+    })();
+    return true;
+  }
+
+  if (message?.type === "OPFOR_DEBUG_GET_LOGS") {
+    (async () => {
+      const logs = await getDebugLogs();
+      sendResponse({ ok: true, logs });
     })();
     return true;
   }

@@ -3,6 +3,7 @@ import { state } from "./state.js";
 import { actClickSelector, actVerifyInputVisible, preparePageForChat } from "./domActions.js";
 import { collectFrames } from "./frameDiscovery.js";
 import { aiUiNextAction } from "./llmUiActions.js";
+import { dbg } from "./debugLog.js";
 
 /**
  * Locate an open chat widget input using accessibility-tree-first LLM actions.
@@ -23,6 +24,8 @@ export async function locateChatWidget(tabId, readerCfg, options = {}) {
   const maxAiAttempts = Math.max(2, Math.min(12, Number(options.maxAiAttempts ?? 8)));
   if (state.OPFOR_STOP) return { ok: false, error: "Run stopped." };
 
+  dbg("locate", "locateChatWidget called", { tabId, openWidget, maxAiAttempts });
+
   if (openWidget) {
     await preparePageForChat(tabId);
   }
@@ -37,14 +40,43 @@ export async function locateChatWidget(tabId, readerCfg, options = {}) {
   // open yet, or only ambiguous/low-score inputs present).
   try {
     const detFrames = await collectFrames(tabId);
+    dbg("locate", "Deterministic fast-path: collected frames", {
+      count: detFrames.length,
+      frames: detFrames.map((f) => ({
+        frameId: f.frameId,
+        url: String(f.frameUrl || "").slice(0, 120),
+        chatScore: f.chatScore,
+        bestInputSelector: f.bestInputSelector || null,
+        bestInputScore: f.bestInputScore,
+        bestSendSelector: f.bestSendSelector || null,
+      })),
+    });
     const ranked = detFrames
       .filter((f) => f.bestInputSelector && (f.bestInputScore || 0) >= 12)
       .sort((a, b) => (b.bestInputScore || 0) - (a.bestInputScore || 0));
+    dbg("locate", "High-confidence inputs after filter (score>=12)", {
+      count: ranked.length,
+      selectors: ranked.map((f) => ({
+        frameId: f.frameId,
+        sel: f.bestInputSelector,
+        score: f.bestInputScore,
+      })),
+    });
     for (const f of ranked) {
       if (state.OPFOR_STOP) return { ok: false, error: "Run stopped." };
       const visible = await actVerifyInputVisible(tabId, f.frameId, f.bestInputSelector);
+      dbg("locate", `Verify input visible: ${visible ? "YES" : "NO"}`, {
+        frameId: f.frameId,
+        selector: f.bestInputSelector,
+        visible,
+      });
       if (!visible) continue;
       const siteSnapshot = detFrames.find((x) => x.frameId === 0)?.snapshot || f.snapshot || "";
+      dbg("locate", "Fast-path SUCCESS — using deterministic input", {
+        frameId: f.frameId,
+        selector: f.bestInputSelector,
+        sendSelector: f.bestSendSelector || null,
+      });
       return {
         ok: true,
         plan: {
@@ -58,269 +90,330 @@ export async function locateChatWidget(tabId, readerCfg, options = {}) {
         siteSnapshot,
       };
     }
-  } catch {
-    /* fall through to the LLM planner */
+    dbg("locate", "Fast-path miss — falling through to LLM planner");
+  } catch (e) {
+    dbg("locate", "Fast-path error, falling through to LLM planner", {
+      error: e instanceof Error ? e.message : String(e),
+    });
   }
 
+  const AX_COLLECT_TIMEOUT_MS = 15_000;
   const collectAxSnapshots = async () => {
     let results;
     try {
-      results = await chrome.scripting.executeScript({
-        target: { tabId, allFrames: true },
-        func: () => {
-          const MAX_NODES = 1400;
-          const MAX_LINES = 700;
-          const MAX_NAME = 140;
+      results = await Promise.race([
+        chrome.scripting.executeScript({
+          target: { tabId, allFrames: true },
+          func: () => {
+            const MAX_NODES = 1400;
+            const MAX_LINES = 700;
+            const MAX_NAME = 140;
 
-          const escapeCss = (v) => {
-            if (typeof CSS !== "undefined" && CSS.escape) return CSS.escape(String(v));
-            return String(v).replace(/["\\]/g, "\\$&");
-          };
-
-          const short = (s, n) => {
-            const str = String(s || "");
-            return str.length > n ? str.slice(0, n) : str;
-          };
-
-          const isVisible = (el) => {
-            if (!(el instanceof Element)) return false;
-            if (!el.isConnected) return false;
-            const rect = el.getBoundingClientRect?.();
-            if (!rect || rect.width <= 0 || rect.height <= 0) return false;
-            const style = window.getComputedStyle(el);
-            if (style.display === "none") return false;
-            if (style.visibility === "hidden") return false;
-            if (style.opacity === "0") return false;
-            return true;
-          };
-
-          const selectorFromEl = (el) => {
-            if (!(el instanceof Element)) return null;
-            const testid = el.getAttribute("data-testid");
-            if (testid) return `[data-testid="${escapeCss(testid)}"]`;
-            const aria = el.getAttribute("aria-label");
-            if (aria) return `${el.tagName.toLowerCase()}[aria-label="${escapeCss(aria)}"]`;
-            const id = el.getAttribute("id");
-            if (id) return `#${escapeCss(id)}`;
-            const name = el.getAttribute("name");
-            if (name) return `${el.tagName.toLowerCase()}[name="${escapeCss(name)}"]`;
-            const ph = el.getAttribute("placeholder");
-            if (ph) return `${el.tagName.toLowerCase()}[placeholder="${escapeCss(ph)}"]`;
-
-            try {
-              const parts = [];
-              let cur = el;
-              for (let i = 0; i < 4 && cur && cur instanceof Element && cur.tagName; i++) {
-                const tag = cur.tagName.toLowerCase();
-                const parent = cur.parentElement;
-                if (!parent) {
-                  parts.unshift(tag);
-                  break;
-                }
-                const sibs = Array.from(parent.children).filter(
-                  (c) => c instanceof Element && c.tagName.toLowerCase() === tag
-                );
-                const idx = Math.max(1, sibs.indexOf(cur) + 1);
-                parts.unshift(`${tag}:nth-of-type(${idx})`);
-                if (cur.id) break;
-                cur = parent;
-              }
-              const sel = parts.join(" > ");
-              if (sel && document.querySelector(sel)) return sel;
-            } catch {
-              /* swallowed */
-            }
-
-            return el.tagName.toLowerCase();
-          };
-
-          const roleForEl = (el) => {
-            if (!(el instanceof Element)) return "";
-            const ariaRole = (el.getAttribute("role") || "").trim().toLowerCase();
-            if (ariaRole) return ariaRole;
-            const tag = el.tagName.toLowerCase();
-            if (tag === "textarea") return "textbox";
-            if (tag === "input") {
-              const t = (el.getAttribute("type") || "text").toLowerCase();
-              if (t === "search") return "searchbox";
-              if (t === "button" || t === "submit") return "button";
-              return "textbox";
-            }
-            if (tag === "button") return "button";
-            if (tag === "a") return "link";
-            if (tag === "select") return "combobox";
-            if (tag === "summary") return "button";
-            if (el.isContentEditable) return "textbox";
-            return tag;
-          };
-
-          const nameForEl = (el) => {
-            if (!(el instanceof Element)) return "";
-            const aria = el.getAttribute("aria-label");
-            if (aria) return aria;
-            const title = el.getAttribute("title");
-            if (title) return title;
-            const alt = el.getAttribute("alt");
-            if (alt) return alt;
-            const ph = el.getAttribute("placeholder");
-            if (ph) return ph;
-            const tc = (el.textContent || "").replace(/\s+/g, " ").trim();
-            if (tc) return tc;
-            return "";
-          };
-
-          const isNavigatingLink = (el) => {
-            if (!(el instanceof HTMLAnchorElement)) return false;
-            const raw = (el.getAttribute("href") || "").trim();
-            if (!raw) return false;
-            if (raw.startsWith("#")) return false;
-            if (/^javascript:/i.test(raw)) return false;
-            if (/^(https?:|\/)/i.test(raw)) return true;
-            return false;
-          };
-
-          const isInteractive = (el, role) => {
-            if (!(el instanceof Element)) return false;
-            const tag = el.tagName.toLowerCase();
-            if (tag === "button" || tag === "textarea" || tag === "select") return true;
-            if (tag === "input") return true;
-            if (tag === "a") return true;
-            if (role === "button" || role === "link" || role === "textbox" || role === "combobox")
-              return true;
-            if (el.isContentEditable) return true;
-            if (typeof el.onclick === "function") return true;
-            if (el.hasAttribute("tabindex")) return true;
-            return false;
-          };
-
-          const getShadowRoot = (el) => {
-            if (el?.shadowRoot) return el.shadowRoot;
-            if (el?.__closedShadowRoot) return el.__closedShadowRoot;
-            return null;
-          };
-
-          function* walkNodes(root) {
-            const stack = [root];
-            while (stack.length) {
-              const node = stack.pop();
-              if (!node) continue;
-              yield node;
-
-              if (node instanceof Element) {
-                const shadow = getShadowRoot(node);
-                if (shadow) stack.push(shadow);
-                const children = node.children;
-                for (let i = children.length - 1; i >= 0; i--) stack.push(children[i]);
-                continue;
-              }
-
-              if (
-                node instanceof ShadowRoot ||
-                node instanceof Document ||
-                node instanceof DocumentFragment
-              ) {
-                const children = node.children || node.childNodes;
-                if (!children) continue;
-                for (let i = children.length - 1; i >= 0; i--) stack.push(children[i]);
-              }
-            }
-          }
-
-          const deepPathSelector = (el) => {
-            if (!(el instanceof Element)) return null;
-            const parts = [selectorFromEl(el)];
-            let cur = el;
-            while (cur) {
-              const root = cur.getRootNode?.();
-              if (root instanceof ShadowRoot) {
-                const hostSel = selectorFromEl(root.host);
-                parts.unshift(`shadow(${hostSel})`);
-                cur = root.host;
-                continue;
-              }
-              break;
-            }
-            return parts.join(" >> ");
-          };
-
-          const lines = [];
-          const push = (line) => {
-            if (lines.length >= MAX_LINES) return;
-            lines.push(line);
-          };
-
-          push(`frame_url="${location.href}"`);
-          const title = document.title || "";
-          if (title) push(`title="${short(title, 140)}"`);
-
-          // Prioritize inputs first so we don't truncate them away.
-          const inputs = [];
-          const others = [];
-          let seen = 0;
-
-          for (const node of walkNodes(document)) {
-            if (!(node instanceof Element)) continue;
-            if (!isVisible(node)) continue;
-            const role = roleForEl(node);
-            if (!isInteractive(node, role)) continue;
-
-            const entry = {
-              el: node,
-              role,
+            const escapeCss = (v) => {
+              if (typeof CSS !== "undefined" && CSS.escape) return CSS.escape(String(v));
+              return String(v).replace(/["\\]/g, "\\$&");
             };
-            const roleKey = String(role || "").toLowerCase();
-            const tag = node.tagName.toLowerCase();
-            const isInput =
-              roleKey === "textbox" ||
-              roleKey === "combobox" ||
-              roleKey === "searchbox" ||
-              tag === "textarea" ||
-              tag === "input" ||
-              node.isContentEditable;
-            (isInput ? inputs : others).push(entry);
-            seen++;
-            if (seen >= MAX_NODES * 2) break;
-          }
 
-          const emit = (entry) => {
-            const el = entry.el;
-            const role = entry.role;
-            const name = short(nameForEl(el), MAX_NAME).replace(/\n/g, " ");
-            const sel = deepPathSelector(el) || selectorFromEl(el);
-            const href =
-              el instanceof HTMLAnchorElement ? short(el.getAttribute("href") || "", 160) : "";
-            const nav = el instanceof HTMLAnchorElement && isNavigatingLink(el) ? " nav=true" : "";
-            const disabled = el instanceof HTMLButtonElement && el.disabled ? " disabled=true" : "";
-            push(
-              `- role=${role || "unknown"} name="${name}" selector="${sel}"${
-                href ? ` href="${href}"` : ""
-              }${nav}${disabled}`
-            );
-          };
+            const short = (s, n) => {
+              const str = String(s || "");
+              return str.length > n ? str.slice(0, n) : str;
+            };
 
-          let emitted = 0;
-          for (const e of inputs) {
-            if (lines.length >= MAX_LINES) break;
-            emit(e);
-            emitted++;
-            if (emitted >= MAX_NODES) break;
-          }
-          for (const e of others) {
-            if (lines.length >= MAX_LINES) break;
-            emit(e);
-            emitted++;
-            if (emitted >= MAX_NODES) break;
-          }
+            const isVisible = (el) => {
+              if (!(el instanceof Element)) return false;
+              if (!el.isConnected) return false;
+              const rect = el.getBoundingClientRect?.();
+              if (!rect || rect.width <= 0 || rect.height <= 0) return false;
+              const style = window.getComputedStyle(el);
+              if (style.display === "none") return false;
+              if (style.visibility === "hidden") return false;
+              if (style.opacity === "0") return false;
+              return true;
+            };
 
-          return {
-            frameUrl: location.href,
-            axSnapshot: lines.join("\n").slice(0, 60_000),
-          };
-        },
-      });
+            const selectorFromEl = (el) => {
+              if (!(el instanceof Element)) return null;
+              const testid = el.getAttribute("data-testid");
+              if (testid) return `[data-testid="${escapeCss(testid)}"]`;
+              const aria = el.getAttribute("aria-label");
+              if (aria) return `${el.tagName.toLowerCase()}[aria-label="${escapeCss(aria)}"]`;
+              const id = el.getAttribute("id");
+              if (id) return `#${escapeCss(id)}`;
+              const name = el.getAttribute("name");
+              if (name) return `${el.tagName.toLowerCase()}[name="${escapeCss(name)}"]`;
+              const ph = el.getAttribute("placeholder");
+              if (ph) return `${el.tagName.toLowerCase()}[placeholder="${escapeCss(ph)}"]`;
+
+              try {
+                const parts = [];
+                let cur = el;
+                for (let i = 0; i < 4 && cur && cur instanceof Element && cur.tagName; i++) {
+                  const tag = cur.tagName.toLowerCase();
+                  const parent = cur.parentElement;
+                  if (!parent) {
+                    parts.unshift(tag);
+                    break;
+                  }
+                  const sibs = Array.from(parent.children).filter(
+                    (c) => c instanceof Element && c.tagName.toLowerCase() === tag
+                  );
+                  const idx = Math.max(1, sibs.indexOf(cur) + 1);
+                  parts.unshift(`${tag}:nth-of-type(${idx})`);
+                  if (cur.id) break;
+                  cur = parent;
+                }
+                const sel = parts.join(" > ");
+                if (sel && document.querySelector(sel)) return sel;
+              } catch {
+                /* swallowed */
+              }
+
+              return el.tagName.toLowerCase();
+            };
+
+            const roleForEl = (el) => {
+              if (!(el instanceof Element)) return "";
+              const ariaRole = (el.getAttribute("role") || "").trim().toLowerCase();
+              if (ariaRole) return ariaRole;
+              const tag = el.tagName.toLowerCase();
+              if (tag === "textarea") return "textbox";
+              if (tag === "input") {
+                const t = (el.getAttribute("type") || "text").toLowerCase();
+                if (t === "search") return "searchbox";
+                if (t === "button" || t === "submit") return "button";
+                return "textbox";
+              }
+              if (tag === "button") return "button";
+              if (tag === "a") return "link";
+              if (tag === "select") return "combobox";
+              if (tag === "summary") return "button";
+              if (el.isContentEditable) return "textbox";
+              return tag;
+            };
+
+            const nameForEl = (el) => {
+              if (!(el instanceof Element)) return "";
+              const aria = el.getAttribute("aria-label");
+              if (aria) return aria;
+              const title = el.getAttribute("title");
+              if (title) return title;
+              const alt = el.getAttribute("alt");
+              if (alt) return alt;
+              const ph = el.getAttribute("placeholder");
+              if (ph) return ph;
+              const tc = (el.textContent || "").replace(/\s+/g, " ").trim();
+              if (tc) return tc;
+              return "";
+            };
+
+            const isNavigatingLink = (el) => {
+              if (!(el instanceof HTMLAnchorElement)) return false;
+              const raw = (el.getAttribute("href") || "").trim();
+              if (!raw) return false;
+              if (raw.startsWith("#")) return false;
+              if (/^javascript:/i.test(raw)) return false;
+              if (/^(https?:|\/)/i.test(raw)) return true;
+              return false;
+            };
+
+            const isInteractive = (el, role) => {
+              if (!(el instanceof Element)) return false;
+              const tag = el.tagName.toLowerCase();
+              if (tag === "button" || tag === "textarea" || tag === "select") return true;
+              if (tag === "input") return true;
+              if (tag === "a") return true;
+              if (role === "button" || role === "link" || role === "textbox" || role === "combobox")
+                return true;
+              if (el.isContentEditable) return true;
+              if (typeof el.onclick === "function") return true;
+              if (el.hasAttribute("tabindex")) return true;
+              return false;
+            };
+
+            const getShadowRoot = (el) => {
+              if (el?.shadowRoot) return el.shadowRoot;
+              if (el?.__closedShadowRoot) return el.__closedShadowRoot;
+              return null;
+            };
+
+            function* walkNodes(root) {
+              const stack = [root];
+              while (stack.length) {
+                const node = stack.pop();
+                if (!node) continue;
+                yield node;
+
+                if (node instanceof Element) {
+                  const shadow = getShadowRoot(node);
+                  if (shadow) stack.push(shadow);
+                  const children = node.children;
+                  for (let i = children.length - 1; i >= 0; i--) stack.push(children[i]);
+                  continue;
+                }
+
+                if (
+                  node instanceof ShadowRoot ||
+                  node instanceof Document ||
+                  node instanceof DocumentFragment
+                ) {
+                  const children = node.children || node.childNodes;
+                  if (!children) continue;
+                  for (let i = children.length - 1; i >= 0; i--) stack.push(children[i]);
+                }
+              }
+            }
+
+            const deepPathSelector = (el) => {
+              if (!(el instanceof Element)) return null;
+              const parts = [selectorFromEl(el)];
+              let cur = el;
+              while (cur) {
+                const root = cur.getRootNode?.();
+                if (root instanceof ShadowRoot) {
+                  const hostSel = selectorFromEl(root.host);
+                  parts.unshift(`shadow(${hostSel})`);
+                  cur = root.host;
+                  continue;
+                }
+                break;
+              }
+              return parts.join(" >> ");
+            };
+
+            const lines = [];
+            const push = (line) => {
+              if (lines.length >= MAX_LINES) return;
+              lines.push(line);
+            };
+
+            push(`frame_url="${location.href}"`);
+            const title = document.title || "";
+            if (title) push(`title="${short(title, 140)}"`);
+
+            // Prioritize inputs first so we don't truncate them away.
+            const inputs = [];
+            const others = [];
+            let seen = 0;
+
+            for (const node of walkNodes(document)) {
+              if (!(node instanceof Element)) continue;
+              if (!isVisible(node)) continue;
+              const role = roleForEl(node);
+              if (!isInteractive(node, role)) continue;
+
+              const entry = {
+                el: node,
+                role,
+              };
+              const roleKey = String(role || "").toLowerCase();
+              const tag = node.tagName.toLowerCase();
+              const isInput =
+                roleKey === "textbox" ||
+                roleKey === "combobox" ||
+                roleKey === "searchbox" ||
+                tag === "textarea" ||
+                tag === "input" ||
+                node.isContentEditable;
+              (isInput ? inputs : others).push(entry);
+              seen++;
+              if (seen >= MAX_NODES * 2) break;
+            }
+
+            const emit = (entry) => {
+              const el = entry.el;
+              const role = entry.role;
+              const name = short(nameForEl(el), MAX_NAME).replace(/\n/g, " ");
+              const sel = deepPathSelector(el) || selectorFromEl(el);
+              const href =
+                el instanceof HTMLAnchorElement ? short(el.getAttribute("href") || "", 160) : "";
+              const nav =
+                el instanceof HTMLAnchorElement && isNavigatingLink(el) ? " nav=true" : "";
+              const disabled =
+                el instanceof HTMLButtonElement && el.disabled ? " disabled=true" : "";
+              push(
+                `- role=${role || "unknown"} name="${name}" selector="${sel}"${
+                  href ? ` href="${href}"` : ""
+                }${nav}${disabled}`
+              );
+            };
+
+            let emitted = 0;
+            for (const e of inputs) {
+              if (lines.length >= MAX_LINES) break;
+              emit(e);
+              emitted++;
+              if (emitted >= MAX_NODES) break;
+            }
+            for (const e of others) {
+              if (lines.length >= MAX_LINES) break;
+              emit(e);
+              emitted++;
+              if (emitted >= MAX_NODES) break;
+            }
+
+            return {
+              frameUrl: location.href,
+              axSnapshot: lines.join("\n").slice(0, 60_000),
+            };
+          },
+        }),
+        new Promise((_, reject) =>
+          setTimeout(
+            () => reject(new Error(`AX snapshot timed out after ${AX_COLLECT_TIMEOUT_MS}ms`)),
+            AX_COLLECT_TIMEOUT_MS
+          )
+        ),
+      ]);
     } catch (err) {
-      console.error("[chatLocator] executeScript failed:", err);
-      return [];
+      dbg("locate", "collectAxSnapshots failed, trying main frame only", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      try {
+        results = await Promise.race([
+          chrome.scripting.executeScript({
+            target: { tabId, frameIds: [0] },
+            func: () => {
+              const lines = [`frame_url="${location.href}"`];
+              const title = document.title || "";
+              if (title) lines.push(`title="${title.slice(0, 140)}"`);
+              for (const el of document.querySelectorAll(
+                "textarea, input, [contenteditable='true'], [role='textbox'], button, [role='button'], a, select"
+              )) {
+                if (!(el instanceof Element)) continue;
+                const rect = el.getBoundingClientRect?.();
+                if (!rect || rect.width <= 0 || rect.height <= 0) continue;
+                const style = window.getComputedStyle(el);
+                if (
+                  style.display === "none" ||
+                  style.visibility === "hidden" ||
+                  style.opacity === "0"
+                )
+                  continue;
+                const tag = el.tagName.toLowerCase();
+                const role = el.getAttribute("role") || "";
+                const name = (
+                  el.getAttribute("aria-label") ||
+                  el.getAttribute("placeholder") ||
+                  el.textContent ||
+                  ""
+                )
+                  .replace(/\s+/g, " ")
+                  .trim()
+                  .slice(0, 140);
+                lines.push(`- role=${role || tag} name="${name}" selector="${tag}"`);
+                if (lines.length > 500) break;
+              }
+              return { frameUrl: location.href, axSnapshot: lines.join("\n").slice(0, 60_000) };
+            },
+          }),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error("main-frame AX fallback timed out")), 10_000)
+          ),
+        ]);
+      } catch {
+        dbg("locate", "collectAxSnapshots main-frame fallback also failed");
+        return [];
+      }
     }
 
     const mapped = (results || []).map((r) => ({
@@ -395,6 +488,12 @@ export async function locateChatWidget(tabId, readerCfg, options = {}) {
         ),
     ].join("\n\n");
 
+    dbg("locate", `LLM planner attempt ${attempt + 1}/${maxAiAttempts}`, {
+      frameCount: frames.length,
+      snapshotLen: combinedSnapshot.length,
+      lastErr: lastErr || null,
+    });
+
     const decision = await aiUiNextAction(readerCfg, {
       frameUrl: frames.find((f) => f.frameId === 0)?.frameUrl || "",
       snapshot: combinedSnapshot,
@@ -403,10 +502,27 @@ export async function locateChatWidget(tabId, readerCfg, options = {}) {
       clickedLaunchers,
     });
 
+    dbg("locate", `LLM decision: ${decision?.action || "null"}`, {
+      action: decision?.action,
+      inputSelector: decision?.inputSelector,
+      launcherSelector: decision?.launcherSelector,
+      submit: decision?.submit,
+      confidence: decision?.confidence,
+      notes: decision?.notes,
+    });
+
     if (decision?.action === "set_input" && typeof decision.inputSelector === "string") {
-      // We don't know which frame the selector belongs to; verify across frames.
       for (const f of frames) {
         const visible = await actVerifyInputVisible(tabId, f.frameId, decision.inputSelector);
+        dbg(
+          "locate",
+          `Verify LLM-picked input in frame ${f.frameId}: ${visible ? "VISIBLE" : "not found"}`,
+          {
+            frameId: f.frameId,
+            selector: decision.inputSelector,
+            visible,
+          }
+        );
         if (visible) {
           chosen = {
             frameId: f.frameId,
@@ -418,8 +534,12 @@ export async function locateChatWidget(tabId, readerCfg, options = {}) {
           break;
         }
       }
-      if (chosen) break;
+      if (chosen) {
+        dbg("locate", "LLM set_input SUCCESS", chosen);
+        break;
+      }
       lastErr = "LLM picked input but it was not visible in any frame.";
+      dbg("locate", lastErr, { selector: decision.inputSelector });
       continue;
     }
 
@@ -469,6 +589,11 @@ export async function locateChatWidget(tabId, readerCfg, options = {}) {
       ];
       for (const f of ordered) {
         const res = await actClickSelector(tabId, f.frameId, decision.launcherSelector);
+        dbg("locate", `Click launcher in frame ${f.frameId}: ${res?.ok ? "OK" : "FAIL"}`, {
+          frameId: f.frameId,
+          selector: decision.launcherSelector,
+          result: res,
+        });
         if (res?.ok) {
           clicked = true;
           clickedLaunchers.push(decision.launcherSelector);
@@ -477,6 +602,7 @@ export async function locateChatWidget(tabId, readerCfg, options = {}) {
       }
       if (!clicked) {
         lastErr = "LLM picked launcher but click failed in all frames.";
+        dbg("locate", lastErr);
       }
       await sleep(2200);
       continue;
@@ -496,6 +622,7 @@ export async function locateChatWidget(tabId, readerCfg, options = {}) {
   }
 
   if (!chosen?.inputSelector) {
+    dbg("locate", "FAILED — no chat input found after all attempts", { lastErr });
     return { ok: false, error: lastErr || "Could not find (or open) the chat input." };
   }
 

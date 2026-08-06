@@ -3051,6 +3051,32 @@ function wire() {
     saveSettings();
   });
 
+  // Debug mode controls
+  chrome.runtime.sendMessage({ type: "OPFOR_DEBUG_STATUS" }, (res) => {
+    if (res?.ok) $("debugToggle").setAttribute("aria-checked", String(!!res.enabled));
+  });
+  $("debugToggle").addEventListener("click", () => {
+    const cur = $("debugToggle").getAttribute("aria-checked") === "true";
+    const next = !cur;
+    $("debugToggle").setAttribute("aria-checked", String(next));
+    chrome.runtime.sendMessage({ type: "OPFOR_DEBUG_TOGGLE", enabled: next });
+  });
+  $("debugExportBtn").addEventListener("click", () => {
+    chrome.runtime.sendMessage({ type: "OPFOR_DEBUG_EXPORT" }, (res) => {
+      if (!res?.ok || !res.text) return;
+      const blob = new Blob([res.text], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `opfor-debug-${new Date().toISOString().replace(/[:.]/g, "-")}.log`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+  });
+  $("debugClearBtn").addEventListener("click", () => {
+    chrome.runtime.sendMessage({ type: "OPFOR_DEBUG_CLEAR" });
+  });
+
   // NOTE: We intentionally do NOT stop the background run on popup close.
   // The service worker can continue running; the popup can be reopened to Stop or view status.
 
