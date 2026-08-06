@@ -178,6 +178,106 @@ test("attacker and judge are priced separately at their own rates", () => {
   assert.ok(Math.abs(cost.totalUsd - (judge.usd + attacker.usd)) < 1e-9);
 });
 
+// ---------------------------------------------------------------------------
+// Cache-tier pricing
+//
+// `inputTokens` is the inclusive total, so the tiers must be divided out of it.
+// Charging a cache rate *on top of* the full input charge would bill every
+// cached token twice — these pin the split against that.
+// ---------------------------------------------------------------------------
+
+/** A breakdown row whose input tokens carry a cache split. */
+function cachedUsage(
+  provider: string,
+  model: string,
+  noCache: number,
+  cacheRead: number,
+  cacheWrite: number,
+  outputTokens: number
+): ModelTokenUsage {
+  const inputTokens = noCache + cacheRead + cacheWrite;
+  return {
+    ...usage(provider, model, inputTokens, outputTokens),
+    noCacheInputTokens: noCache,
+    cacheReadInputTokens: cacheRead,
+    cacheWriteInputTokens: cacheWrite,
+  };
+}
+
+test("cached input is billed at the cache rate, not the full input rate", () => {
+  const price = lookupPrice("anthropic", "claude-opus-5");
+  assert.ok(price?.price.cacheReadPerToken);
+  const cost = estimateRunCost([cachedUsage("anthropic", "claude-opus-5", 2000, 8000, 0, 500)]);
+  assert.ok(cost);
+  const expected =
+    2000 * price.price.inputPerToken +
+    8000 * price.price.cacheReadPerToken! +
+    500 * price.price.outputPerToken;
+  assert.ok(Math.abs(cost.totalUsd - expected) < 1e-12);
+});
+
+test("a cache hit costs strictly less than the same tokens uncached", () => {
+  const cached = estimateRunCost([cachedUsage("anthropic", "claude-opus-5", 2000, 8000, 0, 500)]);
+  const uncached = estimateRunCost([usage("anthropic", "claude-opus-5", 10_000, 500)]);
+  assert.ok(cached && uncached);
+  // Same 10k input tokens either way — the split is the only difference.
+  assert.equal(cached.byModel[0].inputTokens, uncached.byModel[0].inputTokens);
+  assert.ok(cached.totalUsd < uncached.totalUsd);
+});
+
+test("cached tokens are billed once, not once per tier", () => {
+  // The double-count bug would price the 8000 cache-read tokens at both the
+  // full input rate and the cache rate, landing above the all-uncached figure.
+  const price = lookupPrice("anthropic", "claude-opus-5");
+  assert.ok(price);
+  const cost = estimateRunCost([cachedUsage("anthropic", "claude-opus-5", 2000, 8000, 0, 0)]);
+  assert.ok(cost);
+  assert.ok(cost.totalUsd < 10_000 * price.price.inputPerToken);
+});
+
+test("cache writes are priced at their own published rate", () => {
+  const price = lookupPrice("anthropic", "claude-opus-5");
+  assert.ok(price?.price.cacheWritePerToken);
+  const cost = estimateRunCost([cachedUsage("anthropic", "claude-opus-5", 0, 0, 4000, 0)]);
+  assert.ok(cost);
+  assert.ok(Math.abs(cost.totalUsd - 4000 * price.price.cacheWritePerToken!) < 1e-12);
+  // Anthropic charges a premium to write the cache — above the input rate.
+  assert.ok(price.price.cacheWritePerToken! > price.price.inputPerToken);
+});
+
+test("a published cache rate of zero is honored, not treated as missing", () => {
+  // deepseek publishes cw: 0. A `||` fallback would silently reprice these at
+  // the full input rate; `??` keeps them free.
+  const price = lookupPrice("openai-compatible", "deepseek/deepseek-v4-pro");
+  assert.ok(price);
+  assert.equal(price.price.cacheWritePerToken, 0);
+  const cost = estimateRunCost([
+    cachedUsage("openai-compatible", "deepseek/deepseek-v4-pro", 0, 0, 50_000, 0),
+  ]);
+  assert.ok(cost);
+  assert.equal(cost.totalUsd, 0);
+});
+
+test("a model with no published cache rate falls back to the full input rate", () => {
+  // Never-quietly-free: an unpublished cache tier over-estimates rather than
+  // under-charging, matching how an unpriced model is handled.
+  const price = lookupPrice("azure", "command-r-plus");
+  assert.ok(price);
+  assert.equal(price.price.cacheReadPerToken, undefined);
+  const cost = estimateRunCost([cachedUsage("azure", "command-r-plus", 1000, 9000, 0, 0)]);
+  assert.ok(cost);
+  assert.ok(Math.abs(cost.totalUsd - 10_000 * price.price.inputPerToken) < 1e-12);
+});
+
+test("a breakdown with no cache split prices exactly as before", () => {
+  const price = lookupPrice("openai", "gpt-4o-mini");
+  assert.ok(price);
+  const cost = estimateRunCost([usage("openai", "gpt-4o-mini", 10_000, 1000)]);
+  assert.ok(cost);
+  const expected = 10_000 * price.price.inputPerToken + 1000 * price.price.outputPerToken;
+  assert.ok(Math.abs(cost.totalUsd - expected) < 1e-12);
+});
+
 test("an unpriced model is reported, not silently counted as free", () => {
   const cost = estimateRunCost([
     usage("openai", "gpt-4o-mini", 1000, 100),

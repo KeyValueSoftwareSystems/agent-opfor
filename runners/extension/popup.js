@@ -11,6 +11,8 @@ import {
   PROVIDER_CAPABILITIES,
   PROVIDER_DISPLAY_NAMES,
   renderReport,
+  estimateRunCost,
+  formatUsd,
 } from "./dist/core.bundle.js";
 
 const PROVIDER_OPTIONS = Object.values(PROVIDERS).map((value) => ({
@@ -1065,6 +1067,18 @@ function renderDone() {
     tokenEl.style.display = "none";
   }
 
+  const costEl = $("statCost");
+  const cost = state.lastReport?.summary?.cost;
+  if (cost) {
+    // Testing cost, not total cost — the target's own inference spend is
+    // invisible to opfor, and an unpriced model makes this a lower bound.
+    $("statCostValue").textContent = (cost.complete ? "" : "≥") + formatUsd(cost.totalUsd);
+    $("statCostSub").textContent = cost.complete ? "estimated" : "lower bound";
+    costEl.style.display = "";
+  } else {
+    costEl.style.display = "none";
+  }
+
   $("resultsCountLabel").textContent = `Evaluators · ${state.results.length}`;
   const list = $("resultsList");
   list.innerHTML = "";
@@ -1257,17 +1271,34 @@ function buildReport() {
 
   let aggInput = 0;
   let aggOutput = 0;
+  // Merge each evaluator's per-model breakdown by key ("provider:model") so a
+  // model used across multiple (single-evaluator) runAllBrowser calls prices
+  // once as one bucket instead of once per evaluator.
+  const byModelMap = new Map();
   for (const r of state.results) {
     const tu = r.raw?.tokenUsage;
     if (tu) {
       aggInput += tu.inputTokens ?? 0;
       aggOutput += tu.outputTokens ?? 0;
     }
+    for (const m of r.raw?.tokenUsageByModel ?? []) {
+      const existing = byModelMap.get(m.key);
+      if (existing) {
+        existing.inputTokens += m.inputTokens;
+        existing.outputTokens += m.outputTokens;
+        existing.totalTokens += m.totalTokens;
+        existing.calls += m.calls;
+        existing.roles = [...new Set([...existing.roles, ...m.roles])].sort();
+      } else {
+        byModelMap.set(m.key, { ...m, roles: [...m.roles] });
+      }
+    }
   }
   const tokenUsage =
     aggInput + aggOutput > 0
       ? { inputTokens: aggInput, outputTokens: aggOutput, totalTokens: aggInput + aggOutput }
       : undefined;
+  const cost = estimateRunCost([...byModelMap.values()]);
 
   const now = new Date();
   const stamp = now.toISOString().replace(/[-:]/g, "").replace(/\..+/, "").replace("T", "-");
@@ -1316,6 +1347,7 @@ function buildReport() {
       criticalFindings: criticalFindings.length,
       highFindings: highFindings.length,
       tokenUsage,
+      cost,
       durationMs,
     },
     cancelled: state.runCancelled,
@@ -1388,6 +1420,12 @@ function toTurnViewModels(raw) {
 
 function toResultViewModel(tr, evaluator) {
   const cancelled = tr.verdict === "CANCELLED";
+  const turns = toTurnViewModels(evaluator.raw);
+  // Mirror core's buildReport.ts contract: `detail` is the last attempted
+  // prompt/response, used as the transcript fallback when `turns` is empty
+  // (e.g. cancelled before any turn completed). Hardcoding blanks here made a
+  // cancelled-with-zero-turns evaluator render a fake "1 turn" with no content.
+  const last = turns[turns.length - 1]?.detail;
   return {
     id: evaluator.id + (tr.testNumber > 1 ? `-${tr.testNumber}` : ""),
     label: tr.pattern,
@@ -1401,8 +1439,8 @@ function toResultViewModel(tr, evaluator) {
         : (tr.reasoning ?? ""),
       errorMessage: cancelled ? "Cancelled by user" : undefined,
     },
-    detail: { kind: "prompt", prompt: "", response: "" },
-    turns: toTurnViewModels(evaluator.raw),
+    detail: { kind: "prompt", prompt: last?.prompt ?? "", response: last?.response ?? "" },
+    turns,
   };
 }
 
@@ -1447,6 +1485,7 @@ function toReportViewModel(report) {
       safetyScore: summary.safetyScore ?? 0,
       attackSuccessRate: summary.attackSuccessRate ?? 0,
       tokenUsage: summary.tokenUsage,
+      cost: summary.cost,
       durationMs: summary.durationMs,
     },
     evaluators: report.evaluatorResults.map(toEvaluatorViewModel),

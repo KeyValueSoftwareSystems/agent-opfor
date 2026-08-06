@@ -179,7 +179,14 @@ export async function runEvaluatorAttacks(
       try {
         result =
           attack.kind === "mcp"
-            ? await runMcpAttack(attack, mcpTarget!, attackModel, judgeLlmConfig, evalTracker)
+            ? await runMcpAttack(
+                attack,
+                mcpTarget!,
+                attackModel,
+                judgeLlmConfig,
+                evalTracker,
+                signal
+              )
             : await runAgentAttack(
                 attack,
                 attackModel,
@@ -191,7 +198,8 @@ export async function runEvaluatorAttacks(
                   targetConfig: config.target,
                   telemetry: config.telemetry,
                   tokenTracker: evalTracker,
-                }
+                },
+                signal
               );
       } catch (err) {
         const makeFailedResult = (reason: string): AttackResult =>

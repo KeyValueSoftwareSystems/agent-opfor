@@ -913,6 +913,9 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
           transcript: fullTranscript,
           turns: fullTurnLog,
           judgment: cancelledJudgment(fullTranscript),
+          tokenUsage: report?.summary?.tokenUsage ?? report?.evaluators?.[0]?.tokenUsage,
+          tokenUsageByModel:
+            report?.summary?.tokenUsageByModel ?? report?.evaluators?.[0]?.tokenUsageByModel,
         },
       });
       sendResponse(response);
@@ -944,6 +947,8 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
           turns: fullTurnLog,
           judgment: errorJudgment,
           tokenUsage: report?.summary?.tokenUsage ?? report?.evaluators?.[0]?.tokenUsage,
+          tokenUsageByModel:
+            report?.summary?.tokenUsageByModel ?? report?.evaluators?.[0]?.tokenUsageByModel,
         };
         await persistPartialResult(partialResult);
         try {
@@ -998,6 +1003,8 @@ export async function executeAdaptiveRedTeamRun(sendResponse, message, resume) {
       turns: fullTurnLog,
       judgment,
       tokenUsage: report.summary?.tokenUsage ?? report.evaluators?.[0]?.tokenUsage,
+      tokenUsageByModel:
+        report.summary?.tokenUsageByModel ?? report.evaluators?.[0]?.tokenUsageByModel,
     };
     await persistPartialResult(finalResult);
     try {

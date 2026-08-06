@@ -27,6 +27,26 @@ export interface TokenUsage {
   totalTokens: number;
 }
 
+/**
+ * How one call's input tokens split across cache tiers.
+ *
+ * `inputTokens` is the **inclusive** total — providers report it as
+ * `noCache + cacheRead + cacheWrite`, not as the fresh-text count alone. Pricing
+ * therefore has to divide that total between the tiers, never add a cache charge
+ * on top of it (which would bill cached tokens twice).
+ *
+ * Carried only so {@link estimateRunCost} can apply each tier's rate; it is not
+ * reported on its own.
+ */
+export interface InputCacheSplit {
+  /** Input tokens processed fresh, billed at the full input rate. */
+  noCache: number;
+  /** Input tokens served from cache, billed at the provider's (much lower) read rate. */
+  cacheRead: number;
+  /** Input tokens written to cache, billed at the provider's write rate. */
+  cacheWrite: number;
+}
+
 /** Token usage attributed to one provider/model pair. */
 export interface ModelTokenUsage extends TokenUsage {
   /** `"<provider>:<model>"`, or `"unknown"` for usage that could not be attributed. */
@@ -37,6 +57,14 @@ export interface ModelTokenUsage extends TokenUsage {
   roles: string[];
   /** Number of LLM calls recorded against this model. */
   calls: number;
+  /**
+   * Cache split of {@link TokenUsage.inputTokens}, present only when this model
+   * actually hit a cache. Exists so each tier can be priced at its own rate; the
+   * three fields sum to `inputTokens`. See {@link InputCacheSplit}.
+   */
+  noCacheInputTokens?: number;
+  cacheReadInputTokens?: number;
+  cacheWriteInputTokens?: number;
 }
 
 /** Optional provenance supplied alongside a usage recording. */
@@ -65,20 +93,50 @@ export const LlmUsageSchema = z
     inputTokens: z.number().int().min(0).optional().default(0),
     outputTokens: z.number().int().min(0).optional().default(0),
     totalTokens: z.number().int().min(0).optional().default(0),
+    // Provider-agnostic cache split, supplied by the AI SDK as part of `usage`.
+    // Absent on providers (or call paths) that don't report it — see the
+    // transform below, which then treats every input token as uncached.
+    inputTokenDetails: z
+      .object({
+        noCacheTokens: z.number().int().min(0).optional(),
+        cacheReadTokens: z.number().int().min(0).optional(),
+        cacheWriteTokens: z.number().int().min(0).optional(),
+      })
+      .passthrough()
+      .optional(),
   })
   .passthrough()
-  .transform((u) => ({
-    inputTokens: u.inputTokens,
-    outputTokens: u.outputTokens,
-    totalTokens: u.totalTokens > 0 ? u.totalTokens : u.inputTokens + u.outputTokens,
-  }));
+  .transform((u) => {
+    const cacheRead = u.inputTokenDetails?.cacheReadTokens ?? 0;
+    const cacheWrite = u.inputTokenDetails?.cacheWriteTokens ?? 0;
+    const cached = cacheRead + cacheWrite;
+    // `inputTokens` already includes the cached tokens, so the fresh count is
+    // always the remainder. Derived rather than read from `noCacheTokens`: cost
+    // divides inputTokens between the tiers, so a reported split that doesn't add
+    // up would bill tokens the call never used. For a well-formed provider the
+    // two agree — the AI SDK builds inputTokens as noCache + cacheRead +
+    // cacheWrite — so deriving costs nothing and makes the invariant hold.
+    //
+    // A split claiming more cached tokens than there was input can't be divided
+    // at all; drop it and let the call price at the full input rate, the same
+    // conservative direction taken for an unpriced model.
+    const usable = cached > 0 && cached <= u.inputTokens;
+    return {
+      inputTokens: u.inputTokens,
+      outputTokens: u.outputTokens,
+      totalTokens: u.totalTokens > 0 ? u.totalTokens : u.inputTokens + u.outputTokens,
+      // Omitted when nothing was cached, so a non-caching run records and prices
+      // exactly as it did before this field existed.
+      ...(usable ? { cache: { noCache: u.inputTokens - cached, cacheRead, cacheWrite } } : {}),
+    };
+  });
 
 /**
  * Validate and normalize a raw usage object (from any provider/SDK) into a
  * clean {@link TokenUsage}. Returns `undefined` when the input is falsy or
  * fails validation so callers can safely discard garbage.
  */
-export function parseUsage(raw: unknown): TokenUsage | undefined {
+export function parseUsage(raw: unknown): (TokenUsage & { cache?: InputCacheSplit }) | undefined {
   if (!raw || typeof raw !== "object") return undefined;
   const result = LlmUsageSchema.safeParse(raw);
   return result.success ? result.data : undefined;
@@ -94,6 +152,11 @@ interface ModelBucket {
   input: number;
   output: number;
   total: number;
+  // Cache tiers of `input`. Calls that report no split count entirely as
+  // noCache, so these three always sum to `input`.
+  noCache: number;
+  cacheRead: number;
+  cacheWrite: number;
 }
 
 /**
@@ -119,7 +182,12 @@ export class TokenTracker {
    * call site degrades to today's behavior rather than losing tokens.
    */
   record(
-    usage?: { inputTokens?: number; outputTokens?: number; totalTokens?: number },
+    usage?: {
+      inputTokens?: number;
+      outputTokens?: number;
+      totalTokens?: number;
+      cache?: InputCacheSplit;
+    },
     attribution?: RecordAttribution
   ): void {
     if (!usage) return;
@@ -132,7 +200,7 @@ export class TokenTracker {
     this.output += out;
     this.total += resolvedTotal;
 
-    this.recordToBucket(inp, out, resolvedTotal, attribution);
+    this.recordToBucket(inp, out, resolvedTotal, attribution, usage.cache);
   }
 
   /** Fold one call's usage into its per-model bucket, creating the bucket on first sight. */
@@ -140,7 +208,8 @@ export class TokenTracker {
     inp: number,
     out: number,
     total: number,
-    attribution?: RecordAttribution
+    attribution?: RecordAttribution,
+    cache?: InputCacheSplit
   ): void {
     const identity = resolveModelIdentity(attribution?.model);
     const key = identity ? modelKey(identity) : UNKNOWN_MODEL_KEY;
@@ -156,6 +225,9 @@ export class TokenTracker {
         input: 0,
         output: 0,
         total: 0,
+        noCache: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
       };
       this.buckets.set(key, bucket);
     }
@@ -166,6 +238,11 @@ export class TokenTracker {
     bucket.input += inp;
     bucket.output += out;
     bucket.total += total;
+    // No split reported → the whole call was uncached, keeping the three tiers
+    // summing to `input` even when only some calls to this model were cached.
+    bucket.noCache += cache?.noCache ?? inp;
+    bucket.cacheRead += cache?.cacheRead ?? 0;
+    bucket.cacheWrite += cache?.cacheWrite ?? 0;
   }
 
   /** Current accumulated totals. Uses the provider-supplied total when available. */
@@ -193,6 +270,15 @@ export class TokenTracker {
         inputTokens: b.input,
         outputTokens: b.output,
         totalTokens: b.total,
+        // Omitted when this model never hit a cache, so the shape is unchanged
+        // for runs where caching never applied.
+        ...(b.cacheRead > 0 || b.cacheWrite > 0
+          ? {
+              noCacheInputTokens: b.noCache,
+              cacheReadInputTokens: b.cacheRead,
+              cacheWriteInputTokens: b.cacheWrite,
+            }
+          : {}),
       }))
       .sort((a, b) => b.totalTokens - a.totalTokens || a.key.localeCompare(b.key));
   }
@@ -222,6 +308,7 @@ class ChildTracker extends TokenTracker {
       inputTokens?: number;
       outputTokens?: number;
       totalTokens?: number;
+      cache?: InputCacheSplit;
     },
     attribution?: RecordAttribution
   ): void {

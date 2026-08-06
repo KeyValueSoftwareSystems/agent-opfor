@@ -169,7 +169,8 @@ export async function runMcpAttack(
   target: McpTarget,
   attackModel: LanguageModel,
   judgeLlm: LlmConfig,
-  tokenTracker?: TokenTracker
+  tokenTracker?: TokenTracker,
+  signal?: AbortSignal
 ): Promise<AttackResult> {
   if (!attack.toolName) {
     return {
@@ -185,6 +186,7 @@ export async function runMcpAttack(
     };
   }
   return runAttack(
-    new McpAttackDriver(attack, target, attack.toolName, attackModel, judgeLlm, tokenTracker)
+    new McpAttackDriver(attack, target, attack.toolName, attackModel, judgeLlm, tokenTracker),
+    signal
   );
 }

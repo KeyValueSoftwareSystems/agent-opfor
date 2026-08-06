@@ -19,9 +19,11 @@ export async function runAgentAttack(
   attackIndex: string,
   patterns: AttackPattern[],
   target: AgentTarget,
-  context?: AgentAttackContext
+  context?: AgentAttackContext,
+  signal?: AbortSignal
 ): Promise<AttackResult> {
   return runAttack(
-    new AgentAttackDriver(attack, attackModel, judgeModel, attackIndex, patterns, target, context)
+    new AgentAttackDriver(attack, attackModel, judgeModel, attackIndex, patterns, target, context),
+    signal
   );
 }
