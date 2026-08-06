@@ -109,18 +109,25 @@ export const LlmUsageSchema = z
   .transform((u) => {
     const cacheRead = u.inputTokenDetails?.cacheReadTokens ?? 0;
     const cacheWrite = u.inputTokenDetails?.cacheWriteTokens ?? 0;
-    // `inputTokens` already includes the cached tokens, so the fresh count is the
-    // remainder — derived rather than trusted so a provider that reports only
-    // some of the three fields still leaves the tiers summing to inputTokens.
-    const noCache =
-      u.inputTokenDetails?.noCacheTokens ?? Math.max(0, u.inputTokens - cacheRead - cacheWrite);
+    const cached = cacheRead + cacheWrite;
+    // `inputTokens` already includes the cached tokens, so the fresh count is
+    // always the remainder. Derived rather than read from `noCacheTokens`: cost
+    // divides inputTokens between the tiers, so a reported split that doesn't add
+    // up would bill tokens the call never used. For a well-formed provider the
+    // two agree — the AI SDK builds inputTokens as noCache + cacheRead +
+    // cacheWrite — so deriving costs nothing and makes the invariant hold.
+    //
+    // A split claiming more cached tokens than there was input can't be divided
+    // at all; drop it and let the call price at the full input rate, the same
+    // conservative direction taken for an unpriced model.
+    const usable = cached > 0 && cached <= u.inputTokens;
     return {
       inputTokens: u.inputTokens,
       outputTokens: u.outputTokens,
       totalTokens: u.totalTokens > 0 ? u.totalTokens : u.inputTokens + u.outputTokens,
-      // Omitted entirely when nothing was cached, so a non-caching run records
-      // and prices exactly as it did before this field existed.
-      ...(cacheRead > 0 || cacheWrite > 0 ? { cache: { noCache, cacheRead, cacheWrite } } : {}),
+      // Omitted when nothing was cached, so a non-caching run records and prices
+      // exactly as it did before this field existed.
+      ...(usable ? { cache: { noCache: u.inputTokens - cached, cacheRead, cacheWrite } } : {}),
     };
   });
 

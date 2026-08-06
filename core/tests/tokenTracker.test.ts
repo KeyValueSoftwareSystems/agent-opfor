@@ -153,6 +153,31 @@ test("parseUsage derives the uncached remainder when the SDK omits it", () => {
   assert.deepStrictEqual(result?.cache, { noCache: 3000, cacheRead: 6000, cacheWrite: 1000 });
 });
 
+test("parseUsage ignores a reported noCacheTokens that breaks the invariant", () => {
+  // inputTokens 100 with noCache 100 AND cacheRead 50 sums to 150. Trusting the
+  // reported figure would price 150 tokens against a 100-token call.
+  const result = parseUsage({
+    inputTokens: 100,
+    outputTokens: 0,
+    inputTokenDetails: { noCacheTokens: 100, cacheReadTokens: 50 },
+  });
+  assert.deepStrictEqual(result?.cache, { noCache: 50, cacheRead: 50, cacheWrite: 0 });
+  const { noCache, cacheRead, cacheWrite } = result!.cache!;
+  assert.equal(noCache + cacheRead + cacheWrite, result!.inputTokens);
+});
+
+test("parseUsage drops a split claiming more cached tokens than input", () => {
+  // Undividable — fall back to pricing the whole call at the full input rate
+  // rather than inventing a negative fresh-token count.
+  const result = parseUsage({
+    inputTokens: 100,
+    outputTokens: 0,
+    inputTokenDetails: { cacheReadTokens: 400, cacheWriteTokens: 0 },
+  });
+  assert.equal(result?.cache, undefined);
+  assert.equal(result?.inputTokens, 100);
+});
+
 test("parseUsage omits the cache split entirely when nothing was cached", () => {
   const result = parseUsage({
     inputTokens: 100,
