@@ -14,10 +14,11 @@ export interface ModelPrice {
   outputPerToken: number;
   /**
    * USD per cached (repeat) input token, when the provider publishes one.
-   * Not applied yet — token counting does not separate repeat tokens today.
+   * Falls back to {@link inputPerToken} when absent, so an unpublished cache
+   * rate over-estimates rather than under-charges.
    */
   cacheReadPerToken?: number;
-  /** USD per cache-write token, when the provider publishes one. Not applied yet. */
+  /** USD per cache-write token, when the provider publishes one. Same fallback. */
   cacheWritePerToken?: number;
 }
 

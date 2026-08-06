@@ -127,6 +127,104 @@ test("parseUsage strips unknown provider metadata and returns normalized usage",
   assert.deepStrictEqual(result, { inputTokens: 100, outputTokens: 20, totalTokens: 150 });
 });
 
+// Cache split. `inputTokens` is the inclusive total the provider reports, so the
+// three tiers must always divide it — never extend it.
+
+test("parseUsage extracts the cache split the SDK reports", () => {
+  const result = parseUsage({
+    inputTokens: 10_000,
+    outputTokens: 500,
+    inputTokenDetails: { noCacheTokens: 2000, cacheReadTokens: 8000, cacheWriteTokens: 0 },
+  });
+  assert.deepStrictEqual(result, {
+    inputTokens: 10_000,
+    outputTokens: 500,
+    totalTokens: 10_500,
+    cache: { noCache: 2000, cacheRead: 8000, cacheWrite: 0 },
+  });
+});
+
+test("parseUsage derives the uncached remainder when the SDK omits it", () => {
+  const result = parseUsage({
+    inputTokens: 10_000,
+    outputTokens: 0,
+    inputTokenDetails: { cacheReadTokens: 6000, cacheWriteTokens: 1000 },
+  });
+  assert.deepStrictEqual(result?.cache, { noCache: 3000, cacheRead: 6000, cacheWrite: 1000 });
+});
+
+test("parseUsage omits the cache split entirely when nothing was cached", () => {
+  const result = parseUsage({
+    inputTokens: 100,
+    outputTokens: 20,
+    inputTokenDetails: { noCacheTokens: 100, cacheReadTokens: 0, cacheWriteTokens: 0 },
+  });
+  // Same shape as a provider that reports no details at all — a non-caching run
+  // records and prices exactly as it did before the split existed.
+  assert.deepStrictEqual(result, { inputTokens: 100, outputTokens: 20, totalTokens: 120 });
+});
+
+test("tracker keeps the cache tiers summing to inputTokens", () => {
+  const tracker = new TokenTracker();
+  tracker.record({
+    inputTokens: 10_000,
+    outputTokens: 500,
+    totalTokens: 10_500,
+    cache: { noCache: 2000, cacheRead: 8000, cacheWrite: 0 },
+  });
+  const [bucket] = tracker.breakdown;
+  assert.equal(bucket.inputTokens, 10_000);
+  assert.equal(
+    bucket.noCacheInputTokens! + bucket.cacheReadInputTokens! + bucket.cacheWriteInputTokens!,
+    bucket.inputTokens
+  );
+  // Run totals are untouched by the split — the report shows what it always did.
+  assert.deepStrictEqual(tracker.totals, {
+    inputTokens: 10_000,
+    outputTokens: 500,
+    totalTokens: 10_500,
+  });
+});
+
+test("a model mixing cached and uncached calls still balances", () => {
+  const tracker = new TokenTracker();
+  tracker.record({ inputTokens: 500, outputTokens: 10 }); // no split reported
+  tracker.record({
+    inputTokens: 10_000,
+    outputTokens: 20,
+    cache: { noCache: 2000, cacheRead: 8000, cacheWrite: 0 },
+  });
+  const [bucket] = tracker.breakdown;
+  assert.equal(bucket.inputTokens, 10_500);
+  // The uncached call folds into noCache, so the tiers still divide the total.
+  assert.equal(bucket.noCacheInputTokens, 2500);
+  assert.equal(bucket.cacheReadInputTokens, 8000);
+  assert.equal(
+    bucket.noCacheInputTokens! + bucket.cacheReadInputTokens! + bucket.cacheWriteInputTokens!,
+    bucket.inputTokens
+  );
+});
+
+test("breakdown omits cache fields for a model that never hit a cache", () => {
+  const tracker = new TokenTracker();
+  tracker.record({ inputTokens: 100, outputTokens: 20 });
+  const [bucket] = tracker.breakdown;
+  assert.equal(bucket.cacheReadInputTokens, undefined);
+  assert.equal(bucket.noCacheInputTokens, undefined);
+});
+
+test("a child tracker propagates the cache split to its parent", () => {
+  const parent = new TokenTracker();
+  const child = parent.child();
+  child.record({
+    inputTokens: 10_000,
+    outputTokens: 0,
+    cache: { noCache: 2000, cacheRead: 8000, cacheWrite: 0 },
+  });
+  assert.equal(parent.breakdown[0].cacheReadInputTokens, 8000);
+  assert.equal(child.breakdown[0].cacheReadInputTokens, 8000);
+});
+
 // ---------------------------------------------------------------------------
 // Per-model attribution
 // ---------------------------------------------------------------------------

@@ -6,9 +6,11 @@
  * whenever `complete` is false, and the UI must say so — a report that quietly
  * treats an unknown model as $0 understates spend while looking authoritative.
  *
- * Repeat ("cached") input tokens are not yet separated by the token counter, so
- * all input is priced at the full input rate. For multi-turn runs against
- * providers that discount repeated context, that makes this an over-estimate.
+ * Input is priced per cache tier. `inputTokens` is the inclusive total, so the
+ * tiers are *divided out of* it rather than charged on top — adding a cache
+ * charge to the full input charge would bill every cached token twice. A tier
+ * whose rate the price table doesn't publish falls back to the full input rate,
+ * keeping the same never-quietly-free stance as an unpriced model.
  */
 
 import type { ModelTokenUsage } from "../execute/tokenTracker.js";
@@ -33,11 +35,25 @@ function costOne(usage: ModelTokenUsage): ModelCost {
 
   if (!found) return base;
 
+  const { inputPerToken, outputPerToken, cacheReadPerToken, cacheWritePerToken } = found.price;
+
+  // Split the (inclusive) input total across cache tiers. A model that reported
+  // no split priced every input token at the full rate before this existed, and
+  // still does: cacheRead/cacheWrite fall to 0 and noCache absorbs the total.
+  const cacheRead = usage.cacheReadInputTokens ?? 0;
+  const cacheWrite = usage.cacheWriteInputTokens ?? 0;
+  const noCache =
+    usage.noCacheInputTokens ?? Math.max(0, usage.inputTokens - cacheRead - cacheWrite);
+
+  // `??` not `||`: a published rate of 0 is real (some providers don't charge
+  // for cache writes) and must not be mistaken for a missing rate.
   return {
     ...base,
     usd:
-      usage.inputTokens * found.price.inputPerToken +
-      usage.outputTokens * found.price.outputPerToken,
+      noCache * inputPerToken +
+      cacheRead * (cacheReadPerToken ?? inputPerToken) +
+      cacheWrite * (cacheWritePerToken ?? inputPerToken) +
+      usage.outputTokens * outputPerToken,
     source: "table",
     matchedKey: found.matchedKey,
   };
