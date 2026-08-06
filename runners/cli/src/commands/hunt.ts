@@ -45,7 +45,7 @@ interface HuntCliOptions {
   targetModel?: string;
   header?: string[];
   name?: string;
-  model: string;
+  commanderModel: string;
   operatorModel: string;
   scoutModel: string;
   maxOperators: string;
@@ -189,7 +189,7 @@ export function registerHuntCommand(program: Command): void {
       (v: string, acc: string[]) => [...acc, v],
       []
     )
-    .option("--model <id>", "Commander model (alias or id)", "sonnet")
+    .option("--commander-model <id>", "Commander model (alias or id)", "sonnet")
     .option("--operator-model <id>", "Operator subagent model", "sonnet")
     .option("--scout-model <id>", "Scout subagent model", "haiku")
     .option("--max-operators <n>", "Max parallel operator subagents", "6")
@@ -274,7 +274,7 @@ export function registerHuntCommand(program: Command): void {
           targetName: opts.name,
           objective: opts.objective,
           apiKeyEnv: opts.targetKeyEnv,
-          commanderModel: opts.model,
+          commanderModel: opts.commanderModel,
           operatorModel: opts.operatorModel,
           scoutModel: opts.scoutModel,
           maxOperators: opts.maxOperators,
@@ -453,7 +453,7 @@ export function registerHuntCommand(program: Command): void {
       const huntOptions: HuntOptions = {
         target,
         objective,
-        commanderModel: opts.model,
+        commanderModel: opts.commanderModel,
         operatorModel: opts.operatorModel,
         scoutModel: opts.scoutModel,
         maxOperators: intOr(opts.maxOperators, 6),

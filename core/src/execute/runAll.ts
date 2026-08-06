@@ -317,11 +317,11 @@ async function curateTracesIfConfigured(
 /**
  * Label for the "Evaluation Suite" report field. Only a `mode: "suite"` selection
  * runs a whole named suite verbatim — explicit evaluator lists and preloaded specs
- * are, by definition, a hand-picked subset, so they're labeled "Custom Suite"
+ * are, by definition, a hand-picked subset, so they're labeled "Custom"
  * rather than borrowing a suite name that would overstate what actually ran.
  */
 function suiteLabel(selection: RunConfig["selection"]): string {
-  return selection.mode === "suite" ? selection.suite : "Custom Suite";
+  return selection.mode === "suite" ? selection.suite : "Custom";
 }
 
 /** Assemble a {@link UnifiedRunReport} from Node-side run config and evaluator results. */

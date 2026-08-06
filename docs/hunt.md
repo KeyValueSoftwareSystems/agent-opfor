@@ -106,11 +106,11 @@ respond before it's killed.
 
 ### Models
 
-| Option                  | Default  |
-| ----------------------- | -------- |
-| `--model <id>`          | `sonnet` |
-| `--operator-model <id>` | `sonnet` |
-| `--scout-model <id>`    | `haiku`  |
+| Option                   | Default  |
+| ------------------------ | -------- |
+| `--commander-model <id>` | `sonnet` |
+| `--operator-model <id>`  | `sonnet` |
+| `--scout-model <id>`     | `haiku`  |
 
 ### Limits
 
@@ -203,7 +203,7 @@ The credential actually in use is printed at startup (`Authenticating via: …`)
 
 ### Pinning model snapshots
 
-`--model`, `--operator-model`, and `--scout-model` take the aliases `haiku` / `sonnet` / `opus`. To pin those aliases to specific snapshots — for a gateway that only exposes certain ids, or to freeze behaviour across runs — set:
+`--commander-model`, `--operator-model`, and `--scout-model` take the aliases `haiku` / `sonnet` / `opus`. To pin those aliases to specific snapshots — for a gateway that only exposes certain ids, or to freeze behaviour across runs — set:
 
 ```bash
 ANTHROPIC_DEFAULT_HAIKU_MODEL=claude-haiku-4-5-20251001

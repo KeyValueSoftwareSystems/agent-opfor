@@ -96,7 +96,9 @@ export interface AutonomousReport {
   operatorModel: string;
   /** Optional — older reports predate these fields. */
   scoutModel?: string;
-  /** Falls back to the commander model when unset. */
+  /** Unset means the run never used the independent verifier (no --verify flag). When
+   *  verification IS on and no dedicated model was configured, this falls back to the
+   *  commander model, but it is only ever set at all if verification actually ran. */
   verifierModel?: string;
   /** Whether the run was truncated by a budget/turn ceiling. */
   truncated: boolean;
