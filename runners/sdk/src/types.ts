@@ -198,7 +198,7 @@ export interface RunResults {
   id: string;
   timestamp: string;
   targetName: string;
-  /** The evaluation suite that was run, or "Custom Suite" for a hand-picked selection. */
+  /** The evaluation suite that was run, or "Custom" for a hand-picked selection. */
   suiteId: string;
   targetKind: "agent" | "mcp";
   effort: Effort;

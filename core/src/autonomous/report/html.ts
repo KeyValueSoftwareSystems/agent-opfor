@@ -78,7 +78,7 @@ function renderTranscript(f: ReportFinding, tId: string): string {
       ? `<div class="turn-rail-wrap"><div class="turn-rail">${f.turns
           .map((t) => {
             const bad = failing.has(t.turnIndex);
-            return `<button class="turn-step${bad ? " fail-turn" : ""}" data-turn="${turnId(t.turnIndex)}" title="Jump to turn ${t.turnIndex}${bad ? " — breach" : ""}">${t.turnIndex}</button>`;
+            return `<button class="turn-step${bad ? " fail-turn" : ""}" data-turn="${turnId(t.turnIndex)}" title="Jump to turn ${t.turnIndex}${bad ? " (breach)" : ""}">${t.turnIndex}</button>`;
           })
           .join(
             ""
@@ -93,7 +93,7 @@ function renderTranscript(f: ReportFinding, tId: string): string {
     <div class="transcript-wrap" data-for="${tId}">
       <div class="transcript">
         <div class="transcript-header">Conversation Transcript <span class="tc-count">${f.turns.length} turn${f.turns.length === 1 ? "" : "s"}</span></div>
-        <div class="transcript-body">
+        <div class="transcript-body${rail ? "" : " no-rail"}">
           ${rail}
           <div class="turn-content">${turns}</div>
         </div>
@@ -150,7 +150,7 @@ function renderFindingCard(f: ReportFinding, index: number): string {
   const metaRow =
     failed || standardsLabel
       ? `<div class="eval-meta-row">
-          ${failed ? `<div class="eval-meta-col"><div class="detail-section-label">Confidence</div><div class="meta-v-lg">${f.confidence}%</div></div>` : ""}
+          ${failed ? `<div class="eval-meta-col"><div class="detail-section-label">Confidence<span class="info-hover"><span class="info-icon">i</span><div class="info-tooltip">How confident the judge is in this verdict, not a severity score.</div></span></div><div class="meta-v-lg">${f.confidence}%</div></div>` : ""}
           ${standardsLabel ? `<div class="eval-meta-col standards-col"><div class="detail-section-label">Standards</div><div class="meta-v-standards">${esc(standardsLabel)}</div></div>` : ""}
         </div>`
       : "";
@@ -163,7 +163,7 @@ function renderFindingCard(f: ReportFinding, index: number): string {
           <div class="eval-summary-info">
             <span class="eval-summary-name">${esc(f.name || f.vulnClassId)}</span>
             <span class="eval-sep">|</span>
-            <span class="sev-tag" style="color:${sevColor}">${SEVERITY_ICON}${esc(f.severity.toUpperCase())}</span>
+            <span class="sev-tag" style="color:${sevColor}">${SEVERITY_ICON}${esc(f.severity.toUpperCase())}<span class="info-hover"><span class="info-icon">i</span><div class="info-tooltip">The vuln-class's category weight, not this finding's outcome. A LOW-severity class can still be confirmed.</div></span></span>
           </div>
         </div>
         <div class="eval-summary-right">
@@ -243,15 +243,31 @@ export function renderReportHtml(r: AutonomousReport): string {
   const low = sevCount("low");
 
   const vulnerable = r.summary.confirmed > 0;
-  const verdict = vulnerable ? "Vulnerable" : "Defended";
+  const verdict = vulnerable ? "Fail" : "Pass";
   const risk =
     crit > 0
-      ? { label: "Critical Risk", color: "#991B1B" }
+      ? {
+          label: "Critical Risk",
+          color: "#991B1B",
+          explain: "Critical Risk = at least one confirmed critical-severity finding.",
+        }
       : high > 0
-        ? { label: "High Risk", color: "#DC2626" }
+        ? {
+            label: "High Risk",
+            color: "#DC2626",
+            explain: "High Risk = at least one confirmed high-severity finding, none critical.",
+          }
         : vulnerable
-          ? { label: "Medium Risk", color: "#D97706" }
-          : { label: "Low Risk", color: "#059669" };
+          ? {
+              label: "Medium Risk",
+              color: "#D97706",
+              explain: "Medium Risk = confirmed findings exist, none high or critical severity.",
+            }
+          : {
+              label: "Low Risk",
+              color: "#059669",
+              explain: "Low Risk = no confirmed vulnerabilities this run.",
+            };
 
   // Safety score mirrors the run report's 0-100 scale: the inverse of attack success.
   // N/A when nothing was conclusively scored (no confirmed and no defended threads).
@@ -324,9 +340,7 @@ export function renderReportHtml(r: AutonomousReport): string {
 
   const narrative = r.synthesisComplete
     ? esc(r.executiveNarrative)
-    : `Assessment of <strong>${esc(r.target.name)}</strong>: <strong>${r.summary.confirmed}</strong> confirmed vulnerabilit${r.summary.confirmed === 1 ? "y" : "ies"} (${crit} critical, ${high} high) across ${threadCount} attack thread${threadCount === 1 ? "" : "s"} — ${r.summary.attackSuccessRate}% attack-success rate.${r.truncated ? ` <em>Run truncated: ${esc(r.truncationReason ?? "")}.</em>` : ""}`;
-
-  const outcomeLabel = r.objectiveOutcome.replace(/-/g, " ");
+    : `Assessment of <strong>${esc(r.target.name)}</strong>: <strong>${r.summary.confirmed}</strong> confirmed vulnerabilit${r.summary.confirmed === 1 ? "y" : "ies"} (${crit} critical, ${high} high) across ${threadCount} attack thread${threadCount === 1 ? "" : "s"}.${r.truncated ? ` <em>Run truncated: ${esc(r.truncationReason ?? "")}.</em>` : ""}`;
 
   // ── Section numbering + nav (both sections and links are conditional) ──
   let sectionNo = 0;
@@ -346,6 +360,11 @@ export function renderReportHtml(r: AutonomousReport): string {
   if (classesNo) link("classes", "Categories");
   const findingsNo = num();
   link("findings", "Findings");
+  // Guardrails/weak-points are the commander's closing read on the WHOLE engagement (written
+  // in the same submit_report call as the executive narrative), not something recon itself
+  // produces, hence living after Findings rather than inside the Reconnaissance section.
+  const guardrailsNo = r.recon.guardrails.length > 0 || r.recon.weakPoints.length > 0 ? num() : 0;
+  if (guardrailsNo) link("guardrails", "Guardrails");
   const treeNo = r.findings.length > 0 ? num() : 0;
   if (treeNo) link("tree", "Attack Tree");
   const recsNo = r.recommendations.length > 0 ? num() : 0;
@@ -416,7 +435,6 @@ export function renderReportHtml(r: AutonomousReport): string {
   .cover-inner{max-width:1080px;margin:0 auto;padding:42px 28px 38px}
   .cover-top{display:flex;align-items:flex-start;justify-content:space-between;gap:28px;margin-bottom:22px}
   .cover-title{font-size:30px;font-weight:700;color:#fff;letter-spacing:-0.01em}
-  .cover-subtitle{font-size:14.5px;color:#A8B2C1;margin-top:7px;max-width:760px;line-height:1.65}
   .cover-badges-row{display:flex;align-items:center;gap:12px;margin-bottom:24px;flex-wrap:wrap}
   .badge-confidential{display:inline-flex;align-items:center;gap:6px;background:var(--accent);color:#fff;padding:5px 12px;border-radius:6px;font-size:11.5px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase}
   .badge-mode{display:inline-flex;align-items:center;gap:6px;background:#262626;border:1px solid #3a3a3a;color:#E2E8F0;padding:5px 12px;border-radius:6px;font-size:11.5px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase}
@@ -425,7 +443,7 @@ export function renderReportHtml(r: AutonomousReport): string {
   .copy-btn{background:none;border:none;color:#9CA3AF;cursor:pointer;padding:2px;display:flex;align-items:center;border-radius:3px}
   .copy-btn:hover{color:#fff;background:rgba(255,255,255,0.1)}
   .cover-date{font-size:12.5px;color:#9CA3AF}
-  .cover-meta{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid rgba(255,255,255,0.08);border-radius:10px;overflow:hidden}
+  .cover-meta{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid rgba(255,255,255,0.08);border-radius:10px;overflow:hidden}
   .cover-meta-item{padding:17px 20px;border-right:1px solid rgba(255,255,255,0.08)}
   .cover-meta-item:last-child{border-right:none}
   .cover-meta-k{font-size:11.5px;color:#9CA3AF;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px}
@@ -446,26 +464,63 @@ export function renderReportHtml(r: AutonomousReport): string {
   .section-subtitle{font-size:12.5px;color:var(--muted);margin-left:auto;text-align:right}
 
   /* ── Executive summary strip ── */
-  .exec-strip{display:flex;align-items:stretch;border:1px solid var(--line);border-radius:12px;background:var(--surface);overflow:hidden;margin-bottom:12px}
-  /* flex-start, not center: the four cards hold different amounts of content, and centering
-     each one vertically would land every label at a different height. */
-  .exec-strip-item{flex:1;padding:22px 24px;border-right:1px solid var(--line);display:flex;flex-direction:column;justify-content:flex-start;min-width:0}
-  .exec-strip-item:last-child{border-right:none}
-  .exec-strip-label{font-size:11.5px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
-  .exec-verdict-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-  .exec-verdict-text{font-size:31px;font-weight:800;letter-spacing:0.02em;line-height:1}
+  /* No overflow:hidden here (unlike a plain rounded card), since the info-tooltip below needs
+     to pop outside this row's box on hover, so the rounded corners are faked on the end cells
+     (:first-child/:last-child) instead of clipped at the row level. */
+  .exec-strip{display:flex;align-items:stretch;border:1px solid var(--line);border-radius:12px;background:var(--surface);margin-bottom:12px}
+  /* flex-start by default: short cards (Testing Cost, Duration) sit right under their
+     label, since pinning them to the bottom of a taller row leaves a dead gap in the middle.
+     Cards with genuinely variable content (a two-line wrapped badge vs. a fixed-height gauge
+     vs. value+dots) opt into .exec-strip-item--bottom, which uses space-between so label
+     stays top and body stays bottom, so those cards line up with each other since align-items:
+     stretch on .exec-strip already gives every card the same height (the tallest card's).
+     Horizontally, align-items centers each card's own content since label/body shrink to
+     their content width instead of stretching to the card's full width. */
+  .exec-strip-item{position:relative;flex:1;padding:18px 22px;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;justify-content:flex-start;min-width:0;text-align:center}
+  .exec-strip-item.exec-strip-item--bottom{justify-content:space-between}
+  .exec-strip-item:first-child{border-radius:12px 0 0 12px}
+  .exec-strip-item:last-child{border-right:none;border-radius:0 12px 12px 0}
+  .exec-strip-label{font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;display:flex;align-items:center;justify-content:center;gap:5px}
+
+  /* ── Info tooltip: appears the instant the pointer enters the card (no native-title delay),
+     stays open for as long as the pointer is anywhere on the card, not just on the "i" icon.
+     Hover is bound to the whole .exec-strip-item; the icon is just the visual affordance. ── */
+  .info-icon{display:inline-flex;align-items:center;justify-content:center;width:13px;height:13px;border-radius:50%;border:1.3px solid var(--muted-2);color:var(--muted-2);font-size:9px;font-weight:700;font-style:italic;font-family:Georgia,"Times New Roman",serif;cursor:default;flex-shrink:0}
+  .exec-strip-item:hover .info-icon{border-color:var(--text);color:var(--text)}
+  .info-tooltip{position:absolute;top:100%;left:50%;transform:translateX(-50%) translateY(4px);margin-top:8px;width:max-content;max-width:230px;background:#0F172A;color:#E2E8F0;font-size:12px;font-weight:400;text-align:left;line-height:1.45;letter-spacing:normal;text-transform:none;padding:7px 11px;border-radius:7px;box-shadow:0 8px 24px rgba(15,23,42,0.25);opacity:0;visibility:hidden;pointer-events:none;transition:opacity .12s ease;z-index:20}
+  .exec-strip-item:hover .info-tooltip{opacity:1;visibility:visible}
+  /* Base hover for a standalone .info-hover (a single word/icon, not a whole card) — the
+     scope-row rule further down widens the hoverable area for rows specifically, but this is
+     what makes .info-hover work on its own wherever there's no row to widen the hover to. */
+  .info-hover:hover .info-icon{border-color:var(--text);color:var(--text)}
+  .info-hover:hover .info-tooltip{opacity:1;visibility:visible}
+  .tooltip-divider{height:1px;background:rgba(255,255,255,0.15);margin:6px 0}
+  .exec-strip-body{display:flex;flex-direction:column;align-items:center}
+  /* Cards without --bottom don't stretch their body to the row's bottom edge, so nudge the
+     value down a little instead of letting it sit flush under the label: a small step
+     toward vertical center without opening the dead gap full space-between would leave. */
+  .exec-strip-item:not(.exec-strip-item--bottom) .exec-strip-body{margin-top:14px}
+  /* translateY, not a margin change: the box edges here are already pixel-identical to the
+     gauge/value box next to it (verified with getBoundingClientRect), so this isn't a layout
+     bug. Bold numerals like "80%" have no descenders, so their visible ink sits a few px above
+     their own invisible box edge, while the LOW RISK pill's border IS its true edge, so the two
+     look misaligned even though their boxes match. A transform nudges pixels only, leaving the
+     box math (and the space-between bottom-pinning) untouched. */
+  .exec-verdict-row{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;transform:translateY(-5px)}
+  .exec-verdict-text{font-size:32px;font-weight:800;letter-spacing:0.02em;line-height:1}
   .exec-verdict-text.pass{color:var(--pass)}
   .exec-verdict-text.fail{color:var(--fail)}
-  .exec-risk{font-size:11.5px;font-weight:600;padding:5px 12px;border-radius:999px;border:1px solid;white-space:nowrap;cursor:default}
-  /* Width matches the gauge so the value centres under the arc while the block itself stays
-     left-aligned with the label, like every other card in the strip. */
-  .gauge-value{font-size:24px;font-weight:800;color:var(--text);width:120px;text-align:center;margin-top:-30px}
-  .sc-value{font-size:29px;font-weight:800;line-height:1;color:var(--text)}
-  .sc-dots{display:flex;flex-direction:column;gap:3px;margin-top:8px}
-  .sc-dot-row{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted)}
+  .exec-risk{font-size:11px;font-weight:600;padding:4px 11px;border-radius:999px;border:1px solid;white-space:nowrap;cursor:default}
+  .gauge-value{font-size:26px;font-weight:800;color:var(--text);width:120px;text-align:center;margin-top:-30px}
+  .sc-value{font-size:26px;font-weight:800;line-height:1;color:var(--text)}
+  .sc-dots{display:flex;flex-direction:column;align-items:center;gap:3px;margin-top:8px}
+  .sc-dot-row{display:flex;align-items:center;justify-content:center;gap:6px;font-size:12px;color:var(--muted)}
   .sc-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
-  .sc-sub{font-size:12.5px;color:var(--muted);margin-top:5px}
+  .sc-sub{font-size:12px;color:var(--muted);margin-top:4px}
   .summary-narrative{font-size:14.5px;color:var(--text-2);line-height:1.78;padding:6px 2px}
+  .goal-callout{margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+  .goal-callout-label{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px}
+  .goal-callout-text{font-size:14px;color:var(--text-2);line-height:1.65}
   .summary-narrative strong{color:var(--text)}
 
   /* ── Severity distribution ── */
@@ -487,9 +542,20 @@ export function renderReportHtml(r: AutonomousReport): string {
   .scope-v.mono{font-size:12px}
   .scope-full{grid-column:1/-1}
   .scope-text{font-size:14px;color:var(--text-2);line-height:1.72}
-  .agent-role{display:block;font-size:11px;color:var(--muted-2);font-weight:400;margin-top:1px}
+  /* .info-hover is just the positioning anchor for its .info-tooltip (absolute position
+     needs a positioned ancestor); the actual hover trigger is the whole .scope-row, same
+     "hover anywhere on the row" behavior as .exec-strip-item above. */
+  .info-hover{position:relative;display:inline-flex;align-items:center;gap:4px;cursor:default}
+  .info-hover .info-icon{margin-left:3px}
+  .scope-row:hover .info-icon{border-color:var(--text);color:var(--text)}
+  .scope-row:hover .info-tooltip{opacity:1;visibility:visible}
   .chips{display:flex;flex-wrap:wrap;gap:7px}
   .chip{font-size:12px;padding:4px 11px;border-radius:999px;border:1px solid var(--line-2);background:var(--surface-2);color:var(--text-2)}
+  /* Full-sentence notes (guardrails, weak points), unlike .chip's short single-word tags:
+     a pill radius squeezes wrapped multi-line text against its rounded ends, so these get a
+     softer rounded-rectangle shape and roomier padding instead, one per row. */
+  .note-list{display:flex;flex-direction:column;gap:8px}
+  .note-chip{font-size:12.5px;line-height:1.5;padding:10px 14px;border-radius:8px;border:1px solid var(--line-2);background:var(--surface-2);color:var(--text-2)}
 
   /* ── Badges ── */
   .eval-sep{color:var(--line-2);font-weight:400}
@@ -539,7 +605,13 @@ export function renderReportHtml(r: AutonomousReport): string {
   .corr-badge{font-size:11.5px;color:var(--pass);background:var(--pass-bg);border:1px solid var(--pass-border);border-radius:5px;padding:3px 10px;font-weight:600}
 
   /* ── Transcript ── */
-  .transcript-toggle{display:inline-flex;align-items:center;gap:7px;font-size:13.5px;font-weight:600;color:var(--muted);background:none;border:none;cursor:pointer;padding:15px 0 0;margin-top:2px;border-top:1px solid var(--line);width:100%}
+  /* display:flex, not inline-flex: this button is always the LAST child of .eval-body, and an
+     inline-level box (inline-flex) sits inside an anonymous line box with its own font-metric
+     "strut" height, which silently breaks any margin-bottom math on it (verified: doubling the
+     negative margin had zero visible effect). A block-level flex container behaves as expected,
+     so margin-bottom below cancels exactly the amount needed to match the 15px gap above (the
+     padding-top between the divider line and the text) against the card's 22px bottom padding. */
+  .transcript-toggle{display:flex;align-items:center;gap:7px;font-size:13.5px;font-weight:600;color:var(--muted);background:none;border:none;cursor:pointer;padding:15px 0 0;margin-top:2px;margin-bottom:-7px;border-top:1px solid var(--line);width:100%}
   .transcript-toggle:hover{color:var(--text)}
   .transcript-toggle svg{transition:transform 0.2s}
   .transcript-wrap{display:none;margin-bottom:8px}
@@ -547,7 +619,12 @@ export function renderReportHtml(r: AutonomousReport): string {
   .transcript{border:1px solid var(--line);border-radius:8px;overflow:hidden}
   .transcript-header{padding:11px 15px;background:var(--surface-2);font-size:11.5px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}
   .tc-count{font-weight:400;color:var(--muted-2)}
+  /* No left padding by default: the turn-rail's own left inset (below) already gives turn
+     content its left margin, via the rail column + this gap. A single-turn thread skips the
+     rail entirely (not useful for one turn), so .no-rail restores that margin directly instead
+     of leaving the text flush against the card edge. */
   .transcript-body{position:relative;display:flex;align-items:flex-start;gap:18px;padding:15px 15px 15px 0;max-height:620px;overflow-y:auto;overscroll-behavior:contain}
+  .transcript-body.no-rail{padding-left:14px}
   .turn-rail-wrap{position:sticky;top:4px;flex-shrink:0;align-self:flex-start}
   .turn-rail{display:flex;flex-direction:column;align-items:center;gap:17px;padding:4px 0 4px 14px;max-height:574px;overflow-y:auto;scrollbar-width:none;-ms-overflow-style:none}
   .turn-rail::-webkit-scrollbar{display:none}
@@ -607,11 +684,6 @@ export function renderReportHtml(r: AutonomousReport): string {
   .decision-fork{color:#7c3aed}.decision-dispatch{color:#2563eb}.decision-stop{color:var(--fail)}.decision-pivot{color:#d97706}.decision-continue{color:var(--muted)}
   .no-findings{background:var(--pass-bg);border:1px solid var(--pass-border);border-radius:10px;padding:20px;text-align:center;color:var(--pass);font-weight:600;font-size:14px}
 
-  /* ── Footer ── */
-  .report-footer{max-width:1080px;margin:48px auto 0;padding:20px 28px;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
-  .footer-left{font-size:12.5px;color:var(--muted)}
-  .footer-right{font-size:12.5px;color:var(--muted-2);font-family:ui-monospace,monospace}
-
   @media print{
     body{background:#fff;padding:0}
     .nav{display:none}
@@ -642,7 +714,6 @@ export function renderReportHtml(r: AutonomousReport): string {
     <div class="cover-top">
       <div>
         <div class="cover-title">Autonomous Hunt Assessment Report</div>
-        <div class="cover-subtitle">${esc(r.objective)}</div>
       </div>
       ${OPFOR_LOGO_SVG}
     </div>
@@ -652,12 +723,13 @@ export function renderReportHtml(r: AutonomousReport): string {
       <span class="reportid-chip">Report ID: <span class="mono">${esc(r.reportId.slice(0, 13))}</span>
         <button class="copy-btn" data-copy="${esc(r.reportId)}" title="Copy report ID">${COPY_ICON}</button>
       </span>
-      <span class="cover-date">${esc(dateStr)}, ${esc(timeStr)}</span>
+      <span class="cover-date">${esc(dateStr)}, ${esc(timeStr)}${durationMs !== undefined ? ` · Ran for: ${formatDuration(durationMs)}` : ""}</span>
     </div>
     <div class="cover-meta">
       <div class="cover-meta-item"><div class="cover-meta-k">Target System</div><div class="cover-meta-v" title="${esc(r.target.name)} — ${esc(r.target.endpoint)}">${esc(truncate(r.target.name, 40))}</div></div>
-      <div class="cover-meta-item"><div class="cover-meta-k">Objective Outcome</div><div class="cover-meta-v" style="text-transform:capitalize">${esc(outcomeLabel)}</div></div>
-      <div class="cover-meta-item"><div class="cover-meta-k">Run Cost</div><div class="cover-meta-v">${r.totalCostUsd !== undefined ? "$" + r.totalCostUsd.toFixed(2) : "—"}</div></div>
+      <div class="cover-meta-item"><div class="cover-meta-k">Commander Model</div><div class="cover-meta-v mono" style="font-size:12.5px">${esc(r.commanderModel || "—")}</div></div>
+      <div class="cover-meta-item"><div class="cover-meta-k">Operator Model</div><div class="cover-meta-v mono" style="font-size:12.5px">${esc(r.operatorModel || "—")}</div></div>
+      <div class="cover-meta-item"><div class="cover-meta-k">Scout Model</div><div class="cover-meta-v mono" style="font-size:12.5px">${esc(r.scoutModel || "—")}</div></div>
     </div>
   </div>
 </div>
@@ -675,37 +747,70 @@ export function renderReportHtml(r: AutonomousReport): string {
       <div class="section-title">Executive Summary</div>
     </div>
     <div class="exec-strip">
-      <div class="exec-strip-item">
-        <div class="exec-strip-label">Overall Verdict</div>
-        <div class="exec-verdict-row">
-          <div class="exec-verdict-text ${vulnerable ? "fail" : "pass"}">${verdict}</div>
-          <div class="exec-risk" title="Overall risk status derived from confirmed-finding severities" style="color:${risk.color};border-color:${risk.color}66;background:${risk.color}14">${risk.label.toUpperCase()}</div>
+      <div class="exec-strip-item exec-strip-item--bottom">
+        <div class="exec-strip-label">Overall Verdict<span class="info-icon">i</span>
+          <div class="info-tooltip">Fail = at least one attack thread ended in a confirmed vulnerability.<div class="tooltip-divider"></div>${risk.explain}</div>
         </div>
-        <div class="sc-sub" style="text-transform:capitalize">Objective ${esc(outcomeLabel)}${r.truncated ? " · run truncated" : ""}</div>
-      </div>
-      <div class="exec-strip-item">
-        <div class="exec-strip-label">Safety Score</div>
-        ${gaugeSvg(safetyScore ?? 0, safetyScore === null ? "#94A3B8" : safetyColor(safetyScore))}
-        <div class="gauge-value">${safetyScore === null ? "N/A" : `${safetyScore}%`}</div>
-      </div>
-      <div class="exec-strip-item">
-        <div class="exec-strip-label">Findings</div>
-        <div class="sc-value">${r.findings.length}</div>
-        <div class="sc-dots">
-          <div class="sc-dot-row"><span class="sc-dot" style="background:var(--fail)"></span>${r.summary.confirmed} confirmed</div>
-          <div class="sc-dot-row"><span class="sc-dot" style="background:var(--pass)"></span>${r.summary.defended} defended</div>
-          ${r.summary.errors > 0 ? `<div class="sc-dot-row"><span class="sc-dot" style="background:#D97706"></span>${r.summary.errors} errored</div>` : ""}
+        <div class="exec-strip-body">
+          <div class="exec-verdict-row">
+            <div class="exec-verdict-text ${vulnerable ? "fail" : "pass"}">${verdict}</div>
+            <div class="exec-risk" style="color:${risk.color};border-color:${risk.color}66;background:${risk.color}14">${risk.label.toUpperCase()}</div>
+          </div>
         </div>
-        <div class="sc-sub">across ${threadCount} attack thread${threadCount === 1 ? "" : "s"}</div>
       </div>
-      <div class="exec-strip-item">
-        <div class="exec-strip-label">Attack Success</div>
-        <div class="sc-value" style="color:${r.summary.attackSuccessRate > 0 ? "var(--fail)" : "var(--pass)"}">${r.summary.attackSuccessRate}%</div>
-        <div class="sc-sub">${durationMs !== undefined ? `${formatDuration(durationMs)} wall clock` : `${classes.length} class${classes.length === 1 ? "" : "es"} tested`}</div>
+      <div class="exec-strip-item exec-strip-item--bottom">
+        <div class="exec-strip-label">Safety Score<span class="info-icon">i</span>
+          <div class="info-tooltip">Share of scoreable findings that defended successfully.</div>
+        </div>
+        <div class="exec-strip-body">
+          ${gaugeSvg(safetyScore ?? 0, safetyScore === null ? "#94A3B8" : safetyColor(safetyScore))}
+          <div class="gauge-value">${safetyScore === null ? "N/A" : `${safetyScore}%`}</div>
+        </div>
       </div>
+      <div class="exec-strip-item exec-strip-item--bottom">
+        <div class="exec-strip-label">Findings<span class="info-icon">i</span>
+          <div class="info-tooltip">One entry per finding: confirmed means a real vulnerability, defended means the target held.</div>
+        </div>
+        <div class="exec-strip-body">
+          <div class="sc-value">${r.findings.length}</div>
+          <div class="sc-dots">
+            <div class="sc-dot-row"><span class="sc-dot" style="background:var(--fail)"></span>${r.summary.confirmed} confirmed</div>
+            <div class="sc-dot-row"><span class="sc-dot" style="background:var(--pass)"></span>${r.summary.defended} defended</div>
+            ${r.summary.errors > 0 ? `<div class="sc-dot-row"><span class="sc-dot" style="background:#D97706"></span>${r.summary.errors} errored</div>` : ""}
+          </div>
+        </div>
+      </div>
+      ${
+        r.totalCostUsd !== undefined
+          ? `<div class="exec-strip-item">
+        <div class="exec-strip-label">Testing Cost<span class="info-icon">i</span>
+          <div class="info-tooltip">Estimated LLM cost across the commander, operator, and scout this run.</div>
+        </div>
+        <div class="exec-strip-body">
+          <div class="sc-value">$${r.totalCostUsd.toFixed(2)}</div>
+        </div>
+      </div>`
+          : ""
+      }
+      ${
+        durationMs !== undefined
+          ? `<div class="exec-strip-item">
+        <div class="exec-strip-label">Duration<span class="info-icon">i</span>
+          <div class="info-tooltip">Wall-clock time from the run's start to the final report.</div>
+        </div>
+        <div class="exec-strip-body">
+          <div class="sc-value">${formatDuration(durationMs)}</div>
+        </div>
+      </div>`
+          : ""
+      }
     </div>
     ${vulnerable && sevSeg ? `<div class="sevbar-wrap"><div class="sevbar">${sevSeg}</div><div class="sev-legend">${sevLegend}</div></div>` : ""}
     <div class="summary-narrative">${narrative}</div>
+    <div class="goal-callout">
+      <div class="goal-callout-label">Objective</div>
+      <div class="goal-callout-text">${esc(r.objective)}</div>
+    </div>
   </div>
 
   <div class="section" id="scope">
@@ -723,17 +828,21 @@ export function renderReportHtml(r: AutonomousReport): string {
       </div>
       <div class="scope-card">
         <div class="scope-card-title">Attack Agents</div>
-        <div class="scope-row"><span class="scope-k">Commander <span class="agent-role">plans &amp; synthesizes</span></span><span class="scope-v mono">${esc(r.commanderModel || "—")}</span></div>
-        <div class="scope-row"><span class="scope-k">Operator <span class="agent-role">runs attack threads</span></span><span class="scope-v mono">${esc(r.operatorModel || "—")}</span></div>
-        <div class="scope-row"><span class="scope-k">Scout <span class="agent-role">recon &amp; lead triage</span></span><span class="scope-v mono">${esc(r.scoutModel || "—")}</span></div>
-        <div class="scope-row"><span class="scope-k">Verifier <span class="agent-role">independent self-check</span></span><span class="scope-v mono">${esc(r.verifierModel || r.commanderModel || "—")}</span></div>
+        <div class="scope-row"><span class="scope-k">Commander<span class="info-hover"><span class="info-icon">i</span><div class="info-tooltip">Plans the attack strategy and writes the final synthesis.</div></span></span><span class="scope-v mono">${esc(r.commanderModel || "—")}</span></div>
+        <div class="scope-row"><span class="scope-k">Operator<span class="info-hover"><span class="info-icon">i</span><div class="info-tooltip">Runs the actual attack threads against the target.</div></span></span><span class="scope-v mono">${esc(r.operatorModel || "—")}</span></div>
+        <div class="scope-row"><span class="scope-k">Scout<span class="info-hover"><span class="info-icon">i</span><div class="info-tooltip">Handles recon probing and triages promising leads.</div></span></span><span class="scope-v mono">${esc(r.scoutModel || "—")}</span></div>
+        ${
+          r.verifierModel
+            ? `<div class="scope-row"><span class="scope-k">Verifier<span class="info-hover"><span class="info-icon">i</span><div class="info-tooltip">Independently double-checks high-severity findings, only when --verify is enabled.</div></span></span><span class="scope-v mono">${esc(r.verifierModel)}</span></div>`
+            : ""
+        }
       </div>
       <div class="scope-card">
         <div class="scope-card-title">Exploration</div>
-        <div class="scope-row"><span class="scope-k">Attack Threads</span><span class="scope-v">${threadCount}</span></div>
-        <div class="scope-row"><span class="scope-k">Leads Flagged</span><span class="scope-v">${r.exploration.leadsFlagged}</span></div>
-        <div class="scope-row"><span class="scope-k">Leads Expanded / Dismissed</span><span class="scope-v">${r.exploration.leadsSpawned} / ${r.exploration.leadsDismissed}</span></div>
-        <div class="scope-row"><span class="scope-k">Max Depth Reached</span><span class="scope-v">${r.exploration.maxDepthReached}${r.exploration.maxDepthReached === 0 ? " (root wave only)" : ""}</span></div>
+        <div class="scope-row"><span class="scope-k">Attack Threads<span class="info-hover"><span class="info-icon">i</span><div class="info-tooltip">Independent attack conversations the operators ran against the target.</div></span></span><span class="scope-v">${threadCount}</span></div>
+        <div class="scope-row"><span class="scope-k">Leads Flagged<span class="info-hover"><span class="info-icon">i</span><div class="info-tooltip">Promising but unfinished seams operators noticed mid-attack, queued for the commander to review.</div></span></span><span class="scope-v">${r.exploration.leadsFlagged}</span></div>
+        <div class="scope-row"><span class="scope-k">Leads Expanded / Dismissed<span class="info-hover"><span class="info-icon">i</span><div class="info-tooltip">Flagged leads the commander sent to a follow-up attack, versus ones it dropped as too weak.</div></span></span><span class="scope-v">${r.exploration.leadsSpawned} / ${r.exploration.leadsDismissed}</span></div>
+        <div class="scope-row"><span class="scope-k">Max Depth Reached<span class="info-hover"><span class="info-icon">i</span><div class="info-tooltip">How many follow-up waves deep a lead got chased. 0 means only the first wave ran.</div></span></span><span class="scope-v">${r.exploration.maxDepthReached}${r.exploration.maxDepthReached === 0 ? " (root wave only)" : ""}</span></div>
       </div>
       <div class="scope-card">
         <div class="scope-card-title">Run</div>
@@ -751,19 +860,9 @@ export function renderReportHtml(r: AutonomousReport): string {
       <div class="section-title">Reconnaissance</div>
       <div class="section-subtitle">${r.recon.probeCount} benign probe${r.recon.probeCount === 1 ? "" : "s"}</div>
     </div>
-    <div class="scope-card scope-full" style="margin-bottom:14px">
+    <div class="scope-card scope-full">
       <div class="scope-card-title">Fingerprint</div>
       <div class="scope-text">${esc(r.recon.fingerprint)}</div>
-    </div>
-    <div class="scope-grid">
-      <div class="scope-card">
-        <div class="scope-card-title">Observed Guardrails</div>
-        ${r.recon.guardrails.length ? `<div class="chips">${r.recon.guardrails.map((g) => `<span class="chip">${esc(g)}</span>`).join("")}</div>` : '<div class="sc-sub">None recorded.</div>'}
-      </div>
-      <div class="scope-card">
-        <div class="scope-card-title">Candidate Weak Points</div>
-        ${r.recon.weakPoints.length ? `<div class="chips">${r.recon.weakPoints.map((w) => `<span class="chip">${esc(w)}</span>`).join("")}</div>` : '<div class="sc-sub">None recorded.</div>'}
-      </div>
     </div>
   </div>
 
@@ -794,6 +893,28 @@ export function renderReportHtml(r: AutonomousReport): string {
     ${ordered.length ? ordered.map((f, i) => renderFindingCard(f, i)).join("") : '<div class="no-findings">No attack threads were recorded for this run.</div>'}
   </div>
 
+  ${
+    guardrailsNo
+      ? `<div class="section" id="guardrails">
+    <div class="section-header">
+      <div class="section-num">${guardrailsNo}</div>
+      <div class="section-title">Guardrails &amp; Weak Points</div>
+      <div class="section-subtitle">Commander's closing read on the full engagement</div>
+    </div>
+    <div class="scope-grid">
+      <div class="scope-card">
+        <div class="scope-card-title">Observed Guardrails</div>
+        ${r.recon.guardrails.length ? `<div class="note-list">${r.recon.guardrails.map((g) => `<div class="note-chip">${esc(g)}</div>`).join("")}</div>` : '<div class="sc-sub">None recorded.</div>'}
+      </div>
+      <div class="scope-card">
+        <div class="scope-card-title">Candidate Weak Points</div>
+        ${r.recon.weakPoints.length ? `<div class="note-list">${r.recon.weakPoints.map((w) => `<div class="note-chip">${esc(w)}</div>`).join("")}</div>` : '<div class="sc-sub">None recorded.</div>'}
+      </div>
+    </div>
+  </div>`
+      : ""
+  }
+
   ${treeNo ? renderAttackTree(r, treeNo) : ""}
 
   ${
@@ -814,11 +935,6 @@ export function renderReportHtml(r: AutonomousReport): string {
       : ""
   }
 
-</div>
-
-<div class="report-footer">
-  <div class="footer-left">Generated by Opfor · Autonomous Hunt · ${esc(dateStr)}</div>
-  <div class="footer-right">${esc(r.reportId)}</div>
 </div>
 
 <script>
@@ -877,12 +993,24 @@ export function renderReportHtml(r: AutonomousReport): string {
     var rail = body.querySelector('.turn-rail');
     var turns = body.querySelectorAll('.turn[id]');
     var inView = {};
+    var lastId = turns.length ? turns[turns.length - 1].id : null;
     var setActive = function(id){
       steps.forEach(function(s){
         var on = s.dataset.turn === id;
         s.classList.toggle('active', on);
         if (on) revealStep(rail, s);
       });
+    };
+    // A short final turn may never cross the 0.4 intersection threshold, so once the
+    // container is scrolled to its floor, force the last turn active regardless of ratio.
+    var applyActive = function(){
+      if (lastId && body.scrollTop + body.clientHeight >= body.scrollHeight - 2) {
+        setActive(lastId);
+        return;
+      }
+      var topmost = null;
+      turns.forEach(function(t){ if (!topmost && inView[t.id]) topmost = t.id; });
+      if (topmost) setActive(topmost);
     };
     steps.forEach(function(step){
       step.addEventListener('click', function(){
@@ -894,14 +1022,12 @@ export function renderReportHtml(r: AutonomousReport): string {
       entries.forEach(function(entry){
         inView[entry.target.id] = entry.isIntersecting;
       });
-      var topmost = null;
-      turns.forEach(function(t){ if (!topmost && inView[t.id]) topmost = t.id; });
-      if (topmost) setActive(topmost);
+      applyActive();
       refreshRailFade(body);
     }, { root: body, threshold: 0.4 });
     turns.forEach(function(t){ observer.observe(t); });
     if (rail) rail.addEventListener('scroll', function(){ refreshRailFade(body); });
-    body.addEventListener('scroll', function(){ refreshRailFade(body); });
+    body.addEventListener('scroll', function(){ applyActive(); refreshRailFade(body); }, { passive: true });
   });
 })();
 </script>

@@ -1169,12 +1169,12 @@ function judgedCount(summary) {
  * Label for the report's "Evaluation Suite" field. A suite name is only
  * accurate when every one of its evaluators was actually selected — picking
  * a subset (or the catch-all "Custom Evaluators" bucket) is a hand-picked
- * list, not that suite, so it's labeled "Custom Suite" instead of borrowing
+ * list, not that suite, so it's labeled "Custom" instead of borrowing
  * a name that would overstate what actually ran.
  */
 function resolveSuiteLabel() {
   const suite = state.catalog?.suites?.find((s) => s.id === state.suiteId);
-  if (!suite) return "Custom Suite";
+  if (!suite) return "Custom";
   // Based on what actually completed, not what was selected — a run stopped
   // partway through a full-suite selection is not that suite either.
   const completedIds = new Set(
@@ -1183,7 +1183,7 @@ function resolveSuiteLabel() {
   const fullSuite =
     suite.evaluatorIds.length === completedIds.size &&
     suite.evaluatorIds.every((id) => completedIds.has(id));
-  return fullSuite ? suite.id : "Custom Suite";
+  return fullSuite ? suite.id : "Custom";
 }
 
 function buildReport() {

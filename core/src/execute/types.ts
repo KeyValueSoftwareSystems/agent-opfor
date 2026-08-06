@@ -263,7 +263,7 @@ export interface UnifiedRunReport {
   targetName: string;
   targetKind: "agent" | "mcp";
   /**
-   * The evaluation suite that was run, or "Custom Suite" when the selection
+   * The evaluation suite that was run, or "Custom" when the selection
    * doesn't correspond to one whole named suite (an explicit evaluator list,
    * preloaded specs, or a hand-picked subset of a suite's evaluators).
    */

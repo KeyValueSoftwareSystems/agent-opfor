@@ -277,7 +277,7 @@ function buildBrowserReport(
         // The browser path takes preloaded evaluator specs with no suite concept —
         // the extension builds its own report/suite label independently of this
         // return value (see popup.js's buildFinalReport).
-        suiteId: "Custom Suite",
+        suiteId: "Custom",
         effort: config.effort,
         attackModel,
         judgeModel,
