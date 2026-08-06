@@ -78,7 +78,7 @@ function renderTranscript(f: ReportFinding, tId: string): string {
       ? `<div class="turn-rail-wrap"><div class="turn-rail">${f.turns
           .map((t) => {
             const bad = failing.has(t.turnIndex);
-            return `<button class="turn-step${bad ? " fail-turn" : ""}" data-turn="${turnId(t.turnIndex)}" title="Jump to turn ${t.turnIndex}${bad ? " — breach" : ""}">${t.turnIndex}</button>`;
+            return `<button class="turn-step${bad ? " fail-turn" : ""}" data-turn="${turnId(t.turnIndex)}" title="Jump to turn ${t.turnIndex}${bad ? " (breach)" : ""}">${t.turnIndex}</button>`;
           })
           .join(
             ""
@@ -993,12 +993,24 @@ export function renderReportHtml(r: AutonomousReport): string {
     var rail = body.querySelector('.turn-rail');
     var turns = body.querySelectorAll('.turn[id]');
     var inView = {};
+    var lastId = turns.length ? turns[turns.length - 1].id : null;
     var setActive = function(id){
       steps.forEach(function(s){
         var on = s.dataset.turn === id;
         s.classList.toggle('active', on);
         if (on) revealStep(rail, s);
       });
+    };
+    // A short final turn may never cross the 0.4 intersection threshold, so once the
+    // container is scrolled to its floor, force the last turn active regardless of ratio.
+    var applyActive = function(){
+      if (lastId && body.scrollTop + body.clientHeight >= body.scrollHeight - 2) {
+        setActive(lastId);
+        return;
+      }
+      var topmost = null;
+      turns.forEach(function(t){ if (!topmost && inView[t.id]) topmost = t.id; });
+      if (topmost) setActive(topmost);
     };
     steps.forEach(function(step){
       step.addEventListener('click', function(){
@@ -1010,14 +1022,12 @@ export function renderReportHtml(r: AutonomousReport): string {
       entries.forEach(function(entry){
         inView[entry.target.id] = entry.isIntersecting;
       });
-      var topmost = null;
-      turns.forEach(function(t){ if (!topmost && inView[t.id]) topmost = t.id; });
-      if (topmost) setActive(topmost);
+      applyActive();
       refreshRailFade(body);
     }, { root: body, threshold: 0.4 });
     turns.forEach(function(t){ observer.observe(t); });
     if (rail) rail.addEventListener('scroll', function(){ refreshRailFade(body); });
-    body.addEventListener('scroll', function(){ refreshRailFade(body); });
+    body.addEventListener('scroll', function(){ applyActive(); refreshRailFade(body); }, { passive: true });
   });
 })();
 </script>

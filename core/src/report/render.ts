@@ -411,7 +411,9 @@ export function renderReport(model: ReportViewModel): string {
   .turn-rail{display:flex;flex-direction:column;align-items:center;gap:16px;flex-shrink:0;position:sticky;top:4px;padding:4px 0 4px 12px}
   .turn-step{position:relative;width:26px;height:26px;border-radius:7px;border:1px solid var(--line-2);background:var(--surface);color:var(--muted);font:700 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
   .turn-step:hover{border-color:var(--muted-2);color:var(--text)}
-  .turn-step.active{border-color:var(--accent);color:var(--accent);background:rgba(255,77,79,0.08);box-shadow:0 0 0 2px rgba(255,77,79,0.18)}
+  .turn-step.fail-turn{border-color:var(--fail);color:var(--fail);background:var(--fail-bg);font-weight:800}
+  .turn-step.active{box-shadow:0 0 0 2px rgba(15,23,42,0.16)}
+  .turn-step.fail-turn.active{box-shadow:0 0 0 2px rgba(220,38,38,0.3)}
   .turn-step:not(:first-child)::before{content:"";position:absolute;bottom:100%;left:50%;transform:translateX(-50%);width:1px;height:16px;background:var(--line-2)}
   .turn-content{flex:1;min-width:0}
   .turn{padding:0 0 20px}
@@ -596,8 +598,20 @@ export function renderReport(model: ReportViewModel): string {
     if (!steps.length) return;
     var turns = body.querySelectorAll('.turn[id]');
     var inView = {};
+    var lastId = turns.length ? turns[turns.length - 1].id : null;
     var setActive = function(id){
       steps.forEach(function(s){ s.classList.toggle('active', s.dataset.turn === id); });
+    };
+    // A short final turn may never cross the 0.4 intersection threshold, so once the
+    // container is scrolled to its floor, force the last turn active regardless of ratio.
+    var applyActive = function(){
+      if (lastId && body.scrollTop + body.clientHeight >= body.scrollHeight - 2) {
+        setActive(lastId);
+        return;
+      }
+      var topmost = null;
+      turns.forEach(function(t){ if (!topmost && inView[t.id]) topmost = t.id; });
+      if (topmost) setActive(topmost);
     };
     steps.forEach(function(step){
       step.addEventListener('click', function(){
@@ -609,11 +623,10 @@ export function renderReport(model: ReportViewModel): string {
       entries.forEach(function(entry){
         inView[entry.target.id] = entry.isIntersecting;
       });
-      var topmost = null;
-      turns.forEach(function(t){ if (!topmost && inView[t.id]) topmost = t.id; });
-      if (topmost) setActive(topmost);
+      applyActive();
     }, { root: body, threshold: 0.4 });
     turns.forEach(function(t){ observer.observe(t); });
+    body.addEventListener('scroll', applyActive, { passive: true });
   });
 })();
 </script>
@@ -741,7 +754,12 @@ function resultDetailCard(
   // A rail only helps when there's more than one turn to navigate between.
   const railHtml =
     hasTurns && turnCount > 1
-      ? `<div class="turn-rail">${r.turns!.map((t) => `<button class="turn-step" data-turn="${turnId(t.turnIndex)}" title="Jump to turn ${t.turnIndex}">${t.turnIndex}</button>`).join("")}</div>`
+      ? `<div class="turn-rail">${r
+          .turns!.map((t) => {
+            const bad = failingTurns.has(t.turnIndex);
+            return `<button class="turn-step${bad ? " fail-turn" : ""}" data-turn="${turnId(t.turnIndex)}" title="Jump to turn ${t.turnIndex}${bad ? " (breach)" : ""}">${t.turnIndex}</button>`;
+          })
+          .join("")}</div>`
       : "";
 
   const evidenceHtml =
