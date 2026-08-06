@@ -88,6 +88,15 @@ The extension uses a **single LLM configuration** for all operations (attack gen
 
 The extension runs up to **20 turns per evaluator** (default 10). It stops a given evaluator early when the judge returns a definitive verdict.
 
+**Stopping a run.** Both controls take effect within the current turn rather than at the end of the evaluator, so you never wait out the remaining turn budget. A stop can land after a message has been sent but before the reply is read; that turn is then dropped rather than recorded half-finished.
+
+| Control | What you get                                                                                                                                                  |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Pause   | A resumable snapshot. Evaluators completed so far keep their verdicts; the one in progress has none yet and is not scored.                                    |
+| Stop    | A final report. The evaluator in progress is marked `CANCELLED` rather than judged — scoring a conversation the target never finished would invent a verdict. |
+
+Either way you still get the run's token usage and cost for the work that did happen, and the report downloads the same as a completed one.
+
 **Token usage and testing cost** are tracked per evaluator and shown on the Done screen and in the downloadable HTML report. Cost covers the attacker and judge LLMs you configured in Options. Whatever the target chat spends on its own inference is excluded — opfor drives it through the browser and cannot observe or meter that spend. See [Token usage and testing cost](cli.md#token-usage-and-testing-cost) for how the figure is derived and its caveats.
 
 ---
@@ -116,7 +125,7 @@ Same agent-redteam catalog as the CLI. Pick by suite or select "Custom Evaluator
 - **No MCP / live tool-call evaluators.** The judge sees the transcript, not real tool side-effects. For MCP server red-teaming use the CLI's `mode: "mcp"` or the [MCP server tool](mcp.md).
 - **One agent per run.** No cross-agent or inter-agent communication tests.
 - **Vendor closed shadow-DOM widgets** (Salesforce, some Intercom builds) may need a vendor-specific fallback — open an issue with a sample URL if auto-detect fails.
-- **No pause / resume across sessions.** Run state lives in `chrome.storage.local`; uninstalling the extension wipes it.
+- **A paused run does not survive uninstall.** Pause/resume works within the browser profile, but the snapshot lives in `chrome.storage.local` — uninstalling the extension wipes it.
 
 ---
 
