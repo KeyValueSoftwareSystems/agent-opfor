@@ -124,9 +124,9 @@ Testing cost: $0.18
 
 This is **opfor's own spend** — the attacker and judge LLMs. It excludes your target's inference cost, which opfor cannot see from the outside. The per-model split is the useful part: the judge is often the bigger share, and pointing it at a cheaper model is usually the easiest saving.
 
-Prices come from a snapshot of LiteLLM's public price map that ships with the package, so runs work offline and a report re-rendered later produces the same figure. Two caveats worth knowing:
+Prices come from a snapshot of LiteLLM's public price map that ships with the package, so runs work offline and a report re-rendered later produces the same figure. Cached input is billed at the provider's cache rate — multi-turn attacks re-send the conversation each turn, and that repeated prefix is often ~100× cheaper than fresh text, so the figure tracks the real bill rather than a worst case. Caveats worth knowing:
 
-- **Multi-turn runs read high.** Providers discount repeated context, and a multi-turn attack re-sends the conversation each turn — opfor prices every input token at full rate, so the real bill is usually lower.
+- **Caching is only credited when it's reported.** A provider that doesn't break out cached tokens, or a model with no published cache rate, is charged at the full input rate — an over-estimate, chosen over quietly under-reporting.
 - **Unknown models are never counted as free.** A model missing from the price table is reported as unpriced and the total is marked a lower bound, rather than silently reading as $0.
 - **A few helper calls aren't metered yet.** Trace curation, session summarisation and one JSON helper don't report token usage, so their spend is missing from the total. Treat the figure as a floor.
 

@@ -242,10 +242,12 @@ Prices come from a snapshot of LiteLLM's public price map, vendored into the pac
 
 Maintainers refresh it with `npm run build:pricing` (`-- --check` reports whether it has drifted from upstream).
 
+**Cached input is billed at the provider's cache rate.** Multi-turn attacks re-send the whole conversation each turn, and providers charge far less for that repeated prefix — often 100× less. When the provider reports the split, opfor divides the input tokens across their tiers (fresh / cache-read / cache-write) and prices each at its own published rate, so the figure tracks what you are actually billed rather than a worst case. `summary.tokenUsage` still reports the input total; only the cost changes.
+
 ### Accuracy caveats
 
-- **Multi-turn runs are over-estimated.** Providers discount repeated context — and multi-turn attacks re-send the whole conversation each turn — but opfor prices every input token at the full rate. The more turns, the more conservative the figure.
 - **List prices only.** Negotiated rates, credits, and proxy markup are not reflected.
+- **Caching is only credited when it is reported.** A provider that doesn't break out cached tokens, or a model with no published cache rate in the price table, falls back to charging every input token at the full rate — an over-estimate, deliberately preferred over quietly under-reporting spend.
 - **Unknown models are never counted as free.** If a model isn't in the price table, the report says so and marks the total a lower bound (`≥` prefix, or `unpriced` when nothing could be priced).
 - **Not every call is instrumented yet.** Trace curation, session summarisation, and `generateJsonObject` record no token usage, so their spend never reaches the total. `summary.cost.complete` reports only that every model opfor _saw_ was priced — it cannot vouch for calls that reported nothing. Treat `totalUsd` as a floor in all cases.
 

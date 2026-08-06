@@ -682,6 +682,26 @@ function singleTurnTranscript(detail: DetailCard): string {
     </div>`;
 }
 
+/**
+ * Whether there is any exchange worth rendering a transcript for.
+ *
+ * An attack interrupted before its first turn completed has no turns and an
+ * empty detail card. Rendering that anyway produced a transcript headed
+ * "1 turn" containing two blank bubbles, which reads as an exchange that was
+ * captured but came back empty — rather than as nothing having run at all.
+ */
+function hasTranscriptContent(r: ResultViewModel): boolean {
+  if (r.turns && r.turns.length > 0) return true;
+  const d = r.detail;
+  if (d.kind === "prompt") return Boolean(d.prompt?.trim() || d.response?.trim());
+  return Boolean(
+    d.toolName?.trim() ||
+    d.response?.trim() ||
+    d.error?.trim() ||
+    Object.keys(d.args ?? {}).length > 0
+  );
+}
+
 /** Render one attack result: reasoning/evidence, confidence + standards, and a collapsible transcript. */
 function resultDetailCard(
   r: ResultViewModel,
@@ -738,14 +758,10 @@ function resultDetailCard(
     </div>`
     : "";
 
-  return `
-    ${showTestHeading ? `<div class="test-heading">Test ${index + 1} — ${esc(r.label)}</div>` : ""}
-    ${reasoningHtml}
-    ${evidenceHtml}
-    <div class="eval-meta-row">
-      ${confidenceCol}
-      ${standardsCol}
-    </div>
+  // Nothing was exchanged (e.g. cancelled before the first turn finished), so
+  // drop the transcript and its toggle rather than show an empty one.
+  const transcriptHtml = hasTranscriptContent(r)
+    ? `
     <div class="transcript-wrap" data-for="${tId}">
       <div class="transcript">
         <div class="transcript-header">Conversation Transcript <span class="tc-count">${turnCount} turn${turnCount === 1 ? "" : "s"}</span></div>
@@ -758,5 +774,15 @@ function resultDetailCard(
     <button class="transcript-toggle" data-target="${tId}">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
       <span class="tt-label">View more details</span>
-    </button>`;
+    </button>`
+    : "";
+
+  return `
+    ${showTestHeading ? `<div class="test-heading">Test ${index + 1} — ${esc(r.label)}</div>` : ""}
+    ${reasoningHtml}
+    ${evidenceHtml}
+    <div class="eval-meta-row">
+      ${confidenceCol}
+      ${standardsCol}
+    </div>${transcriptHtml}`;
 }
