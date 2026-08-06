@@ -209,6 +209,17 @@ export async function runAllBrowser(
           pushPartialResult(stopReason);
           break evaluatorLoop;
         }
+        // The extension's DomTarget throws a plain Error tagged `code: "OPFOR_STOP"`
+        // on user cancel/pause (see runners/extension/domTarget.js) — core can't
+        // import that class, so recognize it structurally instead. Without this,
+        // a user-cancelled run threw past every handler below and returned no
+        // report at all, silently dropping the TokenTracker totals collected so far.
+        if ((err as { code?: string })?.code === "OPFOR_STOP") {
+          stopReason = err instanceof Error ? err.message : "Run stopped by user.";
+          notify({ type: "run_stopped", reason: stopReason });
+          pushPartialResult(stopReason);
+          break evaluatorLoop;
+        }
         throw err;
       }
 

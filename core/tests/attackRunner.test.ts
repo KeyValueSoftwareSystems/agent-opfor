@@ -101,3 +101,52 @@ test("runs zero turns when startTurn exceeds totalTurns, still finalizes", async
   await runAttack(driver);
   assert.deepStrictEqual(driver.calls, ["finalize"]);
 });
+
+test("an already-aborted signal stops before turn 1, still finalizes", async () => {
+  const driver = trackingDriver({ startTurn: 1, totalTurns: 100 });
+  const ac = new AbortController();
+  ac.abort();
+  await runAttack(driver, ac.signal);
+  assert.deepStrictEqual(driver.calls, ["finalize"]);
+});
+
+test("a signal aborted mid-run stops before the next turn, not after totalTurns", async () => {
+  const driver = trackingDriver({ startTurn: 1, totalTurns: 100 });
+  const ac = new AbortController();
+  const originalShouldEarlyStop = driver.shouldEarlyStop.bind(driver);
+  driver.shouldEarlyStop = async (t, input, output) => {
+    const result = await originalShouldEarlyStop(t, input, output);
+    if (t === 2) ac.abort(); // simulate Ctrl+C landing mid-attack
+    return result;
+  };
+  await runAttack(driver, ac.signal);
+  // Turn 3 never builds — the loop only reached turns 1 and 2.
+  assert.deepStrictEqual(driver.calls, [
+    "build:1",
+    "execute:in:1",
+    "record:1:in:1:out:in:1",
+    "stop?:1",
+    "build:2",
+    "execute:in:2",
+    "record:2:in:2:out:in:2",
+    "stop?:2",
+    "finalize",
+  ]);
+});
+
+test("no signal behaves exactly as before (backward compatible)", async () => {
+  const driver = trackingDriver({ startTurn: 1, totalTurns: 2 });
+  const result = await runAttack(driver, undefined);
+  assert.strictEqual(result, RESULT);
+  assert.deepStrictEqual(driver.calls, [
+    "build:1",
+    "execute:in:1",
+    "record:1:in:1:out:in:1",
+    "stop?:1",
+    "build:2",
+    "execute:in:2",
+    "record:2:in:2:out:in:2",
+    "stop?:2",
+    "finalize",
+  ]);
+});

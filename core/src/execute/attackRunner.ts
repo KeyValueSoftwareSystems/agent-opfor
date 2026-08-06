@@ -31,11 +31,19 @@ export interface AttackDriver<TInput, TOutput> {
 /**
  * Template Method for running one attack: the invariant skeleton every attack
  * kind shares. The `driver` supplies the kind-specific behavior.
+ *
+ * `signal`, when given, is checked before each turn so a long multi-turn attack
+ * (e.g. `turns: 100`) can be interrupted between turns rather than only between
+ * whole attacks/evaluators — `runAll`'s cancellation contract promises "finishes
+ * in-flight work", and a single attack's turn loop is exactly the granularity
+ * that needs to honor it.
  */
 export async function runAttack<TInput, TOutput>(
-  driver: AttackDriver<TInput, TOutput>
+  driver: AttackDriver<TInput, TOutput>,
+  signal?: AbortSignal
 ): Promise<AttackResult> {
   for (let turnNo = driver.startTurn; turnNo <= driver.totalTurns; turnNo++) {
+    if (signal?.aborted) break;
     const input = await driver.buildTurn(turnNo);
     const output = await driver.execute(input);
     driver.record(turnNo, input, output);
