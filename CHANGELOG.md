@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.10.2](https://github.com/KeyValueSoftwareSystems/agent-opfor/compare/v0.10.1...v0.10.2) (2026-08-06)
+
+
+### Features
+
+* add cancelled run state and fix extension pause/resume flow ([#221](https://github.com/KeyValueSoftwareSystems/agent-opfor/issues/221)) ([094687c](https://github.com/KeyValueSoftwareSystems/agent-opfor/commit/094687c6deb769ca2c2c137772a7832c25b4335b))
+* add report turn navigator and restore standards column ([#230](https://github.com/KeyValueSoftwareSystems/agent-opfor/issues/230)) ([04d0690](https://github.com/KeyValueSoftwareSystems/agent-opfor/commit/04d0690c42185775d73de5a4977c728b7fd3c2b3))
+* estimate and report run cost per model ([#231](https://github.com/KeyValueSoftwareSystems/agent-opfor/issues/231)) ([87cd59c](https://github.com/KeyValueSoftwareSystems/agent-opfor/commit/87cd59c80b4582556ff395a10e392705a55bf3a6))
+* graceful shutdown on ctrl+c during opfor run ([#211](https://github.com/KeyValueSoftwareSystems/agent-opfor/issues/211)) ([338f98b](https://github.com/KeyValueSoftwareSystems/agent-opfor/commit/338f98b11eb2207ad3b189a1d7e03be17c90f856))
+* **hunt:** add trace-aware hunting (grounding, propagation, get_trace enrichment) ([#222](https://github.com/KeyValueSoftwareSystems/agent-opfor/issues/222)) ([a67cca9](https://github.com/KeyValueSoftwareSystems/agent-opfor/commit/a67cca90caddd3a1edab6a36256d69eaff40e093))
+* make adaptive attacker skip recon and strike on short turn budgets ([#219](https://github.com/KeyValueSoftwareSystems/agent-opfor/issues/219)) ([c4dd3e0](https://github.com/KeyValueSoftwareSystems/agent-opfor/commit/c4dd3e063f7bf298937446f50cf75a5841a414b3))
+* redesign hunt --ui dashboard and setup form ([#225](https://github.com/KeyValueSoftwareSystems/agent-opfor/issues/225)) ([cd7c66f](https://github.com/KeyValueSoftwareSystems/agent-opfor/commit/cd7c66f2dfeb958d46ce5e6bd9c06fd85cbe9e2f))
+* **report:** add hover explanations and polish run/hunt report UI ([#237](https://github.com/KeyValueSoftwareSystems/agent-opfor/issues/237)) ([29471d5](https://github.com/KeyValueSoftwareSystems/agent-opfor/commit/29471d5814b194856dfc704cb8caab1a2aa53bc4))
+* **report:** redesign hunt report to match the run report ([#233](https://github.com/KeyValueSoftwareSystems/agent-opfor/issues/233)) ([c1ecca8](https://github.com/KeyValueSoftwareSystems/agent-opfor/commit/c1ecca842235cc2ee8d6a58f45da361343ea2827))
+* track and display LLM token usage across CLI, reports, and extension ([#224](https://github.com/KeyValueSoftwareSystems/agent-opfor/issues/224)) ([5f4b355](https://github.com/KeyValueSoftwareSystems/agent-opfor/commit/5f4b3555d6f4d46716cd97336f13d4f1c6578d27))
+* unify hunt cli report artifacts into one folder, add graceful Ctrl+C cancellation ([#218](https://github.com/KeyValueSoftwareSystems/agent-opfor/issues/218)) ([e45a62c](https://github.com/KeyValueSoftwareSystems/agent-opfor/commit/e45a62c01781eccd1a5ccd506919dbe7acde1859))
+
+
+### Bug Fixes
+
+* cancellation turn-granularity, extension report gaps, and cache-aware cost pricing ([#236](https://github.com/KeyValueSoftwareSystems/agent-opfor/issues/236)) ([317eb27](https://github.com/KeyValueSoftwareSystems/agent-opfor/commit/317eb27e5663c66e1a7a1485087250ede008280b))
+* **cli:** include http response body in target errors ([#207](https://github.com/KeyValueSoftwareSystems/agent-opfor/issues/207)) ([c8c9f72](https://github.com/KeyValueSoftwareSystems/agent-opfor/commit/c8c9f72c4d7246716208804457226a687dc31a89))
+* **deps:** bump js-yaml and fast-uri to patch high-severity cves ([#216](https://github.com/KeyValueSoftwareSystems/agent-opfor/issues/216)) ([a55c98e](https://github.com/KeyValueSoftwareSystems/agent-opfor/commit/a55c98efad1ca0b63d3ad744914a8d2090059155))
+* **deps:** upgrade ai-sdk provider family and force-patch @hono/node-server ([#217](https://github.com/KeyValueSoftwareSystems/agent-opfor/issues/217)) ([1ef315c](https://github.com/KeyValueSoftwareSystems/agent-opfor/commit/1ef315c8156c7dcd93d58379d2e8c111c022bddf))
+* **extension:** stop iframe hangs and add debug mode ([#229](https://github.com/KeyValueSoftwareSystems/agent-opfor/issues/229)) ([919e48c](https://github.com/KeyValueSoftwareSystems/agent-opfor/commit/919e48c4e6491ca536927dc44ef4ad35335b472b))
+* **judge:** retry unusable json mode responses ([#220](https://github.com/KeyValueSoftwareSystems/agent-opfor/issues/220)) ([4dda117](https://github.com/KeyValueSoftwareSystems/agent-opfor/commit/4dda117b5072b0c3f5d0cf6dfd34ae1b1ba7e2f9))
+* **report:** redesign evaluation card, add run duration, fix suite labeling ([#227](https://github.com/KeyValueSoftwareSystems/agent-opfor/issues/227)) ([c252675](https://github.com/KeyValueSoftwareSystems/agent-opfor/commit/c2526758e4b55d2b9a1d2cfd9615c9dc73995d0a))
+* unify skill and extension catalog generation to include derived suites ([#210](https://github.com/KeyValueSoftwareSystems/agent-opfor/issues/210)) ([4908c16](https://github.com/KeyValueSoftwareSystems/agent-opfor/commit/4908c16fc73efc20d9f4f177860e11be21642426))
+
 ## [0.10.1](https://github.com/KeyValueSoftwareSystems/agent-opfor/compare/v0.10.0...v0.10.1) (2026-07-20)
 
 
