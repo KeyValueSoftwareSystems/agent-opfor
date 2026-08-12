@@ -14,7 +14,9 @@ const LABELS = {
   score: /^Score:/i,
   confidence: /^Confidence:/i,
   evidence: /^Evidence:/i,
-  failingTurns: /^FailingTurns?:/i,
+  // Optional space tolerated: "FailingTurns" isn't a real word, so models often
+  // auto-correct it to "Failing Turns" — the unspaced-only regex silently missed those.
+  failingTurns: /^Failing\s*Turns?:/i,
   reasoning: /^Reasoning:/i,
 } as const;
 
@@ -171,7 +173,12 @@ function normalizeVerdict(value: unknown): Verdict | null {
 /** Parse a comma/space list of positive turn indices from a line value. */
 function parseTurns(raw: string): number[] | undefined {
   if (!raw || /^n\/?a$/i.test(raw)) return undefined;
-  return dedupeSortedTurns(raw.split(/[,\s]+/).map((s) => parseInt(s, 10)));
+  // Replace (not strip) wrapping brackets ("[4]", "(4)") — parseInt("[4]", 10) is NaN
+  // since the leading char isn't a digit, so a bracketed list would otherwise parse to
+  // nothing. Replacing with a space (rather than deleting) keeps adjacent groups like
+  // "(4)(5)" from concatenating into the wrong number ("45") once brackets vanish.
+  const stripped = raw.replace(/[[\]()]/g, " ");
+  return dedupeSortedTurns(stripped.split(/[,\s]+/).map((s) => parseInt(s, 10)));
 }
 
 /** Coerce a JSON failingTurns array into clean, sorted, positive indices. */

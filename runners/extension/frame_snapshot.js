@@ -93,6 +93,66 @@
     return n;
   }
 
+  // Structure-aware replacement for a leaf node's flat textContent. Raw textContent
+  // drops every boundary, so a <br>-separated list or stacked <p>s collapse into one
+  // run-on string ("...structured.""Ask one..." welded together). Inserts a newline
+  // at <br> and block-element edges, and bullet/number markers for list items, so the
+  // captured text keeps the shape the agent actually rendered.
+  function blockAwareText(el) {
+    let s = "";
+    // One break per boundary — emitting unconditionally around every block would put
+    // a blank line between adjacent list items; the guard also leaves literal blank
+    // lines already inside text nodes (e.g. code blocks) untouched.
+    const nl = () => {
+      if (s && !s.endsWith("\n")) s += "\n";
+    };
+    const walk = (node) => {
+      for (const n of node.childNodes || []) {
+        if (n.nodeType === 3) {
+          s += n.nodeValue || "";
+          continue;
+        }
+        if (n.nodeType !== 1) continue;
+        const tag = n.tagName?.toLowerCase();
+        if (tag === "script" || tag === "style") continue;
+        if (tag === "br") {
+          s += "\n";
+          continue;
+        }
+        const isCell = tag === "td" || tag === "th";
+        // Cells stay on one line — the row (<tr>) supplies the break.
+        const block = isBlockish(n) && !isCell;
+        if (block) nl();
+        if (tag === "li") {
+          const p = n.parentElement;
+          if (p && p.tagName?.toLowerCase() === "ol") {
+            // Honor start="N" (e.g. a list continuing an earlier one) instead of
+            // always numbering from 1, so captured text matches what's on screen.
+            const start = parseInt(p.getAttribute("start") || "1", 10) || 1;
+            s += Array.prototype.indexOf.call(p.children, n) + start + ". ";
+          } else {
+            s += "- ";
+          }
+        } else if (isCell && n.previousElementSibling) {
+          s += " | ";
+        }
+        walk(n);
+        if (block) nl();
+      }
+    };
+    walk(el);
+    return s;
+  }
+
+  // Collapse horizontal whitespace but keep line breaks (max one blank line).
+  function normalizeBlockText(s) {
+    return s
+      .replace(/[ \t\u00a0]+/g, " ")
+      .replace(/ *\n */g, "\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+  }
+
   // ── Text collector (shared by both fast and full paths) ──────────────────────
   function collectText(node, depth, out) {
     if (!node || depth > 25) return;
@@ -114,11 +174,12 @@
         return;
       const role = (node.getAttribute?.("role") || "").toLowerCase();
       if (SKIP_ROLES.has(role)) return;
-      const text = (node.textContent || "").replace(/\s+/g, " ").trim();
+      const rawText = (node.textContent || "").replace(/\s+/g, " ").trim();
       // Capture only LEAF text blocks (no block-level child carries its own text).
       // Containers fall through and recurse, so each message becomes its own node.
-      if (text.length >= MIN_MSG && text.length <= MAX_MSG && blockTextChildren(node) === 0) {
-        out.push(text);
+      if (rawText.length >= MIN_MSG && rawText.length <= MAX_MSG && blockTextChildren(node) === 0) {
+        const text = normalizeBlockText(blockAwareText(node));
+        if (text.length >= MIN_MSG) out.push(text);
         return;
       }
     }

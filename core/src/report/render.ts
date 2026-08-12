@@ -308,7 +308,7 @@ export function renderReport(model: ReportViewModel): string {
      Hover is bound to the whole .exec-strip-item; the icon is just the visual affordance. ── */
   .info-icon{display:inline-flex;align-items:center;justify-content:center;width:13px;height:13px;border-radius:50%;border:1.3px solid var(--muted-2);color:var(--muted-2);font-size:9px;font-weight:700;font-style:italic;font-family:Georgia,"Times New Roman",serif;cursor:default;flex-shrink:0}
   .exec-strip-item:hover .info-icon{border-color:var(--text);color:var(--text)}
-  .info-tooltip{position:absolute;top:100%;left:50%;transform:translateX(-50%) translateY(4px);margin-top:8px;width:max-content;max-width:230px;background:#0F172A;color:#E2E8F0;font-size:12px;font-weight:400;text-align:left;line-height:1.45;letter-spacing:normal;text-transform:none;padding:7px 11px;border-radius:7px;box-shadow:0 8px 24px rgba(15,23,42,0.25);opacity:0;visibility:hidden;pointer-events:none;transition:opacity .12s ease;z-index:20}
+  .info-tooltip{position:absolute;top:100%;left:50%;transform:translateX(-50%) translateY(4px);margin-top:8px;width:max-content;max-width:230px;background:#0F172A;color:#E2E8F0;font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:12px;font-weight:400;text-align:left;line-height:1.45;letter-spacing:normal;text-transform:none;white-space:normal;padding:7px 11px;border-radius:7px;box-shadow:0 8px 24px rgba(15,23,42,0.25);opacity:0;visibility:hidden;pointer-events:none;transition:opacity .12s ease;z-index:20}
   .exec-strip-item:hover .info-tooltip{opacity:1;visibility:visible}
   /* .info-hover is a standalone hover trigger for a single word/icon (unlike .exec-strip-item,
      which triggers on hovering its whole card) — it's just a positioned inline wrapper so its
@@ -380,6 +380,9 @@ export function renderReport(model: ReportViewModel): string {
   .detail-section{margin-bottom:18px}
   .detail-section-label{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-2);margin-bottom:8px}
   .detail-section-body{font-size:13px;color:var(--text-2);line-height:1.6;white-space:pre-wrap;word-break:break-word}
+  /* Reasoning is the sentence a non-technical reader leans on most, so it gets a size step
+     up from Evidence/Error (still .detail-section-body) plus darker text and looser leading. */
+  .reasoning-body{font-size:14.5px;color:var(--text);line-height:1.7}
   .eval-meta-row{display:flex;flex-wrap:wrap;gap:36px;margin-bottom:14px}
   .eval-meta-col{display:flex;flex-direction:column;gap:6px}
   .eval-meta-col .meta-v-lg{font-size:20px;font-weight:700;color:var(--text);line-height:1}
@@ -782,15 +785,14 @@ function resultDetailCard(
           .join("")}</div>`
       : "";
 
-  const evidenceHtml =
-    r.judge.evidence && r.judge.evidence !== "N/A"
-      ? `<div class="detail-section"><div class="detail-section-label">Evidence</div><div class="detail-section-body">${esc(r.judge.evidence)}</div></div>`
-      : "";
+  // Evidence dropped from display: Reasoning already names the turn and quotes/describes
+  // the offending content, so a separate section duplicated it. judge.evidence is still
+  // captured in the JSON report — only the HTML rendering was removed.
   const reasoningHtml =
     verdict === "ERROR"
       ? `<div class="detail-section"><div class="detail-section-label">Error</div><div class="detail-section-body">${esc(r.judge.errorMessage ?? "")}</div></div>`
       : r.judge.reasoning
-        ? `<div class="detail-section"><div class="detail-section-label">Reasoning</div><div class="detail-section-body">${esc(r.judge.reasoning)}</div></div>`
+        ? `<div class="detail-section"><div class="detail-section-label">Reasoning</div><div class="detail-section-body reasoning-body">${esc(r.judge.reasoning)}</div></div>`
         : "";
 
   const confidenceCol = `
@@ -833,7 +835,6 @@ function resultDetailCard(
   return `
     ${showTestHeading ? `<div class="test-heading">Test ${index + 1} — ${esc(r.label)}</div>` : ""}
     ${reasoningHtml}
-    ${evidenceHtml}
     <div class="eval-meta-row">
       ${confidenceCol}
       ${standardsCol}
