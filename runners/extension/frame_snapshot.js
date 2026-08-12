@@ -98,6 +98,17 @@
   // run-on string ("...structured.""Ask one..." welded together). Inserts a newline
   // at <br> and block-element edges, and bullet/number markers for list items, so the
   // captured text keeps the shape the agent actually rendered.
+  // Ordered-list label for `li`: an explicit value="N" wins, otherwise its position
+  // in the parent plus the list's start="N" (default 1).
+  function liMarker(li) {
+    const p = li.parentElement;
+    if (!p || p.tagName?.toLowerCase() !== "ol") return "- ";
+    const explicit = parseInt(li.getAttribute("value") || "", 10);
+    if (Number.isFinite(explicit)) return explicit + ". ";
+    const start = parseInt(p.getAttribute("start") || "1", 10) || 1;
+    return Array.prototype.indexOf.call(p.children, li) + start + ". ";
+  }
+
   function blockAwareText(el) {
     let s = "";
     // One break per boundary — emitting unconditionally around every block would put
@@ -106,6 +117,10 @@
     const nl = () => {
       if (s && !s.endsWith("\n")) s += "\n";
     };
+    // collectText can hand us a single <li> as the leaf itself (no block-level
+    // children of its own) — walk() below only adds markers for <li>s it meets while
+    // iterating a parent's children, so the root's own marker has to be seeded here.
+    if (el.tagName?.toLowerCase() === "li") s += liMarker(el);
     const walk = (node) => {
       for (const n of node.childNodes || []) {
         if (n.nodeType === 3) {
@@ -124,15 +139,7 @@
         const block = isBlockish(n) && !isCell;
         if (block) nl();
         if (tag === "li") {
-          const p = n.parentElement;
-          if (p && p.tagName?.toLowerCase() === "ol") {
-            // Honor start="N" (e.g. a list continuing an earlier one) instead of
-            // always numbering from 1, so captured text matches what's on screen.
-            const start = parseInt(p.getAttribute("start") || "1", 10) || 1;
-            s += Array.prototype.indexOf.call(p.children, n) + start + ". ";
-          } else {
-            s += "- ";
-          }
+          s += liMarker(n);
         } else if (isCell && n.previousElementSibling) {
           s += " | ";
         }
@@ -179,7 +186,9 @@
       // Containers fall through and recurse, so each message becomes its own node.
       if (rawText.length >= MIN_MSG && rawText.length <= MAX_MSG && blockTextChildren(node) === 0) {
         const text = normalizeBlockText(blockAwareText(node));
-        if (text.length >= MIN_MSG) out.push(text);
+        // blockAwareText adds markers/separators after the rawText length check above,
+        // so re-check MAX_MSG here too — a large table/list can push it back over.
+        if (text.length >= MIN_MSG && text.length <= MAX_MSG) out.push(text);
         return;
       }
     }
