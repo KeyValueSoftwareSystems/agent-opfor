@@ -36,7 +36,7 @@ OPFOR is short for _Opposition Force_ — a military term for the unit that play
   <img src="assets/opfor-high-level.svg" alt="How OPFOR works" width="860" />
 </p>
 
-## Why we built this
+## Why KeyValue built this
 
 We've shipped 130 products for 90 startups over the last ten years. In the last 18 months, almost every one of them had an AI agent in it — and every one of those teams hit the same wall when it came to testing.
 
