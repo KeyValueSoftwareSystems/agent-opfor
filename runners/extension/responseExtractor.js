@@ -20,6 +20,32 @@ function stripLeadingTimestamp(text) {
     .trim();
 }
 
+// Returns true if `text` is an entire line/node of date/time/read-receipt chrome
+// ("Seen at 3:45 PM", "Delivered", "Today", "Aug 13, 2026") rather than reply
+// content. Unlike stripLeadingTimestamp (which only strips a timestamp that's
+// glued as a PREFIX onto real content on the same line), this catches a whole
+// separate node rendered above/below the reply bubble — the shapes vary too
+// much to enumerate ("Seen at HH:MM", "Read HH:MM", bare "Delivered", a lone
+// date header) so this strips every date/time/status token out and checks
+// whether anything is left over, same technique as isTypingIndicator below.
+function isDateOrStatusLine(text) {
+  if (!text) return false;
+  const t = text.trim();
+  if (t.length > 40) return false; // these footers/headers are always short
+  const rest = t
+    .toLowerCase()
+    .replace(/\d{1,2}:\d{2}\s*(?:[ap]\.?m\.?)?/gi, " ") // clock time, e.g. "3:45 pm"
+    .replace(/\b\d{1,2}(?:st|nd|rd|th)?\b/g, " ") // day-of-month number
+    .replace(/\b\d{4}\b/g, " ") // year
+    .replace(/\b(?:mon|tue|wed|thu|fri|sat|sun)(?:day)?\b/gi, " ") // weekday
+    .replace(/\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b/gi, " ") // month
+    .replace(/\b(seen|delivered|read|sent|today|yesterday|now|ago|just|at|on|by|am|pm)\b/gi, " ")
+    .replace(/[^\w\s]/g, " ") // leftover punctuation (commas, dashes, dots)
+    .replace(/\s+/g, " ")
+    .trim();
+  return rest === "";
+}
+
 // ── Text-node diff ────────────────────────────────────────────────────────────
 
 function diffTextNodes(pre, post) {
@@ -201,31 +227,78 @@ export async function extractResponse(tabId, frameId, lastUserText = "", prevSna
     }
   }
 
+  // Words that only ever show up wrapping a placeholder ("Agent is thinking...",
+  // "Kai: still generating", "one moment please") — never inside a real reply's
+  // opening words, since a real reply is addressing the user's actual question.
+  const PLACEHOLDER_FILLER_WORDS = new Set([
+    "agent",
+    "assistant",
+    "bot",
+    "ai",
+    "support",
+    "system",
+    "virtual",
+    "is",
+    "are",
+    "am",
+    "currently",
+    "still",
+    "now",
+    "just",
+    "please",
+    "a",
+  ]);
+  const PLACEHOLDER_CORE_WORDS = new Set([
+    "typing",
+    "thinking",
+    "loading",
+    "generating",
+    "responding",
+    "writing",
+    "processing",
+    "analyzing",
+    "searching",
+    "fetching",
+    "working",
+    "wait",
+    "waiting",
+    "moment",
+    "hold",
+    "on",
+    "one",
+    "sec",
+    "second",
+    "it",
+  ]);
+
   // Returns true if `text` is a transient typing/thinking indicator, not a real reply.
+  // Dot/ellipsis count and exact wording vary by UI ("Thinking…", "Thinking....",
+  // "Agent is thinking", "Kai: still generating") so this normalizes rather than
+  // matching a fixed string list: strip punctuation and known filler words, then
+  // check whether every remaining word is a known placeholder word AND at least
+  // one of them is a "core" placeholder verb (so real short replies like "Yes,
+  // I can help with that" don't get swallowed just for being short).
   function isTypingIndicator(text) {
     if (!text) return false;
     const t = text.trim();
-    const tl = t.toLowerCase();
-    if (t.length > 120) return false;
-    // Explicit "is typing" / "is thinking" patterns
-    if (/\bis\s+typing\b|\bare\s+typing\b/i.test(t)) return true;
-    // Short placeholder patterns
-    if (
-      /^(typing|thinking|loading|generating|please wait|one moment|working on it)\.{0,3}$/i.test(tl)
-    )
-      return true;
-    // Dots / ellipsis only
+    if (t.length > 80) return false;
+    // Dots / ellipsis only, or a bare streaming cursor
     if (/^[.…·•\s]+$/.test(t)) return true;
-    // Streaming cursor
     if (/^▋?$/.test(t)) return true;
-    // "Agent/Assistant/Bot is typing…"
-    if (
-      /\b(agent|assistant|bot|support|virtual assistant)\b.*\b(typing|thinking|responding|writing)\b/i.test(
-        tl
-      )
-    )
-      return true;
-    return false;
+
+    const words = t
+      .toLowerCase()
+      .replace(/[…]/g, " ") // ellipsis char
+      .replace(/[^a-z\s]/g, " ") // strip remaining punctuation/digits
+      .split(/\s+/)
+      .filter(Boolean);
+    if (!words.length) return false;
+
+    const hasCore = words.some((w) => PLACEHOLDER_CORE_WORDS.has(w));
+    const allKnown = words.every(
+      (w) => PLACEHOLDER_CORE_WORDS.has(w) || PLACEHOLDER_FILLER_WORDS.has(w)
+    );
+    return hasCore && allKnown;
   }
 
   // Returns true if `text` looks like the user's own sent message echoed back.
@@ -322,7 +395,8 @@ export async function extractResponse(tabId, frameId, lastUserText = "", prevSna
       // surface as their own nodes — they strip to empty and aren't real reply text.
       const isTimestampOnly = (l) => stripLeadingTimestamp(l).trim() === "";
       const botLines = diffLines.filter(
-        (l) => !isUserEcho(l) && !isTypingIndicator(l) && !isTimestampOnly(l)
+        (l) =>
+          !isUserEcho(l) && !isTypingIndicator(l) && !isTimestampOnly(l) && !isDateOrStatusLine(l)
       );
 
       if (botLines.length > 0) {
@@ -344,6 +418,10 @@ export async function extractResponse(tabId, frameId, lastUserText = "", prevSna
 
       // Diff contained only user echo and/or typing indicators — advance baseline
       // past this transient state and keep polling for the real reply.
+      dbg("extract", "Skipped noise diff, advancing baseline", {
+        poll,
+        droppedLines: diffLines.slice(0, 5),
+      });
       baseTextNodes = snap.textNodes;
       baseFullText = curFullText;
       baseNodeCount = curNodeCount;
