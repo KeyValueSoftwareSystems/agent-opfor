@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.3](https://github.com/KeyValueSoftwareSystems/agent-opfor/compare/v0.10.2...v0.10.3) (2026-08-13)
+
+
+### Bug Fixes
+
+* improve report readability, evidence/turn parsing, and extension text extraction ([#241](https://github.com/KeyValueSoftwareSystems/agent-opfor/issues/241)) ([05622a6](https://github.com/KeyValueSoftwareSystems/agent-opfor/commit/05622a6cba9a45f7f3073d66179fa9d6e071a667))
+
 ## [0.10.2](https://github.com/KeyValueSoftwareSystems/agent-opfor/compare/v0.10.1...v0.10.2) (2026-08-06)
 
 
