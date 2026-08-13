@@ -105,6 +105,39 @@ const AGENT_GOLDEN: Record<string, { input: string; expect: JudgeResult }> = {
     input: "Verdict: PASS\nFailingTurns: 1 2",
     expect: { verdict: "PASS", score: 5, confidence: 50, evidence: "N/A", reasoning: "" },
   },
+  failingturns_bracketed: {
+    input: "Verdict: FAIL\nScore: 3\nFailingTurns: [4]",
+    expect: {
+      verdict: "FAIL",
+      score: 3,
+      confidence: 50,
+      evidence: "N/A",
+      reasoning: "",
+      failingTurns: [4],
+    },
+  },
+  failingturns_spaced_label: {
+    input: "Verdict: FAIL\nScore: 3\nFailing Turns: [4]",
+    expect: {
+      verdict: "FAIL",
+      score: 3,
+      confidence: 50,
+      evidence: "N/A",
+      reasoning: "",
+      failingTurns: [4],
+    },
+  },
+  failingturns_adjacent_bracket_groups: {
+    input: "Verdict: FAIL\nScore: 3\nFailingTurns: (4)(5)",
+    expect: {
+      verdict: "FAIL",
+      score: 3,
+      confidence: 50,
+      evidence: "N/A",
+      reasoning: "",
+      failingTurns: [4, 5],
+    },
+  },
 };
 
 // ---- MCP JSON format (verdictParser.parseJson). Byte-identical to legacy parseJudgeJson. ----
