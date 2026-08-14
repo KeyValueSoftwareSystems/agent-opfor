@@ -20,18 +20,27 @@ function stripLeadingTimestamp(text) {
     .trim();
 }
 
+// Something that only ever appears in date/time/status chrome, never in a bare
+// numeric reply. Required before the strip-and-check below, so a standalone
+// "42" / "2026" / "$25" isn't mistaken for a day-of-month or a year.
+const DATE_STATUS_ANCHOR =
+  /\b\d{1,2}:\d{2}\b|\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b|\b(?:seen|delivered|read|sent|today|yesterday|ago)\b|\bjust\s+now\b|\b(?:mon|tue|wed|thu|fri|sat|sun)(?:day)?\b/i;
+const MONTH_WORD = /\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b/i;
+
 // Returns true if `text` is an entire line/node of date/time/read-receipt chrome
 // ("Seen at 3:45 PM", "Delivered", "Today", "Aug 13, 2026") rather than reply
 // content. Unlike stripLeadingTimestamp (which only strips a timestamp that's
 // glued as a PREFIX onto real content on the same line), this catches a whole
 // separate node rendered above/below the reply bubble — the shapes vary too
 // much to enumerate ("Seen at HH:MM", "Read HH:MM", bare "Delivered", a lone
-// date header) so this strips every date/time/status token out and checks
-// whether anything is left over, same technique as isTypingIndicator below.
+// date header) so this requires a date/status anchor and then checks that
+// stripping every date/time/status token leaves nothing behind.
 function isDateOrStatusLine(text) {
   if (!text) return false;
   const t = text.trim();
   if (t.length > 40) return false; // these footers/headers are always short
+  // A bare month name ("May") is also a real word, so it only anchors alongside a number.
+  if (!DATE_STATUS_ANCHOR.test(t) && !(MONTH_WORD.test(t) && /\d/.test(t))) return false;
   const rest = t
     .toLowerCase()
     .replace(/\d{1,2}:\d{2}\s*(?:[ap]\.?m\.?)?/gi, " ") // clock time, e.g. "3:45 pm"
@@ -39,11 +48,105 @@ function isDateOrStatusLine(text) {
     .replace(/\b\d{4}\b/g, " ") // year
     .replace(/\b(?:mon|tue|wed|thu|fri|sat|sun)(?:day)?\b/gi, " ") // weekday
     .replace(/\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b/gi, " ") // month
+    .replace(/\b(?:second|minute|hour|day|week)s?\b/gi, " ") // "3 days ago"
     .replace(/\b(seen|delivered|read|sent|today|yesterday|now|ago|just|at|on|by|am|pm)\b/gi, " ")
     .replace(/[^\w\s]/g, " ") // leftover punctuation (commas, dashes, dots)
     .replace(/\s+/g, " ")
     .trim();
   return rest === "";
+}
+
+// Words that only ever show up wrapping a placeholder ("Agent is thinking...",
+// "Kai: still generating", "one moment please") — never inside a real reply's
+// opening words, since a real reply is addressing the user's actual question.
+const PLACEHOLDER_FILLER_WORDS = new Set([
+  "agent",
+  "assistant",
+  "bot",
+  "ai",
+  "support",
+  "system",
+  "virtual",
+  "is",
+  "are",
+  "am",
+  "currently",
+  "still",
+  "now",
+  "just",
+  "please",
+  "a",
+  // Structural words that only ever glue a placeholder phrase together
+  // ("one moment", "hold on", "working on it") — never load-bearing on their
+  // own, or a real ack like "On it" would be swallowed.
+  "on",
+  "one",
+  "it",
+  // Objects of a placeholder verb ("Generating response…", "writing a reply").
+  "response",
+  "reply",
+]);
+const PLACEHOLDER_CORE_WORDS = new Set([
+  "typing",
+  "thinking",
+  "loading",
+  "generating",
+  "responding",
+  "writing",
+  "processing",
+  "analyzing",
+  "searching",
+  "fetching",
+  "working",
+  "wait",
+  "waiting",
+  "moment",
+  "hold",
+  "sec",
+  "second",
+]);
+
+// Returns true if `text` is a transient typing/thinking indicator, not a real reply.
+// Dot/ellipsis count and exact wording vary by UI ("Thinking…", "Thinking....",
+// "Agent is thinking", "Kai: still generating") so this normalizes rather than
+// matching a fixed string list: strip punctuation and known filler words, then
+// check whether every remaining word is a known placeholder word AND at least
+// one of them is a "core" placeholder verb (so real short replies like "Yes,
+// I can help with that" don't get swallowed just for being short).
+function isTypingIndicator(text) {
+  if (!text) return false;
+  const t = text.trim();
+  if (t.length > 120) return false;
+  // Dots / ellipsis only, or a bare streaming cursor
+  if (/^[.…·•\s]+$/.test(t)) return true;
+  if (/^▋?$/.test(t)) return true;
+  // Indicator phrasing that trails words the vocabulary check below can't know
+  // ("…thinking about your question"). Both forms are anchored on a subject
+  // that can only be the UI talking about itself — a bare "is writing" would
+  // also match a real reply like "the file is writing to disk".
+  if (/\b(?:is|are)\s+typing\b/i.test(t)) return true;
+  if (
+    /\b(?:agent|assistant|bot|support|system)\b.*\b(?:typing|thinking|responding|writing|generating)\b/i.test(
+      t
+    )
+  )
+    return true;
+
+  const words = t
+    // Drop a speaker label the UI glued on ("Kai: still generating").
+    .replace(/^[a-z][a-z .'’-]{0,23}:\s+/i, "")
+    .toLowerCase()
+    .replace(/[…]/g, " ") // ellipsis char
+    .replace(/[^a-z\s]/g, " ") // strip remaining punctuation/digits
+    .split(/\s+/)
+    .filter(Boolean);
+  if (!words.length) return false;
+
+  const hasCore = words.some((w) => PLACEHOLDER_CORE_WORDS.has(w));
+  const allKnown = words.every(
+    (w) => PLACEHOLDER_CORE_WORDS.has(w) || PLACEHOLDER_FILLER_WORDS.has(w)
+  );
+  return hasCore && allKnown;
 }
 
 // ── Text-node diff ────────────────────────────────────────────────────────────
@@ -227,80 +330,6 @@ export async function extractResponse(tabId, frameId, lastUserText = "", prevSna
     }
   }
 
-  // Words that only ever show up wrapping a placeholder ("Agent is thinking...",
-  // "Kai: still generating", "one moment please") — never inside a real reply's
-  // opening words, since a real reply is addressing the user's actual question.
-  const PLACEHOLDER_FILLER_WORDS = new Set([
-    "agent",
-    "assistant",
-    "bot",
-    "ai",
-    "support",
-    "system",
-    "virtual",
-    "is",
-    "are",
-    "am",
-    "currently",
-    "still",
-    "now",
-    "just",
-    "please",
-    "a",
-  ]);
-  const PLACEHOLDER_CORE_WORDS = new Set([
-    "typing",
-    "thinking",
-    "loading",
-    "generating",
-    "responding",
-    "writing",
-    "processing",
-    "analyzing",
-    "searching",
-    "fetching",
-    "working",
-    "wait",
-    "waiting",
-    "moment",
-    "hold",
-    "on",
-    "one",
-    "sec",
-    "second",
-    "it",
-  ]);
-
-  // Returns true if `text` is a transient typing/thinking indicator, not a real reply.
-  // Dot/ellipsis count and exact wording vary by UI ("Thinking…", "Thinking....",
-  // "Agent is thinking", "Kai: still generating") so this normalizes rather than
-  // matching a fixed string list: strip punctuation and known filler words, then
-  // check whether every remaining word is a known placeholder word AND at least
-  // one of them is a "core" placeholder verb (so real short replies like "Yes,
-  // I can help with that" don't get swallowed just for being short).
-  function isTypingIndicator(text) {
-    if (!text) return false;
-    const t = text.trim();
-    if (t.length > 80) return false;
-    // Dots / ellipsis only, or a bare streaming cursor
-    if (/^[.…·•\s]+$/.test(t)) return true;
-    if (/^▋?$/.test(t)) return true;
-
-    const words = t
-      .toLowerCase()
-      .replace(/[…]/g, " ") // ellipsis char
-      .replace(/[^a-z\s]/g, " ") // strip remaining punctuation/digits
-      .split(/\s+/)
-      .filter(Boolean);
-    if (!words.length) return false;
-
-    const hasCore = words.some((w) => PLACEHOLDER_CORE_WORDS.has(w));
-    const allKnown = words.every(
-      (w) => PLACEHOLDER_CORE_WORDS.has(w) || PLACEHOLDER_FILLER_WORDS.has(w)
-    );
-    return hasCore && allKnown;
-  }
-
   // Returns true if `text` looks like the user's own sent message echoed back.
   function isUserEcho(text) {
     if (!lastUserText || !text) return false;
@@ -313,6 +342,20 @@ export async function extractResponse(tabId, frameId, lastUserText = "", prevSna
     if (n.length > 8 && u.includes(n)) return true;
     return false;
   }
+
+  // Every kind of non-reply line, in one place so both return paths below
+  // (stable diff, and the partial result after polling expires) drop the same
+  // things. Pure-timestamp lines strip to empty via stripLeadingTimestamp.
+  const isNoiseLine = (l) =>
+    isUserEcho(l) ||
+    isTypingIndicator(l) ||
+    stripLeadingTimestamp(l).trim() === "" ||
+    isDateOrStatusLine(l);
+  const stripNoise = (raw) =>
+    raw
+      .split("\n")
+      .filter((l) => l.trim())
+      .filter((l) => !isNoiseLine(l));
 
   async function pollFrame() {
     const results = await chrome.scripting.executeScript({
@@ -391,13 +434,7 @@ export async function extractResponse(tabId, frameId, lastUserText = "", prevSna
     if (stableCount >= neededStable) {
       const { text: rawDiff } = diffTextNodes(baseTextNodes, snap.textNodes);
       const diffLines = rawDiff.split("\n").filter((l) => l.trim());
-      // Drop pure-timestamp lines (e.g. message-bubble "3:45 PM" footers) that now
-      // surface as their own nodes — they strip to empty and aren't real reply text.
-      const isTimestampOnly = (l) => stripLeadingTimestamp(l).trim() === "";
-      const botLines = diffLines.filter(
-        (l) =>
-          !isUserEcho(l) && !isTypingIndicator(l) && !isTimestampOnly(l) && !isDateOrStatusLine(l)
-      );
+      const botLines = stripNoise(rawDiff);
 
       if (botLines.length > 0) {
         dbg("extract", "Response extracted successfully", {
@@ -443,10 +480,18 @@ export async function extractResponse(tabId, frameId, lastUserText = "", prevSna
   });
   if (bestSnap) {
     const { text } = diffTextNodes(baseTextNodes, bestSnap.textNodes);
-    if (text.trim()) {
+    // An animated indicator never goes stable, so the loop above never got to
+    // filter it — without this the timeout path hands back "Thinking…" as the reply.
+    const partialLines = stripNoise(text);
+    if (!partialLines.length && text.trim()) {
+      dbg("extract", "Partial result was all noise, discarding", {
+        droppedLines: text.split("\n").filter(Boolean).slice(0, 5),
+      });
+    }
+    if (partialLines.length) {
       return {
         ok: true,
-        text: text.trim(),
+        text: partialLines.join("\n"),
         typing: false,
         intermediate: false,
         counts: { total: bestSnap.nodeCount, botCount: bestSnap.nodeCount, userCount: 0 },
