@@ -2,7 +2,7 @@
 // Hallucination guard: evidence MUST be a verbatim substring of a real target
 // response on the cited thread, or the finding is rejected.
 
-import { tool } from "@anthropic-ai/claude-agent-sdk";
+import { tool } from "./defineTool.js";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { snip, type RunContext } from "../orchestrator/context.js";

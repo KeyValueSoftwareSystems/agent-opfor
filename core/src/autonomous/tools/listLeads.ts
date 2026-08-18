@@ -2,7 +2,7 @@
 // and expands the best. Optional markSpawned/markDismissed resolve leads in the same round-trip so
 // the same seam is never spawned twice. Read-mostly (the marks are bookkeeping on the queue).
 
-import { tool } from "@anthropic-ai/claude-agent-sdk";
+import { tool } from "./defineTool.js";
 import { z } from "zod";
 import type { RunContext } from "../orchestrator/context.js";
 import { markLead } from "../state/runLog.js";

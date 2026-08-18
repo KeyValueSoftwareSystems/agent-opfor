@@ -1,6 +1,6 @@
 # Opfor Hunt — Autonomous Red-Teaming
 
-`opfor hunt` runs an adaptive attack campaign via a multi-agent system (commander, operators, scout). Unlike `opfor run`, the agents run on **Claude only** — your target can be anything. See [Authentication](#authentication) below.
+`opfor hunt` runs an adaptive attack campaign via a multi-agent system (commander, operators, scout). The agents run on any supported LLM provider (Claude by default) — and your target can be anything. See [Authentication](#authentication) below.
 
 ## Quick Start
 
@@ -106,11 +106,27 @@ respond before it's killed.
 
 ### Models
 
-| Option                   | Default  |
-| ------------------------ | -------- |
-| `--commander-model <id>` | `sonnet` |
-| `--operator-model <id>`  | `sonnet` |
-| `--scout-model <id>`     | `haiku`  |
+The **brain** is the LLM driving the agents — separate from the target under attack.
+
+| Option                    | Default          | Notes                                                                             |
+| ------------------------- | ---------------- | --------------------------------------------------------------------------------- |
+| `--brain-provider <name>` | `anthropic`      | `openai`, `anthropic`, `groq`, `google`, `deepseek`, `azure`, `openai-compatible` |
+| `--brain-key-env <var>`   | provider default | Env var **name** holding the key                                                  |
+| `--brain-base-url <url>`  | —                | Gateway / self-hosted endpoint                                                    |
+| `--commander-model <id>`  | `sonnet`         | Alias or full model id                                                            |
+| `--operator-model <id>`   | `sonnet`         |                                                                                   |
+| `--scout-model <id>`      | `haiku`          |                                                                                   |
+
+The aliases `haiku` / `sonnet` / `opus` are Anthropic-only — on any other provider, pass a full model id:
+
+```bash
+opfor hunt --endpoint https://your-target.com/chat --objective "…" \
+  --brain-provider openai --commander-model gpt-4o --operator-model gpt-4o --scout-model gpt-4o-mini
+```
+
+> **Prompts are tuned for Claude.** Other providers work, but a weaker model tends to over-claim
+> findings. The verbatim-evidence guard in `record_finding` rejects fabricated quotes regardless,
+> so the failure mode is noise rather than invention — still, Claude remains the recommended default.
 
 ### Limits
 
@@ -168,7 +184,7 @@ opfor hunt --target-config opfor.config.json --objective "…"
 }
 ```
 
-> **Grounded planning needs an Anthropic API key.** The curator/summarizer LLM runs via `ANTHROPIC_API_KEY` (or a gateway: `ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN`). On a subscription/OAuth login only, hunt still runs and still propagates + enriches findings — it just skips grounded planning with a one-line notice. Trace propagation and finding enrichment use the telemetry backend's own credentials (`NETRA_API_KEY` / Langfuse keys), not the brain key.
+> **Grounded planning uses the brain key.** The curator/summarizer LLM runs on the same `--brain-provider` credential as the agents. Trace propagation and finding enrichment use the telemetry backend's own credentials (`NETRA_API_KEY` / Langfuse keys), not the brain key.
 
 ## Stopping a run
 
@@ -178,32 +194,45 @@ The same applies if a run errors out mid-flight (provider block, network failure
 
 ## Authentication
 
-Credentials are resolved in order:
+Hunt needs an API key for whichever provider drives its agents. Set the env var for your
+`--brain-provider`:
 
-1. `ANTHROPIC_API_KEY` — pay-per-token Anthropic API key.
-2. `CLAUDE_CODE_OAUTH_TOKEN` — token from `claude setup-token`.
-3. Local Claude subscription — falls back to your `claude login` session (Pro/Max) if neither is set. Runs against your subscription's usage/rate limits, not a separate API bill.
+| `--brain-provider`    | Env var                        |
+| --------------------- | ------------------------------ |
+| `anthropic` (default) | `ANTHROPIC_API_KEY`            |
+| `openai`              | `OPENAI_API_KEY`               |
+| `groq`                | `GROQ_API_KEY`                 |
+| `google`              | `GOOGLE_GENERATIVE_AI_API_KEY` |
+| `deepseek`            | `DEEPSEEK_API_KEY`             |
+| `azure`               | `AZURE_OPENAI_API_KEY`         |
+| `openai-compatible`   | `OPFOR_API_KEY`                |
 
-Options 2 and 3 require the [Claude Code CLI](https://docs.claude.com/claude-code) (`npm install -g @anthropic-ai/claude-code`).
+Override the variable name with `--brain-key-env <var>`.
 
-Note this is Claude-only, and independent of the provider key `opfor run` uses for its attacker LLM. Your target can still be any model or agent.
+This credential is independent of the one `opfor run` uses for its attacker LLM, and independent
+of the target's own key. Your target can be any model or agent.
 
-**Gateway / self-hosted proxy** — set both together:
+**Gateway / self-hosted proxy** — point at it with `--brain-base-url` and put the token in the
+provider's env var:
 
 ```bash
-ANTHROPIC_BASE_URL=https://your-gateway.example.com
-ANTHROPIC_AUTH_TOKEN=...
+export ANTHROPIC_API_KEY=...
+opfor hunt --brain-base-url https://your-gateway.example.com --endpoint … --objective "…"
 ```
-
-> `ANTHROPIC_AUTH_TOKEN` on its own is **ignored**. A bare token is indistinguishable from one inherited from a parent Claude Code session, so it is stripped before the agents start — and the run silently falls through to the next credential in the list, which may mean billing your personal subscription instead of the gateway. `opfor hunt` warns about this at startup and on the `--ui` setup form.
 
 The credential actually in use is printed at startup (`Authenticating via: …`) and shown on the `--ui` setup form.
 
 **Skipping `.env` entirely** — the `--ui` setup form can also take an API key or gateway pair directly, if nothing is detected in the environment (or you'd rather not touch one at all). It's applied for that run only and never written to disk.
 
+> **Breaking change (from 0.11).** Hunt previously accepted a Claude Pro/Max subscription via
+> `claude setup-token` or `claude login`, with no API key. That only worked because it ran the
+> Claude Code CLI as a subprocess; hunt now runs the agent loop in-process on the Vercel AI SDK,
+> so an API key is required. `CLAUDE_CODE_OAUTH_TOKEN` and `~/.claude/.credentials.json` are no
+> longer consulted.
+
 ### Pinning model snapshots
 
-`--commander-model`, `--operator-model`, and `--scout-model` take the aliases `haiku` / `sonnet` / `opus`. To pin those aliases to specific snapshots — for a gateway that only exposes certain ids, or to freeze behaviour across runs — set:
+On `--brain-provider anthropic`, `--commander-model`, `--operator-model`, and `--scout-model` take the aliases `haiku` / `sonnet` / `opus`. To pin those aliases to specific snapshots — for a gateway that only exposes certain ids, or to freeze behaviour across runs — set:
 
 ```bash
 ANTHROPIC_DEFAULT_HAIKU_MODEL=claude-haiku-4-5-20251001
@@ -229,6 +258,8 @@ These are the same category ids `opfor run` uses under `evaluators/agent/` — h
 
 ## Troubleshooting
 
-**Model not found?** Check `ANTHROPIC_API_KEY` and `ANTHROPIC_BASE_URL`.
+**Model not found?** Check that your `--commander-model` / `--operator-model` / `--scout-model` ids are valid for the `--brain-provider` you chose. The `haiku`/`sonnet`/`opus` aliases only resolve on `anthropic`.
 
-**Rate limited?** Reduce `--max-operators` or `--budget-usd`. If running on a subscription (no `ANTHROPIC_API_KEY`), you may be hitting the subscription's own rate limit — use an API key for heavier runs.
+**Missing key?** The startup error names the exact env var to set for your provider — see [Authentication](#authentication).
+
+**Rate limited?** Reduce `--max-operators` or `--budget-usd`.

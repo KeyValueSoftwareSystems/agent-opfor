@@ -1,7 +1,7 @@
 // submit_report — the commander's final action. Provides the narrative synthesis
 // (findings + turns already live in the RunLog) and signals the run is complete.
 
-import { tool } from "@anthropic-ai/claude-agent-sdk";
+import { tool } from "./defineTool.js";
 import { z } from "zod";
 import type { RunContext } from "../orchestrator/context.js";
 import { jsonResult } from "./util.js";

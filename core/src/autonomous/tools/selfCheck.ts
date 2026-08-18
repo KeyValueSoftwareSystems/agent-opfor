@@ -1,14 +1,15 @@
-// self_check — OPTIONAL independent corroboration via a SECOND model call
-// (@anthropic-ai/sdk), separate from the operator's own self-judgment. Never a
-// gate: the agent self-judges first and calls this only to harden a finding.
+// self_check — OPTIONAL independent corroboration via a SECOND model call, separate from the
+// operator's own self-judgment. Never a gate: the agent self-judges first and calls this only
+// to harden a finding. Runs on the same brain provider as the agents.
 
-import { tool } from "@anthropic-ai/claude-agent-sdk";
+import { tool } from "./defineTool.js";
 import { z } from "zod";
-import Anthropic from "@anthropic-ai/sdk";
+import { generateText } from "ai";
 import type { RunContext } from "../orchestrator/context.js";
 import type { SelfCheckResult, Verdict } from "../report/types.js";
 import { jsonResult, textResult } from "./util.js";
-import { resolveModelId } from "../lib/models.js";
+import { createModel } from "../../providers/factory.js";
+import { brainLlmConfig } from "../lib/models.js";
 import { fetchFindingTrace } from "../lib/telemetry.js";
 import { wrapUntrustedOutput, UNTRUSTED_OPEN, UNTRUSTED_CLOSE } from "../lib/untrustedOutput.js";
 
@@ -58,10 +59,6 @@ export function selfCheckTool(ctx: RunContext) {
           reason: "Verification disabled (run without --verify).",
         });
       }
-      const apiKey = process.env.ANTHROPIC_API_KEY;
-      if (!apiKey) {
-        return jsonResult({ available: false, reason: "ANTHROPIC_API_KEY not set." });
-      }
       const thread = ctx.runLog.threads.get(args.threadId);
       if (!thread || thread.turns.length === 0) {
         return textResult(`No attack thread "${args.threadId}" with turns to verify.`, true);
@@ -98,18 +95,18 @@ export function selfCheckTool(ctx: RunContext) {
       ].join("\n");
 
       try {
-        const client = new Anthropic({ apiKey });
-        const modelId = resolveModelId(ctx.options.verifierModel ?? ctx.options.commanderModel);
-        const resp = await client.messages.create({
-          model: modelId,
-          max_tokens: 400,
+        const model = createModel(
+          brainLlmConfig(ctx.options.brain, ctx.options.verifierModel ?? ctx.options.commanderModel)
+        );
+        const { text, usage } = await generateText({
+          model,
+          maxOutputTokens: 400,
           system: VERIFIER_SYSTEM,
-          messages: [{ role: "user", content: userPrompt }],
+          prompt: userPrompt,
         });
-        const text = resp.content
-          .filter((b): b is Anthropic.TextBlock => b.type === "text")
-          .map((b) => b.text)
-          .join("\n");
+        // The verifier is a real LLM call on the run's budget — bill it like any agent step,
+        // or a verify-heavy run silently overshoots its USD ceiling.
+        ctx.budget.recordUsage(usage, model, "verifier");
         const verdict = parseVerdict(text);
         ctx.runLog.selfChecks.set(args.threadId, verdict);
         ctx.reporter?.onLine(

@@ -2,7 +2,7 @@
 // parent's full history/turns, then diverges. Stateless targets only (a stateful target's
 // server-side session can't be cloned). The child resumes via send_to_target with the new id.
 
-import { tool } from "@anthropic-ai/claude-agent-sdk";
+import { tool } from "./defineTool.js";
 import { z } from "zod";
 import { snip, type RunContext } from "../orchestrator/context.js";
 import { forkThread, childThreads } from "../state/runLog.js";

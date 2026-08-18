@@ -1,24 +1,27 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
-import { homedir } from "node:os";
-import path from "node:path";
-import { resolveBrainAuth, noBrainAuthMessage } from "../src/lib/brainAuth.js";
+import {
+  resolveBrainAuth,
+  noBrainAuthMessage,
+  resolveBrainConfig,
+  brainKeyEnvVar,
+} from "../src/lib/brainAuth.js";
 
 /**
- * Regression coverage for the orphaned-gateway-token footgun: ANTHROPIC_AUTH_TOKEN
- * set without its required ANTHROPIC_BASE_URL pair is silently discarded by
- * buildChildEnv() in core, and the run falls through to whatever credential is
- * next — which can mean billing a personal Claude subscription instead of the
- * intended gateway. resolveBrainAuth()/noBrainAuthMessage() exist to surface that
- * instead of letting it pass unnoticed.
+ * Hunt's agents authenticate with an ordinary provider key, resolved through the same registry
+ * `opfor run` uses. These tests pin the two behaviors a user actually feels: which env var a
+ * given `--brain-provider` reads, and that an unknown provider fails loudly at startup rather
+ * than surfacing as a confusing error mid-run.
+ *
+ * Note this used to also accept a Claude subscription (`claude login`). That path only worked
+ * because the Claude Agent SDK spawned the Claude Code CLI; hunt no longer does.
  */
 
 const BRAIN_AUTH_VARS = [
   "ANTHROPIC_API_KEY",
-  "ANTHROPIC_BASE_URL",
-  "ANTHROPIC_AUTH_TOKEN",
-  "CLAUDE_CODE_OAUTH_TOKEN",
+  "OPENAI_API_KEY",
+  "GROQ_API_KEY",
+  "OPFOR_API_KEY",
 ] as const;
 
 type BrainEnv = Partial<Record<(typeof BRAIN_AUTH_VARS)[number], string>>;
@@ -38,58 +41,72 @@ function withBrainEnv(vars: BrainEnv, fn: () => void): void {
   }
 }
 
-const hasClaudeSubscription = existsSync(path.join(homedir(), ".claude", ".credentials.json"));
-
-test("ANTHROPIC_API_KEY resolves first, but still flags an orphaned gateway token", () => {
-  withBrainEnv({ ANTHROPIC_API_KEY: "sk-ant-test", ANTHROPIC_AUTH_TOKEN: "orphaned" }, () => {
-    const result = resolveBrainAuth();
-    assert.ok(result);
-    assert.equal(result!.method, "ANTHROPIC_API_KEY");
-    assert.ok(
-      result!.warning,
-      "a leftover orphaned token is a real misconfiguration even when a working key resolves"
-    );
-  });
+test("defaults to anthropic when no provider flag is given", () => {
+  const brain = resolveBrainConfig({});
+  assert.equal(brain.provider, "anthropic");
+  assert.equal(brainKeyEnvVar(brain), "ANTHROPIC_API_KEY");
 });
 
-test("the gateway pair resolves cleanly with no warning", () => {
-  withBrainEnv(
-    { ANTHROPIC_BASE_URL: "https://gateway.example.com", ANTHROPIC_AUTH_TOKEN: "tok" },
-    () => {
-      const result = resolveBrainAuth();
-      assert.ok(result);
-      assert.equal(result!.method, "gateway (ANTHROPIC_BASE_URL)");
-      assert.equal(result!.warning, undefined);
-    }
+test("each provider resolves to its own conventional env var", () => {
+  assert.equal(brainKeyEnvVar(resolveBrainConfig({ brainProvider: "openai" })), "OPENAI_API_KEY");
+  assert.equal(brainKeyEnvVar(resolveBrainConfig({ brainProvider: "groq" })), "GROQ_API_KEY");
+});
+
+test("--brain-key-env overrides the conventional var", () => {
+  const brain = resolveBrainConfig({ brainProvider: "groq", brainKeyEnv: "MY_GROQ_KEY" });
+  assert.equal(brainKeyEnvVar(brain), "MY_GROQ_KEY");
+});
+
+test("an unknown provider throws with the valid list, rather than failing later", () => {
+  assert.throws(
+    () => resolveBrainConfig({ brainProvider: "not-a-provider" }),
+    /Unknown --brain-provider.*anthropic/s
   );
 });
 
-test("a bare ANTHROPIC_AUTH_TOKEN is not treated as a gateway credential", () => {
-  withBrainEnv({ ANTHROPIC_AUTH_TOKEN: "orphaned-token" }, () => {
-    const result = resolveBrainAuth();
-    if (hasClaudeSubscription) {
-      // Falls through to the subscription tier on this machine — still flagged.
-      assert.ok(result);
-      assert.ok(result!.warning);
-    } else {
-      assert.equal(result, null);
-    }
+test("resolves when the provider's key is present", () => {
+  withBrainEnv({ GROQ_API_KEY: "gsk-test" }, () => {
+    const brain = resolveBrainConfig({ brainProvider: "groq" });
+    const result = resolveBrainAuth(brain);
+    assert.ok(result);
+    assert.match(result!.method, /GROQ_API_KEY/);
   });
 });
 
-// noBrainAuthMessage() never touches the filesystem — unlike resolveBrainAuth(), its
-// behavior is deterministic on every machine, real Claude login or not.
-test("noBrainAuthMessage explains the orphaned-token case regardless of any fallback credential", () => {
-  withBrainEnv({ ANTHROPIC_AUTH_TOKEN: "orphaned-token" }, () => {
-    // The bug this guards against: without the special case, this says "no credentials
-    // found" even though the user configured one — just not correctly.
-    assert.match(noBrainAuthMessage(), /ANTHROPIC_BASE_URL is not/);
+test("returns null when the selected provider's key is missing", () => {
+  // A key for a DIFFERENT provider must not satisfy the check — that would send the run
+  // into a 401 from the provider instead of an actionable startup error.
+  withBrainEnv({ OPENAI_API_KEY: "sk-test" }, () => {
+    const brain = resolveBrainConfig({ brainProvider: "groq" });
+    assert.equal(resolveBrainAuth(brain), null);
   });
 });
 
-test("noBrainAuthMessage falls back to the generic message when nothing is configured", () => {
-  withBrainEnv({}, () => {
-    assert.doesNotMatch(noBrainAuthMessage(), /ANTHROPIC_BASE_URL is not/);
-    assert.match(noBrainAuthMessage(), /No Claude credentials found/);
+test("a gateway base URL is reflected in the reported method", () => {
+  withBrainEnv({ ANTHROPIC_API_KEY: "sk-ant-test" }, () => {
+    const brain = resolveBrainConfig({ brainBaseUrl: "https://gateway.example.com" });
+    const result = resolveBrainAuth(brain);
+    assert.ok(result);
+    assert.match(result!.method, /gateway/);
   });
+});
+
+test("the base URL itself is never interpolated into the label", () => {
+  // It can carry userinfo or a signed query string, and this label is rendered in the setup
+  // UI, not just a terminal line.
+  withBrainEnv({ ANTHROPIC_API_KEY: "sk-ant-test" }, () => {
+    const brain = resolveBrainConfig({
+      brainBaseUrl: "https://user:secret@gw.example.com?sig=abc",
+    });
+    const result = resolveBrainAuth(brain);
+    assert.ok(result);
+    assert.doesNotMatch(result!.method, /secret|sig=abc/);
+  });
+});
+
+test("noBrainAuthMessage names the env var to set and the alternatives", () => {
+  const brain = resolveBrainConfig({ brainProvider: "groq" });
+  const message = noBrainAuthMessage(brain);
+  assert.match(message, /GROQ_API_KEY/);
+  assert.match(message, /--brain-provider/);
 });

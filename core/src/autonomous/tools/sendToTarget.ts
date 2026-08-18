@@ -1,7 +1,7 @@
 // send_to_target — the attack channel. Maintains per-thread conversation state
 // so the agent never re-supplies prior turns. Enforces the per-thread turn cap.
 
-import { tool } from "@anthropic-ai/claude-agent-sdk";
+import { tool } from "./defineTool.js";
 import { z } from "zod";
 import { snip, type RunContext } from "../orchestrator/context.js";
 import { getOrCreateThread, computeProgressSignal, type ThreadTurn } from "../state/runLog.js";

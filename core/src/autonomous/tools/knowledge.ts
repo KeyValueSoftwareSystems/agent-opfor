@@ -1,6 +1,6 @@
 // list_knowledge + get_knowledge tools — the fetchable half of the seed library.
 
-import { tool } from "@anthropic-ai/claude-agent-sdk";
+import { tool } from "./defineTool.js";
 import { z } from "zod";
 import type { RunContext } from "../orchestrator/context.js";
 import { jsonResult, textResult } from "./util.js";

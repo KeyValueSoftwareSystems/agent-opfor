@@ -2,7 +2,7 @@
 // parent's turns, this returns the FULL lineage transcript for a branch, so an agent picking up
 // a forked/handed-off thread can see exactly what was already tried.
 
-import { tool } from "@anthropic-ai/claude-agent-sdk";
+import { tool } from "./defineTool.js";
 import { z } from "zod";
 import type { RunContext } from "../orchestrator/context.js";
 import { jsonResult, textResult } from "./util.js";

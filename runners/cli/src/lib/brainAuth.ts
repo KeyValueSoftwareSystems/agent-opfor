@@ -1,83 +1,78 @@
-// Which credential the Claude Agent SDK will authenticate the commander/operator/
-// scout agents with. Shared by the CLI's startup precheck (hunt.ts) and the setup
-// server's /api/brain-auth + override handling (ui/server.ts) — kept in its own
-// module so neither has to import the other.
+// Which credential the hunt agents (commander / operator / scout / verifier) authenticate with.
+// Shared by the CLI's startup precheck (hunt.ts) and the setup server's /api/brain-auth +
+// override handling (ui/server.ts) — kept in its own module so neither has to import the other.
+//
+// Hunt now runs on the same provider registry as `opfor run`, so this is a plain
+// "is the provider's key present?" check. It previously also accepted a Claude subscription
+// (`claude login` / `claude setup-token`); that only worked because the Claude Agent SDK
+// spawned the Claude Code CLI, which no longer happens. See docs/hunt.md#authentication.
 
-import { existsSync } from "node:fs";
-import { homedir } from "node:os";
-import path from "node:path";
+import {
+  PROVIDERS,
+  PROVIDER_ENV_VARS,
+  PROVIDER_DISPLAY_NAMES,
+  type ProviderName,
+} from "@keyvaluesystems/agent-opfor-core/providers/factory.js";
+import type { BrainConfig } from "@keyvaluesystems/agent-opfor-core/autonomous/lib/models.js";
+
+/** Every valid `--brain-provider` value, for validation and help text. */
+export const BRAIN_PROVIDERS: ProviderName[] = Object.values(PROVIDERS);
 
 /**
- * Human-readable credential source, e.g. "ANTHROPIC_API_KEY". Never a secret value.
- * `warning` is set when a configured credential was silently ignored (see below).
+ * Human-readable credential source, e.g. "GROQ_API_KEY". Never a secret value.
+ * `warning` is set when a configured credential looks incomplete.
  */
 export interface BrainAuthInfo {
   method: string;
   warning?: string;
 }
 
-const NO_BRAIN_AUTH_MESSAGE =
-  "No Claude credentials found. Set ANTHROPIC_API_KEY, or run `claude login` / `claude setup-token` to use a Claude subscription.";
-
-const ORPHAN_GATEWAY_TOKEN_WARNING =
-  "ANTHROPIC_AUTH_TOKEN is set but ANTHROPIC_BASE_URL is not — the token is ignored and the run " +
-  "falls back to the next credential. Set both together to route through a gateway.";
-
-/** True when ANTHROPIC_AUTH_TOKEN is set but its required pair, ANTHROPIC_BASE_URL, is not. */
-function hasOrphanedGatewayToken(): boolean {
-  return Boolean(
-    process.env.ANTHROPIC_AUTH_TOKEN?.trim() && !process.env.ANTHROPIC_BASE_URL?.trim()
-  );
+/** CLI option subset this module reads. */
+export interface BrainCliOptions {
+  brainProvider?: string;
+  brainKeyEnv?: string;
+  brainBaseUrl?: string;
 }
 
-/**
- * Resolve which credential the Claude Agent SDK will authenticate with, for a
- * user-facing log line — or null if none is configured.
- *
- * The SDK resolves credentials itself (first match wins): ANTHROPIC_API_KEY →
- * CLAUDE_CODE_OAUTH_TOKEN → a stored `~/.claude/.credentials.json` from a Claude
- * subscription login (`claude setup-token` / `claude login`). This is a courtesy
- * pre-check so we can emit an actionable message instead of a cryptic SDK error;
- * it must therefore recognize the subscription path, not just env vars.
- */
-export function resolveBrainAuth(): BrainAuthInfo | null {
-  // A gateway token without its base URL is stripped by buildChildEnv(), so the run
-  // silently proceeds on a *different* credential — e.g. billing a personal Claude
-  // subscription instead of the intended gateway. Surface that rather than let it pass.
-  const warning = hasOrphanedGatewayToken() ? ORPHAN_GATEWAY_TOKEN_WARNING : undefined;
-
-  if (process.env.ANTHROPIC_API_KEY?.trim()) return { method: "ANTHROPIC_API_KEY", warning };
-  // ANTHROPIC_AUTH_TOKEN only counts alongside ANTHROPIC_BASE_URL: buildChildEnv()
-  // strips a bare token (it's treated as an inherited session token), so counting
-  // it here without a gateway URL would pass the gate then lose the credential.
-  if (process.env.ANTHROPIC_AUTH_TOKEN?.trim() && process.env.ANTHROPIC_BASE_URL?.trim()) {
-    // Never interpolate the actual URL: it may carry userinfo or a signed query
-    // string, and this label is rendered in the setup UI, not just the terminal.
-    return { method: "gateway (ANTHROPIC_BASE_URL)" };
-  }
-  if (process.env.CLAUDE_CODE_OAUTH_TOKEN?.trim()) {
-    return { method: "CLAUDE_CODE_OAUTH_TOKEN", warning };
-  }
-  // Claude subscription: credentials stored on disk by `claude setup-token` / `claude login`.
-  if (existsSync(path.join(homedir(), ".claude", ".credentials.json"))) {
-    return { method: "Claude subscription (~/.claude/.credentials.json)", warning };
-  }
-  return null;
-}
-
-/**
- * The error printed when resolveBrainAuth() finds nothing. Special-cased for the
- * orphaned-gateway-token footgun — otherwise a user who DID set ANTHROPIC_AUTH_TOKEN
- * sees "no credentials found" with no hint that what they configured was silently
- * discarded for missing its required ANTHROPIC_BASE_URL pair.
- */
-export function noBrainAuthMessage(): string {
-  if (hasOrphanedGatewayToken()) {
-    return (
-      "ANTHROPIC_AUTH_TOKEN is set but ANTHROPIC_BASE_URL is not, so it was ignored, and no " +
-      "other Claude credential was found. Set ANTHROPIC_BASE_URL alongside it, or set " +
-      "ANTHROPIC_API_KEY, or run `claude login` / `claude setup-token`."
+/** Validate + normalize the brain provider flags into a BrainConfig. */
+export function resolveBrainConfig(opts: BrainCliOptions): BrainConfig {
+  const provider = (opts.brainProvider ?? "anthropic") as ProviderName;
+  if (!BRAIN_PROVIDERS.includes(provider)) {
+    throw new Error(
+      `Unknown --brain-provider "${opts.brainProvider}". Use one of: ${BRAIN_PROVIDERS.join(", ")}.`
     );
   }
-  return NO_BRAIN_AUTH_MESSAGE;
+  return {
+    provider,
+    apiKeyEnv: opts.brainKeyEnv?.trim() || undefined,
+    baseURL: opts.brainBaseUrl?.trim() || undefined,
+  };
+}
+
+/** The env var this brain config will read its key from. */
+export function brainKeyEnvVar(brain: BrainConfig): string {
+  return brain.apiKeyEnv ?? PROVIDER_ENV_VARS[brain.provider];
+}
+
+/**
+ * Resolve the credential the brain agents will authenticate with, for a user-facing log line —
+ * or null if none is configured.
+ */
+export function resolveBrainAuth(brain: BrainConfig): BrainAuthInfo | null {
+  const envVar = brainKeyEnvVar(brain);
+  if (!process.env[envVar]?.trim()) return null;
+
+  const label = PROVIDER_DISPLAY_NAMES[brain.provider] ?? brain.provider;
+  return {
+    method: brain.baseURL ? `${envVar} → gateway (${label})` : `${envVar} (${label})`,
+  };
+}
+
+/** The error printed when resolveBrainAuth() finds nothing. */
+export function noBrainAuthMessage(brain: BrainConfig): string {
+  const envVar = brainKeyEnvVar(brain);
+  return (
+    `No API key found for the hunt agents. Set ${envVar} for provider "${brain.provider}", ` +
+    `or pick another with --brain-provider (${BRAIN_PROVIDERS.join(", ")}).`
+  );
 }
