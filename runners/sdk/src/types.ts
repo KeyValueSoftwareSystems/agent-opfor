@@ -296,8 +296,8 @@ export interface ListEvaluatorsOptions {
  * - `baseUrl` maps to `ANTHROPIC_BASE_URL` (gateway/proxy host; avoid trailing `/v1`)
  */
 export interface HuntBrainConfig {
+  /** API key for the brain provider (see `models.provider`). Bound to its env var for the call. */
   apiKey: string;
-  baseUrl?: string;
 }
 
 /** Target configuration for autonomous mode (HTTP endpoint only). */
@@ -329,7 +329,16 @@ export interface HuntTargetConfig {
 
 /** Model configuration for autonomous mode. */
 export interface HuntModelsConfig {
-  /** Commander model (alias like "opus"/"sonnet" or full id). Default: "opus" */
+  /**
+   * Provider driving the agents. Default: "anthropic".
+   * Independent of the target — the target can be any model or agent.
+   */
+  provider?: ProviderName;
+  /** Env var NAME holding the brain provider's key. Defaults to the provider's conventional var. */
+  apiKeyEnv?: string;
+  /** Gateway / self-hosted base URL for the brain provider. */
+  baseURL?: string;
+  /** Commander model (Anthropic alias like "opus"/"sonnet", or a full provider model id). Default: "opus" */
   commander?: string;
   /** Operator subagent model. Default: "sonnet" */
   operator?: string;

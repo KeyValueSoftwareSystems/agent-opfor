@@ -1,7 +1,7 @@
 // recon_probe — benign reconnaissance against the target. Logged as recon,
 // separate from attack threads, and capped by maxReconProbes.
 
-import { tool } from "@anthropic-ai/claude-agent-sdk";
+import { tool } from "./defineTool.js";
 import { z } from "zod";
 import { snip, type RunContext } from "../orchestrator/context.js";
 import { getOrCreateThread } from "../state/runLog.js";

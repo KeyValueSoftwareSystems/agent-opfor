@@ -1,26 +1,28 @@
 // Cost/rate guardrails for an autonomous run.
+//
+// Cost is estimated from token usage via the shared `pricing/` table. Hunt used to carry its own
+// hardcoded opus/sonnet/haiku price map that silently priced every unrecognized model as Sonnet —
+// harmless while hunt was Claude-only, wrong the moment it can run on any provider.
+//
+// Note there is no longer a server-authoritative total to correct drift against (the Claude Agent
+// SDK supplied one; the AI SDK does not), so `spentUsd` is an estimate throughout. It is
+// cache-aware, which is what dominates accuracy on a long run with a large static system prompt.
 
+import type { LanguageModel } from "ai";
 import { RateLimiter } from "../../lib/rateLimiter.js";
+import { TokenTracker } from "../../execute/tokenTracker.js";
+import { estimateRunCost } from "../../pricing/estimateCost.js";
 
-// Approximate Claude pricing in USD per million tokens (as of mid-2025).
-// Used to estimate running cost from streaming token counts before the SDK
-// emits a final total_cost_usd. The result message corrects any drift.
-const MODEL_PRICES: Record<
-  string,
-  { inputPerM: number; outputPerM: number; cacheWritePerM: number; cacheReadPerM: number }
-> = {
-  opus: { inputPerM: 15, outputPerM: 75, cacheWritePerM: 18.75, cacheReadPerM: 1.5 },
-  sonnet: { inputPerM: 3, outputPerM: 15, cacheWritePerM: 3.75, cacheReadPerM: 0.3 },
-  haiku: { inputPerM: 0.8, outputPerM: 4, cacheWritePerM: 1.0, cacheReadPerM: 0.08 },
-};
-const DEFAULT_PRICES = MODEL_PRICES.sonnet;
-
-function resolvePrices(modelHint?: string) {
-  if (!modelHint) return DEFAULT_PRICES;
-  const lower = modelHint.toLowerCase();
-  if (lower.includes("opus")) return MODEL_PRICES.opus;
-  if (lower.includes("haiku")) return MODEL_PRICES.haiku;
-  return MODEL_PRICES.sonnet;
+/** Token usage as the AI SDK reports it on a completed step. */
+export interface StepUsage {
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+  inputTokenDetails?: {
+    noCacheTokens?: number;
+    cacheReadTokens?: number;
+    cacheWriteTokens?: number;
+  };
 }
 
 export interface BudgetGuardOptions {
@@ -36,8 +38,8 @@ export interface BudgetGuardOptions {
   maxDepth?: number;
   /**
    * Hard ceiling on total target sends across the whole run — the DETERMINISTIC, real-time cost
-   * backstop. The USD ceiling is only known after SDK result messages (it lags and overshoots);
-   * this caps work as it happens. Defaults to ~20 sends per budget-USD (≈$0.05/send), or 200.
+   * backstop. The USD ceiling is an estimate that lags actual spend; this caps work as it happens.
+   * Defaults to ~20 sends per budget-USD (≈$0.05/send), or 200.
    */
   maxTotalSends?: number;
 }
@@ -49,9 +51,9 @@ export class BudgetGuard {
   readonly maxForksPerThread: number;
   readonly maxDepth: number;
   readonly maxTotalSends: number;
+  /** Per-model token accounting; also feeds the report's usage stats. */
+  readonly tokens = new TokenTracker();
   private readonly rateLimiter: RateLimiter;
-  private lastKnownCostUsd = 0;
-  private accumulatedTokenCostUsd = 0;
   private sendsUsed = 0;
 
   constructor(opts: BudgetGuardOptions) {
@@ -102,7 +104,7 @@ export class BudgetGuard {
 
   /**
    * Whether a fork is allowed: bounded by total tree size and per-parent fan-out. (True
-   * concurrency is already governed by the SDK's subagent cap; these are the runaway backstops.)
+   * concurrency is already governed by the dispatch wave size; these are the runaway backstops.)
    */
   forkAllowed(totalThreads: number, childrenOfParent: number): { ok: boolean; reason?: string } {
     if (totalThreads >= this.maxTotalThreads) {
@@ -117,52 +119,48 @@ export class BudgetGuard {
     return { ok: true };
   }
 
-  /** Record the latest known cumulative cost (from SDK result/usage messages). Corrects estimation drift. */
-  recordCost(costUsd: number): void {
-    if (Number.isFinite(costUsd) && costUsd > this.lastKnownCostUsd) {
-      this.lastKnownCostUsd = costUsd;
-      // Keep accumulated estimate in sync so it doesn't double-count after correction.
-      if (costUsd > this.accumulatedTokenCostUsd) {
-        this.accumulatedTokenCostUsd = costUsd;
-      }
-    }
+  /**
+   * Accumulate usage from one completed agent step, attributed to the model that served it so
+   * each model is priced at its own rate. `model` is the AI SDK model instance — `createModel()`
+   * records its provider/model identity, which is what the tracker resolves.
+   */
+  recordUsage(usage: StepUsage | undefined, model: LanguageModel, role: string): void {
+    if (!usage) return;
+    const details = usage.inputTokenDetails;
+    const cache =
+      details &&
+      (details.noCacheTokens !== undefined ||
+        details.cacheReadTokens !== undefined ||
+        details.cacheWriteTokens !== undefined)
+        ? {
+            noCache: details.noCacheTokens ?? 0,
+            cacheRead: details.cacheReadTokens ?? 0,
+            cacheWrite: details.cacheWriteTokens ?? 0,
+          }
+        : undefined;
+
+    this.tokens.record(
+      {
+        inputTokens: usage.inputTokens,
+        outputTokens: usage.outputTokens,
+        totalTokens: usage.totalTokens,
+        cache,
+      },
+      { model, role }
+    );
   }
 
   /**
-   * Accumulate token usage from a streaming assistant message. Updates `lastKnownCostUsd`
-   * so `isOverBudget()` can fire mid-stream rather than only after result messages.
-   * Uses a model price table — drift is corrected when `recordCost()` receives the
-   * server's authoritative `total_cost_usd` from the final result message.
+   * Estimated spend so far, in USD. Models the price table doesn't know contribute 0 — the
+   * estimate is a lower bound, which is why `maxTotalSends` exists as the hard backstop.
    */
-  recordTokenUsage(
-    usage: {
-      inputTokens: number;
-      outputTokens: number;
-      cacheCreationInputTokens: number;
-      cacheReadInputTokens: number;
-    },
-    modelHint?: string
-  ): void {
-    const prices = resolvePrices(modelHint);
-    const cost =
-      (usage.inputTokens * prices.inputPerM +
-        usage.outputTokens * prices.outputPerM +
-        usage.cacheCreationInputTokens * prices.cacheWritePerM +
-        usage.cacheReadInputTokens * prices.cacheReadPerM) /
-      1_000_000;
-    this.accumulatedTokenCostUsd += cost;
-    if (this.accumulatedTokenCostUsd > this.lastKnownCostUsd) {
-      this.lastKnownCostUsd = this.accumulatedTokenCostUsd;
-    }
-  }
-
   get spentUsd(): number {
-    return this.lastKnownCostUsd;
+    return estimateRunCost(this.tokens.breakdown)?.totalUsd ?? 0;
   }
 
-  /** True when a hard USD ceiling is configured and has been reached. */
+  /** True when a hard USD ceiling is configured and the estimate has reached it. */
   isOverBudget(): boolean {
-    return this.budgetUsd !== undefined && this.lastKnownCostUsd >= this.budgetUsd;
+    return this.budgetUsd !== undefined && this.spentUsd >= this.budgetUsd;
   }
 
   /** Whether a thread may take another turn. */

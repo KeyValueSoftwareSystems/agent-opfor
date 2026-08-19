@@ -3,6 +3,7 @@
 
 import type { SessionConfig } from "../../execute/types.js";
 import type { TelemetryConfig } from "../../config/types.js";
+import type { BrainConfig } from "./models.js";
 
 /** How the target HTTP agent maintains conversation state. */
 export type TargetMode = "stateless" | "stateful";
@@ -12,7 +13,7 @@ export type TargetKind = "http" | "local-script";
 
 /**
  * Transport configuration for the target agent under test.
- * The agent (Claude SDK) never sees these values — tools hold the client.
+ * The brain agents never see these values — tools hold the client.
  */
 export interface TargetConfig {
   /** Display name (defaults to the endpoint host, or the script's basename for local-script). */
@@ -54,7 +55,12 @@ export interface TargetConfig {
 export interface HuntOptions {
   target: TargetConfig;
   objective: string;
-  /** Commander model (alias like "opus"/"sonnet" or full id). */
+  /**
+   * Provider/credentials for the agent brain (commander, operator, scout, verifier).
+   * Independent of the target — the target can be any model or agent.
+   */
+  brain: BrainConfig;
+  /** Commander model. Anthropic aliases ("opus"/"sonnet"/"haiku") or a full provider model id. */
   commanderModel: string;
   /** Operator subagent model. */
   operatorModel: string;

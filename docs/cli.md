@@ -153,7 +153,7 @@ The CLI loads `.env` from the current working directory automatically. Add `.env
 opfor run --config .opfor/configs/opfor-config-....json --env .env.prod
 ```
 
-> This key is for `opfor run`'s attacker LLM only. `opfor hunt` uses a separate, Claude-only credential — see [hunt.md § Authentication](hunt.md#authentication).
+> This key is for `opfor run`'s attacker LLM only. `opfor hunt` resolves its own brain credential separately — see [hunt.md § Authentication](hunt.md#authentication).
 
 Telemetry credentials (Langfuse, Netra) also come from env vars — see [Trace-aware testing](#trace-aware-testing-agent-only).
 

@@ -2,7 +2,7 @@
 // later wave. The authoritative follow-up channel (the prose summary is for the report only).
 // CONFIRMED evidence goes to record_finding instead; this is for leads worth EXPLORING.
 
-import { tool } from "@anthropic-ai/claude-agent-sdk";
+import { tool } from "./defineTool.js";
 import { z } from "zod";
 import { snip, type RunContext } from "../orchestrator/context.js";
 import { addLead, computeProgressSignal } from "../state/runLog.js";

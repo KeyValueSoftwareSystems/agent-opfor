@@ -56,7 +56,7 @@ export class Opfor {
    * ```
    */
   async hunt(options: HuntOptions): Promise<HuntResults> {
-    // Lazy import to avoid loading @anthropic-ai/claude-agent-sdk unless needed
+    // Lazy import: hunt pulls in the autonomous engine, which run-only callers do not need.
     const { hunt } = await import("./hunt.js");
     return hunt({
       ...options,

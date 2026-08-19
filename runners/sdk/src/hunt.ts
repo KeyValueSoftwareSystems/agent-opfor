@@ -23,6 +23,17 @@ import type {
   HuntProgressEvent,
 } from "./types.js";
 import { withEnvLock } from "./internal/envLock.js";
+import { PROVIDER_ENV_VARS } from "@keyvaluesystems/agent-opfor-core/providers/factory.js";
+
+/**
+ * The env var the brain key is bound to for a programmatic `brain.apiKey`.
+ * Mirrors core's default (the provider's conventional var) unless overridden.
+ */
+function brainKeyEnvVar(options: HuntOptions): string {
+  const models = options.models ?? {};
+  if (models.apiKeyEnv?.trim()) return models.apiKeyEnv.trim();
+  return PROVIDER_ENV_VARS[models.provider ?? "anthropic"];
+}
 
 function withTempEnv(
   vars: Record<string, string | undefined>,
@@ -100,19 +111,11 @@ export async function hunt(options: HuntOptions): Promise<HuntResults> {
       return transformReport(report, html, json);
     };
 
+    // `brain.apiKey` is a programmatic alternative to setting the provider's env var. The
+    // engine always reads the key from an env var name, so bind it to one for this call only.
     if (options.brain) {
-      const baseUrl = options.brain.baseUrl?.trim();
-      return withTempEnv(
-        {
-          ANTHROPIC_API_KEY: options.brain.apiKey,
-          ANTHROPIC_BASE_URL: baseUrl ? baseUrl : undefined,
-          // When a user supplies `brain`, force the run to use it (avoid falling back
-          // to any ambient Claude Code / subscription credentials).
-          ANTHROPIC_AUTH_TOKEN: undefined,
-          CLAUDE_CODE_OAUTH_TOKEN: undefined,
-        },
-        runOnce
-      );
+      const envVar = brainKeyEnvVar(options);
+      return withTempEnv({ [envVar]: options.brain.apiKey }, runOnce);
     }
 
     return runOnce();
@@ -160,6 +163,11 @@ function buildCoreOptions(options: HuntOptions): CoreHuntOptions {
   return {
     target,
     objective: options.objective,
+    brain: {
+      provider: models.provider ?? "anthropic",
+      apiKeyEnv: models.apiKeyEnv,
+      baseURL: models.baseURL,
+    },
     commanderModel: models.commander ?? "opus",
     operatorModel: models.operator ?? "sonnet",
     scoutModel: models.scout ?? "haiku",

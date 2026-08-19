@@ -22,7 +22,12 @@ import {
 } from "@keyvaluesystems/agent-opfor-core/autonomous/report/writeReport.js";
 import { startUiServer } from "../ui/server.js";
 import { mergeReporters } from "../ui/bridge.js";
-import { resolveBrainAuth, noBrainAuthMessage } from "../lib/brainAuth.js";
+import {
+  resolveBrainAuth,
+  noBrainAuthMessage,
+  resolveBrainConfig,
+  BRAIN_PROVIDERS,
+} from "../lib/brainAuth.js";
 
 /** Short HH:MM:SS timestamp for live log lines. */
 function clock(): string {
@@ -45,6 +50,9 @@ interface HuntCliOptions {
   targetModel?: string;
   header?: string[];
   name?: string;
+  brainProvider?: string;
+  brainKeyEnv?: string;
+  brainBaseUrl?: string;
   commanderModel: string;
   operatorModel: string;
   scoutModel: string;
@@ -151,6 +159,20 @@ function intOr(value: string | undefined, fallback: number): number {
   return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
+/**
+ * Resolve the brain config, reporting a bad `--brain-provider` as a clean CLI error.
+ * Returns null when the flags are invalid — callers should exit non-zero.
+ */
+function brainConfigOrExit(opts: HuntCliOptions): ReturnType<typeof resolveBrainConfig> | null {
+  try {
+    return resolveBrainConfig(opts);
+  } catch (err) {
+    consola.error(err instanceof Error ? err.message : String(err));
+    process.exitCode = 1;
+    return null;
+  }
+}
+
 export function registerHuntCommand(program: Command): void {
   program
     .command("hunt")
@@ -189,11 +211,21 @@ export function registerHuntCommand(program: Command): void {
       (v: string, acc: string[]) => [...acc, v],
       []
     )
+    .option(
+      "--brain-provider <name>",
+      `LLM provider driving the agents: ${BRAIN_PROVIDERS.join(", ")}`,
+      "anthropic"
+    )
+    .option(
+      "--brain-key-env <var>",
+      "Env var holding the brain provider's API key (defaults to the provider's conventional var)"
+    )
+    .option("--brain-base-url <url>", "Gateway / self-hosted base URL for the brain provider")
     .option("--commander-model <id>", "Commander model (alias or id)", "sonnet")
     .option("--operator-model <id>", "Operator subagent model", "sonnet")
     .option("--scout-model <id>", "Scout subagent model", "haiku")
     .option("--max-operators <n>", "Max parallel operator subagents", "6")
-    .option("--max-turns <n>", "Hard ceiling on SDK agentic turns", "120")
+    .option("--max-turns <n>", "Hard ceiling on commander agentic steps", "120")
     .option(
       "--max-thread-turns <n>",
       "Per-thread depth SAFETY CEILING — not the operating limit; the agent stops on diminishing returns well before this",
@@ -255,13 +287,15 @@ export function registerHuntCommand(program: Command): void {
         // override (API key or gateway pair) for this run only — so a missing
         // credential here is not fatal; the browser still opens and the form
         // requires an override before it lets you start.
-        const brainAuth = resolveBrainAuth();
+        const uiBrain = brainConfigOrExit(opts);
+        if (!uiBrain) return;
+        const brainAuth = resolveBrainAuth(uiBrain);
         if (brainAuth) {
           consola.info(`Authenticating via: ${brainAuth.method}`);
           if (brainAuth.warning) consola.warn(brainAuth.warning);
         } else {
           consola.warn(
-            "No Claude credential detected — provide one on the setup page before starting."
+            "No brain API key detected — provide one on the setup page before starting."
           );
         }
 
@@ -343,9 +377,11 @@ export function registerHuntCommand(program: Command): void {
         return;
       }
 
-      const brainAuth = resolveBrainAuth();
+      const brain = brainConfigOrExit(opts);
+      if (!brain) return;
+      const brainAuth = resolveBrainAuth(brain);
       if (!brainAuth) {
-        consola.error(noBrainAuthMessage());
+        consola.error(noBrainAuthMessage(brain));
         process.exitCode = 1;
         return;
       }
@@ -453,6 +489,7 @@ export function registerHuntCommand(program: Command): void {
       const huntOptions: HuntOptions = {
         target,
         objective,
+        brain,
         commanderModel: opts.commanderModel,
         operatorModel: opts.operatorModel,
         scoutModel: opts.scoutModel,

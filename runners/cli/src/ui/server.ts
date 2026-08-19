@@ -16,7 +16,13 @@ import type { SessionConfig } from "@keyvaluesystems/agent-opfor-core/execute/ty
 import type { RunEvent } from "@keyvaluesystems/agent-opfor-core/autonomous/state/observe.js";
 import { UiBridge, type SseClient } from "./bridge.js";
 import type { SnapshotMeta } from "./snapshot.js";
-import { resolveBrainAuth, noBrainAuthMessage, type BrainAuthInfo } from "../lib/brainAuth.js";
+import {
+  resolveBrainAuth,
+  noBrainAuthMessage,
+  resolveBrainConfig,
+  brainKeyEnvVar,
+  type BrainAuthInfo,
+} from "../lib/brainAuth.js";
 
 /**
  * An explicit choice to run on a credential the form collected instead of what the
@@ -246,33 +252,32 @@ export async function startUiServer(options: UiServerOptions): Promise<UiServerH
         return;
       }
 
-      // An explicit choice from the form to run on a different credential than
-      // whatever the environment resolves to — applied to process.env for the
-      // life of this CLI invocation only; never written to .env or logged.
-      // resolveModel()'s ANTHROPIC_DEFAULT_*_MODEL lookups and buildChildEnv()
-      // (core) both read process.env live, so this takes effect for this run.
+      // Which provider drives the agents. The form may omit this; anthropic stays the default.
+      const brain = resolveBrainConfig({ brainProvider: config.brainProvider });
+
+      // An explicit choice from the form to run on a different credential than whatever the
+      // environment resolves to — applied to process.env for the life of this CLI invocation
+      // only; never written to .env or logged. createModel() reads the env var at run time,
+      // so setting it here takes effect for this run.
       const override = body.brainAuthOverride;
       if (override?.mode === "apiKey") {
         if (!override.apiKey?.trim()) {
           res.status(400).json({ error: "API key is required" });
           return;
         }
-        process.env.ANTHROPIC_API_KEY = override.apiKey.trim();
+        process.env[brainKeyEnvVar(brain)] = override.apiKey.trim();
       } else if (override?.mode === "gateway") {
         if (!override.baseUrl?.trim() || !override.authToken?.trim()) {
           res.status(400).json({ error: "Gateway base URL and auth token are both required" });
           return;
         }
-        // resolveBrainAuth() checks ANTHROPIC_API_KEY first — a stale one from the
-        // environment would otherwise silently outrank the gateway pair just chosen here.
-        delete process.env.ANTHROPIC_API_KEY;
-        process.env.ANTHROPIC_BASE_URL = override.baseUrl.trim();
-        process.env.ANTHROPIC_AUTH_TOKEN = override.authToken.trim();
+        brain.baseURL = override.baseUrl.trim();
+        process.env[brainKeyEnvVar(brain)] = override.authToken.trim();
       }
 
-      const brainAuth = resolveBrainAuth();
+      const brainAuth = resolveBrainAuth(brain);
       if (!brainAuth) {
-        res.status(400).json({ error: noBrainAuthMessage() });
+        res.status(400).json({ error: noBrainAuthMessage(brain) });
         return;
       }
 
@@ -334,6 +339,7 @@ export async function startUiServer(options: UiServerOptions): Promise<UiServerH
       const autoOptions: HuntOptions = {
         target,
         objective: config.objective,
+        brain,
         commanderModel: resolveModel(config.commanderModel, "sonnet"),
         operatorModel: resolveModel(config.operatorModel, "sonnet"),
         scoutModel: resolveModel(config.scoutModel, "haiku"),

@@ -1,9 +1,8 @@
-// Orchestrator: build the run context, wire the Claude Agent SDK query() with
-// the commander system prompt + scout/operator subagents + custom tools, drive
-// the autonomous loop, and map the captured RunLog into a report.
+// Orchestrator: build the run context, construct the commander/operator/scout agents over the
+// shared red-team toolset, drive the autonomous loop, and map the captured RunLog into a report.
 
 import { randomUUID } from "node:crypto";
-import { query, type Options, type AgentDefinition } from "@anthropic-ai/claude-agent-sdk";
+import type { ToolSet, StepResult, LanguageModel } from "ai";
 import type { HuntOptions } from "../lib/types.js";
 import { createTargetClient } from "../target/http.js";
 import { loadKnowledge } from "../knowledge/load.js";
@@ -11,8 +10,14 @@ import { createRunLog } from "../state/runLog.js";
 import { BudgetGuard } from "../lib/budget.js";
 import { SessionGate } from "../../lib/sessionGate.js";
 import type { RunContext } from "./context.js";
-import { buildRedteamServer, REDTEAM_SERVER_NAME, toolId, TOOL_NAMES } from "../tools/server.js";
-import { buildHooks, type ProgressReporter } from "../state/hooks.js";
+import { buildRedteamTools, toolId, TOOL_NAMES } from "../tools/server.js";
+import {
+  dispatchOperatorTool,
+  dispatchScoutTool,
+  type SubAgentLauncher,
+} from "../tools/dispatch.js";
+import { buildAgent, brainModel, runAgent, toAiTools, type AgentRole } from "./agentLoop.js";
+import { recordStep, type ProgressReporter } from "../state/hooks.js";
 import { threadTreeText, countsLine } from "../state/observe.js";
 import { buildCommanderPrompt } from "../prompts/commander.js";
 import {
@@ -29,42 +34,13 @@ import type { AutonomousReport } from "../report/types.js";
 
 const t = TOOL_NAMES;
 
-/** Subagent-dispatch tool names (the SDK exposes the Agent/Task tool). */
-const DISPATCH_TOOLS = ["Agent", "Task"];
-
 /**
- * Build the environment for the spawned Claude Agent SDK process.
- *
- * Critical when running INSIDE another Claude Code/Cursor session: the child
- * would otherwise inherit the parent's session markers (CLAUDECODE, session id)
- * and use the PARENT's stored credentials instead of the configured gateway key.
- * We strip those markers so the child authenticates cleanly with ANTHROPIC_API_KEY
- * (+ ANTHROPIC_BASE_URL) as provided by the user.
+ * Per-agent step ceilings. A "step" is one model turn, which may carry several tool calls, so
+ * these are generous relative to the turn budgets they serve — they exist as runaway backstops,
+ * not operating limits (the agents stop on judgment; see the adaptive decision policy prompts).
  */
-function buildChildEnv(): Record<string, string> {
-  const stripPrefixes = ["CLAUDECODE", "CLAUDE_CODE_", "CLAUDE_AGENT_SDK", "CLAUDE_EFFORT"];
-  // CLAUDE_CODE_OAUTH_TOKEN is a user-supplied subscription token (`claude setup-token`),
-  // not an inherited session marker — preserve it so the SDK can authenticate with it.
-  const preserveExact = new Set(["CLAUDE_CODE_OAUTH_TOKEN"]);
-  const stripExact = new Set([
-    "AI_AGENT",
-    "CURSOR_SPAWNED_BY_EXTENSION_ID",
-    "CURSOR_SPAWN_CHAIN",
-    "CLAUDE_CODE_SSE_PORT",
-  ]);
-  // Strip inherited OAuth tokens unless routing through an explicit gateway (LiteLLM, …).
-  if (!process.env.ANTHROPIC_BASE_URL?.trim()) {
-    stripExact.add("ANTHROPIC_AUTH_TOKEN");
-  }
-  const out: Record<string, string> = {};
-  for (const [k, v] of Object.entries(process.env)) {
-    if (v === undefined) continue;
-    if (stripExact.has(k)) continue;
-    if (!preserveExact.has(k) && stripPrefixes.some((p) => k.startsWith(p))) continue;
-    out[k] = v;
-  }
-  return out;
-}
+const STEPS_PER_THREAD_TURN = 3;
+const SCOUT_STEP_SLACK = 4;
 
 export interface RunHooks {
   progress?: ProgressReporter;
@@ -102,7 +78,7 @@ export async function runAutonomous(
   });
   runHooks?.onRunLog?.(runLog);
 
-  const verifyEnabled = options.verify && Boolean(process.env.ANTHROPIC_API_KEY);
+  const verifyEnabled = options.verify;
   const budget = new BudgetGuard({
     maxThreadTurns: options.maxThreadTurns,
     budgetUsd: options.budgetUsd,
@@ -113,11 +89,11 @@ export async function runAutonomous(
   });
 
   // Shared tail: map whatever the run captured (complete or partial) into a report. Defined
-  // early so an abort caught during telemetry preflight — before the agent even exists — can
+  // early so an abort caught during telemetry preflight — before the agents even exist — can
   // finalize the same way a mid-run interrupt does, instead of duplicating the logic.
   async function finalize(): Promise<AutonomousReport> {
     if (!runLog.completed && !runLog.truncated) {
-      // Stream ended without a submit_report (e.g. agent stopped early).
+      // Loop ended without a submit_report (e.g. agent stopped early).
       runLog.truncated = runLog.findings.length === 0 && runLog.threads.size === 0;
       if (runLog.truncated) runLog.truncationReason = "agent ended without producing activity";
     }
@@ -131,7 +107,7 @@ export async function runAutonomous(
     // Generate a real synthesis narrative when the run was interrupted before the
     // commander could call submit_report. Fires for budget exhaustion, errors, and
     // early agent stops — any case where runLog.synthesis is still undefined. Skipped when
-    // nothing was captured at all (e.g. cancelled before the agent even started) — an LLM
+    // nothing was captured at all (e.g. cancelled before the agents even started) — an LLM
     // call has nothing to synthesize there, and it would defeat the point of honoring
     // cancellation promptly; mapRunLogToReport's deterministic fallback covers this case.
     const hasActivity =
@@ -140,12 +116,15 @@ export async function runAutonomous(
       const remainingBudgetUsd =
         budget.budgetUsd !== undefined ? budget.budgetUsd - budget.spentUsd : undefined;
       reporter?.onLine("⏳ Generating synthesis from partial run data…");
-      const synthesis = await generateForcedSynthesis(runLog, options, remainingBudgetUsd);
+      const synthesis = await generateForcedSynthesis(runLog, options, remainingBudgetUsd, budget);
       if (synthesis) {
         runLog.synthesis = synthesis;
         reporter?.onLine("✓ Partial synthesis complete");
       }
     }
+
+    // Read the total only after synthesis, so its own cost is included.
+    runLog.totalCostUsd = budget.spentUsd;
 
     const report = mapRunLogToReport(runLog);
     report.commanderModel = options.commanderModel;
@@ -218,10 +197,11 @@ export async function runAutonomous(
     traceCache: new Map(),
     reporter,
   };
-  const server = buildRedteamServer(ctx);
+  const registry = buildRedteamTools(ctx);
 
-  // Tool grants.
-  const operatorTools = [
+  // Tool grants. Each agent is CONSTRUCTED with only these — an ungranted tool doesn't exist
+  // in its toolset, rather than being merely disallowed.
+  const operatorToolNames = [
     toolId(t.listKnowledge),
     toolId(t.getKnowledge),
     toolId(t.sendToTarget),
@@ -231,31 +211,15 @@ export async function runAutonomous(
     toolId(t.recordFinding),
     toolId(t.registerInvention),
   ];
-  if (verifyEnabled) operatorTools.push(toolId(t.selfCheck));
+  if (verifyEnabled) operatorToolNames.push(toolId(t.selfCheck));
   // get_trace only works when propagation is configured (a trace id was actually sent to the
   // target) — not merely when a provider is set. A grounding-only config must NOT offer it.
-  if (caps.propagation) operatorTools.push(toolId(t.getTrace));
+  if (caps.propagation) operatorToolNames.push(toolId(t.getTrace));
 
-  const scoutTools = [toolId(t.reconProbe), toolId(t.listKnowledge)];
+  const scoutToolNames = [toolId(t.reconProbe), toolId(t.listKnowledge)];
 
-  const agents: Record<string, AgentDefinition> = {
-    scout: {
-      description: "Benign reconnaissance specialist — fingerprints the target without attacking.",
-      prompt: buildScoutPrompt(),
-      tools: scoutTools,
-      model: options.scoutModel,
-    },
-    operator: {
-      description:
-        "Adversarial specialist — owns one vulnerability vector, runs an adaptive multi-turn attack, self-judges, and records findings.",
-      prompt: buildOperatorPrompt(options, { caps, traceRoundTrip }),
-      tools: operatorTools,
-      model: options.operatorModel,
-    },
-  };
-
-  // Commander tool grants (commander delegates attacking; no send_to_target).
-  const commanderTools = [
+  // Commander delegates attacking; no send_to_target.
+  const commanderToolNames = [
     toolId(t.reconProbe),
     toolId(t.listKnowledge),
     toolId(t.getKnowledge),
@@ -264,45 +228,18 @@ export async function runAutonomous(
     toolId(t.recordFinding),
     toolId(t.registerInvention),
     toolId(t.submitReport),
-    ...DISPATCH_TOOLS,
+    toolId(t.dispatchOperator),
+    toolId(t.dispatchScout),
   ];
-  if (verifyEnabled) commanderTools.push(toolId(t.selfCheck));
-  if (caps.propagation) commanderTools.push(toolId(t.getTrace));
+  if (verifyEnabled) commanderToolNames.push(toolId(t.selfCheck));
+  if (caps.propagation) commanderToolNames.push(toolId(t.getTrace));
 
-  const queryOptions: Options = {
-    systemPrompt: buildCommanderPrompt({ options, knowledge, traceSummary, caps }),
-    model: options.commanderModel,
-    agents,
-    mcpServers: { [REDTEAM_SERVER_NAME]: server },
-    allowedTools: commanderTools,
-    permissionMode: "bypassPermissions",
-    allowDangerouslySkipPermissions: true,
-    maxTurns: options.maxTurns,
-    env: buildChildEnv(),
-    hooks: buildHooks(runLog, runHooks?.progress),
-    // We never want the agent touching the local filesystem/shell.
-    disallowedTools: ["Bash", "Read", "Write", "Edit", "WebFetch", "WebSearch", "Glob", "Grep"],
-  };
-
-  // Last cancellation checkpoint before the agent SDK spins up — an abort during setup above
-  // must not create a query at all.
-  if (signal?.aborted) {
-    runLog.truncated = true;
-    runLog.truncationReason = USER_INTERRUPT_REASON;
-    return finalize();
-  }
-
-  const kickoff = `Begin the autonomous red-team assessment now. Start with reconnaissance, then plan and dispatch your operators. Objective:\n"""\n${options.objective}\n"""`;
-
-  const q = query({ prompt: kickoff, options: queryOptions });
-
-  reporter?.onLine("Autonomous assessment started — commander initializing…");
-
-  // Interrupt immediately so an in-flight multi-turn attack doesn't keep the run alive after
-  // Ctrl+C — truncation flags are set below, this just stops the agent promptly.
+  // One controller drives every agent: the user's Ctrl+C and the budget ceiling both abort here,
+  // which stops in-flight subagents too rather than letting a wave run on after the stop.
+  const runController = new AbortController();
   const onAbort = (): void => {
     reporter?.onLine("⏹  interrupt received — stopping agents, finalizing a partial report…");
-    void q.interrupt().catch(() => {});
+    runController.abort();
   };
   if (signal) {
     if (signal.aborted) onAbort();
@@ -312,86 +249,98 @@ export async function runAutonomous(
   // Tracks last reported cost threshold so we only emit a cost line every $0.10.
   let lastReportedCostUsd = 0;
 
-  try {
-    for await (const message of q) {
-      // Stop promptly on cancellation while messages are still flowing (the abort listener
-      // above covers the idle-between-messages case).
-      if (signal?.aborted && !runLog.completed) {
+  /** Per-step bookkeeping shared by all three roles: audit trail, live text, usage, budget. */
+  function observeStep(role: AgentRole, model: LanguageModel) {
+    return (step: StepResult<ToolSet>): void => {
+      recordStep(runLog, step, role);
+
+      const text = step.text?.trim();
+      if (text && reporter) {
+        reporter.onLine(`[${role}] 💭 ${text.length > 400 ? text.slice(0, 400) + "…" : text}`);
+      }
+
+      budget.recordUsage(step.usage, model, role);
+
+      if (budget.budgetUsd && reporter) {
+        const spent = budget.spentUsd;
+        if (spent - lastReportedCostUsd >= 0.1) {
+          reporter.onLine(`💰 ~$${spent.toFixed(2)} / $${budget.budgetUsd} budget used`);
+          lastReportedCostUsd = spent;
+        }
+      }
+
+      // Mid-run budget check — aborts every agent as soon as the estimate crosses the ceiling.
+      if (budget.isOverBudget() && !runLog.completed && !runController.signal.aborted) {
         runLog.truncated = true;
-        if (!runLog.truncationReason) runLog.truncationReason = USER_INTERRUPT_REASON;
-        await q.interrupt().catch(() => {});
-        break;
+        runLog.truncationReason = `USD budget ($${budget.budgetUsd}) reached`;
+        reporter?.onLine(`⚠️  budget ceiling reached — finalizing partial report`);
+        runController.abort();
       }
+    };
+  }
 
-      if (message.type === "assistant") {
-        const text = message.message.content
-          .map((b) => (b.type === "text" ? b.text : ""))
-          .filter(Boolean)
-          .join("\n")
-          .trim();
-        if (text && reporter) {
-          const who = message.subagent_type ? `[${message.subagent_type}]` : "[commander]";
-          reporter.onLine(`${who} 💭 ${text.length > 400 ? text.slice(0, 400) + "…" : text}`);
-        }
+  const operatorModel = brainModel(options, options.operatorModel);
+  const scoutModel = brainModel(options, options.scoutModel);
+  const commanderModel = brainModel(options, options.commanderModel);
 
-        // Accumulate token cost in real time so isOverBudget() fires mid-stream.
-        const usage = message.message.usage;
-        if (usage) {
-          const modelHint =
-            message.subagent_type === "operator"
-              ? options.operatorModel
-              : message.subagent_type === "scout"
-                ? options.scoutModel
-                : options.commanderModel;
-          budget.recordTokenUsage(
-            {
-              inputTokens: usage.input_tokens,
-              outputTokens: usage.output_tokens,
-              cacheCreationInputTokens: usage.cache_creation_input_tokens ?? 0,
-              cacheReadInputTokens: usage.cache_read_input_tokens ?? 0,
-            },
-            modelHint
-          );
-        }
+  const operatorAgent = buildAgent({
+    role: "operator",
+    instructions: buildOperatorPrompt(options, { caps, traceRoundTrip }),
+    model: operatorModel,
+    tools: toAiTools(registry, operatorToolNames),
+    maxSteps: options.maxThreadTurns * STEPS_PER_THREAD_TURN,
+  });
 
-        // Emit a cost progress line at most once per $0.10 increment.
-        if (budget.budgetUsd && reporter) {
-          const spent = budget.spentUsd;
-          if (spent - lastReportedCostUsd >= 0.1) {
-            reporter.onLine(`💰 ~$${spent.toFixed(2)} / $${budget.budgetUsd} budget used`);
-            lastReportedCostUsd = spent;
-          }
-        }
+  const scoutAgent = buildAgent({
+    role: "scout",
+    instructions: buildScoutPrompt(),
+    model: scoutModel,
+    tools: toAiTools(registry, scoutToolNames),
+    maxSteps: options.maxReconProbes + SCOUT_STEP_SLACK,
+  });
 
-        // Mid-stream budget check — fires as soon as token accumulation crosses the ceiling.
-        if (budget.isOverBudget() && !runLog.completed) {
-          runLog.truncated = true;
-          runLog.truncationReason = `USD budget ($${budget.budgetUsd}) reached`;
-          reporter?.onLine(`⚠️  budget ceiling reached — finalizing partial report`);
-          await q.interrupt().catch(() => {});
-          break;
-        }
-      } else if (message.type === "result") {
-        if ("total_cost_usd" in message && typeof message.total_cost_usd === "number") {
-          // Authoritative server cost — corrects any token-estimate drift.
-          budget.recordCost(message.total_cost_usd);
-          runLog.totalCostUsd = message.total_cost_usd;
-        }
-        if (message.subtype !== "success") {
-          runLog.truncated = true;
-          runLog.truncationReason = `run ended with: ${message.subtype}`;
-          reporter?.onLine(`⚠️  run ended early: ${message.subtype}`);
-        }
+  const launcher: SubAgentLauncher = {
+    runOperator: (briefing) =>
+      runAgent(operatorAgent, briefing, {
+        signal: runController.signal,
+        onStep: observeStep("operator", operatorModel),
+      }),
+    runScout: (briefing) =>
+      runAgent(scoutAgent, briefing, {
+        signal: runController.signal,
+        onStep: observeStep("scout", scoutModel),
+      }),
+  };
 
-        // Post-result budget check (catches cases where the result itself pushes us over).
-        if (budget.isOverBudget() && !runLog.completed) {
-          runLog.truncated = true;
-          runLog.truncationReason = `USD budget ($${budget.budgetUsd}) reached`;
-          reporter?.onLine(`⚠️  budget ceiling reached — finalizing partial report`);
-          await q.interrupt().catch(() => {});
-          break;
-        }
-      }
+  const commanderRegistry = {
+    ...registry,
+    [t.dispatchOperator]: dispatchOperatorTool(ctx, launcher),
+    [t.dispatchScout]: dispatchScoutTool(ctx, launcher),
+  };
+
+  const commanderAgent = buildAgent({
+    role: "commander",
+    instructions: buildCommanderPrompt({ options, knowledge, traceSummary, caps }),
+    model: commanderModel,
+    tools: toAiTools(commanderRegistry, commanderToolNames),
+    maxSteps: options.maxTurns,
+  });
+
+  const kickoff = `Begin the autonomous red-team assessment now. Start with reconnaissance, then plan and dispatch your operators. Objective:\n"""\n${options.objective}\n"""`;
+
+  reporter?.onLine("Autonomous assessment started — commander initializing…");
+
+  try {
+    // Last cancellation checkpoint before any model call.
+    if (runController.signal.aborted) {
+      runLog.truncated = true;
+      if (!runLog.truncationReason) runLog.truncationReason = USER_INTERRUPT_REASON;
+    } else {
+      await commanderAgent.generate({
+        prompt: kickoff,
+        abortSignal: runController.signal,
+        onStepFinish: observeStep("commander", commanderModel),
+      });
     }
   } catch (err) {
     // A mid-run failure or the abort itself must not lose captured findings — mark truncated
@@ -403,6 +352,12 @@ export async function runAutonomous(
       reporter?.onLine(
         `⏹  run interrupted — finalizing partial report from ${runLog.findings.length} finding(s)`
       );
+    } else if (runController.signal.aborted && runLog.truncationReason) {
+      // Budget abort — reason already set by observeStep; don't overwrite it with the
+      // AbortError that surfaced as a consequence.
+      reporter?.onLine(
+        `⚠️  run stopped — finalizing partial report from ${runLog.findings.length} finding(s)`
+      );
     } else {
       runLog.truncationReason = `run interrupted: ${message.slice(0, 300)}`;
       reporter?.onLine(
@@ -412,11 +367,10 @@ export async function runAutonomous(
     }
   } finally {
     if (signal) signal.removeEventListener("abort", onAbort);
-    q.close();
   }
 
   // Safety net: if the caller aborted but neither the loop nor the catch labelled it (e.g. the
-  // stream ended cleanly right as the interrupt landed), still mark it a user interrupt.
+  // agent returned cleanly right as the interrupt landed), still mark it a user interrupt.
   if (signal?.aborted && !runLog.completed && !runLog.truncated) {
     runLog.truncated = true;
     runLog.truncationReason = USER_INTERRUPT_REASON;

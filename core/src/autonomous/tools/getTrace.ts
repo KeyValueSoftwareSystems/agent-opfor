@@ -4,7 +4,7 @@
 // unauthorized record fetched but rendered as a clean answer. Only useful when the run was
 // started with trace-aware testing (telemetry) configured.
 
-import { tool } from "@anthropic-ai/claude-agent-sdk";
+import { tool } from "./defineTool.js";
 import { z } from "zod";
 import type { RunContext } from "../orchestrator/context.js";
 import { jsonResult, textResult } from "./util.js";

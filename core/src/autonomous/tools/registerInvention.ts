@@ -1,7 +1,7 @@
 // register_invention — log a novel persona/strategy the agent created this run.
 // Optionally persisted back to the seed library so it compounds over time.
 
-import { tool } from "@anthropic-ai/claude-agent-sdk";
+import { tool } from "./defineTool.js";
 import { z } from "zod";
 import { snip, type RunContext } from "../orchestrator/context.js";
 import { persistInvention } from "../knowledge/load.js";
