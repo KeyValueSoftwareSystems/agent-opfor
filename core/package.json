@@ -101,7 +101,7 @@
     "@ai-sdk/google": "^3.0.98",
     "@ai-sdk/openai": "^3.0.86",
     "@ai-sdk/openai-compatible": "^2.0.62",
-    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@modelcontextprotocol/sdk": "^1.32.1",
     "ai": "^6.0.0",
     "yaml": "^2.8.3",
     "zod": "^4.0.0"
