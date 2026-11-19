@@ -97,5 +97,8 @@ jobs:
       - name: SDK tests
         run: npm test --workspace=@keyvaluesystems/agent-opfor-sdk
 
+      - name: MCP runner tests
+        run: npm test --workspace=@keyvaluesystems/agent-opfor-mcp
+
       - name: SDK e2e tests
         run: npm run test:e2e:sdk

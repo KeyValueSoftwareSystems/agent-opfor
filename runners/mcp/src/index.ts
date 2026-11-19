@@ -1,6 +1,8 @@
 // Load .env from the project the MCP server is running against.
+// `quiet` is required: dotenv v17 otherwise prints a banner to stdout, which is the
+// JSON-RPC channel for the stdio transport and breaks the client's handshake.
 import { config as loadDotenv } from "dotenv";
-loadDotenv();
+loadDotenv({ quiet: true });
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
