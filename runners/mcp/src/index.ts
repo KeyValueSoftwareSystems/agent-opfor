@@ -1,6 +1,18 @@
 // Load .env from the project the MCP server is running against.
+// stdout is the JSON-RPC channel for the stdio transport, but dotenv v17 prints a banner
+// there with console.log. `quiet: true` is not enough: DOTENV_CONFIG_DEBUG / DOTENV_CONFIG_QUIET
+// set inside the .env file itself override it. So dotenv's console output is sent to stderr
+// for the duration of the call.
 import { config as loadDotenv } from "dotenv";
-loadDotenv();
+{
+  const consoleLog = console.log;
+  console.log = console.error;
+  try {
+    loadDotenv({ quiet: true });
+  } finally {
+    console.log = consoleLog;
+  }
+}
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
